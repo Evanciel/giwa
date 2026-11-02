@@ -492,3 +492,95 @@ fn design_tokens_flow_to_css() {
     let (status, _) = http(&bind, "GET", "/assets/site.css", &[], "");
     assert_eq!(status, 200);
 }
+
+/// U11: 사이트맵·RSS·robots·메타가 공개 글과 함께 움직이고, 숨기면 동시에 빠진다.
+#[test]
+fn seo_outputs_follow_public_state() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("site");
+    maru(
+        &data,
+        &[
+            "init",
+            "--yes",
+            "--name",
+            "개발 노트",
+            "--site-url",
+            "https://blog.example.test",
+        ],
+    );
+    maru(
+        &data,
+        &[
+            "site",
+            "set",
+            "--description",
+            "러스트와 웹",
+            "--naver-verification",
+            "abc123",
+        ],
+    );
+    let post = maru(
+        &data,
+        &[
+            "post",
+            "new",
+            "--title",
+            "CDATA 시험",
+            "--slug",
+            "cdata",
+            "--body",
+            "본문 ]]> <script>alert(1)</script> **굵게**",
+            "--publish",
+        ],
+    );
+    let id = post["id"].as_str().unwrap().to_owned();
+    let url = "https://blog.example.test/b/blog/cdata";
+    assert_eq!(
+        post["url"], url,
+        "CLI 출력 URL 과 사이트맵 URL 이 같아야 한다"
+    );
+
+    let (_server, bind) = start_server(&data);
+    let (status, sitemap) = http(&bind, "GET", "/sitemap.xml", &[], "");
+    assert_eq!(status, 200);
+    assert!(sitemap.starts_with("<?xml"));
+    assert!(sitemap.contains(&format!("<loc>{url}</loc>")), "{sitemap}");
+    assert!(sitemap.contains("<loc>https://blog.example.test/</loc>"));
+    assert!(!sitemap.contains("/p/about"), "초안 페이지는 빠진다");
+
+    let (status, rss) = http(&bind, "GET", "/rss.xml", &[], "");
+    assert_eq!(status, 200);
+    assert!(rss.contains("<title>개발 노트</title>"));
+    assert!(rss.contains(&format!("<link>{url}</link>")));
+    assert!(rss.contains("<pubDate>"));
+    assert!(!rss.contains("<script>"), "본문은 정화된 HTML 만");
+    // 본문의 `]]>` 가 CDATA 를 일찍 닫지 않는다 (렌더러가 `&gt;` 로 바꾸고, 남으면 cdata() 가 쪼갠다).
+    assert!(!rss.contains("]]> &lt;script"), "{rss}");
+    assert_eq!(rss.matches("<description><![CDATA[").count(), 1);
+
+    let (status, robots) = http(&bind, "GET", "/robots.txt", &[], "");
+    assert_eq!(status, 200);
+    assert!(robots.contains("Sitemap: https://blog.example.test/sitemap.xml"));
+
+    let (_, page) = http(&bind, "GET", "/b/blog/cdata", &[], "");
+    assert!(
+        page.contains("<title>CDATA 시험 · 개발 노트</title>"),
+        "{page}"
+    );
+    assert!(page.contains(&format!(r#"<link rel="canonical" href="{url}">"#)));
+    assert!(page.contains(r#"<meta property="og:type" content="article">"#));
+    assert!(page.contains(r#"<meta name="naver-site-verification" content="abc123">"#));
+    let (status, missing) = http(&bind, "GET", "/nope", &[], "");
+    assert_eq!(status, 404);
+    assert!(missing.contains(r#"<meta name="robots" content="noindex">"#));
+
+    // 숨기면 화면·사이트맵·RSS 에서 함께 빠진다 (서버를 다시 띄우지 않아도).
+    maru(&data, &["post", "hide", &id]);
+    let (status, _) = http(&bind, "GET", "/b/blog/cdata", &[], "");
+    assert_eq!(status, 404);
+    let (_, sitemap) = http(&bind, "GET", "/sitemap.xml", &[], "");
+    assert!(!sitemap.contains(url));
+    let (_, rss) = http(&bind, "GET", "/rss.xml", &[], "");
+    assert!(!rss.contains(url));
+}

@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "maru-demo",
+      "runtimeExecutable": "H:/maru-build/target/debug/maru.exe",
+      "runtimeArgs": ["--data", "F:/claude-temp/rust-cms/demo", "serve", "--bind", "127.0.0.1:3139"],
+      "port": 3139
+    }
+  ]
+}

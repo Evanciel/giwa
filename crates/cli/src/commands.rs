@@ -736,6 +736,8 @@ async fn site(g: &Global, cmd: SiteCmd) -> Out {
                 lang: args.lang,
                 tz_offset_min: args.tz_offset,
                 posts_per_page: args.posts_per_page,
+                naver_verification: args.naver_verification,
+                google_verification: args.google_verification,
             };
             settings::update(&ctx, &actor, patch).await
         }

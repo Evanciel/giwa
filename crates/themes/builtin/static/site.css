@@ -1,7 +1,7 @@
 /* Maru 내장 테마. 색·글꼴·크기·여백은 모두 tokens.css 의 변수에서 온다. */
 
-/* tokens.css 를 못 읽었을 때의 최소값 */
-:root {
+/* tokens.css 를 못 읽었을 때의 최소값. 명시도 0 이라 tokens.css 의 :root 가 항상 이긴다. */
+:where(:root) {
   --bg: #fbfbfa; --fg: #1d1f23; --primary: #2f5d50; --muted: #5c626d;
   --surface: #ffffff; --border: #e4e5e7;
   --font-body: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;

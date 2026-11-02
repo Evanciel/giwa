@@ -55,6 +55,7 @@ pub async fn page(state: &AppState, err: &Error) -> Response {
         .render(
             "error.html",
             &json!({
+                "meta": { "title": format!("{} · {}", code.as_u16(), site["name"].as_str().unwrap_or("Maru")), "noindex": true },
                 "site": site,
                 "status": code.as_u16(),
                 "message": message,

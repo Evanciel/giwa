@@ -22,6 +22,9 @@ pub fn routes() -> Router<AppState> {
         .route("/b/{board}", get(board))
         .route("/b/{board}/{post}", get(post))
         .route("/p/{page}", get(page))
+        .route("/sitemap.xml", get(crate::feeds::sitemap))
+        .route("/rss.xml", get(crate::feeds::rss))
+        .route("/robots.txt", get(crate::feeds::robots))
         .route("/assets/tokens.css", get(tokens_css))
         .route("/assets/{*path}", get(asset))
         .fallback(not_found)
@@ -56,6 +59,8 @@ async fn site_value(state: &AppState, s: &SiteSettings) -> Value {
         "url": state.ctx.site_url,
         "home_url": urls::path(&Target::Home),
         "rss_url": urls::path(&Target::Rss),
+        "naver_verification": s.naver_verification,
+        "google_verification": s.google_verification,
         "menus": {
             "header": menu_value(state, "header").await,
             "footer": menu_value(state, "footer").await,
@@ -132,6 +137,7 @@ async fn home_inner(state: &AppState, q: PageQuery) -> Result<Value> {
         })
         .collect::<Vec<_>>();
     Ok(json!({
+        "meta": json!({ "title": site.settings.name, "description": site.settings.description }),
         "site": site.json,
         "canonical": urls::absolute(&state.ctx.site_url, &Target::Home),
         "posts": items,
@@ -161,6 +167,10 @@ async fn board_inner(state: &AppState, slug: &str, q: PageQuery) -> Result<Value
         .map(|p| post_summary(&board.slug, p, &site.settings))
         .collect::<Vec<_>>();
     Ok(json!({
+        "meta": json!({
+            "title": format!("{} · {}", board.name, site.settings.name),
+            "description": site.settings.description,
+        }),
         "site": site.json,
         "canonical": urls::absolute(&state.ctx.site_url, &target),
         "board": board_json(&board),
@@ -188,6 +198,13 @@ async fn post_inner(state: &AppState, board_slug: &str, post_slug: &str) -> Resu
     let mut view = post_summary(&board.slug, &post, &site.settings);
     view["body_html"] = Value::String(markdown::render(&post.body_md).into_string());
     Ok(json!({
+        "meta": json!({
+            "title": format!("{} · {}", post.title, site.settings.name),
+            "description": view["summary"],
+            "type": "article",
+            "published_time": post.published_at,
+            "modified_time": post.updated_at,
+        }),
         "site": site.json,
         "canonical": urls::absolute(&state.ctx.site_url, &target),
         "board": board_json(&board),
@@ -206,6 +223,10 @@ async fn page_inner(state: &AppState, slug: &str) -> Result<Value> {
     let p = pages::public_page(&state.ctx, &actor, slug).await?;
     let target = Target::Page { page: &p.slug };
     Ok(json!({
+        "meta": json!({
+            "title": format!("{} · {}", p.title, site.settings.name),
+            "description": markdown::plain_text(&p.body_md, SUMMARY_CHARS),
+        }),
         "site": site.json,
         "canonical": urls::absolute(&state.ctx.site_url, &target),
         "page": page_json(&p),
@@ -230,7 +251,7 @@ async fn asset(State(state): State<AppState>, Path(path): Path<String>) -> Respo
         Some((bytes, mime)) => (
             [
                 (header::CONTENT_TYPE, mime),
-                (header::CACHE_CONTROL, "public, max-age=3600"),
+                (header::CACHE_CONTROL, "no-cache"),
             ],
             bytes.into_owned(),
         )

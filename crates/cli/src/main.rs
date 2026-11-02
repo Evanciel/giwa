@@ -338,6 +338,12 @@ pub struct SiteSetArgs {
     pub tz_offset: Option<i32>,
     #[arg(long)]
     pub posts_per_page: Option<u32>,
+    /// 네이버 서치어드바이저 소유 확인 meta 의 content 값
+    #[arg(long)]
+    pub naver_verification: Option<String>,
+    /// 구글 서치 콘솔 소유 확인 meta 의 content 값
+    #[arg(long)]
+    pub google_verification: Option<String>,
 }
 
 #[derive(Debug, Subcommand)]

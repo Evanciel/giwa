@@ -321,6 +321,12 @@ pub struct SiteSettings {
     /// UTC 기준 분 (+540 = 한국)
     pub tz_offset_min: i32,
     pub posts_per_page: u32,
+    /// 네이버 서치어드바이저 소유 확인 값 (`naver-site-verification` meta)
+    #[serde(default)]
+    pub naver_verification: String,
+    /// 구글 서치 콘솔 소유 확인 값
+    #[serde(default)]
+    pub google_verification: String,
 }
 
 impl Default for SiteSettings {
@@ -331,6 +337,8 @@ impl Default for SiteSettings {
             lang: "ko".into(),
             tz_offset_min: 540,
             posts_per_page: 10,
+            naver_verification: String::new(),
+            google_verification: String::new(),
         }
     }
 }

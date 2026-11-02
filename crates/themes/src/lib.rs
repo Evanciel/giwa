@@ -31,6 +31,7 @@ impl Theme {
         let mut env = Environment::new();
         env.set_undefined_behavior(UndefinedBehavior::Chainable);
         env.set_formatter(html_formatter);
+        env.add_function("url_for", url_for);
         let dir = user_dir.clone();
         env.set_loader(move |name| {
             if let Some(text) = dir.as_deref().and_then(|d| read_user(d, "templates", name)) {
@@ -68,6 +69,35 @@ fn read_user(dir: &Path, sub: &str, name: &str) -> Option<String> {
 }
 
 /// `..`, 절대 경로, 드라이브 접두어, 역슬래시를 거부한다.
+/// 템플릿용 URL 빌더 (ADR-0017). `url_for("post", board, slug)`, `url_for("page", slug)` 등.
+fn url_for(
+    kind: &str,
+    a: Option<String>,
+    b: Option<String>,
+) -> std::result::Result<String, minijinja::Error> {
+    use maru_core::urls::{Target, path};
+    let a = a.unwrap_or_default();
+    let b = b.unwrap_or_default();
+    let target = match kind {
+        "home" => Target::Home,
+        "board" => Target::Board { board: &a },
+        "post" => Target::Post {
+            board: &a,
+            post: &b,
+        },
+        "page" => Target::Page { page: &a },
+        "sitemap" => Target::Sitemap,
+        "rss" => Target::Rss,
+        _ => {
+            return Err(minijinja::Error::new(
+                minijinja::ErrorKind::InvalidOperation,
+                format!("url_for: 알 수 없는 대상 `{kind}`"),
+            ));
+        }
+    };
+    Ok(path(&target))
+}
+
 /// 사용자 테마의 `theme.toml` 이 있으면 `template_api` 가 같아야 쓴다.
 /// 없으면 템플릿 몇 개만 덮어쓴 테마로 보고 받아들인다.
 fn compatible(dir: &Path) -> bool {
@@ -258,6 +288,40 @@ mod tests {
                 .contains("404")
         );
         let _ = std::fs::remove_dir_all(tmp);
+    }
+
+    /// site.css 는 tokens.css 뒤에 실린다. 토큰 변수를 `:root` 로 다시 정의하면 토큰(다크 모드 포함)을
+    /// 모두 덮어쓰므로, 대체값은 명시도 0 인 `:where(:root)` 에만 둔다.
+    #[test]
+    fn site_css_does_not_override_tokens() {
+        let css = std::str::from_utf8(&Builtin::get("static/site.css").unwrap().data)
+            .unwrap()
+            .to_owned();
+        for line in css.lines() {
+            assert!(!line.trim_start().starts_with(":root"), "{line}");
+        }
+        assert!(css.contains(":where(:root)"));
+    }
+
+    #[test]
+    fn url_for_matches_core_builder() {
+        let mut env = Environment::new();
+        env.add_function("url_for", url_for);
+        let out = env
+            .render_str(
+                "{{ url_for('post', '블로그', '첫 글') }}|{{ url_for('page', 'about') }}|{{ url_for('home') }}",
+                (),
+            )
+            .unwrap();
+        let expected = format!(
+            "{}|/p/about|/",
+            maru_core::urls::path(&maru_core::urls::Target::Post {
+                board: "블로그",
+                post: "첫 글"
+            })
+        );
+        assert_eq!(out, expected);
+        assert!(env.render_str("{{ url_for('nope') }}", ()).is_err());
     }
 
     #[test]

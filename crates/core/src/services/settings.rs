@@ -25,6 +25,10 @@ pub struct SettingsPatch {
     pub tz_offset_min: Option<i32>,
     #[serde(default)]
     pub posts_per_page: Option<u32>,
+    #[serde(default)]
+    pub naver_verification: Option<String>,
+    #[serde(default)]
+    pub google_verification: Option<String>,
 }
 
 /// 저장된 값 위에 기본값을 채운다. 모르는 키나 잘못된 값은 기본값으로 둔다.
@@ -84,6 +88,24 @@ pub async fn update(ctx: &Ctx, actor: &Actor, patch: SettingsPatch) -> Result<Si
     }
     if let Some(n) = patch.posts_per_page {
         changes.push(("posts_per_page", json!(n.clamp(1, 100))));
+    }
+    for (key, v) in [
+        ("naver_verification", &patch.naver_verification),
+        ("google_verification", &patch.google_verification),
+    ] {
+        if let Some(v) = v {
+            let v = v.trim();
+            let ok = v.len() <= 100
+                && v.chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
+            if !ok {
+                return Err(Error::new(Code::Validation)
+                    .with_message("error.setting_verification")
+                    .arg("field", key)
+                    .arg("value", v.chars().take(40).collect::<String>()));
+            }
+            changes.push((key, json!(v)));
+        }
     }
 
     let mut tx = Tx::begin(ctx).await?;

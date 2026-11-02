@@ -55,6 +55,9 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "error.menu_url" => "메뉴 주소는 https://, http:// 또는 / 로 시작해야 합니다: {value}",
         "error.menu_item" => "메뉴 항목 형식이 올바르지 않습니다: {value}",
         "error.token_value" => "디자인 토큰 `{field}` 값이 올바르지 않습니다: {value}",
+        "error.setting_verification" => {
+            "`{field}` 값은 영문·숫자·`-`·`_` 100자 이내여야 합니다: {value}"
+        }
         "error.token_contrast" => "색 대비가 부족합니다: {pair} = {ratio} (최소 {min})",
         "error.preset_invalid" => "프리셋 `{id}` 을 읽을 수 없습니다: {detail}",
         "error.setting_lang" => "언어 태그가 올바르지 않습니다: {value}",

@@ -4,6 +4,7 @@
 
 mod api;
 mod error;
+mod feeds;
 mod public;
 
 use std::future::Future;

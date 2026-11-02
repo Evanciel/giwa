@@ -221,3 +221,10 @@
 - **측정:** 연결 풀 둘(서버와 CLI 를 흉내)이 동시에 글 40편씩 쓰기 → 80편, 감사 80건, `SQLITE_BUSY` 0건(기준 3 통과, `busy_timeout` 10초). 감사 트리거를 실패시키면 글·리비전 0건으로 롤백. 감사 없는 커밋은 `INTERNAL`로 거부.
 - **대안:** `Ctx<S: Store>` 제네릭. 필요 없어졌다.
 - **결과:** 에이전트 Actor 의 「본인 글」은 `author_id IS NULL AND actor_type = 'agent'` 로 판단한다. 토큰마다 구분하지 않으므로, 토큰별 소유가 필요해지면 `posts`에 작성 토큰 컬럼을 추가하는 마이그레이션으로 바꾼다.
+
+## ADR-0031 SEO 출력은 표준 규격 기준, 네이버 요건은 공개 후 도구로 검증
+
+- **배경:** PHASE1_PLAN §M3는 U11 착수 전에 네이버 서치어드바이저 공식 문서를 확인하라고 한다. 2026-11-02 시점에 `searchadvisor.naver.com` 은 작업 환경(WebFetch, 내장 브라우저)에서 접근이 막혀 있었고, 검색 결과는 개인 블로그 글뿐이었다.
+- **결정:** 사이트맵은 sitemaps.org 0.9(파일당 50,000 URL), 피드는 RSS 2.0(`atom:link rel=self`, `guid isPermaLink`, RFC 2822 `pubDate`, 본문 전체를 정화된 HTML CDATA로), 메타는 Open Graph(`og:type`, `og:title`, `og:description`, `og:url`, `og:site_name`, `og:locale`, `article:*_time`)와 canonical로 맞춘다. 소유 확인 meta(`naver-site-verification`, `google-site-verification`)는 사이트 설정으로 넣는다. robots.txt는 `/api/`만 막고 사이트맵 절대 URL을 적는다.
+- **대안:** 블로그 글의 요건 요약을 그대로 따르기. 출처가 공식이 아니라 채택하지 않는다.
+- **결과:** `maru expose` 로 공개한 뒤 서치어드바이저의 「사이트 간단 체크」와 RSS·사이트맵 제출 결과로 실제 수집 여부를 확인하고, 어긋나는 항목은 이 ADR을 갱신한다. 그 전까지 이 항목은 완료 검증표에서 「못 쟀다」로 둔다.

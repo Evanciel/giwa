@@ -1,7 +1,7 @@
 //! ID 와 시각. 시각은 UTC 고정 자릿수 문자열이라 문자열 정렬이 시간 정렬과 같다.
 
 use time::format_description::BorrowedFormatItem;
-use time::format_description::well_known::Rfc3339;
+use time::format_description::well_known::{Rfc2822, Rfc3339};
 use time::macros::format_description;
 use time::{OffsetDateTime, UtcOffset};
 
@@ -37,6 +37,13 @@ pub fn display_date(s: &str, offset_minutes: i32) -> String {
     let offset = UtcOffset::from_whole_seconds(offset_minutes * 60).unwrap_or(UtcOffset::UTC);
     let t = t.to_offset(offset);
     format!("{}. {}. {}.", t.year(), u8::from(t.month()), t.day())
+}
+
+/// RSS `pubDate` 용 RFC 2822 (UTC).
+pub fn rfc2822(s: &str) -> String {
+    parse(s)
+        .and_then(|t| t.to_offset(UtcOffset::UTC).format(&Rfc2822).ok())
+        .unwrap_or_default()
 }
 
 #[cfg(test)]
