@@ -19,7 +19,9 @@ use axum::extract::{ConnectInfo, Request, State};
 use axum::http::{HeaderValue, Method, StatusCode, header};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
-use maru_core::services::auth;
+use maru_core::Actor;
+use maru_core::model::Media;
+use maru_core::services::{auth, media};
 use maru_core::{Code, Ctx, Error, Result};
 use maru_themes::{Admin, Theme};
 use tokio::net::TcpListener;
@@ -29,13 +31,17 @@ use tower_http::timeout::TimeoutLayer;
 
 pub use ratelimit::{Bucket, RateLimiter};
 
-/// 요청 본문 상한. Markdown 본문 1MB + 여유.
-const BODY_LIMIT: usize = 2 * 1024 * 1024;
+/// 요청 본문 상한. 이미지 업로드(10MB) + 여유. JSON·폼 추출은 axum 기본값(2MB)이 따로 막는다.
+const BODY_LIMIT: usize = media::MAX_BYTES + 256 * 1024;
+/// 업로드 경로만 axum 추출 상한을 이 값으로 올린다.
+pub(crate) const UPLOAD_LIMIT: usize = BODY_LIMIT;
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 /// 만료 세션·링크·요청 제한 키 정리 주기.
 const PURGE_EVERY: Duration = Duration::from_secs(10 * 60);
 /// argon2 를 동시에 계산하는 최대 수.
 const LOGIN_CONCURRENCY: usize = 2;
+/// 이미지 디코딩·인코딩을 동시에 하는 최대 수.
+const UPLOAD_CONCURRENCY: usize = 2;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -44,6 +50,7 @@ pub struct AppState {
     pub admin: Arc<Admin>,
     pub limiter: Arc<RateLimiter>,
     pub login_gate: Arc<Semaphore>,
+    pub upload_gate: Arc<Semaphore>,
 }
 
 impl AppState {
@@ -54,6 +61,7 @@ impl AppState {
             admin: Arc::new(Admin::new()),
             limiter: Arc::new(RateLimiter::default()),
             login_gate: Arc::new(Semaphore::new(LOGIN_CONCURRENCY)),
+            upload_gate: Arc::new(Semaphore::new(UPLOAD_CONCURRENCY)),
         }
     }
 }
@@ -150,4 +158,23 @@ async fn purge_loop(state: AppState) {
         }
         state.limiter.purge();
     }
+}
+
+/// 업로드는 CPU 를 오래 쓰므로 비동기 작업 스레드 밖에서, 동시에 몇 개까지만 돌린다.
+/// REST 와 관리 화면이 같은 서비스(`media::upload`)를 이 경로로 부른다.
+pub(crate) async fn upload_media(
+    state: &AppState,
+    actor: Actor,
+    input: media::Upload,
+) -> Result<Media> {
+    let _permit = state
+        .upload_gate
+        .acquire()
+        .await
+        .map_err(maru_core::Error::internal)?;
+    let ctx = state.ctx.clone();
+    let handle = tokio::runtime::Handle::current();
+    tokio::task::spawn_blocking(move || handle.block_on(media::upload(&ctx, &actor, input)))
+        .await
+        .map_err(maru_core::Error::internal)?
 }

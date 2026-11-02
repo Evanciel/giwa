@@ -2,6 +2,7 @@
 
 pub mod actor;
 pub mod audit;
+pub mod blobs;
 pub mod clock;
 pub mod config;
 pub mod design;

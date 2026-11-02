@@ -7,21 +7,26 @@
 //! - 로그인 전 폼(비밀번호, 로그인 링크)은 `maru_csrf` 쿠키와 숨은 필드를 비교한다.
 //! - 로그인 뒤 폼은 세션에 묶인 CSRF 값과 비교한다. 둘 다 상수 시간 비교.
 
-use axum::extract::{Form, Path, Query, State};
+use axum::Json;
+use axum::body::Bytes;
+use axum::extract::rejection::JsonRejection;
+use axum::extract::{DefaultBodyLimit, Form, Path, Query, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
 use axum::{Router, middleware};
 use maru_core::model::{PageReq, Post, PostStatus};
+use maru_core::output::Success;
 use maru_core::services::auth::{self, NewSession, SignedIn};
-use maru_core::services::boards;
 use maru_core::services::posts::{self, NewPost, PostPatch};
+use maru_core::services::{boards, media};
 use maru_core::urls::{self, Target};
 use maru_core::{Code, Error};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
 use crate::AppState;
+use crate::error::ApiError;
 
 const SESSION_COOKIE: &str = "maru_session";
 const CSRF_COOKIE: &str = "maru_csrf";
@@ -36,6 +41,11 @@ pub fn routes() -> Router<AppState> {
         .route("/admin/posts/new", get(new_form).post(create))
         .route("/admin/posts/{id}", get(edit_form).post(save))
         .route("/admin/posts/{id}/{action}", post(action))
+        .route(
+            "/admin/media",
+            post(upload).layer(DefaultBodyLimit::max(crate::UPLOAD_LIMIT)),
+        )
+        .route("/admin/preview", post(preview))
         .route("/admin/assets/{*path}", get(asset))
         .layer(middleware::map_response(admin_headers))
 }
@@ -908,4 +918,67 @@ mod tests {
         assert!(notice("saved").is_some());
         assert!(notice("<script>").is_none());
     }
+}
+
+// ---- 에디터용 JSON (업로드·미리보기) ----
+//
+// 에디터 스크립트가 `fetch` 로 부른다. 세션 쿠키(SameSite=Lax)와 `X-CSRF-Token` 헤더를 둘 다 요구한다.
+// 응답은 REST 와 같은 `{ok, data}` / `{ok:false, error}` 모양이다.
+
+const CSRF_HEADER: &str = "x-csrf-token";
+
+async fn json_session(state: &AppState, headers: &HeaderMap) -> Result<SignedIn, ApiError> {
+    let who = current(state, headers)
+        .await?
+        .ok_or_else(|| Error::new(Code::Unauthorized))?;
+    let sent = headers
+        .get(CSRF_HEADER)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or_default();
+    if !session_csrf_ok(&who, sent) {
+        return Err(ApiError(
+            Error::new(Code::Forbidden).with_message("error.csrf"),
+        ));
+    }
+    Ok(who)
+}
+
+#[derive(Debug, Deserialize)]
+struct UploadQuery {
+    #[serde(default)]
+    filename: String,
+    alt: Option<String>,
+}
+
+async fn upload(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<UploadQuery>,
+    body: Bytes,
+) -> Result<Response, ApiError> {
+    let who = json_session(&state, &headers).await?;
+    let input = media::Upload {
+        filename: q.filename,
+        bytes: body.to_vec(),
+        alt_text: q.alt,
+    };
+    let m = crate::upload_media(&state, who.actor, input).await?;
+    Ok((StatusCode::CREATED, Json(Success::new(m))).into_response())
+}
+
+async fn preview(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    body: Result<Json<posts::PreviewInput>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let who = json_session(&state, &headers).await?;
+    let Json(input) = body.map_err(|e| {
+        ApiError(
+            Error::new(Code::Validation)
+                .with_message("error.json_body")
+                .arg("detail", e.body_text()),
+        )
+    })?;
+    let out = posts::preview(&state.ctx, &who.actor, input)?;
+    Ok(Json(Success::new(out)).into_response())
 }

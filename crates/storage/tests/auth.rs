@@ -6,7 +6,7 @@ use std::sync::Arc;
 use maru_core::actor::{Actor, Permission, Scope};
 use maru_core::services::auth;
 use maru_core::{Code, Ctx};
-use maru_storage::{DataDir, Db, SqliteStore};
+use maru_storage::{DataDir, Db, FsBlobs, SqliteStore};
 
 struct Env {
     _tmp: tempfile::TempDir,
@@ -22,6 +22,7 @@ async fn env() -> Env {
     db.migrate().await.unwrap();
     let ctx = Ctx {
         store: Arc::new(SqliteStore::new(db.clone())),
+        blobs: Arc::new(FsBlobs::new(dir.media_dir())),
         site_url: "http://127.0.0.1:8080".into(),
     };
     Env { _tmp: tmp, db, ctx }

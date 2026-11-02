@@ -228,3 +228,18 @@
 - **결정:** 사이트맵은 sitemaps.org 0.9(파일당 50,000 URL), 피드는 RSS 2.0(`atom:link rel=self`, `guid isPermaLink`, RFC 2822 `pubDate`, 본문 전체를 정화된 HTML CDATA로), 메타는 Open Graph(`og:type`, `og:title`, `og:description`, `og:url`, `og:site_name`, `og:locale`, `article:*_time`)와 canonical로 맞춘다. 소유 확인 meta(`naver-site-verification`, `google-site-verification`)는 사이트 설정으로 넣는다. robots.txt는 `/api/`만 막고 사이트맵 절대 URL을 적는다.
 - **대안:** 블로그 글의 요건 요약을 그대로 따르기. 출처가 공식이 아니라 채택하지 않는다.
 - **결과:** `maru expose` 로 공개한 뒤 서치어드바이저의 「사이트 간단 체크」와 RSS·사이트맵 제출 결과로 실제 수집 여부를 확인하고, 어긋나는 항목은 이 ADR을 갱신한다. 그 전까지 이 항목은 완료 검증표에서 「못 쟀다」로 둔다.
+
+## ADR-0032 미디어 저장 형식과 업로드 경로
+
+- **배경:** SPEC §2·§13은 「썸네일, webp 변환」과 「MIME 스니핑 + 확장자 화이트리스트, 이미지 재인코딩, 크기 제한」을 요구한다. 순수 Rust `image` 0.25(`image-webp` 0.2)의 WebP 인코더는 무손실만 지원한다. 사진을 무손실 WebP로 바꾸면 JPEG보다 몇 배 커진다. 손실 WebP는 C 라이브러리(libwebp)가 필요해 단일 바이너리·교차 빌드를 복잡하게 만든다.
+- **결정:**
+  - 받는 형식은 jpg·png·gif·webp, 10MB, 한 변 8192px, 디코딩 메모리 300MB까지. 확장자와 내용 스니핑이 둘 다 그림이어야 한다. SVG는 받지 않는다(스크립트를 품을 수 있다).
+  - 원본은 항상 다시 인코딩한다. 그래서 EXIF(촬영 위치)와 그림 뒤에 덧붙인 데이터가 사라진다. EXIF 방향은 인코딩 전에 적용한다.
+  - 저장 형식은 JPEG(품질 85)와 PNG 둘뿐이다. JPEG는 JPEG로, 투명도 없는 WebP는 JPEG로, PNG·투명 WebP는 PNG로, GIF는 첫 장만 PNG로 저장한다(움직임은 사라진다).
+  - 축소본은 폭 640·1280 두 가지이고, 원본이 그보다 넓을 때만 만든다. 같은 형식이다.
+  - 경로는 `media/YYYY/MM/<ulid>[-<폭>].<확장자>`. 사용자가 준 파일 이름은 경로에 넣지 않는다. 보관소는 core 의 `Blobs` 트레이트, 구현은 storage 의 `FsBlobs`(임시 이름으로 쓰고 바꾸기).
+  - 업로드 본문은 multipart 가 아니라 원본 바이트를 받는다(`POST /api/v1/media?filename=`, `POST /admin/media?filename=`). `curl --data-binary`, 브라우저 `fetch(file)`, CLI 가 같은 모양이고 새 의존성이 없다.
+  - 디코딩·인코딩은 웹에서 `spawn_blocking` 으로, 동시에 2개까지 돌린다. core 는 tokio 에 의존하지 않는다.
+  - `/media/*` 는 `Cache-Control: immutable`, `nosniff`, `CSP: default-src 'none'; sandbox`로 내보낸다.
+- **대안:** libwebp 로 손실 WebP 변환. 용량은 가장 작지만 C 의존이 생긴다. 순수 Rust 손실 WebP 인코더가 나오면 저장 형식에 WebP를 더하고 이 ADR을 갱신한다.
+- **결과:** SPEC의 「webp 변환」은 보류한다. 공개 화면의 `srcset`(축소본 활용)은 테마 작업에서 한다. MCP 툴(`upload_media`, `list_media`, `set_alt_text`)은 Phase 3 MCP 서버에서 같은 서비스를 노출한다.

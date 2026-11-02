@@ -8,7 +8,7 @@ use axum::routing::get;
 use maru_core::model::{Board, Listing, MenuItem, MenuLink, Page, PageReq, Post, SiteSettings};
 use maru_core::services::{anonymous_actor, boards, design, menus, pages, posts, settings};
 use maru_core::urls::{self, Target};
-use maru_core::{Code, Error, Result, clock, markdown};
+use maru_core::{Code, Error, Result, blobs, clock, markdown};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -27,6 +27,7 @@ pub fn routes() -> Router<AppState> {
         .route("/robots.txt", get(crate::feeds::robots))
         .route("/assets/tokens.css", get(tokens_css))
         .route("/assets/{*path}", get(asset))
+        .route("/media/{*path}", get(media_file))
         .fallback(not_found)
 }
 
@@ -257,6 +258,38 @@ async fn asset(State(state): State<AppState>, Path(path): Path<String>) -> Respo
         )
             .into_response(),
         None => (StatusCode::NOT_FOUND, "not found").into_response(),
+    }
+}
+
+/// 업로드한 이미지. 파일 이름에 ID 가 들어 있어 내용이 바뀌지 않으므로 오래 캐시한다.
+/// 확장자로 정한 형식만 내보내고, 보관소 경로 규칙에 맞지 않으면 파일 시스템을 보지 않는다.
+async fn media_file(State(state): State<AppState>, Path(path): Path<String>) -> Response {
+    let mime = match path.rsplit_once('.').map(|(_, e)| e) {
+        Some("jpg") => "image/jpeg",
+        Some("png") => "image/png",
+        _ => return (StatusCode::NOT_FOUND, "not found").into_response(),
+    };
+    if !blobs::valid_path(&path) {
+        return (StatusCode::NOT_FOUND, "not found").into_response();
+    }
+    match state.ctx.blobs.get(&path).await {
+        Ok(Some(bytes)) => (
+            [
+                (header::CONTENT_TYPE, mime),
+                (header::CACHE_CONTROL, "public, max-age=31536000, immutable"),
+                (
+                    header::CONTENT_SECURITY_POLICY,
+                    "default-src 'none'; sandbox",
+                ),
+            ],
+            bytes,
+        )
+            .into_response(),
+        Ok(None) => (StatusCode::NOT_FOUND, "not found").into_response(),
+        Err(e) => {
+            tracing::error!(error = ?e, "미디어 파일 읽기 실패");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
     }
 }
 

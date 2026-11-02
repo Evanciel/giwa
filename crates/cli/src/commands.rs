@@ -12,7 +12,7 @@ use maru_core::model::{MenuItem, MenuLink, Page, PageReq, PageStatus, PostStatus
 use maru_core::services::boards::{self, NewBoard};
 use maru_core::services::posts::{self, NewPost};
 use maru_core::services::tokens::{self, NewToken};
-use maru_core::services::{auth, design, menus, pages, presets, settings};
+use maru_core::services::{auth, design, media, menus, pages, presets, settings};
 use maru_core::urls::{self, Target};
 use maru_core::{Actor, Code, Ctx, Error, Result};
 use maru_storage::{DataDir, Db};
@@ -20,8 +20,8 @@ use serde_json::{Value, json};
 
 use crate::output;
 use crate::{
-    BoardCmd, Command, DesignCmd, Global, InitArgs, LoginLinkArgs, MenuCmd, MenuSetArgs, PageCmd,
-    PostCmd, PostListArgs, PostNewArgs, ServeArgs, SiteCmd, TokenCmd, TokenCreateArgs,
+    BoardCmd, Command, DesignCmd, Global, InitArgs, LoginLinkArgs, MediaCmd, MenuCmd, MenuSetArgs,
+    PageCmd, PostCmd, PostListArgs, PostNewArgs, ServeArgs, SiteCmd, TokenCmd, TokenCreateArgs,
 };
 
 pub async fn run(g: &Global, command: Command) -> ExitCode {
@@ -32,6 +32,7 @@ pub async fn run(g: &Global, command: Command) -> ExitCode {
         Command::Post(cmd) => post(g, cmd).await,
         Command::Board(cmd) => board(g, cmd).await,
         Command::Token(cmd) => token(g, cmd).await,
+        Command::Media(cmd) => media_cmd(g, cmd).await,
         Command::Page(cmd) => page(g, cmd).await,
         Command::Menu(cmd) => menu(g, cmd).await,
         Command::Site(cmd) => site(g, cmd).await,
@@ -100,6 +101,7 @@ async fn init(g: &Global, args: InitArgs) -> Out {
     db.migrate().await?;
     let ctx = Ctx {
         store: Arc::new(maru_storage::SqliteStore::new(db.clone())),
+        blobs: Arc::new(maru_storage::FsBlobs::new(dir.media_dir())),
         site_url: config.site_url.clone(),
     };
     let local = Actor::local();
@@ -374,6 +376,13 @@ async fn post(g: &Global, cmd: PostCmd) -> Out {
             let p = posts::get(&ctx, &actor, &id).await?;
             let human = format!("[{}] {}\n\n{}", p.status.as_str(), p.title, p.body_md);
             Ok((to_value(&p)?, human))
+        }
+        PostCmd::Preview { from } => {
+            let input = posts::PreviewInput {
+                body_md: read_body(&from)?,
+            };
+            let out = posts::preview(&ctx, &actor, input)?;
+            Ok((to_value(&out)?, out.html))
         }
     };
     db.close().await;
@@ -1053,4 +1062,80 @@ mod design_tests {
         assert!(set_path(&mut p, "nonsense").is_err());
         assert!(set_path(&mut p, "color..x=1").is_err());
     }
+}
+
+// ---- media ----
+
+async fn media_cmd(g: &Global, cmd: MediaCmd) -> Out {
+    let (ctx, _config, db) = open(g).await?;
+    let actor = actor(&ctx).await?;
+    let res = match cmd {
+        MediaCmd::Upload(args) => {
+            let bytes = std::fs::read(&args.file).map_err(|e| {
+                Error::new(Code::NotFound)
+                    .with_message("error.io")
+                    .arg("path", args.file.display().to_string())
+                    .with_source(e)
+            })?;
+            let filename = args
+                .file
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            let input = media::Upload {
+                filename,
+                bytes,
+                alt_text: args.alt,
+            };
+            let m = media::upload(&ctx, &actor, input).await?;
+            media_out(&m, "올렸습니다")
+        }
+        MediaCmd::List { page, per_page } => {
+            let list = media::list(&ctx, &actor, PageReq::new(page, per_page)).await?;
+            let mut human = format!("미디어 {}개", list.total);
+            for m in &list.items {
+                human.push_str(&format!(
+                    "\n{}  {}x{}  {}  {}",
+                    m.id,
+                    m.width,
+                    m.height,
+                    m.url,
+                    m.alt_text.as_deref().unwrap_or("(대체 텍스트 없음)")
+                ));
+            }
+            Ok((to_value(&list)?, human))
+        }
+        MediaCmd::Show { id } => {
+            let m = media::get(&ctx, &actor, &id).await?;
+            media_out(&m, "미디어")
+        }
+        MediaCmd::Alt { id, text } => {
+            let patch = media::MediaPatch {
+                alt_text: Some(text),
+            };
+            let m = media::update(&ctx, &actor, &id, patch).await?;
+            media_out(&m, "대체 텍스트를 바꿨습니다")
+        }
+        MediaCmd::Delete { id } => {
+            let m = media::delete(&ctx, &actor, &id).await?;
+            media_out(&m, "지웠습니다")
+        }
+    };
+    db.close().await;
+    res
+}
+
+/// 사람용 출력에는 본문에 바로 붙일 Markdown 한 줄을 같이 낸다.
+fn media_out(m: &maru_core::model::Media, verb: &str) -> Out {
+    let alt = m.alt_text.as_deref().unwrap_or("");
+    let human = format!(
+        "{verb}: {} ({}x{}, {}KB)\n{}\n본문에 넣기: ![{alt}]({})",
+        m.id,
+        m.width,
+        m.height,
+        m.size / 1024,
+        m.url,
+        m.url
+    );
+    Ok((to_value(m)?, human))
 }

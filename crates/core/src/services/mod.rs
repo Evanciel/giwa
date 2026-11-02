@@ -4,6 +4,7 @@
 pub mod auth;
 pub mod boards;
 pub mod design;
+pub mod media;
 pub mod menus;
 pub mod pages;
 pub mod posts;

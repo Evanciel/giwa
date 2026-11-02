@@ -533,6 +533,27 @@ fn revision_of(post: &Post, actor: &Actor) -> Revision {
     }
 }
 
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PreviewInput {
+    pub body_md: String,
+}
+
+#[derive(Debug, Clone, Serialize, JsonSchema)]
+pub struct Preview {
+    /// 공개 화면과 같은 렌더러·정화를 거친 HTML
+    pub html: String,
+}
+
+/// 저장하지 않고 본문을 공개 화면과 같은 방식으로 그린다. 글을 쓸 수 있는 사람만.
+pub fn preview(_ctx: &Ctx, actor: &Actor, input: PreviewInput) -> Result<Preview> {
+    actor.require(Permission::PostWrite)?;
+    let body = check_body(input.body_md)?;
+    Ok(Preview {
+        html: crate::markdown::render(&body).into_string(),
+    })
+}
+
 fn check_body(body: String) -> Result<String> {
     if body.len() > MAX_BODY_BYTES {
         return Err(Error::new(Code::Validation)

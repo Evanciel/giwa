@@ -10,16 +10,19 @@ use serde_json::Value;
 
 use crate::actor::Actor;
 use crate::audit::{AuditRecord, Target};
+use crate::blobs::Blobs;
 use crate::error::{Error, Result};
 use crate::model::{
-    Board, LoginTicket, Member, MenuLink, Page, PageStatus, Post, PostStatus, Revision, Role,
-    Session, Token,
+    Board, LoginTicket, Media, Member, MenuLink, Page, PageStatus, Post, PostStatus, Revision,
+    Role, Session, Token,
 };
 
 /// 서비스 함수의 첫 인자.
 #[derive(Clone)]
 pub struct Ctx {
     pub store: Arc<dyn Store>,
+    /// 미디어 파일 보관소.
+    pub blobs: Arc<dyn Blobs>,
     /// 절대 URL 의 기준 (`config.toml`). 끝에 `/` 가 없다.
     pub site_url: String,
 }
@@ -80,6 +83,11 @@ pub trait Store: Send + Sync {
     async fn ticket_by_hash(&self, hash: &str) -> Result<Option<LoginTicket>>;
     /// 만료된 세션·로그인 링크를 지운다. 시스템 정리라 감사 대상이 아니다 (PHASE1_PLAN §5).
     async fn purge_expired(&self, now: &str) -> Result<u64>;
+
+    async fn media_by_id(&self, id: &str) -> Result<Option<Media>>;
+    /// 최근 것부터.
+    async fn list_media(&self, limit: i64, offset: i64) -> Result<Vec<Media>>;
+    async fn count_media(&self) -> Result<i64>;
 }
 
 #[async_trait]
@@ -135,6 +143,11 @@ pub trait WriteTx: Send {
     async fn insert_session(&mut self, s: &Session) -> Result<()>;
     async fn delete_session(&mut self, id: &str) -> Result<u64>;
     async fn delete_member_sessions(&mut self, member_id: &str) -> Result<u64>;
+
+    async fn media_by_id(&mut self, id: &str) -> Result<Option<Media>>;
+    async fn insert_media(&mut self, m: &Media) -> Result<()>;
+    async fn update_media(&mut self, m: &Media) -> Result<()>;
+    async fn delete_media(&mut self, id: &str) -> Result<()>;
 }
 
 /// 쓰기 트랜잭션. 드롭하면 롤백된다.

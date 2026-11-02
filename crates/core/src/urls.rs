@@ -50,6 +50,11 @@ pub fn absolute(site_url: &str, target: &Target<'_>) -> String {
     format!("{}{}", site_url.trim_end_matches('/'), path(target))
 }
 
+/// 미디어 파일 주소. 보관소 경로는 ASCII 규칙(`blobs::valid_path`)을 따르므로 인코딩하지 않는다.
+pub fn media(blob_path: &str) -> String {
+    format!("/media/{blob_path}")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

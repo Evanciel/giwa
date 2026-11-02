@@ -10,7 +10,7 @@ use maru_core::services::posts::{self, NewPost};
 use maru_core::services::{anonymous_actor, tokens};
 use maru_core::store::Tx;
 use maru_core::{Code, Ctx};
-use maru_storage::{DataDir, Db, SqliteStore};
+use maru_storage::{DataDir, Db, FsBlobs, SqliteStore};
 
 struct Env {
     _tmp: tempfile::TempDir,
@@ -25,7 +25,7 @@ async fn env() -> Env {
     dir.ensure_layout().unwrap();
     let db = Db::open(&dir.db_path(), true).await.unwrap();
     db.migrate().await.unwrap();
-    let ctx = ctx_for(&db);
+    let ctx = ctx_for(&db, &dir);
     Env {
         _tmp: tmp,
         dir,
@@ -34,9 +34,10 @@ async fn env() -> Env {
     }
 }
 
-fn ctx_for(db: &Db) -> Ctx {
+fn ctx_for(db: &Db, dir: &DataDir) -> Ctx {
     Ctx {
         store: Arc::new(SqliteStore::new(db.clone())),
+        blobs: Arc::new(FsBlobs::new(dir.media_dir())),
         site_url: "http://127.0.0.1:8080".into(),
     }
 }
@@ -120,7 +121,7 @@ async fn two_writers_do_not_hit_busy() {
     let e = env().await;
     blog(&e.ctx).await;
     let other = Db::open(&e.dir.db_path(), false).await.unwrap();
-    let ctx2 = ctx_for(&other);
+    let ctx2 = ctx_for(&other, &e.dir);
 
     let run = |ctx: Ctx, tag: &'static str| async move {
         for i in 0..40 {

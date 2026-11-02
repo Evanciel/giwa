@@ -191,6 +191,36 @@ pub struct Token {
     pub updated_at: String,
 }
 
+/// 업로드한 이미지. 원본은 다시 인코딩해 메타데이터(EXIF 위치 등)를 지운 것이다.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+pub struct Media {
+    pub id: Id,
+    /// 보관소 상대 경로
+    pub path: String,
+    /// 사이트 안 주소 (`/media/...`)
+    pub url: String,
+    pub mime: String,
+    pub size: i64,
+    pub width: u32,
+    pub height: u32,
+    pub alt_text: Option<String>,
+    /// 폭을 줄인 사본. 원본보다 좁은 것만 있다.
+    pub variants: Vec<MediaVariant>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct MediaVariant {
+    pub width: u32,
+    pub height: u32,
+    pub path: String,
+    /// 읽을 때 경로로 채운다. 저장하지 않는다.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub url: String,
+    pub size: i64,
+}
+
 /// 목록 조회의 쪽 단위.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct PageReq {

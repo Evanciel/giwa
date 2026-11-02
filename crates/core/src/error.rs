@@ -190,6 +190,11 @@ impl Error {
         self.code
     }
 
+    /// 문장 카탈로그 키. 같은 코드 안에서 원인을 구분할 때 쓴다.
+    pub fn message_key(&self) -> &'static str {
+        self.message_key
+    }
+
     pub fn exit_code(&self) -> ExitCode {
         self.code.exit_code()
     }

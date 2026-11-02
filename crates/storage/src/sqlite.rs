@@ -4,11 +4,11 @@ use async_trait::async_trait;
 use maru_core::actor::{AuthorType, Permission, Scope};
 use maru_core::audit::AuditRecord;
 use maru_core::model::{
-    Board, BoardPolicy, LoginTicket, Member, MemberStatus, Page, PageStatus, Post, PostKind,
-    PostStatus, Revision, Role, Session, Token,
+    Board, BoardPolicy, LoginTicket, Media, MediaVariant, Member, MemberStatus, Page, PageStatus,
+    Post, PostKind, PostStatus, Revision, Role, Session, Token,
 };
 use maru_core::store::{MenuRow, PostFilter, PublishedQuery, Store, WriteTx};
-use maru_core::{Code, Error, Result};
+use maru_core::{Code, Error, Result, urls};
 use serde_json::Value;
 use sqlx::{Sqlite, SqliteExecutor, Transaction};
 
@@ -658,6 +658,31 @@ impl Store for SqliteStore {
         .rows_affected();
         Ok(a + b)
     }
+
+    async fn media_by_id(&self, id: &str) -> Result<Option<Media>> {
+        media_by_id(&self.db.read, id).await
+    }
+
+    async fn list_media(&self, limit: i64, offset: i64) -> Result<Vec<Media>> {
+        let rows = sqlx::query_as!(
+            MediaRow,
+            "SELECT id, path, mime, size, width, height, alt_text, variants, created_at, updated_at
+             FROM media ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?",
+            limit,
+            offset
+        )
+        .fetch_all(&self.db.read)
+        .await
+        .map_err(db_error)?;
+        convert(rows)
+    }
+
+    async fn count_media(&self) -> Result<i64> {
+        sqlx::query_scalar!("SELECT COUNT(*) FROM media")
+            .fetch_one(&self.db.read)
+            .await
+            .map_err(db_error)
+    }
 }
 
 #[async_trait]
@@ -1163,6 +1188,126 @@ impl WriteTx for SqliteWriteTx {
                 .rows_affected(),
         )
     }
+
+    async fn media_by_id(&mut self, id: &str) -> Result<Option<Media>> {
+        media_by_id(&mut *self.tx, id).await
+    }
+
+    async fn insert_media(&mut self, m: &Media) -> Result<()> {
+        let variants = variants_json(m)?;
+        let size = m.size;
+        let (width, height) = (i64::from(m.width), i64::from(m.height));
+        sqlx::query!(
+            "INSERT INTO media (id, path, mime, size, width, height, alt_text, variants,
+                                created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            m.id,
+            m.path,
+            m.mime,
+            size,
+            width,
+            height,
+            m.alt_text,
+            variants,
+            m.created_at,
+            m.updated_at
+        )
+        .execute(&mut *self.tx)
+        .await
+        .map_err(db_error)?;
+        Ok(())
+    }
+
+    async fn update_media(&mut self, m: &Media) -> Result<()> {
+        let variants = variants_json(m)?;
+        sqlx::query!(
+            "UPDATE media SET alt_text = ?, variants = ?, updated_at = ? WHERE id = ?",
+            m.alt_text,
+            variants,
+            m.updated_at,
+            m.id
+        )
+        .execute(&mut *self.tx)
+        .await
+        .map_err(db_error)?;
+        Ok(())
+    }
+
+    async fn delete_media(&mut self, id: &str) -> Result<()> {
+        sqlx::query!("DELETE FROM media WHERE id = ?", id)
+            .execute(&mut *self.tx)
+            .await
+            .map_err(db_error)?;
+        Ok(())
+    }
+}
+
+// ---- 미디어 ----
+
+struct MediaRow {
+    id: String,
+    path: String,
+    mime: String,
+    size: i64,
+    width: Option<i64>,
+    height: Option<i64>,
+    alt_text: Option<String>,
+    variants: String,
+    created_at: String,
+    updated_at: String,
+}
+
+impl TryFrom<MediaRow> for Media {
+    type Error = Error;
+
+    fn try_from(r: MediaRow) -> Result<Self> {
+        let mut variants: Vec<MediaVariant> =
+            serde_json::from_str(&r.variants).map_err(Error::internal)?;
+        for v in &mut variants {
+            v.url = urls::media(&v.path);
+        }
+        let side = |v: Option<i64>| u32::try_from(v.unwrap_or(0)).unwrap_or(0);
+        Ok(Media {
+            url: urls::media(&r.path),
+            id: r.id,
+            path: r.path,
+            mime: r.mime,
+            size: r.size,
+            width: side(r.width),
+            height: side(r.height),
+            alt_text: r.alt_text,
+            variants,
+            created_at: r.created_at,
+            updated_at: r.updated_at,
+        })
+    }
+}
+
+/// 주소는 경로로 다시 만들 수 있으니 저장하지 않는다.
+fn variants_json(m: &Media) -> Result<String> {
+    let stored: Vec<MediaVariant> = m
+        .variants
+        .iter()
+        .map(|v| MediaVariant {
+            url: String::new(),
+            ..v.clone()
+        })
+        .collect();
+    json(&stored)
+}
+
+async fn media_by_id<'e>(e: impl SqliteExecutor<'e>, id: &str) -> Result<Option<Media>> {
+    sqlx::query_as!(
+        MediaRow,
+        "SELECT id, path, mime, size, width, height, alt_text, variants, created_at, updated_at
+         FROM media WHERE id = ?",
+        id
+    )
+    .fetch_optional(e)
+    .await
+    .map_err(db_error)?
+    .map(Media::try_from)
+    .transpose()
 }
 
 // ---- 회원·세션 (U12) ----

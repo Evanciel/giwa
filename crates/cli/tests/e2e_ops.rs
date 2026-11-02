@@ -325,6 +325,8 @@ fn every_command_speaks_json_with_yes() {
         &["token", "list"],
         &["login-link"],
         &["post", "show", "없는-글"],
+        &["media", "list"],
+        &["media", "show", "없는-미디어"],
     ];
     for args in commands {
         let mut a = args.to_vec();

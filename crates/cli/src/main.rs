@@ -45,6 +45,9 @@ enum Command {
     /// API 토큰
     #[command(subcommand)]
     Token(TokenCmd),
+    /// 이미지 (업로드, 대체 텍스트)
+    #[command(subcommand)]
+    Media(MediaCmd),
     /// 고정 페이지 (소개, 연락처 등)
     #[command(subcommand)]
     Page(PageCmd),
@@ -119,6 +122,12 @@ pub enum PostCmd {
     Delete { id: String },
     /// 삭제·숨김을 되돌린다
     Restore { id: String },
+    /// 저장하지 않고 본문을 공개 화면과 같은 HTML 로 그린다
+    Preview {
+        /// 본문 파일 (UTF-8). `-` 이면 표준 입력
+        #[arg(long)]
+        from: PathBuf,
+    },
 }
 
 #[derive(Debug, Args)]
@@ -175,6 +184,34 @@ pub struct PostListArgs {
     pub page: u32,
     #[arg(long, default_value_t = 20)]
     pub per_page: u32,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum MediaCmd {
+    /// 이미지를 올린다 (jpg, png, gif, webp, 10MB 이하). 다시 인코딩해 위치 정보 등 메타데이터를 지운다
+    Upload(MediaUploadArgs),
+    /// 미디어 목록 (최근 것부터)
+    List {
+        #[arg(long, default_value_t = 1)]
+        page: u32,
+        #[arg(long, default_value_t = 20)]
+        per_page: u32,
+    },
+    /// 미디어 하나
+    Show { id: String },
+    /// 대체 텍스트를 바꾼다. 빈 문자열이면 지운다
+    Alt { id: String, text: String },
+    /// 기록과 파일을 지운다. 본문에서 쓰던 곳은 깨진다
+    Delete { id: String },
+}
+
+#[derive(Debug, Args)]
+pub struct MediaUploadArgs {
+    /// 이미지 파일 경로
+    pub file: PathBuf,
+    /// 대체 텍스트 (화면 낭독기가 읽는 설명)
+    #[arg(long)]
+    pub alt: Option<String>,
 }
 
 #[derive(Debug, Subcommand)]

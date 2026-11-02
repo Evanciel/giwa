@@ -1,7 +1,8 @@
 //! REST API `/api/v1`. 인증은 bearer 토큰만 받는다 (쿠키 인증이 없어 CSRF 표면이 없다).
 
+use axum::body::Bytes;
 use axum::extract::rejection::JsonRejection;
-use axum::extract::{FromRequestParts, Path, Query, State};
+use axum::extract::{DefaultBodyLimit, FromRequestParts, Path, Query, State};
 use axum::http::StatusCode;
 use axum::http::header::AUTHORIZATION;
 use axum::http::request::Parts;
@@ -10,7 +11,9 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use maru_core::model::{MenuItem, PageReq, PageStatus, PostStatus};
 use maru_core::output::Success;
-use maru_core::services::{anonymous_actor, boards, design, menus, pages, posts, settings, tokens};
+use maru_core::services::{
+    anonymous_actor, boards, design, media, menus, pages, posts, settings, tokens,
+};
 use maru_core::{Actor, Code, Error};
 use serde::Deserialize;
 
@@ -33,6 +36,17 @@ pub fn routes() -> Router<AppState> {
         .route("/menus/{location}", get(get_menu).put(put_menu))
         .route("/settings", get(get_settings).patch(update_settings))
         .route("/design/tokens", get(get_tokens).patch(update_tokens))
+        .route(
+            "/media",
+            get(list_media)
+                .post(upload_media)
+                .layer(DefaultBodyLimit::max(crate::UPLOAD_LIMIT)),
+        )
+        .route(
+            "/media/{id}",
+            get(get_media).patch(update_media).delete(delete_media),
+        )
+        .route("/preview", post(preview))
         .fallback(|| async { ApiError(Error::new(Code::NotFound)) })
 }
 
@@ -323,5 +337,93 @@ async fn update_tokens(
     Ok(ok(
         StatusCode::OK,
         design::update(&state.ctx, &actor, patch).await?,
+    ))
+}
+
+#[derive(Debug, Deserialize)]
+struct UploadQuery {
+    filename: String,
+    alt: Option<String>,
+}
+
+/// `POST /media?filename=<이름>&alt=<대체 텍스트>`, 본문은 파일 바이트 그대로.
+/// multipart 대신 원본 바이트를 받는다: `curl --data-binary @a.jpg` 와 브라우저 `fetch(file)` 이 같다.
+async fn upload_media(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Query(q): Query<UploadQuery>,
+    body: Bytes,
+) -> Result<Response, ApiError> {
+    let input = media::Upload {
+        filename: q.filename,
+        bytes: body.to_vec(),
+        alt_text: q.alt,
+    };
+    let m = crate::upload_media(&state, actor, input).await?;
+    Ok(ok(StatusCode::CREATED, m))
+}
+
+#[derive(Debug, Deserialize)]
+struct MediaListQuery {
+    page: Option<u32>,
+    per_page: Option<u32>,
+}
+
+async fn list_media(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Query(q): Query<MediaListQuery>,
+) -> Result<Response, ApiError> {
+    let page = PageReq::new(q.page.unwrap_or(1), q.per_page.unwrap_or(20));
+    Ok(ok(
+        StatusCode::OK,
+        media::list(&state.ctx, &actor, page).await?,
+    ))
+}
+
+async fn get_media(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(id): Path<String>,
+) -> Result<Response, ApiError> {
+    Ok(ok(
+        StatusCode::OK,
+        media::get(&state.ctx, &actor, &id).await?,
+    ))
+}
+
+async fn update_media(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(id): Path<String>,
+    body: Result<Json<media::MediaPatch>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let Json(patch) = body.map_err(bad_json)?;
+    Ok(ok(
+        StatusCode::OK,
+        media::update(&state.ctx, &actor, &id, patch).await?,
+    ))
+}
+
+async fn delete_media(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(id): Path<String>,
+) -> Result<Response, ApiError> {
+    Ok(ok(
+        StatusCode::OK,
+        media::delete(&state.ctx, &actor, &id).await?,
+    ))
+}
+
+async fn preview(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    body: Result<Json<posts::PreviewInput>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let Json(input) = body.map_err(bad_json)?;
+    Ok(ok(
+        StatusCode::OK,
+        posts::preview(&state.ctx, &actor, input)?,
     ))
 }
