@@ -1,14 +1,17 @@
 ﻿# Maru 품질 게이트. pre-commit 과 CI 가 같은 스크립트를 부른다.
 # 사용: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1 [-Quick]
 #   -Quick : 테스트를 건너뛴다 (fmt, clippy, 의존 방향만)
+# 이 파일은 UTF-8 BOM + CRLF 로 저장한다 (PowerShell 5.1 이 한글을 깨뜨리지 않도록).
 param([switch]$Quick)
 
-$ErrorActionPreference = "Stop"
+# cargo 는 진행 메시지("Blocking waiting for file lock" 등)를 stderr 로 쓴다.
+# PowerShell 5.1 에서 Stop 이면 그것만으로 실패하므로 Continue 로 두고, 성공·실패는 종료 코드로만 판정한다.
+$ErrorActionPreference = "Continue"
 Set-Location (Split-Path -Parent $PSScriptRoot)
 
 if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
-    if ($env:CARGO_HOME -and (Test-Path "$env:CARGO_HOMEincargo.exe")) {
-        $env:PATH = "$env:CARGO_HOMEin;$env:PATH"
+    if ($env:CARGO_HOME -and (Test-Path (Join-Path $env:CARGO_HOME "bin/cargo.exe"))) {
+        $env:PATH = (Join-Path $env:CARGO_HOME "bin") + ";" + $env:PATH
     } else {
         Write-Host "[check] cargo 를 찾을 수 없습니다. Rust 를 설치하거나 CARGO_HOME 을 설정하세요." -ForegroundColor Red
         exit 2
@@ -36,8 +39,9 @@ $forbidden = [ordered]@{
 }
 Write-Host "[check] deps" -ForegroundColor Cyan
 foreach ($crate in $forbidden.Keys) {
-    $tree = cargo tree -p $crate -e normal --prefix none --format "{p}" 2>&1
-    if ($LASTEXITCODE -ne 0) { $failed += "deps($crate)"; Write-Host $tree; continue }
+    # stderr 는 cmd 가 버린다 (PowerShell 이 오류 레코드로 감싸 출력에 섞지 않도록)
+    $tree = cmd /c "cargo tree -p $crate -e normal --prefix none --format {p} 2>nul"
+    if ($LASTEXITCODE -ne 0) { $failed += "deps($crate)"; continue }
     $names = $tree | ForEach-Object { ($_ -split " ")[0] } | Sort-Object -Unique
     foreach ($bad in $forbidden[$crate]) {
         if ($names -contains $bad) {
