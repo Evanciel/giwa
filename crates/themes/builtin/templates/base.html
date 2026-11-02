@@ -7,6 +7,7 @@
 <meta name="description" content="{% block description %}{{ site.description }}{% endblock %}">
 {% if canonical %}<link rel="canonical" href="{{ canonical }}">{% endif %}
 <link rel="alternate" type="application/rss+xml" title="{{ site.name }}" href="{{ site.rss_url }}">
+<link rel="stylesheet" href="/assets/tokens.css">
 <link rel="stylesheet" href="/assets/site.css">
 </head>
 <body>
@@ -17,7 +18,7 @@
     {% if site.menus and site.menus.header %}<nav class="site-nav" aria-label="주 메뉴">{% with items = site.menus.header %}{% include "_menu.html" %}{% endwith %}</nav>{% endif %}
   </div>
 </header>
-<main id="main" class="wrap">
+<main id="main" class="{% block main_class %}wrap{% endblock %}">
 {% block main %}{% endblock %}
 </main>
 <footer class="site-footer">

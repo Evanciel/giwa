@@ -1,0 +1,11 @@
+# Maru 내장 테마
+id = "default"
+name = "Maru 기본"
+version = "0.1.0"
+license = "MIT OR Apache-2.0"
+# 이 테마가 따르는 템플릿 계약 번호. 사용자 테마의 값이 다르면 사용자 테마를 쓰지 않는다.
+template_api = 1
+regions = ["header", "main", "footer"]
+
+# 테마에 포함된 외부 자산과 출처 (ADR-0022). 지금은 모두 자체 제작이다.
+assets = []

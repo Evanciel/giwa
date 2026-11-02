@@ -1,0 +1,28 @@
+# 개인 블로그 프리셋. 모든 op 는 ensure 라서 `maru init` 을 다시 실행해도 안전하다.
+id = "blog"
+name = "개인 블로그"
+description = "블로그 게시판, 소개 페이지(초안), 헤더 메뉴"
+
+[[ops]]
+op = "board.ensure"
+slug = "blog"
+name = "블로그"
+kind = "blog"
+
+[[ops]]
+op = "page.ensure"
+slug = "about"
+title = "소개"
+body_md = """
+이 페이지는 아직 초안입니다.
+
+`maru page edit about --from about.md` 로 내용을 바꾸고 `maru page publish about` 으로 공개하세요.
+"""
+publish = false
+
+[[ops]]
+op = "menu.ensure"
+location = "header"
+items = [
+  { label = "글", link = { kind = "board", slug = "blog" } },
+]

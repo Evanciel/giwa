@@ -4,6 +4,7 @@ pub mod actor;
 pub mod audit;
 pub mod clock;
 pub mod config;
+pub mod design;
 pub mod error;
 pub mod markdown;
 pub mod messages;

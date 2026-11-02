@@ -917,3 +917,109 @@ async fn settings_update_and_audit() {
     );
     e.db.close().await;
 }
+
+// ---- U10 ----
+
+use maru_core::design::Tokens;
+use maru_core::services::{design, presets};
+
+#[tokio::test]
+async fn tokens_update_validate_and_audit() {
+    let e = env().await;
+    let local = Actor::local();
+    assert_eq!(design::tokens(&e.ctx).await.unwrap(), Tokens::default());
+    let t = design::update(
+        &e.ctx,
+        &local,
+        serde_json::json!({ "color": { "primary": "#1f4f8f" }, "type_scale": { "base": 18 } }),
+    )
+    .await
+    .unwrap();
+    assert_eq!(t.color.primary, "#1f4f8f");
+    assert_eq!(design::tokens(&e.ctx).await.unwrap().type_scale.base, 18);
+
+    // 대비 부족·주입은 저장되지 않고 이전 값이 남는다.
+    let low = serde_json::json!({ "color": { "muted": "#dddddd" } });
+    assert_eq!(
+        design::update(&e.ctx, &local, low)
+            .await
+            .unwrap_err()
+            .code(),
+        Code::Validation
+    );
+    let inject = serde_json::json!({ "font": { "body": "x}</style><script>" } });
+    assert_eq!(
+        design::update(&e.ctx, &local, inject)
+            .await
+            .unwrap_err()
+            .code(),
+        Code::Validation
+    );
+    assert_eq!(
+        design::tokens(&e.ctx).await.unwrap().color.primary,
+        "#1f4f8f"
+    );
+    assert_eq!(
+        scalar(
+            &e.db,
+            "SELECT count(*) FROM audit_log WHERE action = 'design.tokens'"
+        )
+        .await,
+        1
+    );
+
+    // 기본 토큰(read, draft)에는 design 스코프가 없다.
+    let agent = Actor::agent("t".into(), &Scope::DEFAULT, None);
+    let err = design::update(&e.ctx, &agent, serde_json::json!({}))
+        .await
+        .unwrap_err();
+    assert_eq!(err.code(), Code::Forbidden);
+    design::reset(&e.ctx, &local).await.unwrap();
+    assert_eq!(design::tokens(&e.ctx).await.unwrap(), Tokens::default());
+    e.db.close().await;
+}
+
+#[tokio::test]
+async fn preset_apply_is_idempotent_and_keeps_user_edits() {
+    let e = env().await;
+    let local = Actor::local();
+    let preset: presets::Preset = serde_json::from_value(serde_json::json!({
+        "id": "t",
+        "name": "테스트",
+        "ops": [
+            { "op": "board.ensure", "slug": "notes", "name": "노트" },
+            { "op": "page.ensure", "slug": "about", "title": "소개", "publish": true },
+            { "op": "menu.ensure", "location": "header",
+              "items": [{ "label": "노트", "link": { "kind": "board", "slug": "notes" } }] },
+        ]
+    }))
+    .unwrap();
+    let first = presets::apply(&e.ctx, &local, &preset).await.unwrap();
+    assert!(first.iter().all(|r| r.changed), "{first:?}");
+    let audits = scalar(&e.db, "SELECT count(*) FROM audit_log").await;
+    let second = presets::apply(&e.ctx, &local, &preset).await.unwrap();
+    assert!(second.iter().all(|r| !r.changed), "{second:?}");
+    assert_eq!(
+        scalar(&e.db, "SELECT count(*) FROM audit_log").await,
+        audits
+    );
+
+    // 사용자가 바꾼 메뉴·숨긴 페이지는 다시 적용해도 그대로다.
+    menus::set(&e.ctx, &local, "header", vec![]).await.unwrap();
+    let mine = vec![MenuItem {
+        label: "내 메뉴".into(),
+        link: MenuLink::Home,
+        children: vec![],
+    }];
+    menus::set(&e.ctx, &local, "header", mine.clone())
+        .await
+        .unwrap();
+    pages::hide(&e.ctx, &local, "about").await.unwrap();
+    presets::apply(&e.ctx, &local, &preset).await.unwrap();
+    assert_eq!(menus::get(&e.ctx, "header").await.unwrap(), mine);
+    assert_eq!(
+        pages::get(&e.ctx, &local, "about").await.unwrap().status,
+        PageStatus::Hidden
+    );
+    e.db.close().await;
+}

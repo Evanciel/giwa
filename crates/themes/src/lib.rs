@@ -6,6 +6,7 @@
 use std::borrow::Cow;
 use std::path::{Component, Path, PathBuf};
 
+use maru_core::services::presets::Preset;
 use maru_core::{Code, Error, Result};
 use minijinja::{AutoEscape, Environment, UndefinedBehavior};
 use rust_embed::RustEmbed;
@@ -26,6 +27,7 @@ pub struct Theme {
 impl Theme {
     /// `user_dir` 는 `<data>/themes/<이름>`. 없거나 비어 있으면 내장 테마만 쓴다.
     pub fn new(user_dir: Option<PathBuf>) -> Self {
+        let user_dir = user_dir.filter(|d| compatible(d));
         let mut env = Environment::new();
         env.set_undefined_behavior(UndefinedBehavior::Chainable);
         env.set_formatter(html_formatter);
@@ -66,6 +68,66 @@ fn read_user(dir: &Path, sub: &str, name: &str) -> Option<String> {
 }
 
 /// `..`, 절대 경로, 드라이브 접두어, 역슬래시를 거부한다.
+/// 사용자 테마의 `theme.toml` 이 있으면 `template_api` 가 같아야 쓴다.
+/// 없으면 템플릿 몇 개만 덮어쓴 테마로 보고 받아들인다.
+fn compatible(dir: &Path) -> bool {
+    #[derive(serde::Deserialize)]
+    struct Manifest {
+        template_api: u32,
+    }
+    let Ok(text) = std::fs::read_to_string(dir.join("theme.toml")) else {
+        return true;
+    };
+    match toml::from_str::<Manifest>(&text) {
+        Ok(m) if m.template_api == TEMPLATE_API => true,
+        Ok(m) => {
+            tracing::warn!(
+                dir = %dir.display(),
+                found = m.template_api,
+                expected = TEMPLATE_API,
+                "사용자 테마의 template_api 가 맞지 않아 내장 테마를 씁니다"
+            );
+            false
+        }
+        Err(e) => {
+            tracing::warn!(dir = %dir.display(), error = %e, "사용자 테마의 theme.toml 을 읽지 못해 내장 테마를 씁니다");
+            false
+        }
+    }
+}
+
+/// 내장 프리셋 id 목록.
+pub fn preset_ids() -> Vec<String> {
+    Builtin::iter()
+        .filter_map(|p| {
+            p.strip_prefix("presets/")
+                .and_then(|n| n.strip_suffix(".toml"))
+                .map(str::to_owned)
+        })
+        .collect()
+}
+
+/// 내장 프리셋을 읽는다.
+pub fn preset(id: &str) -> Result<Preset> {
+    let unknown = || {
+        Error::new(Code::Validation)
+            .with_message("error.preset_unknown")
+            .arg("value", id.to_owned())
+            .arg("allowed", preset_ids().join(", "))
+    };
+    if !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+        return Err(unknown());
+    }
+    let file = Builtin::get(&format!("presets/{id}.toml")).ok_or_else(unknown)?;
+    let text = std::str::from_utf8(&file.data).map_err(Error::internal)?;
+    toml::from_str(text).map_err(|e| {
+        Error::new(Code::Internal)
+            .with_message("error.preset_invalid")
+            .arg("id", id.to_owned())
+            .arg("detail", e.to_string())
+    })
+}
+
 /// HTML 이스케이프는 `& < > " '` 만 한다. 기본 포매터는 `/` 까지 `&#x2f;` 로 바꿔
 /// 모든 링크가 읽기 어려워진다. 속성값은 항상 큰따옴표로 감싸므로 `/` 는 안전하다.
 fn html_formatter(
@@ -196,6 +258,45 @@ mod tests {
                 .contains("404")
         );
         let _ = std::fs::remove_dir_all(tmp);
+    }
+
+    #[test]
+    fn incompatible_user_theme_is_ignored() {
+        let tmp = std::env::temp_dir().join(format!("maru-theme-api-{}", std::process::id()));
+        let tdir = tmp.join("templates");
+        std::fs::create_dir_all(&tdir).unwrap();
+        std::fs::write(tdir.join("error.html"), "사용자").unwrap();
+        std::fs::write(tmp.join("theme.toml"), "template_api = 99\n").unwrap();
+        let theme = Theme::new(Some(tmp.clone()));
+        let html = theme.render("error.html", &json!({"status": 404})).unwrap();
+        assert_ne!(html, "사용자");
+        let _ = std::fs::remove_dir_all(tmp);
+    }
+
+    /// ADR-0017: 내장 템플릿은 URL 을 조합하지 않고 컨텍스트의 `url` 만 쓴다.
+    #[test]
+    fn builtin_templates_have_no_path_literals() {
+        for path in Builtin::iter().filter(|p| p.starts_with("templates/")) {
+            let file = Builtin::get(&path).unwrap();
+            let text = std::str::from_utf8(&file.data).unwrap();
+            for bad in ["\"/b/", "\"/p/", "'/b/", "'/p/"] {
+                assert!(!text.contains(bad), "{path} 에 경로 리터럴 {bad}");
+            }
+        }
+    }
+
+    #[test]
+    fn builtin_manifest_and_presets_parse() {
+        let manifest = std::str::from_utf8(&Builtin::get("theme.toml").unwrap().data)
+            .unwrap()
+            .to_owned();
+        assert!(manifest.contains(&format!("template_api = {TEMPLATE_API}")));
+        assert!(preset_ids().contains(&"blog".to_owned()));
+        let blog = preset("blog").unwrap();
+        assert_eq!(blog.id, "blog");
+        assert!(!blog.ops.is_empty());
+        assert!(preset("../x").is_err());
+        assert!(preset("nope").is_err());
     }
 
     #[test]

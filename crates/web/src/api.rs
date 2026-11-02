@@ -10,7 +10,7 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use maru_core::model::{MenuItem, PageReq, PageStatus, PostStatus};
 use maru_core::output::Success;
-use maru_core::services::{anonymous_actor, boards, menus, pages, posts, settings, tokens};
+use maru_core::services::{anonymous_actor, boards, design, menus, pages, posts, settings, tokens};
 use maru_core::{Actor, Code, Error};
 use serde::Deserialize;
 
@@ -32,6 +32,7 @@ pub fn routes() -> Router<AppState> {
         .route("/pages/{slug}/{action}", post(page_action))
         .route("/menus/{location}", get(get_menu).put(put_menu))
         .route("/settings", get(get_settings).patch(update_settings))
+        .route("/design/tokens", get(get_tokens).patch(update_tokens))
         .fallback(|| async { ApiError(Error::new(Code::NotFound)) })
 }
 
@@ -305,5 +306,22 @@ async fn update_settings(
     Ok(ok(
         StatusCode::OK,
         settings::update(&state.ctx, &actor, patch).await?,
+    ))
+}
+
+async fn get_tokens(State(state): State<AppState>) -> Result<Response, ApiError> {
+    Ok(ok(StatusCode::OK, design::tokens(&state.ctx).await?))
+}
+
+/// 부분 JSON 을 현재 토큰에 겹친다.
+async fn update_tokens(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    body: Result<Json<serde_json::Value>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let Json(patch) = body.map_err(bad_json)?;
+    Ok(ok(
+        StatusCode::OK,
+        design::update(&state.ctx, &actor, patch).await?,
     ))
 }

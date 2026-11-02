@@ -82,7 +82,8 @@ async fn create_inner(
         }
         return Err(Error::new(Code::Conflict)
             .with_message("error.page_exists")
-            .arg("slug", slug));
+            .arg("slug", slug.clone())
+            .next(format!("maru page edit {slug}")));
     }
     let now = clock::now();
     let page = Page {

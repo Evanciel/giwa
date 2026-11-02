@@ -6,7 +6,7 @@ use axum::http::{StatusCode, header};
 use axum::response::{Html, IntoResponse, Response};
 use axum::routing::get;
 use maru_core::model::{Board, Listing, MenuItem, MenuLink, Page, PageReq, Post, SiteSettings};
-use maru_core::services::{anonymous_actor, boards, menus, pages, posts, settings};
+use maru_core::services::{anonymous_actor, boards, design, menus, pages, posts, settings};
 use maru_core::urls::{self, Target};
 use maru_core::{Code, Error, Result, clock, markdown};
 use serde::Deserialize;
@@ -22,6 +22,7 @@ pub fn routes() -> Router<AppState> {
         .route("/b/{board}", get(board))
         .route("/b/{board}/{post}", get(post))
         .route("/p/{page}", get(page))
+        .route("/assets/tokens.css", get(tokens_css))
         .route("/assets/{*path}", get(asset))
         .fallback(not_found)
 }
@@ -209,6 +210,19 @@ async fn page_inner(state: &AppState, slug: &str) -> Result<Value> {
         "canonical": urls::absolute(&state.ctx.site_url, &target),
         "page": page_json(&p),
     }))
+}
+
+/// 디자인 토큰 CSS. 토큰은 검증된 값만 들어 있어 그대로 내보낸다.
+async fn tokens_css(State(state): State<AppState>) -> Response {
+    let tokens = design::tokens(&state.ctx).await.unwrap_or_default();
+    (
+        [
+            (header::CONTENT_TYPE, "text/css; charset=utf-8"),
+            (header::CACHE_CONTROL, "no-cache"),
+        ],
+        tokens.to_css(),
+    )
+        .into_response()
 }
 
 async fn asset(State(state): State<AppState>, Path(path): Path<String>) -> Response {

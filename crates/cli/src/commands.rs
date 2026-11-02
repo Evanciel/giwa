@@ -12,7 +12,7 @@ use maru_core::model::{MenuItem, MenuLink, Page, PageReq, PageStatus, PostStatus
 use maru_core::services::boards::{self, NewBoard};
 use maru_core::services::posts::{self, NewPost};
 use maru_core::services::tokens::{self, NewToken};
-use maru_core::services::{menus, pages, settings};
+use maru_core::services::{design, menus, pages, presets, settings};
 use maru_core::urls::{self, Target};
 use maru_core::{Actor, Code, Ctx, Error, Result};
 use maru_storage::{DataDir, Db};
@@ -20,8 +20,8 @@ use serde_json::{Value, json};
 
 use crate::output;
 use crate::{
-    BoardCmd, Command, Global, InitArgs, MenuCmd, MenuSetArgs, PageCmd, PostCmd, PostListArgs,
-    PostNewArgs, ServeArgs, SiteCmd, TokenCmd, TokenCreateArgs,
+    BoardCmd, Command, DesignCmd, Global, InitArgs, MenuCmd, MenuSetArgs, PageCmd, PostCmd,
+    PostListArgs, PostNewArgs, ServeArgs, SiteCmd, TokenCmd, TokenCreateArgs,
 };
 
 pub async fn run(g: &Global, command: Command) -> ExitCode {
@@ -34,6 +34,7 @@ pub async fn run(g: &Global, command: Command) -> ExitCode {
         Command::Page(cmd) => page(g, cmd).await,
         Command::Menu(cmd) => menu(g, cmd).await,
         Command::Site(cmd) => site(g, cmd).await,
+        Command::Design(cmd) => design_cmd(g, cmd).await,
     };
     match res {
         Ok((data, human)) => output::success(data, g.json, |_| human),
@@ -62,12 +63,8 @@ fn to_value<T: serde::Serialize>(v: &T) -> Result<Value> {
 // ---- init ----
 
 async fn init(g: &Global, args: InitArgs) -> Out {
-    if args.preset != "blog" {
-        return Err(Error::new(Code::Validation)
-            .with_message("error.preset_unknown")
-            .arg("value", args.preset)
-            .next("maru init --preset blog --yes"));
-    }
+    let preset =
+        maru_themes::preset(&args.preset).map_err(|e| e.next("maru init --preset blog --yes"))?;
     let dir = DataDir::new(&g.data);
     dir.ensure_layout()?;
     let fresh = !dir.is_initialized();
@@ -85,35 +82,13 @@ async fn init(g: &Global, args: InitArgs) -> Out {
         site_url: config.site_url.clone(),
     };
     let local = Actor::local();
-    let board = boards::ensure(
-        &ctx,
-        &local,
-        NewBoard {
-            slug: "blog".into(),
-            name: "블로그".into(),
-            kind: "blog".into(),
-            policy: None,
-            sort_order: 0,
-        },
-    )
-    .await?;
+    let applied = presets::apply(&ctx, &local, &preset).await?;
     if let Some(name) = args.name {
         let patch = settings::SettingsPatch {
             name: Some(name),
             ..Default::default()
         };
         settings::update(&ctx, &local, patch).await?;
-    }
-    // 기본 메뉴는 처음 만들 때만 깐다. 다시 실행해도 사용자가 고친 메뉴를 덮지 않는다.
-    if fresh {
-        let header = vec![MenuItem {
-            label: "글".into(),
-            link: MenuLink::Board {
-                slug: "blog".into(),
-            },
-            children: vec![],
-        }];
-        menus::set(&ctx, &local, "header", header).await?;
     }
     // 초기 토큰은 DB 를 처음 만들 때만 발급한다. 다시 실행해도 토큰이 늘지 않는다.
     let token = if fresh {
@@ -147,7 +122,8 @@ async fn init(g: &Global, args: InitArgs) -> Out {
         "config_written": wrote_config,
         "site_url": config.site_url,
         "bind": config.bind,
-        "board": to_value(&board)?,
+        "preset": preset.id,
+        "applied": to_value(&applied)?,
         "token": token.as_ref().map(|t| json!({
             "id": t.token.id,
             "name": t.token.name,
@@ -800,5 +776,117 @@ mod tests {
         );
         assert!(parse_menu_items(&["라벨만".to_owned()]).is_err());
         assert!(parse_menu_items(&["없는상위>x=home".to_owned()]).is_err());
+    }
+}
+
+// ---- design ----
+
+async fn design_cmd(g: &Global, cmd: DesignCmd) -> Out {
+    let (ctx, _config, db) = open(g).await?;
+    let actor = actor(&ctx).await?;
+    let res = design_inner(&ctx, &actor, cmd).await;
+    db.close().await;
+    res
+}
+
+async fn design_inner(ctx: &Ctx, actor: &Actor, cmd: DesignCmd) -> Out {
+    let (tokens, verb) = match cmd {
+        DesignCmd::Show { css: true } => {
+            let css = design::tokens(ctx).await?.to_css();
+            return Ok((json!({ "css": css }), css));
+        }
+        DesignCmd::Show { css: false } => (design::tokens(ctx).await?, None),
+        DesignCmd::Reset => (
+            design::reset(ctx, actor).await?,
+            Some("기본값으로 되돌렸습니다"),
+        ),
+        DesignCmd::Set(args) => {
+            let mut patch = match &args.from {
+                Some(path) => serde_json::from_str(&read_body(path)?).map_err(|e| {
+                    Error::new(Code::Validation)
+                        .with_message("error.json_body")
+                        .arg("detail", e.to_string())
+                })?,
+                None => json!({}),
+            };
+            for spec in &args.sets {
+                set_path(&mut patch, spec)?;
+            }
+            if args.sets.is_empty() && args.from.is_none() {
+                return Err(Error::new(Code::Usage)
+                    .with_hint("hint.usage")
+                    .next("maru design set --set color.primary=#2f5d50"));
+            }
+            (
+                design::update(ctx, actor, patch).await?,
+                Some("저장했습니다"),
+            )
+        }
+    };
+    let c = &tokens.color;
+    let mut human = format!(
+        "색  배경 {}  글자 {}  강조 {}  보조 {}\n글꼴 본문 {}  제목 {}  코드 {}\n크기 본문 {}px  배율 {}  최대 폭 {}px",
+        c.bg,
+        c.fg,
+        c.primary,
+        c.muted,
+        tokens.font.body,
+        tokens.font.heading,
+        tokens.font.mono,
+        tokens.type_scale.base,
+        tokens.type_scale.ratio,
+        tokens.layout.max_width
+    );
+    if let Some(v) = verb {
+        human = format!("디자인 토큰을 {v}.\n{human}");
+    }
+    Ok((to_value(&tokens)?, human))
+}
+
+/// `color.primary=#2f5d50` 을 부분 JSON 에 넣는다. 숫자로 읽히면 숫자로 넣는다.
+fn set_path(patch: &mut Value, spec: &str) -> Result<()> {
+    let bad = || {
+        Error::new(Code::Validation)
+            .with_message("error.token_value")
+            .arg("field", spec.to_owned())
+            .arg("value", "")
+            .next("maru design set --set color.primary=#2f5d50")
+    };
+    let (path, raw) = spec.split_once('=').ok_or_else(bad)?;
+    let value = match serde_json::from_str::<Value>(raw.trim()) {
+        Ok(n @ Value::Number(_)) => n,
+        _ => Value::String(raw.trim().to_owned()),
+    };
+    let mut slot = patch;
+    let keys: Vec<&str> = path.trim().split('.').collect();
+    for (i, key) in keys.iter().enumerate() {
+        if key.is_empty() {
+            return Err(bad());
+        }
+        let obj = slot.as_object_mut().ok_or_else(bad)?;
+        if i + 1 == keys.len() {
+            obj.insert((*key).to_owned(), value);
+            return Ok(());
+        }
+        slot = obj.entry((*key).to_owned()).or_insert_with(|| json!({}));
+    }
+    Err(bad())
+}
+
+#[cfg(test)]
+mod design_tests {
+    use super::*;
+
+    #[test]
+    fn set_path_builds_nested_patch() {
+        let mut p = json!({});
+        set_path(&mut p, "color.primary=#123456").unwrap();
+        set_path(&mut p, "type_scale.base=18").unwrap();
+        assert_eq!(
+            p,
+            json!({ "color": { "primary": "#123456" }, "type_scale": { "base": 18 } })
+        );
+        assert!(set_path(&mut p, "nonsense").is_err());
+        assert!(set_path(&mut p, "color..x=1").is_err());
     }
 }

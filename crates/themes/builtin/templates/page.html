@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ page.title }} · {{ site.name }}{% endblock %}
 {% block description %}{{ page.summary }}{% endblock %}
+{% block main_class %}wrap{% if page.layout == "wide" %} wide{% endif %}{% endblock %}
 {% block main %}
 <article class="page page--{{ page.layout }}">
   <header>

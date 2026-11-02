@@ -1138,6 +1138,8 @@ dependencies = [
  "rust-embed",
  "serde",
  "serde_json",
+ "toml",
+ "tracing",
 ]
 
 [[package]]

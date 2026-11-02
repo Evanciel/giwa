@@ -361,19 +361,12 @@ fn site_pages_and_menus_show_on_public_pages() {
     let menu = maru(&data, &["menu", "show", "header"]);
     assert_eq!(menu[0]["link"]["kind"], "board");
 
-    let about = maru(
+    // blog 프리셋이 만든 소개 초안을 고쳐서 공개한다.
+    maru(
         &data,
-        &[
-            "page",
-            "new",
-            "about",
-            "--title",
-            "소개",
-            "--body",
-            "**안녕하세요**",
-            "--publish",
-        ],
+        &["page", "edit", "about", "--body", "**안녕하세요**"],
     );
+    let about = maru(&data, &["page", "publish", "about"]);
     assert_eq!(about["status"], "published");
     assert!(about["url"].as_str().unwrap().ends_with("/p/about"));
     maru(&data, &["page", "new", "secret", "--title", "비공개"]);
@@ -442,4 +435,60 @@ fn site_pages_and_menus_show_on_public_pages() {
         "[]",
     );
     assert_eq!(status, 403);
+}
+
+/// U10: 프리셋으로 init → 토큰 CSS 가 공개되고, CLI 로 바꾼 토큰이 바로 반영된다.
+#[test]
+fn design_tokens_flow_to_css() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("site");
+    let init = maru(&data, &["init", "--yes"]);
+    assert_eq!(init["preset"], "blog");
+    // 블로그 프리셋은 소개 페이지를 초안으로 만든다.
+    let pages = maru(&data, &["page", "list"]);
+    assert_eq!(pages[0]["slug"], "about");
+    assert_eq!(pages[0]["status"], "draft");
+    // 다시 init 해도 아무것도 바뀌지 않는다.
+    let again = maru(&data, &["init", "--yes"]);
+    assert!(
+        again["applied"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|r| r["changed"] == false)
+    );
+
+    let t = maru(
+        &data,
+        &[
+            "design",
+            "set",
+            "--set",
+            "color.primary=#1f4f8f",
+            "--set",
+            "type_scale.base=18",
+        ],
+    );
+    assert_eq!(t["color"]["primary"], "#1f4f8f");
+
+    // 대비가 부족하면 VALIDATION 으로 거부된다.
+    let out = Command::new(BIN)
+        .arg("--data")
+        .arg(&data)
+        .args(["design", "set", "--set", "color.muted=#eeeeee", "--json"])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    let v: Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(v["error"]["code"], "VALIDATION");
+
+    let (_server, bind) = start_server(&data);
+    let (status, css) = http(&bind, "GET", "/assets/tokens.css", &[], "");
+    assert_eq!(status, 200);
+    assert!(css.contains("--primary: #1f4f8f;"), "{css}");
+    assert!(css.contains("--fs-base: 1.125rem;"));
+    let (_, home) = http(&bind, "GET", "/", &[], "");
+    assert!(home.contains(r#"href="/assets/tokens.css""#));
+    let (status, _) = http(&bind, "GET", "/assets/site.css", &[], "");
+    assert_eq!(status, 200);
 }

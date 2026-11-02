@@ -53,6 +53,9 @@ enum Command {
     /// 사이트 이름·설명·시간대 등
     #[command(subcommand)]
     Site(SiteCmd),
+    /// 디자인 토큰 (색, 글꼴, 글자 크기, 여백)
+    #[command(subcommand)]
+    Design(DesignCmd),
 }
 
 #[derive(Debug, Args)]
@@ -335,6 +338,30 @@ pub struct SiteSetArgs {
     pub tz_offset: Option<i32>,
     #[arg(long)]
     pub posts_per_page: Option<u32>,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum DesignCmd {
+    /// 현재 토큰
+    Show {
+        /// 토큰 대신 생성되는 CSS 를 출력
+        #[arg(long)]
+        css: bool,
+    },
+    /// 토큰을 고친다. 대비(WCAG AA)를 통과해야 저장된다
+    Set(DesignSetArgs),
+    /// 기본값으로 되돌린다
+    Reset,
+}
+
+#[derive(Debug, Args)]
+pub struct DesignSetArgs {
+    /// `경로=값` (예: color.primary=#2f5d50, type_scale.base=18, font.body=system)
+    #[arg(long = "set")]
+    pub sets: Vec<String>,
+    /// 부분 토큰 JSON 파일. `-` 이면 표준 입력
+    #[arg(long)]
+    pub from: Option<PathBuf>,
 }
 
 pub struct Global {
