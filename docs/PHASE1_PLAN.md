@@ -1,8 +1,8 @@
 # Phase 1 구현 계획
 
-> 상태: **승인 대기** (2026-11-02). 코드 작성 전 문서다.
+> 상태: **승인** (2026-11-02). §9의 ADR은 `docs/DECISIONS.md` ADR-0001~0015로 옮겼다.
+> 같은 날 범용 사이트 제안서(`docs/proposals/universal-site.md`) 채택으로 ADR-0016, 0017과 준비 3건을 반영했다(§2 아래쪽 행).
 > 제품 수치와 요구의 정본은 `docs/SPEC.md`다. 이 문서는 순서, 설계 경계, 검증 방법만 정한다.
-> 승인되면 §9의 ADR을 `docs/DECISIONS.md`로 옮긴다.
 
 ## 1. 실행 계약
 
@@ -26,6 +26,14 @@
 | 로그인 링크 | GET으로 바로 소비 | **GET은 확인 화면, POST에서 소비** | 메신저 미리보기와 링크 검사기가 1회용 링크를 먼저 소비하는 것을 막는다 |
 | 디자인 토큰 CSS | 템플릿에 출력 | **형식 검증 후 별도 CSS로 출력** | HTML 자동 이스케이프는 CSS 문맥을 보호하지 않는다 |
 | 검증 판정 | 통과/실패 | **PASS, FAIL, 못 쟀다 + 역시험** | 못 잰 것을 통과로 세지 않고, 결함을 심어 게이트가 떨어지는지 본다 |
+| 열거 값 CHECK | 미정 | **늘어날 열거 값은 CHECK 없이 core 검증, 상태 기계 값만 CHECK** | SQLite는 CHECK 변경에 테이블 재작성이 필요하다 (ADR-0016) |
+| 공개 URL 생성 | 위치별 조합 | **`url_for(Target)` 하나로만** | Phase 2 퍼머링크 도입 때 사용자 테마가 깨지지 않게 (ADR-0017) |
+| 템플릿 로더 | 사용자 테마 우선 | **소스 목록을 순서대로 찾는 겹 구조, `theme.toml`의 `template_api = 1`** | Phase 3 changeset 오버레이를 소스 하나 추가로 끝내기 위해 (ADR-0022 준비) |
+| 프리셋 형식 | 고정 세트 TOML | **`[[ops]]` 연산 목록 TOML** | Phase 3 레시피(ADR-0023)로 그대로 옮기기 위해 |
+| 글 삭제 | 미정 | **`deleted` 상태로 되돌릴 수 있게, 영구 삭제 없음** | 에이전트 실수 복구 (ADR-0029) |
+| 권한 범위 | 액션 단위 | **본인 글은 `post.write`, 남의 글은 `post.moderate`** | 그누보드7 대조에서 모호함 발견 (ADR-0029) |
+| `posts.author_id` | 필수 | **nullable, 작성 주체는 `actor_type`·감사 로그로 추적** | local·에이전트 Actor, 이후 비회원 글 (ADR-0029) |
+| 관리자 권한 실행 | 미정 | **root/Administrator면 경고 후 계속** | 사용자 결정 (ADR-0029) |
 
 ## 3. 결정 대기 질문
 
@@ -116,7 +124,7 @@ pub enum ActorKind {
 | 로그인 링크 | `init`, `login-link` | 사용, 만료, 새 링크 발급, 주기 정리 | 재사용과 이전 링크가 거부되는가 |
 | API 토큰 | `init`, `token create` | 폐기, 만료 | 폐기 직후 같은 토큰이 거부되는가 |
 | Rate limit 키 | 요청 | 주기 정리, 종료 | 키가 무한히 늘지 않는가 |
-| 글 공개 상태 | 발행 | 숨김, 복원 | 목록, 글, RSS, 사이트맵에서 함께 사라지는가 |
+| 글 공개 상태 | 발행 | 숨김, 삭제(`deleted`), 복원 | 목록, 글, RSS, 사이트맵에서 함께 사라지고 복원 시 돌아오는가 |
 | 사용자 테마 | 테마 복사 | 파일 삭제 | 내장 테마로 되돌아가는가 |
 | 서버 자원 | `serve` | 종료 신호, 시작 실패 | 연결을 닫고 정상 종료하는가 |
 
@@ -146,6 +154,11 @@ Phase 1에 넣지 않는 컬럼은 다음과 같다. 해당 Phase에서 읽는 �
 - `pages`: `blocks`
 
 `revisions`는 `post_id`, `page_id`를 nullable로 두고 CHECK로 정확히 하나만 허용한다.
+
+CHECK 제약 범위 (ADR-0016):
+
+- **CHECK 유지:** 상태 기계 값 `posts.status`, `posts.kind`, `posts.actor_type`, `audit_log.actor_type`, `members.status`, 그리고 위의 `revisions` 대상 하나 규칙.
+- **CHECK 없음, core 타입으로 검증:** `boards.kind`, `pages.layout`, `menus.location`, `audit_log.target_type`, `audit_log.action`. DB에서 알 수 없는 값을 읽으면 `INTERNAL`이 아니라 경고로 처리한다.
 
 ## 6. 작업 단위
 
@@ -190,8 +203,8 @@ M1이 끝나면 글 한 편이 실제로 끝까지 지나간다. 이후 단위�
 
 | 단위 | 산출물 | 의존 | 테스트 | 커밋 메시지 |
 |---|---|---|---|---|
-| U10 테마·프리셋 | 내장 테마, 사용자 테마 우선 로더, 토큰 검증, 토큰 CSS, `blog` 프리셋, Pretendard, `THIRD_PARTY.md` | U8, U9 | CSS 주입 거부, WCAG AA, 경로 탈출 차단, 사용자 테마 삭제 후 복귀, 프리셋 재적용 멱등 | `feat(themes): 기본 테마와 blog 프리셋` |
-| U11 공개 사이트 | 홈, 목록, 페이지네이션, 글, 페이지, 사이트맵, RSS, 메타, robots, 404, 보안 헤더 | U10 | 숨김 글 동시 제거, XML 유효성, `]]>` 주입, 메타 스냅샷, **UI-1** (§8) | `feat(web): 공개 사이트와 SEO 출력` |
+| U10 테마·프리셋 | 내장 테마, 겹 구조 로더(사용자 테마 → 내장), `template_api = 1`, 토큰 검증, 토큰 CSS, `[[ops]]` 형식 `blog` 프리셋, Pretendard, `THIRD_PARTY.md` | U8, U9 | CSS 주입 거부, WCAG AA, 경로 탈출 차단, 사용자 테마 삭제 후 복귀, 프리셋 재적용 멱등, 내장 템플릿에 `/b/`·`/p/` 경로 리터럴 없음 | `feat(themes): 기본 테마와 blog 프리셋` |
+| U11 공개 사이트 | `url_for` 단일 URL 빌더, 홈, 목록, 페이지네이션, 글, 페이지, 사이트맵, RSS, 메타, robots, 404, 보안 헤더 | U10 | 숨김 글 동시 제거, XML 유효성, `]]>` 주입, 메타 스냅샷, 사이트맵·RSS·canonical·CLI 출력 URL이 모두 `url_for`와 일치, **UI-1** (§8) | `feat(web): 공개 사이트와 SEO 출력` |
 
 U11 착수 전에 네이버 서치어드바이저 공식 문서로 사이트맵, RSS, 메타 요건을 확인한다.
 
@@ -267,7 +280,7 @@ U11 착수 전에 네이버 서치어드바이저 공식 문서로 사이트맵,
 
 **권한 매트릭스**
 
-비로그인, member, editor, owner × 공개 읽기, 초안 읽기, 작성, 발행, 구조 변경을 전수 확인한다. 상태 코드만 보지 않고 **올바른 `code`로 거절됐는지** 본다. member와 editor는 테스트 픽스처로 만든다.
+비로그인(guest), member, editor, owner × 공개 읽기, 초안 읽기, 작성, 본인 글 수정·삭제, 남의 글 수정·삭제, 발행, 구조 변경을 전수 확인한다. 상태 코드만 보지 않고 **올바른 `code`로 거절됐는지** 본다. member와 editor는 테스트 픽스처로 만든다.
 
 **UI-1 (직접 확인)**
 
