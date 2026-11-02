@@ -430,3 +430,302 @@ async fn token_lifecycle() {
     assert_eq!(hash_in_audit, 0);
     e.db.close().await;
 }
+
+// ---- U8 ----
+
+#[tokio::test]
+async fn full_lifecycle_and_public_sync() {
+    let e = env().await;
+    blog(&e.ctx).await;
+    let local = Actor::local();
+    let anon = anonymous_actor(&e.ctx).await.unwrap();
+    let p = posts::create_draft(&e.ctx, &local, draft("생애 주기"))
+        .await
+        .unwrap();
+    let visible = |n: i64| {
+        let ctx = e.ctx.clone();
+        let anon = anon.clone();
+        async move {
+            let list = posts::public_posts(&ctx, &anon, None, PageReq::default())
+                .await
+                .unwrap();
+            assert_eq!(list.total, n);
+        }
+    };
+
+    assert_eq!(
+        posts::submit(&e.ctx, &local, &p.id).await.unwrap().status,
+        PostStatus::Review
+    );
+    posts::publish(&e.ctx, &local, &p.id).await.unwrap();
+    visible(1).await;
+    assert_eq!(
+        posts::hide(&e.ctx, &local, &p.id).await.unwrap().status,
+        PostStatus::Hidden
+    );
+    visible(0).await;
+    assert_eq!(
+        posts::restore(&e.ctx, &local, &p.id).await.unwrap().status,
+        PostStatus::Published
+    );
+    visible(1).await;
+    assert_eq!(
+        posts::delete(&e.ctx, &local, &p.id).await.unwrap().status,
+        PostStatus::Deleted
+    );
+    visible(0).await;
+    assert_eq!(
+        posts::public_post(&e.ctx, &anon, "blog", &p.slug)
+            .await
+            .unwrap_err()
+            .code(),
+        Code::NotFound
+    );
+    // 삭제된 글은 고칠 수 없고 발행도 안 된다. 복원하면 공개로 돌아온다.
+    let patch = posts::PostPatch {
+        title: Some("x".into()),
+        ..Default::default()
+    };
+    assert_eq!(
+        posts::update(&e.ctx, &local, &p.id, patch)
+            .await
+            .unwrap_err()
+            .code(),
+        Code::Conflict
+    );
+    assert_eq!(
+        posts::publish(&e.ctx, &local, &p.id)
+            .await
+            .unwrap_err()
+            .code(),
+        Code::Conflict
+    );
+    posts::restore(&e.ctx, &local, &p.id).await.unwrap();
+    visible(1).await;
+
+    // 발행된 적 없는 초안은 복원하면 초안이다.
+    let d = posts::create_draft(&e.ctx, &local, draft("초안"))
+        .await
+        .unwrap();
+    posts::delete(&e.ctx, &local, &d.id).await.unwrap();
+    assert_eq!(
+        posts::restore(&e.ctx, &local, &d.id).await.unwrap().status,
+        PostStatus::Draft
+    );
+    e.db.close().await;
+}
+
+#[tokio::test]
+async fn update_makes_revision_and_checks_slug() {
+    let e = env().await;
+    blog(&e.ctx).await;
+    let local = Actor::local();
+    let a = posts::create_draft(&e.ctx, &local, draft("첫째"))
+        .await
+        .unwrap();
+    let b = posts::create_draft(&e.ctx, &local, draft("둘째"))
+        .await
+        .unwrap();
+
+    let patch = posts::PostPatch {
+        body_md: Some("고친 본문".into()),
+        ..Default::default()
+    };
+    let a2 = posts::update(&e.ctx, &local, &a.id, patch.clone())
+        .await
+        .unwrap();
+    assert_eq!(a2.body_md, "고친 본문");
+    assert_eq!(
+        posts::revisions(&e.ctx, &local, &a.id).await.unwrap().len(),
+        2
+    );
+    // 같은 내용으로 다시 고치면 아무 일도 없다.
+    let audits = scalar(&e.db, "SELECT count(*) FROM audit_log").await;
+    posts::update(&e.ctx, &local, &a.id, patch).await.unwrap();
+    assert_eq!(
+        scalar(&e.db, "SELECT count(*) FROM audit_log").await,
+        audits
+    );
+
+    let clash = posts::PostPatch {
+        slug: Some(b.slug.clone()),
+        ..Default::default()
+    };
+    assert_eq!(
+        posts::update(&e.ctx, &local, &a.id, clash)
+            .await
+            .unwrap_err()
+            .code(),
+        Code::Conflict
+    );
+    e.db.close().await;
+}
+
+#[tokio::test]
+async fn own_and_other_permissions() {
+    let e = env().await;
+    blog(&e.ctx).await;
+    let writer = Actor::agent("w".into(), &Scope::DEFAULT, None);
+    let editor = Actor::agent(
+        "ed".into(),
+        &[Scope::Read, Scope::Draft, Scope::Publish],
+        None,
+    );
+    let local = Actor::local();
+
+    // 로컬(운영자)이 쓴 글: 기본 토큰에게는 남의 글이다.
+    let others = posts::create_draft(&e.ctx, &local, draft("운영자 글"))
+        .await
+        .unwrap();
+    let patch = posts::PostPatch {
+        title: Some("바꿈".into()),
+        ..Default::default()
+    };
+    assert_eq!(
+        posts::update(&e.ctx, &writer, &others.id, patch.clone())
+            .await
+            .unwrap_err()
+            .code(),
+        Code::Forbidden
+    );
+    assert_eq!(
+        posts::delete(&e.ctx, &writer, &others.id)
+            .await
+            .unwrap_err()
+            .code(),
+        Code::Forbidden
+    );
+    assert_eq!(
+        posts::get(&e.ctx, &writer, &others.id)
+            .await
+            .unwrap_err()
+            .code(),
+        Code::NotFound
+    );
+    // 관리 권한(publish 스코프)이 있으면 남의 글도 고친다.
+    posts::update(&e.ctx, &editor, &others.id, patch.clone())
+        .await
+        .unwrap();
+
+    // 본인 글은 기본 토큰으로 고치고 지우고 되살린다. 단, 발행된 적 있으면 되살리기는 발행 권한이 필요하다.
+    let mine = posts::create_draft(&e.ctx, &writer, draft("내 글"))
+        .await
+        .unwrap();
+    posts::update(&e.ctx, &writer, &mine.id, patch)
+        .await
+        .unwrap();
+    posts::delete(&e.ctx, &writer, &mine.id).await.unwrap();
+    posts::restore(&e.ctx, &writer, &mine.id).await.unwrap();
+    posts::publish(&e.ctx, &editor, &mine.id).await.unwrap();
+    assert_eq!(
+        posts::hide(&e.ctx, &writer, &mine.id)
+            .await
+            .unwrap_err()
+            .code(),
+        Code::Forbidden
+    );
+
+    // 목록: 기본 토큰은 본인 글만, 편집자는 전부
+    let own = posts::list(&e.ctx, &writer, None, None, PageReq::default())
+        .await
+        .unwrap();
+    assert_eq!(own.total, 1);
+    let all = posts::list(&e.ctx, &editor, None, None, PageReq::default())
+        .await
+        .unwrap();
+    assert_eq!(all.total, 2);
+    e.db.close().await;
+}
+
+#[tokio::test]
+async fn boards_crud_and_non_empty_delete() {
+    let e = env().await;
+    let local = Actor::local();
+    blog(&e.ctx).await;
+    let input = NewBoard {
+        slug: "notice".into(),
+        name: "공지".into(),
+        kind: "notice".into(),
+        policy: None,
+        sort_order: 1,
+    };
+    let first = boards::ensure(&e.ctx, &local, input.clone()).await.unwrap();
+    assert!(first.created);
+    let second = boards::ensure(&e.ctx, &local, input.clone()).await.unwrap();
+    assert!(!second.created);
+    assert_eq!(
+        boards::create(&e.ctx, &local, input)
+            .await
+            .unwrap_err()
+            .code(),
+        Code::Conflict
+    );
+
+    let patch = boards::BoardPatch {
+        name: Some("알림".into()),
+        ..Default::default()
+    };
+    assert_eq!(
+        boards::update(&e.ctx, &local, "notice", patch)
+            .await
+            .unwrap()
+            .name,
+        "알림"
+    );
+    let bad = boards::BoardPatch {
+        kind: Some("wiki".into()),
+        ..Default::default()
+    };
+    assert_eq!(
+        boards::update(&e.ctx, &local, "notice", bad)
+            .await
+            .unwrap_err()
+            .code(),
+        Code::Validation
+    );
+
+    // 글이 있는 게시판은 지울 수 없다 (삭제 상태 글 포함).
+    let p = posts::create_draft(&e.ctx, &local, draft("글"))
+        .await
+        .unwrap();
+    posts::delete(&e.ctx, &local, &p.id).await.unwrap();
+    assert_eq!(
+        boards::delete(&e.ctx, &local, "blog")
+            .await
+            .unwrap_err()
+            .code(),
+        Code::Conflict
+    );
+    boards::delete(&e.ctx, &local, "notice").await.unwrap();
+    assert_eq!(
+        boards::show(&e.ctx, &local, "notice")
+            .await
+            .unwrap_err()
+            .code(),
+        Code::NotFound
+    );
+    e.db.close().await;
+}
+
+#[tokio::test]
+async fn ensure_draft_is_idempotent() {
+    let e = env().await;
+    blog(&e.ctx).await;
+    let local = Actor::local();
+    let mut input = draft("소개");
+    input.slug = Some("about-me".into());
+    assert!(
+        posts::ensure_draft(&e.ctx, &local, input.clone())
+            .await
+            .unwrap()
+            .created
+    );
+    assert!(
+        !posts::ensure_draft(&e.ctx, &local, input)
+            .await
+            .unwrap()
+            .created
+    );
+    assert_eq!(scalar(&e.db, "SELECT count(*) FROM posts").await, 1);
+    e.db.close().await;
+}

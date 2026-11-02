@@ -45,6 +45,7 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "error.json_body" => "요청 본문 JSON 이 올바르지 않습니다: {detail}",
         "error.post_status" => "알 수 없는 글 상태입니다: {value}",
         "error.preset_unknown" => "알 수 없는 프리셋입니다: {value}",
+        "error.board_not_empty" => "`{slug}` 게시판에 글이 {count}개 있어 지울 수 없습니다.",
         "error.scope_unknown" => {
             "알 수 없는 스코프입니다: {value} (read, draft, publish, structure, design, admin)"
         }

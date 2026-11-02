@@ -56,12 +56,7 @@ async fn create_inner(
     actor.require(Permission::StructureEdit)?;
     let slug = slug::normalize(&input.slug)?;
     let name = required_text("name", &input.name, 100)?;
-    if !BOARD_KINDS.contains(&input.kind.as_str()) {
-        return Err(Error::new(Code::Validation)
-            .with_message("error.board_kind")
-            .arg("value", input.kind)
-            .arg("allowed", BOARD_KINDS.join(", ")));
-    }
+    check_kind(&input.kind)?;
     let policy = input.policy.unwrap_or_else(|| {
         if input.kind == "blog" {
             BoardPolicy::blog()
@@ -69,13 +64,7 @@ async fn create_inner(
             BoardPolicy::default()
         }
     });
-    for role in [&policy.list, &policy.read, &policy.write, &policy.moderate] {
-        if crate::actor::rank::of_role(role).is_none() {
-            return Err(Error::new(Code::Validation)
-                .with_message("error.board_policy_role")
-                .arg("value", role.clone()));
-        }
-    }
+    check_policy(&policy)?;
 
     let mut tx = Tx::begin(ctx).await?;
     if let Some(existing) = tx.board_by_slug(&slug).await? {
@@ -114,6 +103,119 @@ async fn create_inner(
         created: true,
         item: board,
     })
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct BoardPatch {
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub kind: Option<String>,
+    #[serde(default)]
+    pub policy: Option<BoardPolicy>,
+    #[serde(default)]
+    pub sort_order: Option<i64>,
+}
+
+pub async fn update(ctx: &Ctx, actor: &Actor, slug: &str, patch: BoardPatch) -> Result<Board> {
+    actor.require(Permission::StructureEdit)?;
+    let mut tx = Tx::begin(ctx).await?;
+    let before = tx
+        .board_by_slug(slug)
+        .await?
+        .ok_or_else(|| not_found(slug))?;
+    let mut after = before.clone();
+    if let Some(n) = &patch.name {
+        after.name = required_text("name", n, 100)?;
+    }
+    if let Some(k) = patch.kind {
+        check_kind(&k)?;
+        after.kind = k;
+    }
+    if let Some(p) = patch.policy {
+        check_policy(&p)?;
+        after.policy = p;
+    }
+    if let Some(o) = patch.sort_order {
+        after.sort_order = o;
+    }
+    if after == before {
+        return Ok(before);
+    }
+    after.updated_at = clock::now();
+    tx.update_board(&after).await?;
+    tx.audit(
+        actor,
+        "board.update",
+        Target::board(&after.id),
+        audit::diff(Some(&before), Some(&after)),
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(after)
+}
+
+/// 글이 하나도 없는 게시판만 지운다. 삭제된 글(`deleted`)도 글로 센다.
+pub async fn delete(ctx: &Ctx, actor: &Actor, slug: &str) -> Result<Board> {
+    actor.require(Permission::StructureEdit)?;
+    let mut tx = Tx::begin(ctx).await?;
+    let board = tx
+        .board_by_slug(slug)
+        .await?
+        .ok_or_else(|| not_found(slug))?;
+    let n = tx.count_board_posts(&board.id).await?;
+    if n > 0 {
+        return Err(Error::new(Code::Conflict)
+            .with_message("error.board_not_empty")
+            .arg("slug", slug)
+            .arg("count", n.to_string())
+            .next(format!("maru post list --board {slug}")));
+    }
+    tx.delete_board(&board.id).await?;
+    tx.audit(
+        actor,
+        "board.delete",
+        Target::board(&board.id),
+        audit::diff(Some(&board), None),
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(board)
+}
+
+/// 목록 권한이 있으면 게시판 하나를 본다.
+pub async fn show(ctx: &Ctx, actor: &Actor, slug: &str) -> Result<Board> {
+    let board = ctx
+        .store
+        .board_by_slug(slug)
+        .await?
+        .ok_or_else(|| not_found(slug))?;
+    actor
+        .require_rank(Permission::BoardList, &board.policy.list)
+        .map_err(|_| not_found(slug))?;
+    Ok(board)
+}
+
+fn check_kind(kind: &str) -> Result<()> {
+    if BOARD_KINDS.contains(&kind) {
+        return Ok(());
+    }
+    Err(Error::new(Code::Validation)
+        .with_message("error.board_kind")
+        .arg("value", kind)
+        .arg("allowed", BOARD_KINDS.join(", ")))
+}
+
+fn check_policy(policy: &BoardPolicy) -> Result<()> {
+    for role in [&policy.list, &policy.read, &policy.write, &policy.moderate] {
+        if crate::actor::rank::of_role(role).is_none() {
+            return Err(Error::new(Code::Validation)
+                .with_message("error.board_policy_role")
+                .arg("value", role.clone()));
+        }
+    }
+    Ok(())
 }
 
 /// 목록을 볼 수 있는 게시판.

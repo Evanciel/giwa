@@ -76,6 +76,33 @@ pub enum PostCmd {
     List(PostListArgs),
     /// 글 하나
     Show { id: String },
+    /// 글을 고친다
+    Edit(PostEditArgs),
+    /// 검토를 요청한다 (초안 → 검토)
+    Submit { id: String },
+    /// 공개 글을 숨긴다
+    Hide { id: String },
+    /// 글을 삭제 상태로 (되돌릴 수 있다)
+    Delete { id: String },
+    /// 삭제·숨김을 되돌린다
+    Restore { id: String },
+}
+
+#[derive(Debug, Args)]
+pub struct PostEditArgs {
+    pub id: String,
+    #[arg(long)]
+    pub title: Option<String>,
+    #[arg(long)]
+    pub slug: Option<String>,
+    #[arg(long, conflicts_with = "from")]
+    pub body: Option<String>,
+    /// 본문 파일 (UTF-8). `-` 이면 표준 입력
+    #[arg(long)]
+    pub from: Option<PathBuf>,
+    /// 빈 문자열이면 요약을 지운다
+    #[arg(long)]
+    pub excerpt: Option<String>,
 }
 
 #[derive(Debug, Args)]
@@ -99,6 +126,9 @@ pub struct PostNewArgs {
     /// 만든 뒤 바로 발행
     #[arg(long)]
     pub publish: bool,
+    /// 같은 슬러그의 글이 있으면 만들지 않고 그 글을 돌려준다 (`--slug` 필요)
+    #[arg(long, requires = "slug")]
+    pub if_not_exists: bool,
 }
 
 #[derive(Debug, Args)]
@@ -118,6 +148,46 @@ pub struct PostListArgs {
 pub enum BoardCmd {
     /// 게시판 목록
     List,
+    /// 게시판을 만든다
+    Create(BoardCreateArgs),
+    /// 게시판 하나
+    Show { slug: String },
+    /// 게시판을 고친다
+    Update(BoardUpdateArgs),
+    /// 빈 게시판을 지운다
+    Delete { slug: String },
+}
+
+#[derive(Debug, Args)]
+pub struct BoardCreateArgs {
+    pub slug: String,
+    #[arg(long)]
+    pub name: String,
+    /// blog, notice, gallery, free, qna, faq
+    #[arg(long, default_value = "blog")]
+    pub kind: String,
+    #[arg(long, default_value_t = 0)]
+    pub sort_order: i64,
+    /// 같은 슬러그가 있으면 그대로 둔다
+    #[arg(long)]
+    pub if_not_exists: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct BoardUpdateArgs {
+    pub slug: String,
+    #[arg(long)]
+    pub name: Option<String>,
+    #[arg(long)]
+    pub kind: Option<String>,
+    #[arg(long)]
+    pub sort_order: Option<i64>,
+    /// 읽기 최소 역할 (guest, member, editor, admin, owner)
+    #[arg(long)]
+    pub read: Option<String>,
+    /// 쓰기 최소 역할
+    #[arg(long)]
+    pub write: Option<String>,
 }
 
 #[derive(Debug, Subcommand)]

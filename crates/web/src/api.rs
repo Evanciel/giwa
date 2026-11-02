@@ -19,10 +19,14 @@ use crate::error::ApiError;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/boards", get(list_boards))
+        .route("/boards", get(list_boards).post(create_board))
+        .route(
+            "/boards/{slug}",
+            get(get_board).patch(update_board).delete(delete_board),
+        )
         .route("/posts", get(list_posts).post(create_post))
-        .route("/posts/{id}", get(get_post))
-        .route("/posts/{id}/publish", post(publish_post))
+        .route("/posts/{id}", get(get_post).patch(update_post))
+        .route("/posts/{id}/{action}", post(post_action))
         .fallback(|| async { ApiError(Error::new(Code::NotFound)) })
 }
 
@@ -113,11 +117,76 @@ async fn get_post(
     Ok(ok(StatusCode::OK, post))
 }
 
-async fn publish_post(
+/// `POST /posts/{id}/{publish|submit|hide|delete|restore}`
+async fn post_action(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path((id, action)): Path<(String, String)>,
+) -> Result<Response, ApiError> {
+    let ctx = &state.ctx;
+    let post = match action.as_str() {
+        "publish" => posts::publish(ctx, &actor, &id).await?,
+        "submit" => posts::submit(ctx, &actor, &id).await?,
+        "hide" => posts::hide(ctx, &actor, &id).await?,
+        "delete" => posts::delete(ctx, &actor, &id).await?,
+        "restore" => posts::restore(ctx, &actor, &id).await?,
+        _ => return Err(ApiError(Error::new(Code::NotFound))),
+    };
+    Ok(ok(StatusCode::OK, post))
+}
+
+async fn update_post(
     State(state): State<AppState>,
     ApiActor(actor): ApiActor,
     Path(id): Path<String>,
+    body: Result<Json<posts::PostPatch>, JsonRejection>,
 ) -> Result<Response, ApiError> {
-    let post = posts::publish(&state.ctx, &actor, &id).await?;
+    let Json(patch) = body.map_err(bad_json)?;
+    let post = posts::update(&state.ctx, &actor, &id, patch).await?;
     Ok(ok(StatusCode::OK, post))
+}
+
+async fn create_board(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    body: Result<Json<boards::NewBoard>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let Json(input) = body.map_err(bad_json)?;
+    let board = boards::create(&state.ctx, &actor, input).await?;
+    Ok(ok(StatusCode::CREATED, board))
+}
+
+async fn get_board(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(slug): Path<String>,
+) -> Result<Response, ApiError> {
+    Ok(ok(
+        StatusCode::OK,
+        boards::show(&state.ctx, &actor, &slug).await?,
+    ))
+}
+
+async fn update_board(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(slug): Path<String>,
+    body: Result<Json<boards::BoardPatch>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let Json(patch) = body.map_err(bad_json)?;
+    Ok(ok(
+        StatusCode::OK,
+        boards::update(&state.ctx, &actor, &slug, patch).await?,
+    ))
+}
+
+async fn delete_board(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(slug): Path<String>,
+) -> Result<Response, ApiError> {
+    Ok(ok(
+        StatusCode::OK,
+        boards::delete(&state.ctx, &actor, &slug).await?,
+    ))
 }

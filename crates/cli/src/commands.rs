@@ -215,10 +215,42 @@ async fn post(g: &Global, cmd: PostCmd) -> Out {
         PostCmd::New(args) => post_new(&ctx, &actor, args).await,
         PostCmd::Publish { id } => {
             let p = posts::publish(&ctx, &actor, &id).await?;
-            let url = post_url(&ctx, &p.board_id, &p.slug).await?;
-            let mut data = to_value(&p)?;
-            data["url"] = Value::String(url.clone());
-            Ok((data, format!("발행했습니다: {}\n{url}", p.title)))
+            post_out(&ctx, &p, "발행했습니다").await
+        }
+        PostCmd::Submit { id } => {
+            let p = posts::submit(&ctx, &actor, &id).await?;
+            post_out(&ctx, &p, "검토를 요청했습니다").await
+        }
+        PostCmd::Hide { id } => {
+            let p = posts::hide(&ctx, &actor, &id).await?;
+            post_out(&ctx, &p, "숨겼습니다").await
+        }
+        PostCmd::Delete { id } => {
+            let p = posts::delete(&ctx, &actor, &id).await?;
+            let (data, human) = post_out(&ctx, &p, "삭제했습니다").await?;
+            Ok((
+                data,
+                format!("{human}\n되돌리기: maru post restore {}", p.id),
+            ))
+        }
+        PostCmd::Restore { id } => {
+            let p = posts::restore(&ctx, &actor, &id).await?;
+            post_out(&ctx, &p, "되돌렸습니다").await
+        }
+        PostCmd::Edit(args) => {
+            let body_md = match (&args.body, &args.from) {
+                (Some(b), _) => Some(b.clone()),
+                (None, Some(path)) => Some(read_body(path)?),
+                (None, None) => None,
+            };
+            let patch = posts::PostPatch {
+                title: args.title,
+                slug: args.slug,
+                body_md,
+                excerpt: args.excerpt,
+            };
+            let p = posts::update(&ctx, &actor, &args.id, patch).await?;
+            post_out(&ctx, &p, "고쳤습니다").await
         }
         PostCmd::List(args) => post_list(&ctx, &actor, args).await,
         PostCmd::Show { id } => {
@@ -231,37 +263,50 @@ async fn post(g: &Global, cmd: PostCmd) -> Out {
     res
 }
 
+/// 글 결과에 공개 URL 을 붙여 낸다.
+async fn post_out(ctx: &Ctx, p: &maru_core::model::Post, verb: &str) -> Out {
+    let url = post_url(ctx, &p.board_id, &p.slug).await?;
+    let mut data = to_value(p)?;
+    data["url"] = Value::String(url.clone());
+    Ok((
+        data,
+        format!("{verb}: {} [{}]\n{url}", p.title, p.status.as_str()),
+    ))
+}
+
 async fn post_new(ctx: &Ctx, actor: &Actor, args: PostNewArgs) -> Out {
     let body_md = match (&args.body, &args.from) {
         (Some(b), _) => b.clone(),
         (None, Some(path)) => read_body(path)?,
         (None, None) => String::new(),
     };
-    let mut p = posts::create_draft(
-        ctx,
-        actor,
-        NewPost {
-            board: args.board,
-            title: args.title,
-            slug: args.slug,
-            body_md,
-            excerpt: args.excerpt,
-        },
-    )
-    .await?;
+    let input = NewPost {
+        board: args.board,
+        title: args.title,
+        slug: args.slug,
+        body_md,
+        excerpt: args.excerpt,
+    };
+    let (mut p, created) = if args.if_not_exists {
+        let res = posts::ensure_draft(ctx, actor, input).await?;
+        (res.item, res.created)
+    } else {
+        (posts::create_draft(ctx, actor, input).await?, true)
+    };
     if args.publish {
         p = posts::publish(ctx, actor, &p.id).await?;
     }
     let url = post_url(ctx, &p.board_id, &p.slug).await?;
     let mut data = to_value(&p)?;
     data["url"] = Value::String(url.clone());
-    let verb = if args.publish {
-        "발행"
-    } else {
-        "초안 저장"
+    data["created"] = Value::Bool(created);
+    let verb = match (created, args.publish) {
+        (false, _) => "이미 있습니다",
+        (true, true) => "발행",
+        (true, false) => "초안 저장",
     };
     let mut human = format!("{verb}: {} (id {})\n{url}", p.title, p.id);
-    if !args.publish {
+    if !args.publish && created {
         human.push_str(&format!("\n다음: maru post publish {}", p.id));
     }
     Ok((data, human))
@@ -343,6 +388,61 @@ async fn board(g: &Global, cmd: BoardCmd) -> Out {
                 human.push_str(&format!("\n{}  {}  ({})", b.slug, b.name, b.kind));
             }
             Ok((to_value(&list)?, human))
+        }
+        BoardCmd::Create(args) => {
+            let input = NewBoard {
+                slug: args.slug,
+                name: args.name,
+                kind: args.kind,
+                policy: None,
+                sort_order: args.sort_order,
+            };
+            let (b, created) = if args.if_not_exists {
+                let res = boards::ensure(&ctx, &actor, input).await?;
+                (res.item, res.created)
+            } else {
+                (boards::create(&ctx, &actor, input).await?, true)
+            };
+            let mut data = to_value(&b)?;
+            data["created"] = Value::Bool(created);
+            let verb = if created {
+                "만들었습니다"
+            } else {
+                "이미 있습니다"
+            };
+            Ok((data, format!("게시판 {verb}: {} ({})", b.name, b.slug)))
+        }
+        BoardCmd::Show { slug } => {
+            let b = boards::show(&ctx, &actor, &slug).await?;
+            let human = format!(
+                "{} ({})  종류 {}  읽기 {}  쓰기 {}",
+                b.name, b.slug, b.kind, b.policy.read, b.policy.write
+            );
+            Ok((to_value(&b)?, human))
+        }
+        BoardCmd::Update(args) => {
+            let policy = if args.read.is_some() || args.write.is_some() {
+                let current = boards::show(&ctx, &actor, &args.slug).await?.policy;
+                Some(maru_core::model::BoardPolicy {
+                    read: args.read.unwrap_or(current.read),
+                    write: args.write.unwrap_or(current.write),
+                    ..current
+                })
+            } else {
+                None
+            };
+            let patch = boards::BoardPatch {
+                name: args.name,
+                kind: args.kind,
+                policy,
+                sort_order: args.sort_order,
+            };
+            let b = boards::update(&ctx, &actor, &args.slug, patch).await?;
+            Ok((to_value(&b)?, format!("게시판을 고쳤습니다: {}", b.slug)))
+        }
+        BoardCmd::Delete { slug } => {
+            let b = boards::delete(&ctx, &actor, &slug).await?;
+            Ok((to_value(&b)?, format!("게시판을 지웠습니다: {}", b.slug)))
         }
     };
     db.close().await;

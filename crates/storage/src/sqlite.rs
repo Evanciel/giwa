@@ -471,6 +471,42 @@ impl WriteTx for SqliteWriteTx {
         Ok(())
     }
 
+    async fn update_board(&mut self, b: &Board) -> Result<()> {
+        let policy = json(&b.policy)?;
+        sqlx::query!(
+            "UPDATE boards SET name = ?, kind = ?, policy = ?, sort_order = ?, updated_at = ?
+             WHERE id = ?",
+            b.name,
+            b.kind,
+            policy,
+            b.sort_order,
+            b.updated_at,
+            b.id
+        )
+        .execute(&mut *self.tx)
+        .await
+        .map_err(db_error)?;
+        Ok(())
+    }
+
+    async fn delete_board(&mut self, id: &str) -> Result<()> {
+        sqlx::query!("DELETE FROM boards WHERE id = ?", id)
+            .execute(&mut *self.tx)
+            .await
+            .map_err(db_error)?;
+        Ok(())
+    }
+
+    async fn count_board_posts(&mut self, board_id: &str) -> Result<i64> {
+        sqlx::query_scalar!(
+            r#"SELECT count(*) AS "n!: i64" FROM posts WHERE board_id = ?"#,
+            board_id
+        )
+        .fetch_one(&mut *self.tx)
+        .await
+        .map_err(db_error)
+    }
+
     async fn post_by_id(&mut self, id: &str) -> Result<Option<Post>> {
         post_by_id(&mut *self.tx, id).await
     }

@@ -71,6 +71,10 @@ pub trait WriteTx: Send {
     async fn board_by_id(&mut self, id: &str) -> Result<Option<Board>>;
     async fn board_by_slug(&mut self, slug: &str) -> Result<Option<Board>>;
     async fn insert_board(&mut self, board: &Board) -> Result<()>;
+    async fn update_board(&mut self, board: &Board) -> Result<()>;
+    async fn delete_board(&mut self, id: &str) -> Result<()>;
+    /// 상태와 무관하게 게시판에 남은 글 수 (`deleted` 포함).
+    async fn count_board_posts(&mut self, board_id: &str) -> Result<i64>;
 
     async fn post_by_id(&mut self, id: &str) -> Result<Option<Post>>;
     async fn slug_taken(

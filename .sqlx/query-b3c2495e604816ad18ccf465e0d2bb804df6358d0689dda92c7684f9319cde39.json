@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE boards SET name = ?, kind = ?, policy = ?, sort_order = ?, updated_at = ?\n             WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "b3c2495e604816ad18ccf465e0d2bb804df6358d0689dda92c7684f9319cde39"
+}

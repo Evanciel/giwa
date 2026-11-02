@@ -202,6 +202,199 @@ pub async fn public_posts(
     })
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PostPatch {
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub slug: Option<String>,
+    #[serde(default)]
+    pub body_md: Option<String>,
+    /// 빈 문자열이면 요약을 지운다
+    #[serde(default)]
+    pub excerpt: Option<String>,
+}
+
+/// 글을 고친다. 제목이나 본문이 바뀌면 리비전을 남긴다.
+pub async fn update(ctx: &Ctx, actor: &Actor, id: &str, patch: PostPatch) -> Result<Post> {
+    let mut tx = Tx::begin(ctx).await?;
+    let (board, before) = load_for_write(&mut *tx, actor, id).await?;
+    authorize_post(actor, &board, &before, Permission::PostWrite)?;
+    if before.status == PostStatus::Deleted {
+        return Err(bad_transition(&before, before.status));
+    }
+    let mut after = before.clone();
+    if let Some(t) = &patch.title {
+        after.title = required_text("title", t, MAX_TITLE)?;
+    }
+    if let Some(b) = patch.body_md {
+        after.body_md = check_body(b)?;
+    }
+    if let Some(e) = patch.excerpt {
+        let e = e.trim().to_owned();
+        after.excerpt = (!e.is_empty()).then_some(e);
+    }
+    if let Some(s) = &patch.slug {
+        let s = slug::normalize(s)?;
+        if s != before.slug && tx.slug_taken(&board.id, &s, Some(&before.id)).await? {
+            return Err(slug_conflict(&board, &s));
+        }
+        after.slug = s;
+    }
+    if after == before {
+        return Ok(before);
+    }
+    after.updated_at = clock::now();
+    tx.update_post(&after).await?;
+    if after.title != before.title || after.body_md != before.body_md {
+        tx.insert_revision(&revision_of(&after, actor)).await?;
+    }
+    tx.audit(
+        actor,
+        "post.update",
+        Target::post(&after.id),
+        audit::diff(Some(&before), Some(&after)),
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(after)
+}
+
+/// 초안을 검토 요청 상태로.
+pub async fn submit(ctx: &Ctx, actor: &Actor, id: &str) -> Result<Post> {
+    transition(
+        ctx,
+        actor,
+        id,
+        Permission::PostWrite,
+        &[PostStatus::Draft],
+        |_| PostStatus::Review,
+        "post.submit",
+    )
+    .await
+}
+
+/// 공개 글을 숨긴다. 목록·글·RSS·사이트맵에서 함께 빠진다.
+pub async fn hide(ctx: &Ctx, actor: &Actor, id: &str) -> Result<Post> {
+    transition(
+        ctx,
+        actor,
+        id,
+        Permission::PostPublish,
+        &[PostStatus::Published],
+        |_| PostStatus::Hidden,
+        "post.hide",
+    )
+    .await
+}
+
+/// 되돌릴 수 있는 삭제 (ADR-0029). 영구 삭제는 없다.
+pub async fn delete(ctx: &Ctx, actor: &Actor, id: &str) -> Result<Post> {
+    transition(
+        ctx,
+        actor,
+        id,
+        Permission::PostWrite,
+        &[
+            PostStatus::Draft,
+            PostStatus::Review,
+            PostStatus::Published,
+            PostStatus::Hidden,
+        ],
+        |_| PostStatus::Deleted,
+        "post.delete",
+    )
+    .await
+}
+
+/// 삭제·숨김을 되돌린다. 한 번이라도 발행된 글이면 공개로, 아니면 초안으로.
+pub async fn restore(ctx: &Ctx, actor: &Actor, id: &str) -> Result<Post> {
+    transition(
+        ctx,
+        actor,
+        id,
+        Permission::PostWrite,
+        &[PostStatus::Deleted, PostStatus::Hidden],
+        |p| {
+            if p.published_at.is_some() {
+                PostStatus::Published
+            } else {
+                PostStatus::Draft
+            }
+        },
+        "post.restore",
+    )
+    .await
+}
+
+async fn transition(
+    ctx: &Ctx,
+    actor: &Actor,
+    id: &str,
+    perm: Permission,
+    from: &[PostStatus],
+    to: impl Fn(&Post) -> PostStatus,
+    action: &'static str,
+) -> Result<Post> {
+    let mut tx = Tx::begin(ctx).await?;
+    let (board, before) = load_for_write(&mut *tx, actor, id).await?;
+    authorize_post(actor, &board, &before, perm)?;
+    let target = to(&before);
+    if before.status == target {
+        return Ok(before);
+    }
+    if !from.contains(&before.status) {
+        return Err(bad_transition(&before, target));
+    }
+    // 다시 공개되는 경로는 발행 권한이 필요하다.
+    if target == PostStatus::Published {
+        authorize_post(actor, &board, &before, Permission::PostPublish)?;
+    }
+    let after = Post {
+        status: target,
+        updated_at: clock::now(),
+        ..before.clone()
+    };
+    tx.update_post(&after).await?;
+    tx.audit(
+        actor,
+        action,
+        Target::post(&after.id),
+        audit::diff(Some(&before), Some(&after)),
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(after)
+}
+
+/// 같은 게시판에 같은 슬러그가 있으면 그것을 돌려준다 (`--if-not-exists`).
+pub async fn ensure_draft(
+    ctx: &Ctx,
+    actor: &Actor,
+    input: NewPost,
+) -> Result<boards::Created<Post>> {
+    if let Some(s) = input.slug.as_deref().filter(|s| !s.trim().is_empty()) {
+        let board = ctx
+            .store
+            .board_by_slug(&input.board)
+            .await?
+            .ok_or_else(|| boards::not_found(&input.board))?;
+        let s = slug::normalize(s)?;
+        if let Some(existing) = ctx.store.post_by_slug(&board.id, &s).await? {
+            authorize_post(actor, &board, &existing, Permission::PostWrite)?;
+            return Ok(boards::Created {
+                created: false,
+                item: existing,
+            });
+        }
+    }
+    Ok(boards::Created {
+        created: true,
+        item: create_draft(ctx, actor, input).await?,
+    })
+}
+
 /// 관리용 목록. 남의 글 관리 권한이 없으면 본인 글만 남긴다.
 pub async fn list(
     ctx: &Ctx,

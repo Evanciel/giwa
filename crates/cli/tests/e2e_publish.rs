@@ -247,3 +247,105 @@ fn uninitialized_dir_points_to_init() {
             .starts_with("maru init")
     );
 }
+
+#[test]
+fn cli_post_lifecycle_and_input_paths() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("site");
+    maru(&data, &["init", "--yes"]);
+
+    // UTF-8 BOM 이 붙은 파일
+    let md = tmp.path().join("글.md");
+    std::fs::write(&md, "\u{feff}# 제목\n\n한글 본문").unwrap();
+    let p = maru(
+        &data,
+        &[
+            "post",
+            "new",
+            "--title",
+            "파일 글",
+            "--from",
+            md.to_str().unwrap(),
+        ],
+    );
+    assert_eq!(p["body_md"], "# 제목\n\n한글 본문");
+    let id = p["id"].as_str().unwrap().to_owned();
+
+    // UTF-8 이 아닌 파일은 원인과 함께 거부
+    let bad = tmp.path().join("cp949.md");
+    std::fs::write(&bad, [0xC7u8, 0xD1, 0xB1, 0xDB]).unwrap();
+    let out = Command::new(BIN)
+        .arg("--data")
+        .arg(&data)
+        .args([
+            "post",
+            "new",
+            "--title",
+            "x",
+            "--from",
+            bad.to_str().unwrap(),
+            "--json",
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(2));
+    let v: Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(v["error"]["code"], "VALIDATION");
+    assert!(v["error"]["hint"].as_str().unwrap().contains("UTF-8"));
+
+    // 표준 입력
+    let mut child = Command::new(BIN)
+        .arg("--data")
+        .arg(&data)
+        .args(["post", "new", "--title", "입력 글", "--from", "-", "--json"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all("표준 입력 본문".as_bytes())
+        .unwrap();
+    let out = child.wait_with_output().unwrap();
+    let v: Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(v["data"]["body_md"], "표준 입력 본문");
+
+    // 고치기 → 발행 → 삭제 → 되돌리기
+    let edited = maru(&data, &["post", "edit", &id, "--title", "고친 제목"]);
+    assert_eq!(edited["title"], "고친 제목");
+    maru(&data, &["post", "publish", &id]);
+    assert_eq!(maru(&data, &["post", "delete", &id])["status"], "deleted");
+    assert_eq!(
+        maru(&data, &["post", "restore", &id])["status"],
+        "published"
+    );
+
+    // --if-not-exists 는 여러 번 실행해도 글이 하나
+    let args = [
+        "post",
+        "new",
+        "--title",
+        "소개",
+        "--slug",
+        "about",
+        "--if-not-exists",
+    ];
+    assert_eq!(maru(&data, &args)["created"], true);
+    assert_eq!(maru(&data, &args)["created"], false);
+    let b = [
+        "board",
+        "create",
+        "notice",
+        "--name",
+        "공지",
+        "--kind",
+        "notice",
+        "--if-not-exists",
+    ];
+    assert_eq!(maru(&data, &b)["created"], true);
+    assert_eq!(maru(&data, &b)["created"], false);
+    let list = maru(&data, &["board", "list"]);
+    assert_eq!(list.as_array().unwrap().len(), 2);
+}
