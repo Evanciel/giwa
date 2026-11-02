@@ -14,3 +14,8 @@ workspace = true
 maru-core.workspace = true
 sqlx.workspace = true
 tokio.workspace = true
+toml.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

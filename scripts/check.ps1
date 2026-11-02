@@ -60,7 +60,14 @@ if ($Quick) {
 # 쿼리 메타데이터: 마이그레이션이 생긴 뒤부터 검사한다.
 if (Test-Path "crates/storage/migrations") {
     if (Get-Command sqlx -ErrorAction SilentlyContinue) {
+        # 마이그레이션만 적용한 빈 DB 를 매번 새로 만들어 비교한다 (개발 DB 상태에 좌우되지 않게).
+        $meta = cmd /c "cargo metadata --format-version 1 --no-deps 2>nul" | ConvertFrom-Json
+        $checkDb = Join-Path $meta.target_directory "sqlx-check.db"
+        Remove-Item "$checkDb*" -Force -ErrorAction SilentlyContinue
+        $env:DATABASE_URL = "sqlite:" + ($checkDb -replace "\\", "/")
+        Step "sqlx-db" { cmd /c "sqlx database create && sqlx migrate run --source crates/storage/migrations" }
         Step "sqlx-prepare" { cargo sqlx prepare --workspace --check }
+        Remove-Item Env:DATABASE_URL
     } else {
         $skipped += "sqlx-prepare(sqlx-cli 없음)"
     }

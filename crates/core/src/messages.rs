@@ -21,6 +21,12 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "hint.port_in_use" => "다른 포트로 실행하세요.",
         "error.usage_detail" => "명령 사용법이 올바르지 않습니다: {detail}",
         "hint.usage" => "`maru --help` 로 사용법을 확인하세요.",
+        "hint.schema_too_new" => "더 새로운 maru 로 실행하거나 백업에서 복원하세요.",
+        "error.io" => "파일을 읽거나 쓰지 못했습니다: {path}",
+        "error.config_parse" => "설정 파일을 해석하지 못했습니다 ({path}): {detail}",
+        "error.config_site_url" => "site_url 은 http:// 또는 https:// 로 시작해야 합니다: {value}",
+        "error.config_bind" => "bind 는 `127.0.0.1:8080` 형식이어야 합니다: {value}",
+        "error.data_dir_not_initialized" => "데이터 디렉터리가 초기화되지 않았습니다: {path}",
         _ => return None,
     };
     Some(text)
