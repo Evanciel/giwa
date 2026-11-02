@@ -1,0 +1,19 @@
+# 빌드 산출물 (target 은 .cargo/config.toml 로 F: 에 둔다)
+/target/
+# 로컬 전용 cargo 설정 (빌드 경로가 PC마다 다르다)
+/.cargo/config.toml
+# 개발 데이터 디렉터리
+/dev-data/
+/maru-data/
+# 비밀 값
+.env
+.env.*
+!.env.example
+# 플러그인 상태
+/.bkit/
+# insta 임시 스냅샷
+*.snap.new
+*.pending-snap
+# 편집기
+.vscode/
+.idea/
