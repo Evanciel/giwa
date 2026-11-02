@@ -1,0 +1,23 @@
+[package]
+name = "maru-core"
+description = "Maru ?꾨찓??紐⑤뜽, ?쒕퉬?? 沅뚰븳 (DB쨌??鍮꾩쓽議?"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+async-trait.workspace = true
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+time.workspace = true
+ulid.workspace = true
+
+[dev-dependencies]
+insta.workspace = true

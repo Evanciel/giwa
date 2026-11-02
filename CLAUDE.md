@@ -36,7 +36,7 @@ Phase 1 — 코어 뼈대. 단계별 산출물과 완료 기준은 `docs/SPEC.md
 | 마크다운 | pulldown-cmark + ammonia | 렌더 결과는 반드시 ammonia로 정화 |
 | CLI | clap (derive) | |
 | MCP | rmcp (공식 Rust MCP SDK) | API는 추측하지 말고 docs.rs·소스 확인 |
-| 인증 | argon2 | 토큰은 무작위 생성 → 해시만 저장 |
+| 인증 | argon2, sha2 | 비밀번호는 argon2id. 서버가 만든 긴 무작위 값(토큰·세션·로그인 링크)은 SHA-256 해시만 저장 (ADR-0009) |
 | 스키마 | serde, serde_json, schemars | 공개 입력 타입의 JSON Schema를 MCP 툴 스키마와 설정 폼에 재사용 |
 | 에러 | thiserror (라이브러리), anyhow (바이너리) | |
 | 로깅 | tracing, tracing-subscriber | |
@@ -69,15 +69,18 @@ maru/
 ## 자주 쓰는 명령
 
 ```bash
+git config core.hooksPath .githooks                      # 클론 직후 1회: pre-commit 게이트 연결
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1   # fmt·clippy·의존 방향·test·sqlx prepare
 cargo build
 cargo test --workspace
-cargo clippy --workspace --all-targets -- -D warnings
-cargo fmt --all --check
-cargo run -p maru-cli -- serve --data ./dev-data        # 로컬 실행 (127.0.0.1:8080)
+cargo run -p maru-cli -- serve --data ./dev-data --bind 127.0.0.1:3139  # 개발 실행 (제품 기본값은 8080, ADR-0014)
 cargo run -p maru-cli -- init --data ./dev-data --preset blog --yes
 sqlx migrate add -r <name> --source crates/storage/migrations
 cargo sqlx prepare --workspace                           # 쿼리 메타데이터 갱신 후 커밋
 ```
+
+- 빌드 산출물은 로컬 전용 `.cargo/config.toml` 의 `target-dir` 로 ASCII 경로에 둔다(ADR-0015). 저장소에는 커밋하지 않는다.
+- smoke 게이트: 이 프로젝트는 `tests/smoke.mjs` 대신 `crates/cli/tests/e2e_*.rs`(실제 바이너리·실제 포트·실제 DB 파일)를 smoke로 쓴다. 커밋 전 `scripts/check.ps1` 통과가 곧 smoke 통과다. 버그를 고칠 때마다 그 버그를 잡는 케이스를 더한다.
 
 ## 코딩 규칙
 

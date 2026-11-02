@@ -1,0 +1,21 @@
+[package]
+name = "maru-web"
+description = "Maru 공개 사이트, REST API, 관리 화면"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+maru-core.workspace = true
+maru-themes.workspace = true
+ammonia.workspace = true
+axum.workspace = true
+pulldown-cmark.workspace = true
+tokio.workspace = true
+tower.workspace = true
+tower-http.workspace = true

@@ -1,0 +1,35 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      # rust-toolchain.toml 의 버전을 rustup 이 자동으로 설치한다
+      - run: rustup show active-toolchain
+      - uses: Swatinem/rust-cache@v2
+      - name: 품질 게이트
+        shell: pwsh
+        run: ./scripts/check.ps1
+
+  supply-chain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+      - name: cargo audit
+        run: |
+          cargo install --locked cargo-audit --version 0.22.2
+          cargo audit
