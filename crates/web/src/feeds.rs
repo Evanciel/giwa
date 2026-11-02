@@ -184,9 +184,9 @@ async fn rss_xml(state: &AppState) -> Result<String> {
             escape(&link)
         );
         let _ = writeln!(xml, "    <pubDate>{}</pubDate>", clock::rfc2822(&published));
-        // 본문 전체를 정화된 HTML 로 싣는다. CDATA 안의 `]]>` 는 쪼개서 닫힘을 막는다.
+        // 본문 전체를 정화된 HTML 로 싣되 CDATA 없이 이스케이프한다 (PHASE1_PLAN §7).
         let html = markdown::render(&p.body_md).into_string();
-        let _ = writeln!(xml, "    <description>{}</description>", cdata(&html));
+        let _ = writeln!(xml, "    <description>{}</description>", escape(&html));
         xml.push_str("  </item>\n");
     }
     xml.push_str("</channel>\n</rss>\n");
@@ -211,25 +211,9 @@ fn escape(s: &str) -> String {
     out
 }
 
-fn cdata(s: &str) -> String {
-    let clean: String = s
-        .chars()
-        .filter(|&c| (c as u32) >= 0x20 || matches!(c, '\t' | '\n' | '\r'))
-        .collect();
-    format!("<![CDATA[{}]]>", clean.replace("]]>", "]]]]><![CDATA[>"))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn cdata_cannot_be_closed_early() {
-        let out = cdata("a]]><script>x</script>");
-        assert_eq!(out.matches("<![CDATA[").count(), 2);
-        assert!(!out.contains("]]><script>"));
-        assert!(out.ends_with("]]>"));
-    }
 
     #[test]
     fn escape_handles_markup_and_controls() {

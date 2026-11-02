@@ -555,9 +555,9 @@ fn seo_outputs_follow_public_state() {
     assert!(rss.contains(&format!("<link>{url}</link>")));
     assert!(rss.contains("<pubDate>"));
     assert!(!rss.contains("<script>"), "본문은 정화된 HTML 만");
-    // 본문의 `]]>` 가 CDATA 를 일찍 닫지 않는다 (렌더러가 `&gt;` 로 바꾸고, 남으면 cdata() 가 쪼갠다).
-    assert!(!rss.contains("]]> &lt;script"), "{rss}");
-    assert_eq!(rss.matches("<description><![CDATA[").count(), 1);
+    // 본문은 CDATA 없이 이스케이프된 HTML 이다. 제목의 마크업도 이스케이프된다.
+    assert!(!rss.contains("<![CDATA["));
+    assert!(rss.contains("&lt;strong&gt;굵게&lt;/strong&gt;"), "{rss}");
 
     let (status, robots) = http(&bind, "GET", "/robots.txt", &[], "");
     assert_eq!(status, 200);
