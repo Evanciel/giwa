@@ -8,9 +8,9 @@ use axum::http::request::Parts;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use maru_core::model::{PageReq, PostStatus};
+use maru_core::model::{MenuItem, PageReq, PageStatus, PostStatus};
 use maru_core::output::Success;
-use maru_core::services::{anonymous_actor, boards, posts, tokens};
+use maru_core::services::{anonymous_actor, boards, menus, pages, posts, settings, tokens};
 use maru_core::{Actor, Code, Error};
 use serde::Deserialize;
 
@@ -27,6 +27,11 @@ pub fn routes() -> Router<AppState> {
         .route("/posts", get(list_posts).post(create_post))
         .route("/posts/{id}", get(get_post).patch(update_post))
         .route("/posts/{id}/{action}", post(post_action))
+        .route("/pages", get(list_pages).post(create_page))
+        .route("/pages/{slug}", get(get_page).patch(update_page))
+        .route("/pages/{slug}/{action}", post(page_action))
+        .route("/menus/{location}", get(get_menu).put(put_menu))
+        .route("/settings", get(get_settings).patch(update_settings))
         .fallback(|| async { ApiError(Error::new(Code::NotFound)) })
 }
 
@@ -188,5 +193,117 @@ async fn delete_board(
     Ok(ok(
         StatusCode::OK,
         boards::delete(&state.ctx, &actor, &slug).await?,
+    ))
+}
+
+#[derive(Debug, Deserialize)]
+struct PageListQuery {
+    status: Option<String>,
+}
+
+async fn list_pages(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Query(q): Query<PageListQuery>,
+) -> Result<Response, ApiError> {
+    let status = match q.status.as_deref() {
+        Some(s) => Some(PageStatus::parse(s).ok_or_else(|| {
+            Error::new(Code::Validation)
+                .with_message("error.post_status")
+                .arg("value", s)
+        })?),
+        None => None,
+    };
+    Ok(ok(
+        StatusCode::OK,
+        pages::list(&state.ctx, &actor, status).await?,
+    ))
+}
+
+async fn create_page(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    body: Result<Json<pages::NewPage>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let Json(input) = body.map_err(bad_json)?;
+    let page = pages::create(&state.ctx, &actor, input).await?;
+    Ok(ok(StatusCode::CREATED, page))
+}
+
+async fn get_page(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(slug): Path<String>,
+) -> Result<Response, ApiError> {
+    Ok(ok(
+        StatusCode::OK,
+        pages::get(&state.ctx, &actor, &slug).await?,
+    ))
+}
+
+async fn update_page(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(slug): Path<String>,
+    body: Result<Json<pages::PagePatch>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let Json(patch) = body.map_err(bad_json)?;
+    Ok(ok(
+        StatusCode::OK,
+        pages::update(&state.ctx, &actor, &slug, patch).await?,
+    ))
+}
+
+/// `POST /pages/{slug}/{publish|hide|delete|restore}`
+async fn page_action(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path((slug, action)): Path<(String, String)>,
+) -> Result<Response, ApiError> {
+    let ctx = &state.ctx;
+    let page = match action.as_str() {
+        "publish" => pages::publish(ctx, &actor, &slug).await?,
+        "hide" => pages::hide(ctx, &actor, &slug).await?,
+        "delete" => pages::delete(ctx, &actor, &slug).await?,
+        "restore" => pages::restore(ctx, &actor, &slug).await?,
+        _ => return Err(ApiError(Error::new(Code::NotFound))),
+    };
+    Ok(ok(StatusCode::OK, page))
+}
+
+/// 메뉴는 공개 화면에 그대로 보이므로 읽기에는 권한이 필요 없다.
+async fn get_menu(
+    State(state): State<AppState>,
+    Path(location): Path<String>,
+) -> Result<Response, ApiError> {
+    Ok(ok(StatusCode::OK, menus::get(&state.ctx, &location).await?))
+}
+
+async fn put_menu(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(location): Path<String>,
+    body: Result<Json<Vec<MenuItem>>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let Json(items) = body.map_err(bad_json)?;
+    Ok(ok(
+        StatusCode::OK,
+        menus::set(&state.ctx, &actor, &location, items).await?,
+    ))
+}
+
+async fn get_settings(State(state): State<AppState>) -> Result<Response, ApiError> {
+    Ok(ok(StatusCode::OK, settings::site(&state.ctx).await?))
+}
+
+async fn update_settings(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    body: Result<Json<settings::SettingsPatch>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let Json(patch) = body.map_err(bad_json)?;
+    Ok(ok(
+        StatusCode::OK,
+        settings::update(&state.ctx, &actor, patch).await?,
     ))
 }

@@ -11,7 +11,7 @@ use serde_json::Value;
 use crate::actor::Actor;
 use crate::audit::{AuditRecord, Target};
 use crate::error::{Error, Result};
-use crate::model::{Board, Post, PostStatus, Revision, Role, Token};
+use crate::model::{Board, MenuLink, Page, PageStatus, Post, PostStatus, Revision, Role, Token};
 
 /// 서비스 함수의 첫 인자.
 #[derive(Clone)]
@@ -61,6 +61,11 @@ pub trait Store: Send + Sync {
     async fn list_posts(&self, q: &PostFilter) -> Result<Vec<Post>>;
     async fn count_posts(&self, q: &PostFilter) -> Result<i64>;
     async fn revisions_of_post(&self, post_id: &str) -> Result<Vec<Revision>>;
+
+    async fn page_by_slug(&self, slug: &str) -> Result<Option<Page>>;
+    async fn list_pages(&self, status: Option<PageStatus>) -> Result<Vec<Page>>;
+    async fn menu_rows(&self, location: &str) -> Result<Vec<MenuRow>>;
+    async fn settings(&self) -> Result<Vec<(String, Value)>>;
 }
 
 #[async_trait]
@@ -88,6 +93,18 @@ pub trait WriteTx: Send {
     async fn insert_revision(&mut self, rev: &Revision) -> Result<()>;
 
     async fn insert_token(&mut self, token: &Token) -> Result<()>;
+
+    async fn page_by_id(&mut self, id: &str) -> Result<Option<Page>>;
+    async fn page_by_slug(&mut self, slug: &str) -> Result<Option<Page>>;
+    async fn insert_page(&mut self, page: &Page) -> Result<()>;
+    async fn update_page(&mut self, page: &Page) -> Result<()>;
+
+    async fn menu_rows(&mut self, location: &str) -> Result<Vec<MenuRow>>;
+    /// 위치의 메뉴를 통째로 바꾼다.
+    async fn replace_menu(&mut self, location: &str, rows: &[MenuRow]) -> Result<()>;
+
+    async fn settings(&mut self) -> Result<Vec<(String, Value)>>;
+    async fn put_setting(&mut self, key: &str, value: &Value, at: &str) -> Result<()>;
 }
 
 /// 쓰기 트랜잭션. 드롭하면 롤백된다.
@@ -140,4 +157,15 @@ impl DerefMut for Tx {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut *self.inner
     }
+}
+
+/// 메뉴 한 줄. 트리 조립은 core(`services::menus`)가 한다.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MenuRow {
+    pub id: String,
+    pub parent_id: Option<String>,
+    pub label: String,
+    pub link: MenuLink,
+    pub sort_order: i64,
+    pub created_at: String,
 }

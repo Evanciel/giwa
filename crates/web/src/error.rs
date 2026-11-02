@@ -41,7 +41,8 @@ impl IntoResponse for ApiError {
 }
 
 /// 공개 화면 오류 페이지.
-pub fn page(state: &AppState, err: &Error) -> Response {
+pub async fn page(state: &AppState, err: &Error) -> Response {
+    let site = crate::public::site_json(state).await;
     let rid = request_id(err);
     let body = err.body(rid.as_deref());
     let code = status(err);
@@ -54,7 +55,7 @@ pub fn page(state: &AppState, err: &Error) -> Response {
         .render(
             "error.html",
             &json!({
-                "site": crate::public::site_json(state),
+                "site": site,
                 "status": code.as_u16(),
                 "message": message,
                 "request_id": body.request_id,

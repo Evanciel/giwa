@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM menus WHERE location = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "f05a84dc7c4cdbef3245a006a01a436bd67ba803a28bcfabb0f12167289772d6"
+}

@@ -8,10 +8,11 @@ use std::sync::Arc;
 
 use maru_core::actor::Scope;
 use maru_core::config::{Config, DEFAULT_BIND};
-use maru_core::model::{PageReq, PostStatus};
+use maru_core::model::{MenuItem, MenuLink, Page, PageReq, PageStatus, PostStatus};
 use maru_core::services::boards::{self, NewBoard};
 use maru_core::services::posts::{self, NewPost};
 use maru_core::services::tokens::{self, NewToken};
+use maru_core::services::{menus, pages, settings};
 use maru_core::urls::{self, Target};
 use maru_core::{Actor, Code, Ctx, Error, Result};
 use maru_storage::{DataDir, Db};
@@ -19,8 +20,8 @@ use serde_json::{Value, json};
 
 use crate::output;
 use crate::{
-    BoardCmd, Command, Global, InitArgs, PostCmd, PostListArgs, PostNewArgs, ServeArgs, TokenCmd,
-    TokenCreateArgs,
+    BoardCmd, Command, Global, InitArgs, MenuCmd, MenuSetArgs, PageCmd, PostCmd, PostListArgs,
+    PostNewArgs, ServeArgs, SiteCmd, TokenCmd, TokenCreateArgs,
 };
 
 pub async fn run(g: &Global, command: Command) -> ExitCode {
@@ -30,6 +31,9 @@ pub async fn run(g: &Global, command: Command) -> ExitCode {
         Command::Post(cmd) => post(g, cmd).await,
         Command::Board(cmd) => board(g, cmd).await,
         Command::Token(cmd) => token(g, cmd).await,
+        Command::Page(cmd) => page(g, cmd).await,
+        Command::Menu(cmd) => menu(g, cmd).await,
+        Command::Site(cmd) => site(g, cmd).await,
     };
     match res {
         Ok((data, human)) => output::success(data, g.json, |_| human),
@@ -93,6 +97,24 @@ async fn init(g: &Global, args: InitArgs) -> Out {
         },
     )
     .await?;
+    if let Some(name) = args.name {
+        let patch = settings::SettingsPatch {
+            name: Some(name),
+            ..Default::default()
+        };
+        settings::update(&ctx, &local, patch).await?;
+    }
+    // 기본 메뉴는 처음 만들 때만 깐다. 다시 실행해도 사용자가 고친 메뉴를 덮지 않는다.
+    if fresh {
+        let header = vec![MenuItem {
+            label: "글".into(),
+            link: MenuLink::Board {
+                slug: "blog".into(),
+            },
+            children: vec![],
+        }];
+        menus::set(&ctx, &local, "header", header).await?;
+    }
     // 초기 토큰은 DB 를 처음 만들 때만 발급한다. 다시 실행해도 토큰이 늘지 않는다.
     let token = if fresh {
         Some(
@@ -493,4 +515,290 @@ async fn token_create(ctx: &Ctx, actor: &Actor, args: TokenCreateArgs) -> Out {
         issued.secret
     );
     Ok((to_value(&issued)?, human))
+}
+
+// ---- page ----
+
+async fn page(g: &Global, cmd: PageCmd) -> Out {
+    let (ctx, _config, db) = open(g).await?;
+    let actor = actor(&ctx).await?;
+    let res = page_inner(&ctx, &actor, cmd).await;
+    db.close().await;
+    res
+}
+
+async fn page_inner(ctx: &Ctx, actor: &Actor, cmd: PageCmd) -> Out {
+    match cmd {
+        PageCmd::New(args) => {
+            let body_md = match (&args.body, &args.from) {
+                (Some(b), _) => b.clone(),
+                (None, Some(path)) => read_body(path)?,
+                (None, None) => String::new(),
+            };
+            let input = pages::NewPage {
+                slug: args.slug,
+                title: args.title,
+                body_md,
+                layout: args.layout,
+                sort_order: args.sort_order,
+            };
+            let (mut p, created) = if args.if_not_exists {
+                let res = pages::ensure(ctx, actor, input).await?;
+                (res.item, res.created)
+            } else {
+                (pages::create(ctx, actor, input).await?, true)
+            };
+            if args.publish {
+                p = pages::publish(ctx, actor, &p.slug).await?;
+            }
+            let verb = if created {
+                "만들었습니다"
+            } else {
+                "이미 있습니다"
+            };
+            let (mut data, mut human) = page_out(ctx, &p, verb)?;
+            data["created"] = Value::Bool(created);
+            if p.status == PageStatus::Draft {
+                human.push_str(&format!("\n다음: maru page publish {}", p.slug));
+            }
+            Ok((data, human))
+        }
+        PageCmd::List { status } => {
+            let status = match status.as_deref() {
+                Some(s) => Some(PageStatus::parse(s).ok_or_else(|| {
+                    Error::new(Code::Validation)
+                        .with_message("error.post_status")
+                        .arg("value", s)
+                })?),
+                None => None,
+            };
+            let list = pages::list(ctx, actor, status).await?;
+            let mut human = format!("페이지 {}개", list.len());
+            for p in &list {
+                human.push_str(&format!(
+                    "\n{}  [{}]  {}",
+                    p.slug,
+                    p.status.as_str(),
+                    p.title
+                ));
+            }
+            Ok((to_value(&list)?, human))
+        }
+        PageCmd::Show { slug } => {
+            let p = pages::get(ctx, actor, &slug).await?;
+            let human = format!("[{}] {}\n\n{}", p.status.as_str(), p.title, p.body_md);
+            Ok((to_value(&p)?, human))
+        }
+        PageCmd::Edit(args) => {
+            let body_md = match (&args.body, &args.from) {
+                (Some(b), _) => Some(b.clone()),
+                (None, Some(path)) => Some(read_body(path)?),
+                (None, None) => None,
+            };
+            let patch = pages::PagePatch {
+                title: args.title,
+                slug: args.new_slug,
+                body_md,
+                layout: args.layout,
+                sort_order: args.sort_order,
+            };
+            let p = pages::update(ctx, actor, &args.slug, patch).await?;
+            page_out(ctx, &p, "고쳤습니다")
+        }
+        PageCmd::Publish { slug } => page_out(
+            ctx,
+            &pages::publish(ctx, actor, &slug).await?,
+            "공개했습니다",
+        ),
+        PageCmd::Hide { slug } => {
+            page_out(ctx, &pages::hide(ctx, actor, &slug).await?, "숨겼습니다")
+        }
+        PageCmd::Delete { slug } => {
+            let p = pages::delete(ctx, actor, &slug).await?;
+            let (data, human) = page_out(ctx, &p, "삭제했습니다")?;
+            Ok((
+                data,
+                format!("{human}\n되돌리기: maru page restore {}", p.slug),
+            ))
+        }
+        PageCmd::Restore { slug } => page_out(
+            ctx,
+            &pages::restore(ctx, actor, &slug).await?,
+            "되돌렸습니다",
+        ),
+    }
+}
+
+fn page_out(ctx: &Ctx, p: &Page, verb: &str) -> Out {
+    let url = urls::absolute(&ctx.site_url, &Target::Page { page: &p.slug });
+    let mut data = to_value(p)?;
+    data["url"] = Value::String(url.clone());
+    Ok((
+        data,
+        format!("페이지 {verb}: {} [{}]\n{url}", p.title, p.status.as_str()),
+    ))
+}
+
+// ---- menu ----
+
+async fn menu(g: &Global, cmd: MenuCmd) -> Out {
+    let (ctx, _config, db) = open(g).await?;
+    let actor = actor(&ctx).await?;
+    let res = match cmd {
+        MenuCmd::Show { location } => match menus::get(&ctx, &location).await {
+            Ok(items) => to_value(&items).map(|v| (v, menu_human(&location, &items))),
+            Err(e) => Err(e),
+        },
+        MenuCmd::Set(args) => menu_set(&ctx, &actor, args).await,
+    };
+    db.close().await;
+    res
+}
+
+async fn menu_set(ctx: &Ctx, actor: &Actor, args: MenuSetArgs) -> Out {
+    let items: Vec<MenuItem> = if let Some(path) = &args.from {
+        serde_json::from_str(&read_body(path)?).map_err(|e| {
+            Error::new(Code::Validation)
+                .with_message("error.json_body")
+                .arg("detail", e.to_string())
+        })?
+    } else if args.clear {
+        vec![]
+    } else if args.items.is_empty() {
+        return Err(Error::new(Code::Usage)
+            .with_hint("hint.usage")
+            .next(format!(
+                "maru menu set {} --item \"글=board:blog\" --item \"소개=page:about\"",
+                args.location
+            )));
+    } else {
+        parse_menu_items(&args.items)?
+    };
+    let saved = menus::set(ctx, actor, &args.location, items).await?;
+    let human = format!(
+        "메뉴를 저장했습니다.\n{}",
+        menu_human(&args.location, &saved)
+    );
+    Ok((to_value(&saved)?, human))
+}
+
+/// `라벨=링크`, `상위라벨>라벨=링크` 를 트리로 바꾼다. 링크 검사는 서비스가 한다.
+fn parse_menu_items(specs: &[String]) -> Result<Vec<MenuItem>> {
+    let mut out: Vec<MenuItem> = Vec::new();
+    for spec in specs {
+        let bad = || {
+            Error::new(Code::Validation)
+                .with_message("error.menu_item")
+                .arg("value", spec.clone())
+        };
+        let (label_part, link) = spec.split_once('=').ok_or_else(bad)?;
+        let link = link.trim();
+        let link = if link == "home" {
+            MenuLink::Home
+        } else if let Some(slug) = link.strip_prefix("board:") {
+            MenuLink::Board { slug: slug.into() }
+        } else if let Some(slug) = link.strip_prefix("page:") {
+            MenuLink::Page { slug: slug.into() }
+        } else {
+            MenuLink::Url { href: link.into() }
+        };
+        match label_part.split_once('>') {
+            Some((parent, label)) => {
+                let parent = parent.trim();
+                let p = out
+                    .iter_mut()
+                    .rev()
+                    .find(|i| i.label == parent)
+                    .ok_or_else(bad)?;
+                p.children.push(MenuItem {
+                    label: label.trim().into(),
+                    link,
+                    children: vec![],
+                });
+            }
+            None => out.push(MenuItem {
+                label: label_part.trim().into(),
+                link,
+                children: vec![],
+            }),
+        }
+    }
+    Ok(out)
+}
+
+fn menu_link_text(l: &MenuLink) -> String {
+    match l {
+        MenuLink::Home => "home".into(),
+        MenuLink::Board { slug } => format!("board:{slug}"),
+        MenuLink::Page { slug } => format!("page:{slug}"),
+        MenuLink::Url { href } => href.clone(),
+    }
+}
+
+fn menu_human(location: &str, items: &[MenuItem]) -> String {
+    let mut s = format!("{location} 메뉴 {}개", items.len());
+    for i in items {
+        s.push_str(&format!("\n- {} → {}", i.label, menu_link_text(&i.link)));
+        for c in &i.children {
+            s.push_str(&format!("\n  - {} → {}", c.label, menu_link_text(&c.link)));
+        }
+    }
+    s
+}
+
+// ---- site ----
+
+async fn site(g: &Global, cmd: SiteCmd) -> Out {
+    let (ctx, _config, db) = open(g).await?;
+    let actor = actor(&ctx).await?;
+    let res = match cmd {
+        SiteCmd::Show => settings::site(&ctx).await,
+        SiteCmd::Set(args) => {
+            let patch = settings::SettingsPatch {
+                name: args.name,
+                description: args.description,
+                lang: args.lang,
+                tz_offset_min: args.tz_offset,
+                posts_per_page: args.posts_per_page,
+            };
+            settings::update(&ctx, &actor, patch).await
+        }
+    };
+    db.close().await;
+    let s = res?;
+    let human = format!(
+        "이름 {}\n설명 {}\n언어 {}  시간대 UTC{:+}분  페이지당 글 {}",
+        s.name, s.description, s.lang, s.tz_offset_min, s.posts_per_page
+    );
+    Ok((to_value(&s)?, human))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn menu_item_specs_build_a_tree() {
+        let specs = [
+            "글=board:blog".to_owned(),
+            "글>소개=page:about".to_owned(),
+            "깃허브=https://github.com".to_owned(),
+        ];
+        let tree = parse_menu_items(&specs).unwrap();
+        assert_eq!(tree.len(), 2);
+        assert_eq!(
+            tree[0].children[0].link,
+            MenuLink::Page {
+                slug: "about".into()
+            }
+        );
+        assert_eq!(
+            tree[1].link,
+            MenuLink::Url {
+                href: "https://github.com".into()
+            }
+        );
+        assert!(parse_menu_items(&["라벨만".to_owned()]).is_err());
+        assert!(parse_menu_items(&["없는상위>x=home".to_owned()]).is_err());
+    }
 }

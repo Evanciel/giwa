@@ -44,6 +44,15 @@ enum Command {
     /// API 토큰
     #[command(subcommand)]
     Token(TokenCmd),
+    /// 고정 페이지 (소개, 연락처 등)
+    #[command(subcommand)]
+    Page(PageCmd),
+    /// 헤더·푸터 메뉴
+    #[command(subcommand)]
+    Menu(MenuCmd),
+    /// 사이트 이름·설명·시간대 등
+    #[command(subcommand)]
+    Site(SiteCmd),
 }
 
 #[derive(Debug, Args)]
@@ -57,6 +66,9 @@ pub struct InitArgs {
     /// 서버 주소 (기본: 127.0.0.1:8080)
     #[arg(long)]
     pub bind: Option<String>,
+    /// 사이트 이름 (주면 설정에 반영한다)
+    #[arg(long)]
+    pub name: Option<String>,
 }
 
 #[derive(Debug, Args)]
@@ -206,6 +218,123 @@ pub struct TokenCreateArgs {
     /// 만료 시각 (RFC3339)
     #[arg(long)]
     pub expires_at: Option<String>,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum PageCmd {
+    /// 페이지를 만든다 (초안)
+    New(PageNewArgs),
+    /// 페이지 목록
+    List {
+        /// draft, published, hidden, deleted
+        #[arg(long)]
+        status: Option<String>,
+    },
+    /// 페이지 하나
+    Show { slug: String },
+    /// 페이지를 고친다
+    Edit(PageEditArgs),
+    /// 페이지를 공개한다
+    Publish { slug: String },
+    /// 공개 페이지를 숨긴다
+    Hide { slug: String },
+    /// 페이지를 삭제 상태로 (되돌릴 수 있다)
+    Delete { slug: String },
+    /// 삭제를 되돌린다
+    Restore { slug: String },
+}
+
+#[derive(Debug, Args)]
+pub struct PageNewArgs {
+    pub slug: String,
+    #[arg(long)]
+    pub title: String,
+    #[arg(long, conflicts_with = "from")]
+    pub body: Option<String>,
+    /// 본문 파일 (UTF-8). `-` 이면 표준 입력
+    #[arg(long)]
+    pub from: Option<PathBuf>,
+    /// default, wide
+    #[arg(long, default_value = "default")]
+    pub layout: String,
+    #[arg(long, default_value_t = 0)]
+    pub sort_order: i64,
+    /// 만든 뒤 바로 공개
+    #[arg(long)]
+    pub publish: bool,
+    /// 같은 슬러그가 있으면 만들지 않고 그 페이지를 돌려준다
+    #[arg(long)]
+    pub if_not_exists: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct PageEditArgs {
+    pub slug: String,
+    #[arg(long)]
+    pub title: Option<String>,
+    /// 새 슬러그
+    #[arg(long)]
+    pub new_slug: Option<String>,
+    #[arg(long, conflicts_with = "from")]
+    pub body: Option<String>,
+    #[arg(long)]
+    pub from: Option<PathBuf>,
+    #[arg(long)]
+    pub layout: Option<String>,
+    #[arg(long)]
+    pub sort_order: Option<i64>,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum MenuCmd {
+    /// 메뉴 보기
+    Show {
+        /// header, footer
+        #[arg(default_value = "header")]
+        location: String,
+    },
+    /// 메뉴 전체를 바꾼다 (여러 번 실행해도 같은 결과)
+    Set(MenuSetArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct MenuSetArgs {
+    /// header, footer
+    pub location: String,
+    /// `라벨=링크`. 링크는 home, board:<슬러그>, page:<슬러그>, /경로, https://...
+    /// 하위 메뉴는 `상위라벨>라벨=링크`. 순서대로 쌓인다
+    #[arg(long = "item", conflicts_with_all = ["from", "clear"])]
+    pub items: Vec<String>,
+    /// 메뉴 트리 JSON 파일. `-` 이면 표준 입력
+    #[arg(long, conflicts_with = "clear")]
+    pub from: Option<PathBuf>,
+    /// 메뉴를 비운다
+    #[arg(long)]
+    pub clear: bool,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum SiteCmd {
+    /// 사이트 설정 보기
+    Show,
+    /// 사이트 설정을 고친다
+    Set(SiteSetArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct SiteSetArgs {
+    #[arg(long)]
+    pub name: Option<String>,
+    #[arg(long)]
+    pub description: Option<String>,
+    /// 문서 언어 (ko, en ...)
+    #[arg(long)]
+    pub lang: Option<String>,
+    /// UTC 기준 분 (한국 540)
+    #[arg(long, allow_hyphen_values = true)]
+    pub tz_offset: Option<i32>,
+    #[arg(long)]
+    pub posts_per_page: Option<u32>,
 }
 
 pub struct Global {

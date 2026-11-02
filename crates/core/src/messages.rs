@@ -46,6 +46,16 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "error.post_status" => "알 수 없는 글 상태입니다: {value}",
         "error.preset_unknown" => "알 수 없는 프리셋입니다: {value}",
         "error.board_not_empty" => "`{slug}` 게시판에 글이 {count}개 있어 지울 수 없습니다.",
+        "error.page_exists" => "`{slug}` 페이지가 이미 있습니다.",
+        "error.page_not_found" => "`{slug}` 페이지를 찾을 수 없습니다.",
+        "error.page_layout" => "레이아웃 `{value}` 는 지원하지 않습니다. 가능한 값: {allowed}",
+        "error.menu_location" => "메뉴 위치 `{value}` 는 지원하지 않습니다. 가능한 값: {allowed}",
+        "error.menu_depth" => "메뉴는 {max}단까지만 만들 수 있습니다.",
+        "error.menu_too_many" => "메뉴 항목은 {max}개까지입니다.",
+        "error.menu_url" => "메뉴 주소는 https://, http:// 또는 / 로 시작해야 합니다: {value}",
+        "error.menu_item" => "메뉴 항목 형식이 올바르지 않습니다: {value}",
+        "error.setting_lang" => "언어 태그가 올바르지 않습니다: {value}",
+        "error.setting_tz" => "시간대는 -720 ~ 840 분 사이여야 합니다: {value}",
         "error.scope_unknown" => {
             "알 수 없는 스코프입니다: {value} (read, draft, publish, structure, design, admin)"
         }

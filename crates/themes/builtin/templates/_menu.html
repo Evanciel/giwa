@@ -1,0 +1,15 @@
+{# 메뉴 한 단. 외부 링크는 새 창으로 열지 않고 rel 만 붙인다. #}
+<ul>
+  {% for item in items %}
+  <li>
+    <a href="{{ item.href }}"{% if item.external %} rel="noopener noreferrer"{% endif %}>{{ item.label }}</a>
+    {% if item.children %}
+    <ul>
+      {% for child in item.children %}
+      <li><a href="{{ child.href }}"{% if child.external %} rel="noopener noreferrer"{% endif %}>{{ child.label }}</a></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </li>
+  {% endfor %}
+</ul>

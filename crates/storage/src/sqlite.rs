@@ -3,9 +3,12 @@
 use async_trait::async_trait;
 use maru_core::actor::{AuthorType, Permission, Scope};
 use maru_core::audit::AuditRecord;
-use maru_core::model::{Board, BoardPolicy, Post, PostKind, PostStatus, Revision, Role, Token};
-use maru_core::store::{PostFilter, PublishedQuery, Store, WriteTx};
+use maru_core::model::{
+    Board, BoardPolicy, Page, PageStatus, Post, PostKind, PostStatus, Revision, Role, Token,
+};
+use maru_core::store::{MenuRow, PostFilter, PublishedQuery, Store, WriteTx};
 use maru_core::{Code, Error, Result};
+use serde_json::Value;
 use sqlx::{Sqlite, SqliteExecutor, Transaction};
 
 use crate::db::Db;
@@ -185,6 +188,97 @@ fn json<T: serde::Serialize>(v: &T) -> Result<String> {
 
 fn convert<R, T: TryFrom<R, Error = Error>>(rows: Vec<R>) -> Result<Vec<T>> {
     rows.into_iter().map(T::try_from).collect()
+}
+
+struct PageRow {
+    id: String,
+    slug: String,
+    title: String,
+    body_md: String,
+    status: String,
+    layout: String,
+    author_id: Option<String>,
+    actor_type: String,
+    sort_order: i64,
+    published_at: Option<String>,
+    created_at: String,
+    updated_at: String,
+}
+
+impl TryFrom<PageRow> for Page {
+    type Error = Error;
+
+    fn try_from(r: PageRow) -> Result<Self> {
+        Ok(Page {
+            status: PageStatus::parse(&r.status)
+                .ok_or_else(|| unknown("pages.status", &r.status))?,
+            actor_type: AuthorType::parse(&r.actor_type)
+                .ok_or_else(|| unknown("pages.actor_type", &r.actor_type))?,
+            id: r.id,
+            slug: r.slug,
+            title: r.title,
+            body_md: r.body_md,
+            layout: r.layout,
+            author_id: r.author_id,
+            sort_order: r.sort_order,
+            published_at: r.published_at,
+            created_at: r.created_at,
+            updated_at: r.updated_at,
+        })
+    }
+}
+
+async fn page_by_slug<'e>(e: impl SqliteExecutor<'e>, slug: &str) -> Result<Option<Page>> {
+    sqlx::query_as!(
+        PageRow,
+        "SELECT id, slug, title, body_md, status, layout, author_id, actor_type, sort_order,
+                published_at, created_at, updated_at
+         FROM pages WHERE slug = ?",
+        slug
+    )
+    .fetch_optional(e)
+    .await
+    .map_err(db_error)?
+    .map(Page::try_from)
+    .transpose()
+}
+
+async fn menu_rows<'e>(e: impl SqliteExecutor<'e>, location: &str) -> Result<Vec<MenuRow>> {
+    let rows = sqlx::query!(
+        "SELECT id, parent_id, label, link, sort_order, created_at
+         FROM menus WHERE location = ? ORDER BY sort_order",
+        location
+    )
+    .fetch_all(e)
+    .await
+    .map_err(db_error)?;
+    rows.into_iter()
+        .map(|r| {
+            Ok(MenuRow {
+                link: serde_json::from_str(&r.link).map_err(Error::internal)?,
+                id: r.id,
+                parent_id: r.parent_id,
+                label: r.label,
+                sort_order: r.sort_order,
+                created_at: r.created_at,
+            })
+        })
+        .collect()
+}
+
+async fn settings<'e>(e: impl SqliteExecutor<'e>) -> Result<Vec<(String, Value)>> {
+    let rows = sqlx::query!("SELECT key, value FROM site_settings ORDER BY key")
+        .fetch_all(e)
+        .await
+        .map_err(db_error)?;
+    rows.into_iter()
+        .map(|r| {
+            Ok((
+                r.key,
+                serde_json::from_str(&r.value).map_err(Error::internal)?,
+            ))
+        })
+        .collect()
 }
 
 // ---- 읽기·쓰기 공용 쿼리 ----
@@ -415,6 +509,34 @@ impl Store for SqliteStore {
         .map_err(db_error)?;
         convert(rows)
     }
+
+    async fn page_by_slug(&self, slug: &str) -> Result<Option<Page>> {
+        page_by_slug(&self.db.read, slug).await
+    }
+
+    async fn list_pages(&self, status: Option<PageStatus>) -> Result<Vec<Page>> {
+        let status = status.map(PageStatus::as_str);
+        let rows = sqlx::query_as!(
+            PageRow,
+            "SELECT id, slug, title, body_md, status, layout, author_id, actor_type, sort_order,
+                    published_at, created_at, updated_at
+             FROM pages WHERE (?1 IS NULL OR status = ?1)
+             ORDER BY sort_order, title",
+            status
+        )
+        .fetch_all(&self.db.read)
+        .await
+        .map_err(db_error)?;
+        convert(rows)
+    }
+
+    async fn menu_rows(&self, location: &str) -> Result<Vec<MenuRow>> {
+        menu_rows(&self.db.read, location).await
+    }
+
+    async fn settings(&self) -> Result<Vec<(String, Value)>> {
+        settings(&self.db.read).await
+    }
 }
 
 #[async_trait]
@@ -619,6 +741,121 @@ impl WriteTx for SqliteWriteTx {
             t.revoked_at,
             t.created_at,
             t.updated_at
+        )
+        .execute(&mut *self.tx)
+        .await
+        .map_err(db_error)?;
+        Ok(())
+    }
+
+    async fn page_by_id(&mut self, id: &str) -> Result<Option<Page>> {
+        sqlx::query_as!(
+            PageRow,
+            "SELECT id, slug, title, body_md, status, layout, author_id, actor_type, sort_order,
+                    published_at, created_at, updated_at
+             FROM pages WHERE id = ?",
+            id
+        )
+        .fetch_optional(&mut *self.tx)
+        .await
+        .map_err(db_error)?
+        .map(Page::try_from)
+        .transpose()
+    }
+
+    async fn page_by_slug(&mut self, slug: &str) -> Result<Option<Page>> {
+        page_by_slug(&mut *self.tx, slug).await
+    }
+
+    async fn insert_page(&mut self, p: &Page) -> Result<()> {
+        let (status, actor_type) = (p.status.as_str(), p.actor_type.as_str());
+        sqlx::query!(
+            "INSERT INTO pages (id, slug, title, body_md, status, layout, author_id, actor_type,
+                                sort_order, published_at, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            p.id,
+            p.slug,
+            p.title,
+            p.body_md,
+            status,
+            p.layout,
+            p.author_id,
+            actor_type,
+            p.sort_order,
+            p.published_at,
+            p.created_at,
+            p.updated_at
+        )
+        .execute(&mut *self.tx)
+        .await
+        .map_err(db_error)?;
+        Ok(())
+    }
+
+    async fn update_page(&mut self, p: &Page) -> Result<()> {
+        let status = p.status.as_str();
+        sqlx::query!(
+            "UPDATE pages SET slug = ?, title = ?, body_md = ?, status = ?, layout = ?,
+                              sort_order = ?, published_at = ?, updated_at = ?
+             WHERE id = ?",
+            p.slug,
+            p.title,
+            p.body_md,
+            status,
+            p.layout,
+            p.sort_order,
+            p.published_at,
+            p.updated_at,
+            p.id
+        )
+        .execute(&mut *self.tx)
+        .await
+        .map_err(db_error)?;
+        Ok(())
+    }
+
+    async fn menu_rows(&mut self, location: &str) -> Result<Vec<MenuRow>> {
+        menu_rows(&mut *self.tx, location).await
+    }
+
+    async fn replace_menu(&mut self, location: &str, rows: &[MenuRow]) -> Result<()> {
+        sqlx::query!("DELETE FROM menus WHERE location = ?", location)
+            .execute(&mut *self.tx)
+            .await
+            .map_err(db_error)?;
+        // 부모가 먼저 오도록 flatten 된 순서 그대로 넣는다.
+        for r in rows {
+            let link = json(&r.link)?;
+            sqlx::query!(
+                "INSERT INTO menus (id, location, parent_id, label, link, sort_order, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)",
+                r.id,
+                location,
+                r.parent_id,
+                r.label,
+                link,
+                r.sort_order,
+                r.created_at
+            )
+            .execute(&mut *self.tx)
+            .await
+            .map_err(db_error)?;
+        }
+        Ok(())
+    }
+
+    async fn settings(&mut self) -> Result<Vec<(String, Value)>> {
+        settings(&mut *self.tx).await
+    }
+
+    async fn put_setting(&mut self, key: &str, value: &Value, at: &str) -> Result<()> {
+        let v = json(value)?;
+        sqlx::query!(
+            "INSERT INTO site_settings (key, value, updated_at) VALUES (?, ?, ?)
+             ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+            key,
+            v,
+            at
         )
         .execute(&mut *self.tx)
         .await

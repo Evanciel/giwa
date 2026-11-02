@@ -2,7 +2,10 @@
 //! 시그니처는 `(&Ctx, &Actor, input)`.
 
 pub mod boards;
+pub mod menus;
+pub mod pages;
 pub mod posts;
+pub mod settings;
 pub mod tokens;
 
 use crate::actor::Actor;

@@ -729,3 +729,191 @@ async fn ensure_draft_is_idempotent() {
     assert_eq!(scalar(&e.db, "SELECT count(*) FROM posts").await, 1);
     e.db.close().await;
 }
+
+// ---- U9 ----
+
+use maru_core::model::{MenuItem, MenuLink, PageStatus};
+use maru_core::services::{menus, pages, settings};
+
+#[tokio::test]
+async fn pages_lifecycle_and_privacy() {
+    let e = env().await;
+    let local = Actor::local();
+    let anon = anonymous_actor(&e.ctx).await.unwrap();
+    let input = pages::NewPage {
+        slug: "about".into(),
+        title: "소개".into(),
+        body_md: "저는 개발자입니다.".into(),
+        layout: "default".into(),
+        sort_order: 0,
+    };
+    let p = pages::create(&e.ctx, &local, input.clone()).await.unwrap();
+    assert_eq!(p.status, PageStatus::Draft);
+    assert!(!pages::ensure(&e.ctx, &local, input).await.unwrap().created);
+
+    // 초안은 공개 조회·목록에서 보이지 않는다.
+    assert_eq!(
+        pages::public_page(&e.ctx, &anon, "about")
+            .await
+            .unwrap_err()
+            .code(),
+        Code::NotFound
+    );
+    assert_eq!(
+        pages::get(&e.ctx, &anon, "about").await.unwrap_err().code(),
+        Code::NotFound
+    );
+    assert!(pages::public_pages(&e.ctx, &anon).await.unwrap().is_empty());
+
+    pages::publish(&e.ctx, &local, "about").await.unwrap();
+    assert_eq!(
+        pages::public_page(&e.ctx, &anon, "about")
+            .await
+            .unwrap()
+            .title,
+        "소개"
+    );
+
+    let patch = pages::PagePatch {
+        body_md: Some("고침".into()),
+        ..Default::default()
+    };
+    pages::update(&e.ctx, &local, "about", patch).await.unwrap();
+    assert_eq!(
+        scalar(
+            &e.db,
+            "SELECT count(*) FROM revisions WHERE page_id IS NOT NULL"
+        )
+        .await,
+        2
+    );
+    pages::delete(&e.ctx, &local, "about").await.unwrap();
+    assert!(pages::public_pages(&e.ctx, &anon).await.unwrap().is_empty());
+    assert_eq!(
+        pages::restore(&e.ctx, &local, "about")
+            .await
+            .unwrap()
+            .status,
+        PageStatus::Published
+    );
+
+    // 에이전트 기본 토큰은 구조 변경 권한이 없다.
+    let agent = Actor::agent("t".into(), &Scope::DEFAULT, None);
+    let err = pages::publish(&e.ctx, &agent, "about").await.unwrap_err();
+    assert_eq!(err.code(), Code::Forbidden);
+    e.db.close().await;
+}
+
+#[tokio::test]
+async fn menu_set_get_and_rejects_bad_trees() {
+    let e = env().await;
+    let local = Actor::local();
+    let tree = vec![
+        MenuItem {
+            label: "홈".into(),
+            link: MenuLink::Home,
+            children: vec![],
+        },
+        MenuItem {
+            label: "글".into(),
+            link: MenuLink::Board {
+                slug: "blog".into(),
+            },
+            children: vec![MenuItem {
+                label: "소개".into(),
+                link: MenuLink::Page {
+                    slug: "about".into(),
+                },
+                children: vec![],
+            }],
+        },
+    ];
+    menus::set(&e.ctx, &local, "header", tree.clone())
+        .await
+        .unwrap();
+    assert_eq!(menus::get(&e.ctx, "header").await.unwrap(), tree);
+    assert!(menus::get(&e.ctx, "footer").await.unwrap().is_empty());
+
+    // 같은 트리를 다시 넣으면 감사 기록이 늘지 않는다.
+    let audits = scalar(&e.db, "SELECT count(*) FROM audit_log").await;
+    menus::set(&e.ctx, &local, "header", tree).await.unwrap();
+    assert_eq!(
+        scalar(&e.db, "SELECT count(*) FROM audit_log").await,
+        audits
+    );
+
+    let bad_url = vec![MenuItem {
+        label: "x".into(),
+        link: MenuLink::Url {
+            href: "javascript:alert(1)".into(),
+        },
+        children: vec![],
+    }];
+    assert_eq!(
+        menus::set(&e.ctx, &local, "header", bad_url)
+            .await
+            .unwrap_err()
+            .code(),
+        Code::Validation
+    );
+    assert_eq!(
+        menus::set(&e.ctx, &local, "sidebar", vec![])
+            .await
+            .unwrap_err()
+            .code(),
+        Code::Validation
+    );
+    // 실패한 시도는 기존 메뉴를 건드리지 않는다.
+    assert_eq!(menus::get(&e.ctx, "header").await.unwrap().len(), 2);
+    e.db.close().await;
+}
+
+#[tokio::test]
+async fn settings_update_and_audit() {
+    let e = env().await;
+    let local = Actor::local();
+    assert_eq!(settings::site(&e.ctx).await.unwrap().name, "Maru");
+    let patch = settings::SettingsPatch {
+        name: Some("홍길동의 블로그".into()),
+        description: Some("개발과 일상".into()),
+        ..Default::default()
+    };
+    let s = settings::update(&e.ctx, &local, patch).await.unwrap();
+    assert_eq!(s.name, "홍길동의 블로그");
+    assert_eq!(
+        settings::site(&e.ctx).await.unwrap().description,
+        "개발과 일상"
+    );
+    assert_eq!(
+        scalar(
+            &e.db,
+            "SELECT count(*) FROM audit_log WHERE action = 'settings.update'"
+        )
+        .await,
+        1
+    );
+    let bad = settings::SettingsPatch {
+        tz_offset_min: Some(10_000),
+        ..Default::default()
+    };
+    assert_eq!(
+        settings::update(&e.ctx, &local, bad)
+            .await
+            .unwrap_err()
+            .code(),
+        Code::Validation
+    );
+    let agent = Actor::agent("t".into(), &Scope::DEFAULT, None);
+    let patch = settings::SettingsPatch {
+        name: Some("x".into()),
+        ..Default::default()
+    };
+    assert_eq!(
+        settings::update(&e.ctx, &agent, patch)
+            .await
+            .unwrap_err()
+            .code(),
+        Code::Forbidden
+    );
+    e.db.close().await;
+}

@@ -349,3 +349,97 @@ fn cli_post_lifecycle_and_input_paths() {
     let list = maru(&data, &["board", "list"]);
     assert_eq!(list.as_array().unwrap().len(), 2);
 }
+
+/// U9: 페이지·메뉴·사이트 설정이 CLI 로 들어가 공개 화면과 REST 에 그대로 보인다.
+#[test]
+fn site_pages_and_menus_show_on_public_pages() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("site");
+    let init = maru(&data, &["init", "--yes", "--name", "테스트 블로그"]);
+    let token = init["token"]["secret"].as_str().unwrap().to_owned();
+    // init 이 기본 헤더 메뉴를 깐다.
+    let menu = maru(&data, &["menu", "show", "header"]);
+    assert_eq!(menu[0]["link"]["kind"], "board");
+
+    let about = maru(
+        &data,
+        &[
+            "page",
+            "new",
+            "about",
+            "--title",
+            "소개",
+            "--body",
+            "**안녕하세요**",
+            "--publish",
+        ],
+    );
+    assert_eq!(about["status"], "published");
+    assert!(about["url"].as_str().unwrap().ends_with("/p/about"));
+    maru(&data, &["page", "new", "secret", "--title", "비공개"]);
+    // 다시 실행해도 안전
+    let again = maru(
+        &data,
+        &["page", "new", "about", "--title", "소개", "--if-not-exists"],
+    );
+    assert_eq!(again["created"], false);
+
+    maru(
+        &data,
+        &[
+            "menu",
+            "set",
+            "header",
+            "--item",
+            "글=board:blog",
+            "--item",
+            "글>소개=page:about",
+            "--item",
+            "깃허브=https://github.com",
+        ],
+    );
+    let s = maru(
+        &data,
+        &[
+            "site",
+            "set",
+            "--description",
+            "개발 기록",
+            "--posts-per-page",
+            "5",
+        ],
+    );
+    assert_eq!(s["name"], "테스트 블로그");
+    assert_eq!(s["posts_per_page"], 5);
+
+    let (_server, bind) = start_server(&data);
+    let (status, home) = http(&bind, "GET", "/", &[], "");
+    assert_eq!(status, 200);
+    assert!(home.contains("<title>테스트 블로그</title>"), "{home}");
+    assert!(home.contains("개발 기록"));
+    assert!(home.contains(r#"href="/p/about""#), "{home}");
+    assert!(home.contains(r#"href="https://github.com" rel="noopener noreferrer""#));
+
+    let (status, page) = http(&bind, "GET", "/p/about", &[], "");
+    assert_eq!(status, 200);
+    assert!(page.contains("<strong>안녕하세요</strong>"));
+    let (status, _) = http(&bind, "GET", "/p/secret", &[], "");
+    assert_eq!(status, 404, "초안 페이지는 공개되지 않는다");
+
+    let (status, body) = http(&bind, "GET", "/api/v1/settings", &[], "");
+    assert_eq!(status, 200);
+    assert!(body.contains("테스트 블로그"));
+    // 기본 토큰(read, draft)은 메뉴를 못 바꾼다.
+    let auth = format!("Bearer {token}");
+    let (status, _) = http(
+        &bind,
+        "PUT",
+        "/api/v1/menus/header",
+        &[
+            ("Authorization", &auth),
+            ("Content-Type", "application/json"),
+        ],
+        "[]",
+    );
+    assert_eq!(status, 403);
+}

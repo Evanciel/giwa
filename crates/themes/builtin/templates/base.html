@@ -14,6 +14,7 @@
 <header class="site-header">
   <div class="wrap">
     <a class="brand" href="{{ site.home_url }}">{{ site.name }}</a>
+    {% if site.menus and site.menus.header %}<nav class="site-nav" aria-label="주 메뉴">{% with items = site.menus.header %}{% include "_menu.html" %}{% endwith %}</nav>{% endif %}
   </div>
 </header>
 <main id="main" class="wrap">
@@ -21,6 +22,7 @@
 </main>
 <footer class="site-footer">
   <div class="wrap">
+    {% if site.menus and site.menus.footer %}<nav class="footer-nav" aria-label="하단 메뉴">{% with items = site.menus.footer %}{% include "_menu.html" %}{% endwith %}</nav>{% endif %}
     <p>{{ site.name }} · <a href="{{ site.rss_url }}">RSS</a></p>
   </div>
 </footer>

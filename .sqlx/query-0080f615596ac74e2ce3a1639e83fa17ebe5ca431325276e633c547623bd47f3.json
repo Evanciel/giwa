@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO menus (id, location, parent_id, label, link, sort_order, created_at)\n                 VALUES (?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "0080f615596ac74e2ce3a1639e83fa17ebe5ca431325276e633c547623bd47f3"
+}

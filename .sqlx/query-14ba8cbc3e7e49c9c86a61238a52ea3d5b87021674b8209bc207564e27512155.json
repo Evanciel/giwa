@@ -1,0 +1,86 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, parent_id, label, link, sort_order, created_at\n         FROM menus WHERE location = ? ORDER BY sort_order",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "menus",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "parent_id",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "menus",
+            "name": "parent_id"
+          }
+        }
+      },
+      {
+        "name": "label",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "menus",
+            "name": "label"
+          }
+        }
+      },
+      {
+        "name": "link",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "menus",
+            "name": "link"
+          }
+        }
+      },
+      {
+        "name": "sort_order",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "menus",
+            "name": "sort_order"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "menus",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "14ba8cbc3e7e49c9c86a61238a52ea3d5b87021674b8209bc207564e27512155"
+}

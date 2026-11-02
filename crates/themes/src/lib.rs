@@ -7,7 +7,7 @@ use std::borrow::Cow;
 use std::path::{Component, Path, PathBuf};
 
 use maru_core::{Code, Error, Result};
-use minijinja::{Environment, UndefinedBehavior};
+use minijinja::{AutoEscape, Environment, UndefinedBehavior};
 use rust_embed::RustEmbed;
 use serde::Serialize;
 
@@ -28,6 +28,7 @@ impl Theme {
     pub fn new(user_dir: Option<PathBuf>) -> Self {
         let mut env = Environment::new();
         env.set_undefined_behavior(UndefinedBehavior::Chainable);
+        env.set_formatter(html_formatter);
         let dir = user_dir.clone();
         env.set_loader(move |name| {
             if let Some(text) = dir.as_deref().and_then(|d| read_user(d, "templates", name)) {
@@ -65,6 +66,31 @@ fn read_user(dir: &Path, sub: &str, name: &str) -> Option<String> {
 }
 
 /// `..`, 절대 경로, 드라이브 접두어, 역슬래시를 거부한다.
+/// HTML 이스케이프는 `& < > " '` 만 한다. 기본 포매터는 `/` 까지 `&#x2f;` 로 바꿔
+/// 모든 링크가 읽기 어려워진다. 속성값은 항상 큰따옴표로 감싸므로 `/` 는 안전하다.
+fn html_formatter(
+    out: &mut minijinja::Output,
+    state: &mut minijinja::State,
+    value: &minijinja::Value,
+) -> std::result::Result<(), minijinja::Error> {
+    if !matches!(state.auto_escape(), AutoEscape::Html) || value.is_safe() {
+        return minijinja::escape_formatter(out, state, value);
+    }
+    let s = value.to_string();
+    let mut escaped = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '&' => escaped.push_str("&amp;"),
+            '<' => escaped.push_str("&lt;"),
+            '>' => escaped.push_str("&gt;"),
+            '"' => escaped.push_str("&quot;"),
+            '\'' => escaped.push_str("&#x27;"),
+            c => escaped.push(c),
+        }
+    }
+    out.write_str(&escaped).map_err(minijinja::Error::from)
+}
+
 fn safe_join(base: &Path, rel: &str) -> Option<PathBuf> {
     if rel.is_empty() || rel.contains('\\') || rel.contains(':') {
         return None;
@@ -108,6 +134,24 @@ fn template_error(e: minijinja::Error) -> Error {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn html_escaping_keeps_slashes_and_blocks_markup() {
+        let theme = Theme::new(None);
+        let html = theme
+            .render(
+                "page.html",
+                &json!({
+                    "site": { "name": "<b>x</b>", "menus": {} },
+                    "page": { "title": "\"a\" & 'b'", "url": "/p/a", "body_html": "<p>ok</p>" },
+                }),
+            )
+            .unwrap();
+        assert!(html.contains("&lt;b&gt;x&lt;/b&gt;"));
+        assert!(html.contains("&quot;a&quot; &amp; &#x27;b&#x27;"));
+        assert!(html.contains("<p>ok</p>"), "정화된 본문은 |safe 로 그대로");
+        assert!(html.contains(r#"href="/assets/site.css""#));
+    }
 
     #[test]
     fn path_escape_is_blocked() {

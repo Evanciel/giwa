@@ -237,3 +237,100 @@ impl<T> Listing<T> {
         (self.total + per - 1) / per
     }
 }
+
+/// 페이지 레이아웃 (ADR-0016: CHECK 없이 여기서 검증).
+pub const PAGE_LAYOUTS: [&str; 2] = ["default", "wide"];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum PageStatus {
+    Draft,
+    Published,
+    Hidden,
+    Deleted,
+}
+
+impl PageStatus {
+    pub const ALL: [PageStatus; 4] = [Self::Draft, Self::Published, Self::Hidden, Self::Deleted];
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Draft => "draft",
+            Self::Published => "published",
+            Self::Hidden => "hidden",
+            Self::Deleted => "deleted",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|v| v.as_str() == s)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Page {
+    pub id: Id,
+    pub slug: String,
+    pub title: String,
+    pub body_md: String,
+    pub status: PageStatus,
+    pub layout: String,
+    pub author_id: Option<Id>,
+    pub actor_type: AuthorType,
+    pub sort_order: i64,
+    pub published_at: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// 메뉴 위치.
+pub const MENU_LOCATIONS: [&str; 2] = ["header", "footer"];
+
+/// 메뉴 항목이 가리키는 곳. 주소는 렌더할 때 `urls` 로 만든다 (ADR-0017).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum MenuLink {
+    Home,
+    Board {
+        slug: String,
+    },
+    Page {
+        slug: String,
+    },
+    /// `https://`, `http://` 또는 `/` 로 시작하는 사이트 안 경로
+    Url {
+        href: String,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct MenuItem {
+    pub label: String,
+    pub link: MenuLink,
+    #[serde(default)]
+    pub children: Vec<MenuItem>,
+}
+
+/// 사이트 설정 (`site_settings`). 키 하나에 값 하나.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct SiteSettings {
+    pub name: String,
+    pub description: String,
+    /// BCP 47 언어 태그
+    pub lang: String,
+    /// UTC 기준 분 (+540 = 한국)
+    pub tz_offset_min: i32,
+    pub posts_per_page: u32,
+}
+
+impl Default for SiteSettings {
+    fn default() -> Self {
+        Self {
+            name: "Maru".into(),
+            description: String::new(),
+            lang: "ko".into(),
+            tz_offset_min: 540,
+            posts_per_page: 10,
+        }
+    }
+}
