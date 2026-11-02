@@ -13,9 +13,7 @@ workspace = true
 [dependencies]
 maru-core.workspace = true
 maru-themes.workspace = true
-ammonia.workspace = true
 axum.workspace = true
-pulldown-cmark.workspace = true
 tokio.workspace = true
 tower.workspace = true
 tower-http.workspace = true

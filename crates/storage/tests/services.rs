@@ -157,9 +157,17 @@ async fn denials_carry_the_right_code() {
         Code::Unauthorized
     );
 
-    // 기본 토큰(read, draft)은 회원 서열이라 blog(write=editor)에 쓸 수 없다.
+    // 기본 토큰(read, draft)은 초안은 쓰지만 발행은 못 한다.
     let agent = Actor::agent("t1".into(), &Scope::DEFAULT, None);
-    let err = posts::create_draft(&e.ctx, &agent, draft("x"))
+    let own = posts::create_draft(&e.ctx, &agent, draft("x"))
+        .await
+        .unwrap();
+    let err = posts::publish(&e.ctx, &agent, &own.id).await.unwrap_err();
+    assert_eq!(err.code(), Code::Forbidden);
+
+    // 읽기 전용 토큰은 초안도 못 쓴다.
+    let reader = Actor::agent("t0".into(), &[Scope::Read], None);
+    let err = posts::create_draft(&e.ctx, &reader, draft("x"))
         .await
         .unwrap_err();
     assert_eq!(err.code(), Code::Forbidden);

@@ -221,6 +221,10 @@ impl Actor {
     }
 
     /// 토큰 스코프로 권한을 정한다. 서열은 게시판 정책 비교에만 쓴다.
+    ///
+    /// 토큰은 운영자가 발급하므로 쓰기 스코프가 있으면 편집자 서열로 본다.
+    /// 그래야 기본 토큰(read, draft)이 블로그(write=editor)에 초안을 쓸 수 있다.
+    /// 발행·남의 글 관리는 서열이 아니라 `publish` 스코프의 권한으로 막힌다.
     pub fn agent(token_id: Id, scopes: &[Scope], board_ids: Option<Vec<Id>>) -> Self {
         let perms: BTreeSet<Permission> = scopes
             .iter()
@@ -228,12 +232,10 @@ impl Actor {
             .collect();
         let rank = if scopes.contains(&Scope::Admin) {
             rank::ADMIN
-        } else if scopes.contains(&Scope::Publish) {
+        } else if scopes.contains(&Scope::Publish) || scopes.contains(&Scope::Draft) {
             rank::EDITOR
-        } else if scopes.contains(&Scope::Draft) {
-            rank::MEMBER
         } else {
-            rank::GUEST
+            rank::MEMBER
         };
         Self {
             kind: ActorKind::Agent { token_id },
@@ -336,7 +338,7 @@ mod tests {
         let a = Actor::agent("t".into(), &Scope::DEFAULT, None);
         assert!(a.has(Permission::PostWrite));
         assert!(!a.has(Permission::PostPublish));
-        assert_eq!(a.rank(), rank::MEMBER);
+        assert_eq!(a.rank(), rank::EDITOR);
         assert_eq!(
             a.require(Permission::PostPublish).unwrap_err().code(),
             Code::Forbidden
