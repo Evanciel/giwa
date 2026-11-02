@@ -1,0 +1,424 @@
+//! U4 쓰기 경계·감사, U5 글 서비스. 실제 SQLite 파일로 core 서비스를 검증한다.
+#![allow(clippy::expect_used, clippy::unwrap_used)]
+
+use std::sync::Arc;
+
+use maru_core::actor::{Actor, Scope};
+use maru_core::model::{PageReq, PostStatus};
+use maru_core::services::boards::{self, NewBoard};
+use maru_core::services::posts::{self, NewPost};
+use maru_core::services::{anonymous_actor, tokens};
+use maru_core::store::Tx;
+use maru_core::{Code, Ctx};
+use maru_storage::{DataDir, Db, SqliteStore};
+
+struct Env {
+    _tmp: tempfile::TempDir,
+    dir: DataDir,
+    db: Db,
+    ctx: Ctx,
+}
+
+async fn env() -> Env {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = DataDir::new(tmp.path().join("데이터 폴더"));
+    dir.ensure_layout().unwrap();
+    let db = Db::open(&dir.db_path(), true).await.unwrap();
+    db.migrate().await.unwrap();
+    let ctx = ctx_for(&db);
+    Env {
+        _tmp: tmp,
+        dir,
+        db,
+        ctx,
+    }
+}
+
+fn ctx_for(db: &Db) -> Ctx {
+    Ctx {
+        store: Arc::new(SqliteStore::new(db.clone())),
+        site_url: "http://127.0.0.1:8080".into(),
+    }
+}
+
+async fn blog(ctx: &Ctx) {
+    boards::create(
+        ctx,
+        &Actor::local(),
+        NewBoard {
+            slug: "blog".into(),
+            name: "블로그".into(),
+            kind: "blog".into(),
+            policy: None,
+            sort_order: 0,
+        },
+    )
+    .await
+    .unwrap();
+}
+
+fn draft(title: &str) -> NewPost {
+    NewPost {
+        board: "blog".into(),
+        title: title.into(),
+        slug: None,
+        body_md: "본문입니다.".into(),
+        excerpt: None,
+    }
+}
+
+async fn scalar(db: &Db, sql: &'static str) -> i64 {
+    sqlx::query_scalar(sql)
+        .fetch_one(db.read_pool())
+        .await
+        .unwrap()
+}
+
+// ---- U4 ----
+
+#[tokio::test]
+async fn audit_failure_rolls_back_write() {
+    let e = env().await;
+    blog(&e.ctx).await;
+    sqlx::query(
+        "CREATE TRIGGER fail_audit BEFORE INSERT ON audit_log \
+         BEGIN SELECT RAISE(ABORT, 'audit down'); END",
+    )
+    .execute(e.db.write_pool())
+    .await
+    .unwrap();
+
+    let err = posts::create_draft(&e.ctx, &Actor::local(), draft("남지 않아야 할 글"))
+        .await
+        .unwrap_err();
+    assert_eq!(err.code(), Code::Internal);
+    assert_eq!(scalar(&e.db, "SELECT count(*) FROM posts").await, 0);
+    assert_eq!(scalar(&e.db, "SELECT count(*) FROM revisions").await, 0);
+    e.db.close().await;
+}
+
+#[tokio::test]
+async fn commit_without_audit_is_rejected() {
+    let e = env().await;
+    blog(&e.ctx).await;
+    let before = scalar(&e.db, "SELECT count(*) FROM boards").await;
+
+    let mut tx = Tx::begin(&e.ctx).await.unwrap();
+    let mut board = e.ctx.store.board_by_slug("blog").await.unwrap().unwrap();
+    board.id = "sneaky".into();
+    board.slug = "sneaky".into();
+    tx.insert_board(&board).await.unwrap();
+    let err = tx.commit().await.unwrap_err();
+    assert_eq!(err.code(), Code::Internal);
+    assert_eq!(scalar(&e.db, "SELECT count(*) FROM boards").await, before);
+    e.db.close().await;
+}
+
+/// 서버와 CLI 가 따로 연 것처럼 연결 풀을 둘 만들어 동시에 쓴다.
+#[tokio::test]
+async fn two_writers_do_not_hit_busy() {
+    let e = env().await;
+    blog(&e.ctx).await;
+    let other = Db::open(&e.dir.db_path(), false).await.unwrap();
+    let ctx2 = ctx_for(&other);
+
+    let run = |ctx: Ctx, tag: &'static str| async move {
+        for i in 0..40 {
+            posts::create_draft(&ctx, &Actor::local(), draft(&format!("{tag} {i}")))
+                .await
+                .unwrap();
+        }
+    };
+    tokio::join!(run(e.ctx.clone(), "서버"), run(ctx2, "CLI"));
+
+    assert_eq!(scalar(&e.db, "SELECT count(*) FROM posts").await, 80);
+    assert_eq!(
+        scalar(
+            &e.db,
+            "SELECT count(*) FROM audit_log WHERE action = 'post.create'"
+        )
+        .await,
+        80
+    );
+    other.close().await;
+    e.db.close().await;
+}
+
+#[tokio::test]
+async fn denials_carry_the_right_code() {
+    let e = env().await;
+    blog(&e.ctx).await;
+    let anon = anonymous_actor(&e.ctx).await.unwrap();
+    assert_eq!(
+        posts::create_draft(&e.ctx, &anon, draft("x"))
+            .await
+            .unwrap_err()
+            .code(),
+        Code::Unauthorized
+    );
+
+    // 기본 토큰(read, draft)은 회원 서열이라 blog(write=editor)에 쓸 수 없다.
+    let agent = Actor::agent("t1".into(), &Scope::DEFAULT, None);
+    let err = posts::create_draft(&e.ctx, &agent, draft("x"))
+        .await
+        .unwrap_err();
+    assert_eq!(err.code(), Code::Forbidden);
+
+    // publish 스코프가 있으면 편집자 서열이라 쓸 수 있고 발행도 된다.
+    let editor = Actor::agent(
+        "t2".into(),
+        &[Scope::Read, Scope::Draft, Scope::Publish],
+        None,
+    );
+    let post = posts::create_draft(&e.ctx, &editor, draft("에이전트 글"))
+        .await
+        .unwrap();
+    posts::publish(&e.ctx, &editor, &post.id).await.unwrap();
+
+    // 구조 변경은 structure.edit 가 필요하다.
+    let err = boards::create(
+        &e.ctx,
+        &editor,
+        NewBoard {
+            slug: "free".into(),
+            name: "자유".into(),
+            kind: "free".into(),
+            policy: None,
+            sort_order: 0,
+        },
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(err.code(), Code::Forbidden);
+    e.db.close().await;
+}
+
+#[tokio::test]
+async fn audit_rows_name_the_actor() {
+    let e = env().await;
+    blog(&e.ctx).await;
+    let editor = Actor::agent("tok_1".into(), &[Scope::Draft, Scope::Publish], None);
+    let post = posts::create_draft(&e.ctx, &editor, draft("감사 대조"))
+        .await
+        .unwrap();
+    posts::publish(&e.ctx, &editor, &post.id).await.unwrap();
+
+    let rows: Vec<(String, Option<String>, String, Option<String>)> = sqlx::query_as(
+        "SELECT actor_type, actor_id, action, target_id FROM audit_log \
+         WHERE target_type = 'post' ORDER BY at, id",
+    )
+    .fetch_all(e.db.read_pool())
+    .await
+    .unwrap();
+    assert_eq!(
+        rows,
+        vec![
+            (
+                "agent".into(),
+                Some("tok_1".into()),
+                "post.create".into(),
+                Some(post.id.clone())
+            ),
+            (
+                "agent".into(),
+                Some("tok_1".into()),
+                "post.publish".into(),
+                Some(post.id.clone())
+            ),
+        ]
+    );
+    e.db.close().await;
+}
+
+// ---- U5 ----
+
+#[tokio::test]
+async fn draft_publish_and_public_visibility() {
+    let e = env().await;
+    blog(&e.ctx).await;
+    let local = Actor::local();
+    let anon = anonymous_actor(&e.ctx).await.unwrap();
+
+    let post = posts::create_draft(&e.ctx, &local, draft("첫 글: 안녕하세요!"))
+        .await
+        .unwrap();
+    assert_eq!(post.status, PostStatus::Draft);
+    assert_eq!(post.slug, "첫-글-안녕하세요");
+    assert_eq!(
+        posts::revisions(&e.ctx, &local, &post.id)
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+
+    // 초안은 공개 경로에서 보이지 않고, 존재도 드러내지 않는다.
+    let err = posts::public_post(&e.ctx, &anon, "blog", &post.slug)
+        .await
+        .unwrap_err();
+    assert_eq!(err.code(), Code::NotFound);
+    assert_eq!(
+        posts::get(&e.ctx, &anon, &post.id)
+            .await
+            .unwrap_err()
+            .code(),
+        Code::NotFound
+    );
+    let list = posts::public_posts(&e.ctx, &anon, None, PageReq::default())
+        .await
+        .unwrap();
+    assert_eq!(list.total, 0);
+
+    let published = posts::publish(&e.ctx, &local, &post.id).await.unwrap();
+    assert_eq!(published.status, PostStatus::Published);
+    assert!(published.published_at.is_some());
+
+    let (_, seen) = posts::public_post(&e.ctx, &anon, "blog", "첫-글-안녕하세요")
+        .await
+        .unwrap();
+    assert_eq!(seen.id, post.id);
+    let list = posts::public_posts(&e.ctx, &anon, None, PageReq::default())
+        .await
+        .unwrap();
+    assert_eq!(list.total, 1);
+    assert_eq!(list.items[0].title, "첫 글: 안녕하세요!");
+
+    // 다시 발행해도 상태·감사 로그가 그대로다 (멱등).
+    let audits = scalar(&e.db, "SELECT count(*) FROM audit_log").await;
+    let again = posts::publish(&e.ctx, &local, &post.id).await.unwrap();
+    assert_eq!(again.published_at, published.published_at);
+    assert_eq!(
+        scalar(&e.db, "SELECT count(*) FROM audit_log").await,
+        audits
+    );
+    e.db.close().await;
+}
+
+#[tokio::test]
+async fn slugs_are_unique_per_board() {
+    let e = env().await;
+    blog(&e.ctx).await;
+    let local = Actor::local();
+    let a = posts::create_draft(&e.ctx, &local, draft("같은 제목"))
+        .await
+        .unwrap();
+    let b = posts::create_draft(&e.ctx, &local, draft("같은 제목"))
+        .await
+        .unwrap();
+    assert_eq!(a.slug, "같은-제목");
+    assert_eq!(b.slug, "같은-제목-2");
+
+    let mut explicit = draft("다른 제목");
+    explicit.slug = Some("같은-제목".into());
+    let err = posts::create_draft(&e.ctx, &local, explicit)
+        .await
+        .unwrap_err();
+    assert_eq!(err.code(), Code::Conflict);
+    e.db.close().await;
+}
+
+#[tokio::test]
+async fn private_board_hides_posts_from_guests() {
+    let e = env().await;
+    let local = Actor::local();
+    boards::create(
+        &e.ctx,
+        &local,
+        NewBoard {
+            slug: "members".into(),
+            name: "회원 전용".into(),
+            kind: "free".into(),
+            policy: Some(maru_core::model::BoardPolicy {
+                read: "member".into(),
+                ..Default::default()
+            }),
+            sort_order: 0,
+        },
+    )
+    .await
+    .unwrap();
+    let mut input = draft("회원 글");
+    input.board = "members".into();
+    let post = posts::create_draft(&e.ctx, &local, input).await.unwrap();
+    posts::publish(&e.ctx, &local, &post.id).await.unwrap();
+
+    let anon = anonymous_actor(&e.ctx).await.unwrap();
+    let list = posts::public_posts(&e.ctx, &anon, None, PageReq::default())
+        .await
+        .unwrap();
+    assert_eq!(list.total, 0);
+    assert_eq!(
+        posts::public_post(&e.ctx, &anon, "members", &post.slug)
+            .await
+            .unwrap_err()
+            .code(),
+        Code::NotFound
+    );
+    let reader = Actor::agent("t".into(), &[Scope::Read, Scope::Draft], None);
+    let list = posts::public_posts(&e.ctx, &reader, None, PageReq::default())
+        .await
+        .unwrap();
+    assert_eq!(list.total, 1);
+    e.db.close().await;
+}
+
+#[tokio::test]
+async fn token_lifecycle() {
+    let e = env().await;
+    let issued = tokens::create(
+        &e.ctx,
+        &Actor::local(),
+        tokens::NewToken {
+            name: "테스트".into(),
+            scopes: vec![],
+            board_ids: None,
+            expires_at: None,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(issued.token.scopes, Scope::DEFAULT.to_vec());
+
+    let actor = tokens::authenticate(&e.ctx, &issued.secret).await.unwrap();
+    assert!(actor.has(maru_core::Permission::PostWrite));
+    assert!(!actor.has(maru_core::Permission::PostPublish));
+
+    for bad in ["", "maru_00", "Bearer x", &issued.secret[..20]] {
+        assert_eq!(
+            tokens::authenticate(&e.ctx, bad).await.unwrap_err().code(),
+            Code::Unauthorized
+        );
+    }
+
+    // 에이전트는 토큰을 만들 수 없다.
+    let err = tokens::create(
+        &e.ctx,
+        &actor,
+        tokens::NewToken {
+            name: "x".into(),
+            scopes: vec![Scope::Admin],
+            board_ids: None,
+            expires_at: None,
+        },
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(err.code(), Code::Forbidden);
+
+    // 감사 로그와 DB 에 원문 토큰이 없다.
+    let leaked: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM audit_log WHERE diff LIKE '%' || ? || '%'")
+            .bind(&issued.secret[5..])
+            .fetch_one(e.db.read_pool())
+            .await
+            .unwrap();
+    assert_eq!(leaked, 0);
+    let hash_in_audit: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM audit_log WHERE diff LIKE '%' || ? || '%'")
+            .bind(&issued.token.token_hash)
+            .fetch_one(e.db.read_pool())
+            .await
+            .unwrap();
+    assert_eq!(hash_in_audit, 0);
+    e.db.close().await;
+}

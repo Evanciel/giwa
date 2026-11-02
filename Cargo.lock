@@ -1097,20 +1097,27 @@ name = "maru-core"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "getrandom",
+ "hex",
  "insta",
  "schemars",
  "serde",
  "serde_json",
+ "sha2 0.11.1",
  "thiserror",
  "time",
  "ulid",
+ "unicode-normalization",
 ]
 
 [[package]]
 name = "maru-storage"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "maru-core",
+ "serde",
+ "serde_json",
  "sqlx",
  "tempfile",
  "tokio",

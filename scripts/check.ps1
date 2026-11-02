@@ -61,13 +61,25 @@ if ($Quick) {
 if (Test-Path "crates/storage/migrations") {
     if (Get-Command sqlx -ErrorAction SilentlyContinue) {
         # 마이그레이션만 적용한 빈 DB 를 매번 새로 만들어 비교한다 (개발 DB 상태에 좌우되지 않게).
-        $meta = cmd /c "cargo metadata --format-version 1 --no-deps 2>nul" | ConvertFrom-Json
-        $checkDb = Join-Path $meta.target_directory "sqlx-check.db"
-        Remove-Item "$checkDb*" -Force -ErrorAction SilentlyContinue
-        $env:DATABASE_URL = "sqlite:" + ($checkDb -replace "\\", "/")
-        Step "sqlx-db" { cmd /c "sqlx database create && sqlx migrate run --source crates/storage/migrations" }
-        Step "sqlx-prepare" { cargo sqlx prepare --workspace --check }
-        Remove-Item Env:DATABASE_URL
+        # cargo 출력의 한글 경로가 콘솔 코드 페이지로 깨지지 않게 UTF-8 로 읽는다.
+        $prevEncoding = [Console]::OutputEncoding
+        [Console]::OutputEncoding = [Text.Encoding]::UTF8
+        $targetDir = $null
+        try {
+            $targetDir = (cmd /c "cargo metadata --format-version 1 --no-deps 2>nul" | Out-String | ConvertFrom-Json).target_directory
+        } catch {}
+        [Console]::OutputEncoding = $prevEncoding
+        if (-not $targetDir) {
+            Write-Host "[check] cargo metadata 에서 target 경로를 읽지 못했습니다" -ForegroundColor Red
+            $failed += "sqlx-prepare(target 경로)"
+        } else {
+            $checkDb = Join-Path $targetDir "sqlx-check.db"
+            Remove-Item "$checkDb*" -Force -ErrorAction SilentlyContinue
+            $env:DATABASE_URL = "sqlite:" + ($checkDb -replace "\\", "/")
+            Step "sqlx-db" { cmd /c "sqlx database create && sqlx migrate run --source crates/storage/migrations" }
+            Step "sqlx-prepare" { cargo sqlx prepare --workspace --check }
+            Remove-Item Env:DATABASE_URL
+        }
     } else {
         $skipped += "sqlx-prepare(sqlx-cli 없음)"
     }

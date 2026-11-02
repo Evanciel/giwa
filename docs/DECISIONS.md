@@ -209,3 +209,15 @@
   6. `init`, `serve`, `doctor`를 root/Administrator로 실행하면 경고하고 계속 진행한다(사용자 결정: 거부하지 않고 경고만). `doctor`는 이 항목을 점검 결과에 넣는다.
 - **대안:** 그대로 둔다. 영구 삭제만 있으면 에이전트 실수를 되돌릴 수 없다.
 - **결과:** U3 스키마, U4 권한, U8 글 전이, U12 세션, U14 doctor에 반영한다. 프리셋 재적용 시 운영자가 고친 값을 보존하는 추적(그누보드7의 사용자 수정 기록)은 Phase 3 레시피(ADR-0023)에서 정한다.
+
+## ADR-0030 쓰기 경계는 `Arc<dyn Store>` + core 의 `Tx` 래퍼로 확정 (U4 스파이크 결과)
+
+- **배경:** `PHASE1_PLAN.md` U4 중단 기준 3가지를 실측했다.
+- **결정:**
+  - `Store`, `WriteTx`는 `async_trait` 기반 트레이트 객체다. sqlx 의 `Pool::begin_with("BEGIN IMMEDIATE")`가 `Transaction<'static, Sqlite>`를 돌려주므로 `Box<dyn WriteTx>`가 트랜잭션을 그대로 소유한다(기준 1 통과).
+  - 저장소 구현은 `query!`·`query_as!`로 쓰고, 읽기·쓰기에서 같은 쿼리는 `impl SqliteExecutor` 를 받는 함수로 공유한다. 행 타입 → 도메인 타입 변환에서 알 수 없는 열거 값은 `INTERNAL` 이다(기준 2 통과).
+  - 감사 강제는 core 의 `Tx` 래퍼가 한다. `Tx::audit`만 감사 횟수를 세고, `Tx::commit`은 0건이면 거부한다. 저장소 구현이 바뀌어도 이 규칙은 core 에 남는다.
+  - 공개 범위 SQL 은 `list_published`·`count_published` 두 쿼리에만 있다. 게시판 `policy.read` 역할 이름을 `roles`와 조인해 서열을 비교하고, 모르는 역할은 결과에서 빠진다(닫힌 쪽 실패).
+- **측정:** 연결 풀 둘(서버와 CLI 를 흉내)이 동시에 글 40편씩 쓰기 → 80편, 감사 80건, `SQLITE_BUSY` 0건(기준 3 통과, `busy_timeout` 10초). 감사 트리거를 실패시키면 글·리비전 0건으로 롤백. 감사 없는 커밋은 `INTERNAL`로 거부.
+- **대안:** `Ctx<S: Store>` 제네릭. 필요 없어졌다.
+- **결과:** 에이전트 Actor 의 「본인 글」은 `author_id IS NULL AND actor_type = 'agent'` 로 판단한다. 토큰마다 구분하지 않으므로, 토큰별 소유가 필요해지면 `posts`에 작성 토큰 컬럼을 추가하는 마이그레이션으로 바꾼다.
