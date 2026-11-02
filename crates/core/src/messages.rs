@@ -1,0 +1,59 @@
+//! 사용자 대면 문장 카탈로그. 키로 찾고 `{name}` 자리를 채운다.
+//!
+//! 지금은 한국어만 있다. 영어는 출시 직전에 같은 키로 추가한다.
+
+use std::collections::BTreeMap;
+
+/// 키에 해당하는 한국어 문장.
+pub fn lookup(key: &str) -> Option<&'static str> {
+    let text = match key {
+        "error.internal" => "내부 오류가 발생했습니다. 요청 ID와 함께 로그를 확인하세요.",
+        "error.usage" => "명령 사용법이 올바르지 않습니다.",
+        "error.validation" => "입력 값이 올바르지 않습니다.",
+        "error.not_found" => "대상을 찾을 수 없습니다.",
+        "error.unauthorized" => "인증이 필요하거나 인증 정보가 올바르지 않습니다.",
+        "error.forbidden" => "이 작업을 할 권한이 없습니다.",
+        "error.conflict" => "이미 존재하거나 현재 상태와 충돌합니다.",
+        "error.port_in_use" => "{port} 포트를 다른 프로그램이 사용 중입니다.",
+        "error.schema_too_new" => "데이터베이스가 이 maru 버전보다 새롭습니다.",
+        "error.rate_limited" => "요청이 너무 많습니다. 잠시 후 다시 시도하세요.",
+        "error.external" => "외부 연결에 실패했습니다.",
+        "hint.port_in_use" => "다른 포트로 실행하세요.",
+        "error.usage_detail" => "명령 사용법이 올바르지 않습니다: {detail}",
+        "hint.usage" => "`maru --help` 로 사용법을 확인하세요.",
+        _ => return None,
+    };
+    Some(text)
+}
+
+/// 키를 찾아 `{name}` 자리를 채운다. 없는 키는 키 자체를 돌려준다(누락이 화면에 드러나도록).
+pub fn render(key: &str, args: &BTreeMap<&'static str, String>) -> String {
+    let Some(template) = lookup(key) else {
+        return key.to_owned();
+    };
+    let mut out = template.to_owned();
+    for (name, value) in args {
+        out = out.replace(&format!("{{{name}}}"), value);
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fills_placeholders() {
+        let mut args = BTreeMap::new();
+        args.insert("port", "8080".to_owned());
+        assert_eq!(
+            render("error.port_in_use", &args),
+            "8080 포트를 다른 프로그램이 사용 중입니다."
+        );
+    }
+
+    #[test]
+    fn missing_key_is_visible() {
+        assert_eq!(render("no.such.key", &BTreeMap::new()), "no.such.key");
+    }
+}

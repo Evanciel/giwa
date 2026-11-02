@@ -1,0 +1,10 @@
+---
+source: crates/core/src/error.rs
+expression: body
+---
+{
+  "code": "INTERNAL",
+  "message": "내부 오류가 발생했습니다. 요청 ID와 함께 로그를 확인하세요.",
+  "next": [],
+  "request_id": "req_01J"
+}

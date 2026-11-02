@@ -1,0 +1,16 @@
+---
+source: crates/core/src/output.rs
+expression: out
+---
+{
+  "ok": true,
+  "data": {
+    "id": "01J"
+  },
+  "warnings": [
+    {
+      "code": "SITE_URL_DEFAULT",
+      "message": "site_url 이 기본값입니다."
+    }
+  ]
+}

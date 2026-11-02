@@ -1,0 +1,12 @@
+---
+source: crates/core/src/output.rs
+expression: "Failure::new(err.body(None))"
+---
+{
+  "ok": false,
+  "error": {
+    "code": "FORBIDDEN",
+    "message": "이 작업을 할 권한이 없습니다.",
+    "next": []
+  }
+}
