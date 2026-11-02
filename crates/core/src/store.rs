@@ -52,6 +52,7 @@ pub trait Store: Send + Sync {
     async fn token_by_hash(&self, hash: &str) -> Result<Option<Token>>;
     /// 감사 대상이 아닌 시스템 기록.
     async fn touch_token(&self, id: &str, at: &str) -> Result<()>;
+    async fn list_tokens(&self) -> Result<Vec<Token>>;
 
     async fn board_by_id(&self, id: &str) -> Result<Option<Board>>;
     async fn board_by_slug(&self, slug: &str) -> Result<Option<Board>>;
@@ -106,6 +107,8 @@ pub trait WriteTx: Send {
     async fn insert_revision(&mut self, rev: &Revision) -> Result<()>;
 
     async fn insert_token(&mut self, token: &Token) -> Result<()>;
+    async fn token_by_id(&mut self, id: &str) -> Result<Option<Token>>;
+    async fn revoke_token(&mut self, id: &str, at: &str) -> Result<()>;
 
     async fn page_by_id(&mut self, id: &str) -> Result<Option<Page>>;
     async fn page_by_slug(&mut self, slug: &str) -> Result<Option<Page>>;

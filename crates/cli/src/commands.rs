@@ -28,6 +28,7 @@ pub async fn run(g: &Global, command: Command) -> ExitCode {
     let res = match command {
         Command::Init(args) => init(g, args).await,
         Command::Serve(args) => return serve(g, args).await,
+        Command::Doctor => return crate::doctor::run(g).await,
         Command::Post(cmd) => post(g, cmd).await,
         Command::Board(cmd) => board(g, cmd).await,
         Command::Token(cmd) => token(g, cmd).await,
@@ -38,12 +39,31 @@ pub async fn run(g: &Global, command: Command) -> ExitCode {
         Command::LoginLink(args) => login_link(g, args).await,
     };
     match res {
+        Ok((data, _)) if g.quiet && !g.json => {
+            for line in essentials(&data) {
+                println!("{line}");
+            }
+            ExitCode::SUCCESS
+        }
         Ok((data, human)) => output::success(data, g.json, |_| human),
         Err(e) => output::error(&e, g.json),
     }
 }
 
 type Out = Result<(Value, String)>;
+
+/// `--quiet` 일 때도 꼭 내보낼 값: 다시 볼 수 없는 토큰 원문과 로그인 링크.
+fn essentials(data: &Value) -> Vec<String> {
+    [
+        &data["secret"],
+        &data["token"]["secret"],
+        &data["login_link"]["url"],
+        &data["url"],
+    ]
+    .iter()
+    .filter_map(|v| v.as_str().map(str::to_owned))
+    .collect()
+}
 
 /// 로컬 CLI 는 운영자다. `MARU_TOKEN` 이 있으면 그 토큰의 스코프로 제한한다 (Q2).
 async fn actor(ctx: &Ctx) -> Result<Actor> {
@@ -91,8 +111,15 @@ async fn init(g: &Global, args: InitArgs) -> Out {
         };
         settings::update(&ctx, &local, patch).await?;
     }
-    // 초기 토큰은 DB 를 처음 만들 때만 발급한다. 다시 실행해도 토큰이 늘지 않는다.
-    let token = if fresh {
+    // 초기 토큰은 `init` 이름의 토큰을 한 번도 만든 적 없을 때만 발급한다.
+    // 첫 실행이 중간에 실패했어도 다시 실행하면 받을 수 있고, 폐기한 토큰은 되살리지 않는다.
+    let issued_before = ctx
+        .store
+        .list_tokens()
+        .await?
+        .iter()
+        .any(|t| t.name == "init");
+    let token = if !issued_before {
         Some(
             tokens::create(
                 &ctx,
@@ -238,12 +265,62 @@ async fn serve_inner(g: &Global, args: ServeArgs) -> Result<()> {
         tracing::info!(%url, "serving");
     }
 
-    let shutdown = async {
-        let _ = tokio::signal::ctrl_c().await;
+    // 종료 신호를 받으면 새 연결을 막고 진행 중인 요청을 기다린다. 너무 오래 걸리면 강제로 멈춘다.
+    let (stopping, stopped) = tokio::sync::oneshot::channel::<()>();
+    let shutdown = async move {
+        shutdown_signal().await;
+        let _ = stopping.send(());
     };
-    let res = maru_web::serve(state, listener, shutdown).await;
+    let serve = maru_web::serve(state, listener, shutdown);
+    tokio::pin!(serve);
+    let res = tokio::select! {
+        r = &mut serve => r,
+        () = async {
+            if stopped.await.is_ok() {
+                tokio::time::sleep(SHUTDOWN_GRACE).await;
+            } else {
+                std::future::pending::<()>().await;
+            }
+        } => {
+            tracing::warn!("진행 중인 요청이 끝나지 않아 강제로 멈춥니다");
+            Ok(())
+        }
+    };
     db.close().await;
+    if res.is_ok() && !g.json && !g.quiet {
+        println!("서버를 멈췄습니다.");
+    }
     res
+}
+
+const SHUTDOWN_GRACE: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// Ctrl+C, 그리고 운영체제의 종료 요청(Unix SIGTERM, Windows 창 닫기·로그오프·시스템 종료).
+async fn shutdown_signal() {
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{SignalKind, signal};
+        if let Ok(mut term) = signal(SignalKind::terminate()) {
+            tokio::select! {
+                _ = tokio::signal::ctrl_c() => {}
+                _ = term.recv() => {}
+            }
+            return;
+        }
+    }
+    #[cfg(windows)]
+    {
+        use tokio::signal::windows;
+        if let (Ok(mut close), Ok(mut shut)) = (windows::ctrl_close(), windows::ctrl_shutdown()) {
+            tokio::select! {
+                _ = tokio::signal::ctrl_c() => {}
+                _ = close.recv() => {}
+                _ = shut.recv() => {}
+            }
+            return;
+        }
+    }
+    let _ = tokio::signal::ctrl_c().await;
 }
 
 // ---- post ----
@@ -496,9 +573,52 @@ async fn token(g: &Global, cmd: TokenCmd) -> Out {
     let actor = actor(&ctx).await?;
     let res = match cmd {
         TokenCmd::Create(args) => token_create(&ctx, &actor, args).await,
+        TokenCmd::List => token_list(&ctx, &actor).await,
+        TokenCmd::Revoke { id } => {
+            let t = tokens::revoke(&ctx, &actor, &id).await;
+            t.and_then(|t| {
+                let human = format!("토큰을 폐기했습니다: {} ({})", t.name, t.id);
+                Ok((to_value(&t)?, human))
+            })
+        }
     };
     db.close().await;
     res
+}
+
+async fn token_list(ctx: &Ctx, actor: &Actor) -> Out {
+    let list = tokens::list(ctx, actor).await?;
+    let now = maru_core::clock::now();
+    let mut human = String::new();
+    for t in &list {
+        let state = if t.revoked_at.is_some() {
+            "폐기됨"
+        } else if t.expires_at.as_deref().is_some_and(|e| e <= now.as_str()) {
+            "만료됨"
+        } else {
+            "사용 중"
+        };
+        let scopes: Vec<&str> = t.scopes.iter().map(|s| s.as_str()).collect();
+        human.push_str(&format!(
+            "{}  {}  [{}]  {}  마지막 사용: {}
+",
+            t.id,
+            t.name,
+            scopes.join(", "),
+            state,
+            t.last_used_at.as_deref().unwrap_or("-")
+        ));
+    }
+    if list.is_empty() {
+        human.push_str(
+            "토큰이 없습니다.
+",
+        );
+    }
+    Ok((
+        json!({ "tokens": to_value(&list)? }),
+        human.trim_end().to_owned(),
+    ))
 }
 
 async fn token_create(ctx: &Ctx, actor: &Actor, args: TokenCreateArgs) -> Out {

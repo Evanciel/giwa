@@ -69,6 +69,25 @@ impl Db {
         self.read.close().await;
     }
 
+    /// `PRAGMA quick_check` 결과. 정상이면 `ok`.
+    pub async fn quick_check(&self) -> Result<String> {
+        sqlx::query_scalar::<_, String>("PRAGMA quick_check")
+            .fetch_one(&self.read)
+            .await
+            .map_err(db_error)
+    }
+
+    /// (DB 에 적용된 최신 마이그레이션, 바이너리가 아는 최신 마이그레이션)
+    pub async fn schema_versions(&self) -> Result<(i64, i64)> {
+        let applied: Option<i64> =
+            sqlx::query_scalar("SELECT max(version) FROM _sqlx_migrations WHERE success = 1")
+                .fetch_one(&self.read)
+                .await
+                .map_err(db_error)?;
+        let known = MIGRATOR.iter().map(|m| m.version).max().unwrap_or(0);
+        Ok((applied.unwrap_or(0), known))
+    }
+
     pub fn write_pool(&self) -> &SqlitePool {
         &self.write
     }

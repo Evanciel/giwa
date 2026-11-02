@@ -142,7 +142,7 @@ fn url_for(
 
 /// 사용자 테마의 `theme.toml` 이 있으면 `template_api` 가 같아야 쓴다.
 /// 없으면 템플릿 몇 개만 덮어쓴 테마로 보고 받아들인다.
-fn compatible(dir: &Path) -> bool {
+pub fn compatible(dir: &Path) -> bool {
     #[derive(serde::Deserialize)]
     struct Manifest {
         template_api: u32,

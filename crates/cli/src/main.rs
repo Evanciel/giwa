@@ -1,6 +1,7 @@
 //! `maru` 바이너리.
 
 mod commands;
+mod doctor;
 mod output;
 
 use std::path::PathBuf;
@@ -58,6 +59,8 @@ enum Command {
     Design(DesignCmd),
     /// 관리 화면 로그인 링크를 만든다 (10분, 1회용)
     LoginLink(LoginLinkArgs),
+    /// 설치 상태를 점검한다 (데이터, DB, 포트, 운영자, 테마)
+    Doctor,
 }
 
 #[derive(Debug, Args)]
@@ -224,6 +227,13 @@ pub struct BoardUpdateArgs {
 pub enum TokenCmd {
     /// 토큰을 발급한다. 원문은 이때 한 번만 보인다
     Create(TokenCreateArgs),
+    /// 토큰 목록 (원문은 보이지 않는다)
+    List,
+    /// 토큰을 폐기한다. 이미 폐기됐으면 그대로 성공한다
+    Revoke {
+        /// 토큰 id (`maru token list`)
+        id: String,
+    },
 }
 
 #[derive(Debug, Args)]

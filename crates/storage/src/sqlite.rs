@@ -380,6 +380,19 @@ impl Store for SqliteStore {
         Ok(())
     }
 
+    async fn list_tokens(&self) -> Result<Vec<Token>> {
+        let rows = sqlx::query_as!(
+            TokenRow,
+            "SELECT id, name, token_hash, scopes, board_ids, expires_at, last_used_at,
+                    revoked_at, created_at, updated_at
+             FROM tokens ORDER BY created_at, id"
+        )
+        .fetch_all(&self.db.read)
+        .await
+        .map_err(db_error)?;
+        rows.into_iter().map(Token::try_from).collect()
+    }
+
     async fn board_by_id(&self, id: &str) -> Result<Option<Board>> {
         board_by_id(&self.db.read, id).await
     }
@@ -849,6 +862,34 @@ impl WriteTx for SqliteWriteTx {
             t.revoked_at,
             t.created_at,
             t.updated_at
+        )
+        .execute(&mut *self.tx)
+        .await
+        .map_err(db_error)?;
+        Ok(())
+    }
+
+    async fn token_by_id(&mut self, id: &str) -> Result<Option<Token>> {
+        sqlx::query_as!(
+            TokenRow,
+            "SELECT id, name, token_hash, scopes, board_ids, expires_at, last_used_at,
+                    revoked_at, created_at, updated_at
+             FROM tokens WHERE id = ?",
+            id
+        )
+        .fetch_optional(&mut *self.tx)
+        .await
+        .map_err(db_error)?
+        .map(Token::try_from)
+        .transpose()
+    }
+
+    async fn revoke_token(&mut self, id: &str, at: &str) -> Result<()> {
+        sqlx::query!(
+            "UPDATE tokens SET revoked_at = ?, updated_at = ? WHERE id = ? AND revoked_at IS NULL",
+            at,
+            at,
+            id
         )
         .execute(&mut *self.tx)
         .await
