@@ -1082,10 +1082,12 @@ dependencies = [
  "clap",
  "maru-core",
  "maru-storage",
+ "maru-themes",
  "maru-web",
  "predicates",
  "serde",
  "serde_json",
+ "sqlx",
  "tempfile",
  "tokio",
  "tracing",
@@ -1134,6 +1136,8 @@ dependencies = [
  "maru-core",
  "minijinja",
  "rust-embed",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -1143,9 +1147,12 @@ dependencies = [
  "axum",
  "maru-core",
  "maru-themes",
+ "serde",
+ "serde_json",
  "tokio",
  "tower",
  "tower-http",
+ "tracing",
 ]
 
 [[package]]

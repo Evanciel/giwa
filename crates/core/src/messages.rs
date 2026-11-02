@@ -41,6 +41,15 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "error.body_too_large" => "본문이 너무 큽니다 (최대 {max}바이트).",
         "error.timestamp" => "시각은 RFC3339 형식이어야 합니다: {value}",
         "error.token_invalid" => "토큰이 없거나 만료·폐기되었습니다.",
+        "error.template_not_found" => "템플릿을 찾을 수 없습니다: {name}",
+        "error.json_body" => "요청 본문 JSON 이 올바르지 않습니다: {detail}",
+        "error.post_status" => "알 수 없는 글 상태입니다: {value}",
+        "error.preset_unknown" => "알 수 없는 프리셋입니다: {value}",
+        "error.scope_unknown" => {
+            "알 수 없는 스코프입니다: {value} (read, draft, publish, structure, design, admin)"
+        }
+        "error.input_encoding" => "본문이 UTF-8 이 아닙니다: {path}",
+        "hint.input_encoding" => "편집기에서 UTF-8 로 저장한 뒤 `--from` 으로 다시 넘기세요.",
         _ => return None,
     };
     Some(text)

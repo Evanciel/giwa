@@ -7,7 +7,6 @@ use maru_core::output::{Failure, Success};
 use maru_core::{Code, Error};
 use serde::Serialize;
 
-#[expect(dead_code, reason = "U3 init 에서 첫 사용")]
 pub fn success<T: Serialize>(data: T, json: bool, human: impl FnOnce(&T) -> String) -> ExitCode {
     if json {
         print_json(&Success::new(data));

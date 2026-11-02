@@ -10,7 +10,7 @@ use crate::error::{Code, Error, Result};
 use crate::model::{Board, Listing, PageReq, Post, PostKind, PostStatus, Revision};
 use crate::services::{boards, required_text};
 use crate::slug;
-use crate::store::{Ctx, PublishedQuery, Tx, WriteTx};
+use crate::store::{Ctx, PostFilter, PublishedQuery, Tx, WriteTx};
 
 const MAX_TITLE: usize = 200;
 const MAX_BODY_BYTES: usize = 1024 * 1024;
@@ -194,6 +194,68 @@ pub async fn public_posts(
     };
     let total = ctx.store.count_published(&q).await?;
     let items = ctx.store.list_published(&q).await?;
+    Ok(Listing {
+        items,
+        total,
+        page: page.page,
+        per_page: page.per_page,
+    })
+}
+
+/// 관리용 목록. 남의 글 관리 권한이 없으면 본인 글만 남긴다.
+pub async fn list(
+    ctx: &Ctx,
+    actor: &Actor,
+    board: Option<&str>,
+    status: Option<PostStatus>,
+    page: PageReq,
+) -> Result<Listing<Post>> {
+    actor.require(Permission::PostWrite)?;
+    let board_id = match board {
+        Some(slug) => Some(
+            ctx.store
+                .board_by_slug(slug)
+                .await?
+                .ok_or_else(|| boards::not_found(slug))?
+                .id,
+        ),
+        None => None,
+    };
+    let filter = PostFilter {
+        board_id,
+        status,
+        limit: page.limit(),
+        offset: page.offset(),
+    };
+    if actor.has(Permission::PostModerate) {
+        let total = ctx.store.count_posts(&filter).await?;
+        let items = ctx.store.list_posts(&filter).await?;
+        return Ok(Listing {
+            items,
+            total,
+            page: page.page,
+            per_page: page.per_page,
+        });
+    }
+    // 본인 글만: 전체를 읽어 거른 뒤 쪽을 나눈다. 글 수가 많아지면 SQL 조건으로 옮긴다.
+    let all = PostFilter {
+        limit: i64::MAX,
+        offset: 0,
+        ..filter
+    };
+    let own: Vec<Post> = ctx
+        .store
+        .list_posts(&all)
+        .await?
+        .into_iter()
+        .filter(|p| is_own(actor, p))
+        .collect();
+    let total = i64::try_from(own.len()).unwrap_or(i64::MAX);
+    let items = own
+        .into_iter()
+        .skip(usize::try_from(page.offset()).unwrap_or(usize::MAX))
+        .take(page.per_page as usize)
+        .collect();
     Ok(Listing {
         items,
         total,

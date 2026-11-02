@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="{{ site.lang or 'ko' }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{{ site.name }}{% endblock %}</title>
+<meta name="description" content="{% block description %}{{ site.description }}{% endblock %}">
+{% if canonical %}<link rel="canonical" href="{{ canonical }}">{% endif %}
+<link rel="alternate" type="application/rss+xml" title="{{ site.name }}" href="{{ site.rss_url }}">
+<link rel="stylesheet" href="/assets/site.css">
+</head>
+<body>
+<a class="skip" href="#main">본문 바로가기</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="{{ site.home_url }}">{{ site.name }}</a>
+  </div>
+</header>
+<main id="main" class="wrap">
+{% block main %}{% endblock %}
+</main>
+<footer class="site-footer">
+  <div class="wrap">
+    <p>{{ site.name }} · <a href="{{ site.rss_url }}">RSS</a></p>
+  </div>
+</footer>
+</body>
+</html>

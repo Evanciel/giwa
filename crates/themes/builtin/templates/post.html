@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}{{ post.title }} · {{ site.name }}{% endblock %}
+{% block description %}{{ post.summary }}{% endblock %}
+{% block main %}
+<article class="post">
+  <header>
+    <p class="crumb"><a href="{{ board.url }}">{{ board.name }}</a></p>
+    <h1>{{ post.title }}</h1>
+    <p class="meta"><time datetime="{{ post.published_at }}">{{ post.date }}</time></p>
+  </header>
+  {# body_html 은 서버가 ammonia 로 정화한 값만 들어온다. |safe 는 여기에만 쓴다. #}
+  <div class="prose">{{ post.body_html | safe }}</div>
+</article>
+{% endblock %}

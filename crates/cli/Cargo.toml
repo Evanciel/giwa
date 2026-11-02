@@ -17,6 +17,7 @@ path = "src/main.rs"
 [dependencies]
 maru-core.workspace = true
 maru-storage.workspace = true
+maru-themes.workspace = true
 maru-web.workspace = true
 anyhow.workspace = true
 clap.workspace = true
@@ -31,3 +32,6 @@ assert_cmd.workspace = true
 predicates.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true
+maru-storage.workspace = true
+sqlx.workspace = true
+tokio.workspace = true

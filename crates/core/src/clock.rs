@@ -29,6 +29,16 @@ pub fn parse(s: &str) -> Option<OffsetDateTime> {
     OffsetDateTime::parse(s, &Rfc3339).ok()
 }
 
+/// 화면용 날짜 `2026. 11. 2.` (한국 표기). `offset_minutes` 는 사이트 시간대(기본 +540).
+pub fn display_date(s: &str, offset_minutes: i32) -> String {
+    let Some(t) = parse(s) else {
+        return String::new();
+    };
+    let offset = UtcOffset::from_whole_seconds(offset_minutes * 60).unwrap_or(UtcOffset::UTC);
+    let t = t.to_offset(offset);
+    format!("{}. {}. {}.", t.year(), u8::from(t.month()), t.day())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -14,3 +14,7 @@ workspace = true
 maru-core.workspace = true
 minijinja.workspace = true
 rust-embed.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
