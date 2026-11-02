@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO sessions (id, token_hash, member_id, csrf_token, created_at, expires_at)\n             VALUES (?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "f6566706220bf98c7d199c5c3ec0245de9c29dd5b476db4a93e14f1165a91a2a"
+}

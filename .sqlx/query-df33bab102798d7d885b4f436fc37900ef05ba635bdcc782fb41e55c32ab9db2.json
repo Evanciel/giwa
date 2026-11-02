@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE members SET email = ?, display_name = ?, password_hash = ?, status = ?, updated_at = ?\n             WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "df33bab102798d7d885b4f436fc37900ef05ba635bdcc782fb41e55c32ab9db2"
+}

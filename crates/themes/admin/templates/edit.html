@@ -1,0 +1,62 @@
+{% extends "_base.html" %}
+{% block title %}{% if post %}글 고치기{% else %}새 글{% endif %}{% endblock %}
+{% block content %}
+<div class="heading-row">
+  <h1>{% if post %}글 고치기{% else %}새 글{% endif %}</h1>
+  {% if post %}<span class="badge badge-{{ post.status }}">{{ post.status_label }}</span>{% endif %}
+  {% if public_url %}<a class="aside" href="{{ public_url }}" target="_blank" rel="noopener">공개 페이지 보기</a>{% endif %}
+</div>
+<form method="post" action="{% if post %}/admin/posts/{{ post.id }}{% else %}/admin/posts/new{% endif %}" class="stack editor">
+  <input type="hidden" name="_csrf" value="{{ csrf }}">
+  {% if not post %}
+  <label for="board">게시판</label>
+  <select id="board" name="board">
+    {% for b in boards %}<option value="{{ b.slug }}"{% if b.slug == values.board %} selected{% endif %}>{{ b.name }}</option>{% endfor %}
+  </select>
+  {% endif %}
+  <label for="title">제목</label>
+  <input id="title" name="title" required maxlength="200" value="{{ values.title }}">
+  <label for="body_md">본문 <span class="hint">Markdown</span></label>
+  <textarea id="body_md" name="body_md" rows="18">{{ values.body_md }}</textarea>
+  <details{% if values.slug or values.excerpt %} open{% endif %}>
+    <summary>주소와 요약</summary>
+    <label for="slug">주소 <span class="hint">비우면 제목에서 만듭니다</span></label>
+    <input id="slug" name="slug" maxlength="120" value="{{ values.slug }}">
+    <label for="excerpt">요약 <span class="hint">목록·검색 결과에 보입니다</span></label>
+    <textarea id="excerpt" name="excerpt" rows="3">{{ values.excerpt }}</textarea>
+  </details>
+  <div class="actions">
+    <button type="submit" name="intent" value="draft" class="secondary">저장</button>
+    {% if not post or post.status != "published" %}
+    <button type="submit" name="intent" value="publish">저장하고 발행</button>
+    {% endif %}
+  </div>
+</form>
+{% if post %}
+<section class="danger" aria-label="상태 바꾸기">
+  {% if post.status == "published" %}
+  <form method="post" action="/admin/posts/{{ post.id }}/hide">
+    <input type="hidden" name="_csrf" value="{{ csrf }}">
+    <button type="submit" class="secondary">숨기기</button>
+  </form>
+  {% endif %}
+  {% if post.status == "hidden" %}
+  <form method="post" action="/admin/posts/{{ post.id }}/publish">
+    <input type="hidden" name="_csrf" value="{{ csrf }}">
+    <button type="submit" class="secondary">다시 발행</button>
+  </form>
+  {% endif %}
+  {% if post.status == "deleted" %}
+  <form method="post" action="/admin/posts/{{ post.id }}/restore">
+    <input type="hidden" name="_csrf" value="{{ csrf }}">
+    <button type="submit" class="secondary">되살리기</button>
+  </form>
+  {% else %}
+  <form method="post" action="/admin/posts/{{ post.id }}/delete">
+    <input type="hidden" name="_csrf" value="{{ csrf }}">
+    <button type="submit" class="warn">삭제</button>
+  </form>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

@@ -55,6 +55,15 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "error.menu_url" => "메뉴 주소는 https://, http:// 또는 / 로 시작해야 합니다: {value}",
         "error.menu_item" => "메뉴 항목 형식이 올바르지 않습니다: {value}",
         "error.token_value" => "디자인 토큰 `{field}` 값이 올바르지 않습니다: {value}",
+        "error.owner_exists" => "운영자 계정이 이미 있습니다. 로그인 링크를 다시 받으세요.",
+        "error.member_email_required" => "회원이 여럿이라 이메일을 지정해야 합니다.",
+        "error.member_not_found" => "회원을 찾을 수 없습니다.",
+        "error.member_disabled" => "비활성화된 회원입니다.",
+        "error.link_invalid" => "로그인 링크가 만료됐거나 이미 사용됐습니다. 새 링크를 받으세요.",
+        "error.login_failed" => "이메일 또는 비밀번호가 올바르지 않습니다.",
+        "error.password_length" => "비밀번호는 {min}자 이상 {max}자 이하여야 합니다.",
+        "error.email" => "이메일 형식이 올바르지 않습니다: {value}",
+        "error.csrf" => "요청을 확인할 수 없습니다. 화면을 새로 고친 뒤 다시 시도하세요.",
         "error.setting_verification" => {
             "`{field}` 값은 영문·숫자·`-`·`_` 100자 이내여야 합니다: {value}"
         }

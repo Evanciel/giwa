@@ -1,0 +1,37 @@
+{% extends "_base.html" %}
+{% block title %}글{% endblock %}
+{% block content %}
+{% if needs_password %}
+<p class="notice">아직 비밀번호가 없습니다. <a href="/admin/password">비밀번호를 정하면</a> 링크 없이도 로그인할 수 있습니다.</p>
+{% endif %}
+<div class="heading-row">
+  <h1>글 <span class="count">{{ total }}</span></h1>
+  <a class="button" href="/admin/posts/new">새 글</a>
+</div>
+{% if posts %}
+<table class="posts">
+  <thead>
+    <tr><th scope="col">제목</th><th scope="col">상태</th><th scope="col">게시판</th><th scope="col">수정일</th></tr>
+  </thead>
+  <tbody>
+  {% for p in posts %}
+    <tr>
+      <td><a href="/admin/posts/{{ p.id }}">{{ p.title }}</a>{% if p.public_url %} <a class="aside" href="{{ p.public_url }}" target="_blank" rel="noopener">보기</a>{% endif %}</td>
+      <td><span class="badge badge-{{ p.status }}">{{ p.status_label }}</span></td>
+      <td>{{ p.board }}</td>
+      <td><time datetime="{{ p.updated }}">{{ p.updated }}</time></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% if pages > 1 %}
+<nav class="pager" aria-label="쪽">
+  {% if page > 1 %}<a href="/admin?page={{ page - 1 }}">이전</a>{% endif %}
+  <span>{{ page }} / {{ pages }}</span>
+  {% if page < pages %}<a href="/admin?page={{ page + 1 }}">다음</a>{% endif %}
+</nav>
+{% endif %}
+{% else %}
+<p class="empty">아직 글이 없습니다. <a href="/admin/posts/new">첫 글을 써 보세요.</a></p>
+{% endif %}
+{% endblock %}

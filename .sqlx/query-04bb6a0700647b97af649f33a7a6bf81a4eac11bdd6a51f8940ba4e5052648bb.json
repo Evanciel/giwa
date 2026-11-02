@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE login_tickets SET used_at = ?\n             WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?\n             RETURNING id, token_hash, member_id, created_at, expires_at",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "login_tickets",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "token_hash",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "login_tickets",
+            "name": "token_hash"
+          }
+        }
+      },
+      {
+        "name": "member_id",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "login_tickets",
+            "name": "member_id"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "login_tickets",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "name": "expires_at",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "login_tickets",
+            "name": "expires_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "04bb6a0700647b97af649f33a7a6bf81a4eac11bdd6a51f8940ba4e5052648bb"
+}

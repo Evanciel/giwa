@@ -342,3 +342,68 @@ impl Default for SiteSettings {
         }
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum MemberStatus {
+    Active,
+    Disabled,
+}
+
+impl MemberStatus {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Active => "active",
+            Self::Disabled => "disabled",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "active" => Some(Self::Active),
+            "disabled" => Some(Self::Disabled),
+            _ => None,
+        }
+    }
+}
+
+/// 사람 회원. 비밀번호 해시는 직렬화하지 않는다.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+pub struct Member {
+    pub id: Id,
+    pub email: String,
+    pub display_name: String,
+    #[serde(skip)]
+    pub password_hash: Option<String>,
+    pub status: MemberStatus,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+impl Member {
+    pub fn has_password(&self) -> bool {
+        self.password_hash.is_some()
+    }
+}
+
+/// 로그인 세션. 쿠키 원문은 저장하지 않는다.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Session {
+    pub id: Id,
+    pub token_hash: String,
+    pub member_id: Id,
+    pub csrf_token: String,
+    pub created_at: String,
+    pub expires_at: String,
+}
+
+/// 1회용 로그인 링크.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LoginTicket {
+    pub id: Id,
+    pub token_hash: String,
+    pub member_id: Id,
+    pub created_at: String,
+    pub expires_at: String,
+    pub used_at: Option<String>,
+}

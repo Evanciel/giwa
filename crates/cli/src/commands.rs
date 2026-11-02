@@ -12,7 +12,7 @@ use maru_core::model::{MenuItem, MenuLink, Page, PageReq, PageStatus, PostStatus
 use maru_core::services::boards::{self, NewBoard};
 use maru_core::services::posts::{self, NewPost};
 use maru_core::services::tokens::{self, NewToken};
-use maru_core::services::{design, menus, pages, presets, settings};
+use maru_core::services::{auth, design, menus, pages, presets, settings};
 use maru_core::urls::{self, Target};
 use maru_core::{Actor, Code, Ctx, Error, Result};
 use maru_storage::{DataDir, Db};
@@ -20,8 +20,8 @@ use serde_json::{Value, json};
 
 use crate::output;
 use crate::{
-    BoardCmd, Command, DesignCmd, Global, InitArgs, MenuCmd, MenuSetArgs, PageCmd, PostCmd,
-    PostListArgs, PostNewArgs, ServeArgs, SiteCmd, TokenCmd, TokenCreateArgs,
+    BoardCmd, Command, DesignCmd, Global, InitArgs, LoginLinkArgs, MenuCmd, MenuSetArgs, PageCmd,
+    PostCmd, PostListArgs, PostNewArgs, ServeArgs, SiteCmd, TokenCmd, TokenCreateArgs,
 };
 
 pub async fn run(g: &Global, command: Command) -> ExitCode {
@@ -35,6 +35,7 @@ pub async fn run(g: &Global, command: Command) -> ExitCode {
         Command::Menu(cmd) => menu(g, cmd).await,
         Command::Site(cmd) => site(g, cmd).await,
         Command::Design(cmd) => design_cmd(g, cmd).await,
+        Command::LoginLink(args) => login_link(g, args).await,
     };
     match res {
         Ok((data, human)) => output::success(data, g.json, |_| human),
@@ -108,6 +109,19 @@ async fn init(g: &Global, args: InitArgs) -> Out {
     } else {
         None
     };
+    // 회원이 없으면 운영자를 만들고 로그인 링크를 낸다. 이미 있으면 건드리지 않는다.
+    let owner = if ctx.store.count_members().await? == 0 || args.owner_email.is_some() {
+        let email = args.owner_email.as_deref().unwrap_or("owner@localhost");
+        Some(auth::ensure_owner(&ctx, &local, email, &args.owner_name).await?)
+    } else {
+        None
+    };
+    let link = match &owner {
+        Some(o) if o.created => {
+            Some(auth::issue_login_link(&ctx, &local, Some(&o.item.email)).await?)
+        }
+        _ => None,
+    };
     db.close().await;
 
     let data_dir = dir.root().display().to_string();
@@ -130,6 +144,8 @@ async fn init(g: &Global, args: InitArgs) -> Out {
             "scopes": t.token.scopes,
             "secret": t.secret,
         })),
+        "owner": owner.as_ref().map(|o| json!({ "email": o.item.email, "created": o.created })),
+        "login_link": link.as_ref().map(|l| json!({ "url": l.url, "expires_at": l.expires_at })),
         "next": next,
     });
     let mut human = if fresh {
@@ -143,7 +159,36 @@ async fn init(g: &Global, args: InitArgs) -> Out {
             t.secret
         ));
     }
+    if let Some(l) = &link {
+        human.push_str(&format!(
+            "관리 화면 로그인 링크 (10분, 1회용). 서버를 켠 뒤 여세요:
+  {}
+",
+            l.url
+        ));
+    }
     human.push_str(&format!("다음: {serve_cmd}"));
+    Ok((data, human))
+}
+
+// ---- login-link ----
+
+async fn login_link(g: &Global, args: LoginLinkArgs) -> Out {
+    let (ctx, _config, db) = open(g).await?;
+    let actor = actor(&ctx).await?;
+    let res = auth::issue_login_link(&ctx, &actor, args.email.as_deref()).await;
+    db.close().await;
+    let l = res?;
+    let data = json!({
+        "url": l.url,
+        "expires_at": l.expires_at,
+        "email": l.member.email,
+    });
+    let human = format!(
+        "로그인 링크 ({}, 10분 동안 한 번만 쓸 수 있습니다):
+  {}",
+        l.member.email, l.url
+    );
     Ok((data, human))
 }
 
@@ -185,10 +230,7 @@ async fn serve_inner(g: &Global, args: ServeArgs) -> Result<()> {
 
     let theme_dir = dir.themes_dir().join("default");
     let theme = maru_themes::Theme::new(theme_dir.is_dir().then_some(theme_dir));
-    let state = maru_web::AppState {
-        ctx,
-        theme: Arc::new(theme),
-    };
+    let state = maru_web::AppState::new(ctx, theme);
     let started = json!({ "url": url, "bind": local.to_string(), "site_url": config.site_url });
     let human = format!("서버를 시작했습니다: {url}\n멈추려면 Ctrl+C");
     output::success(started, g.json, |_| human);

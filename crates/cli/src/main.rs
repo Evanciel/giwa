@@ -56,6 +56,8 @@ enum Command {
     /// 디자인 토큰 (색, 글꼴, 글자 크기, 여백)
     #[command(subcommand)]
     Design(DesignCmd),
+    /// 관리 화면 로그인 링크를 만든다 (10분, 1회용)
+    LoginLink(LoginLinkArgs),
 }
 
 #[derive(Debug, Args)]
@@ -72,6 +74,19 @@ pub struct InitArgs {
     /// 사이트 이름 (주면 설정에 반영한다)
     #[arg(long)]
     pub name: Option<String>,
+    /// 운영자 이메일. 회원이 없을 때 만든다 (기본: owner@localhost)
+    #[arg(long)]
+    pub owner_email: Option<String>,
+    /// 운영자 표시 이름
+    #[arg(long, default_value = "운영자")]
+    pub owner_name: String,
+}
+
+#[derive(Debug, Args)]
+pub struct LoginLinkArgs {
+    /// 회원 이메일. 회원이 한 명이면 생략한다
+    #[arg(long)]
+    pub email: Option<String>,
 }
 
 #[derive(Debug, Args)]

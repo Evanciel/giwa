@@ -62,6 +62,48 @@ impl Theme {
     }
 }
 
+/// 관리 화면 템플릿. 사용자 테마로 덮어쓸 수 없게 내장 파일만 읽는다 (PHASE1_PLAN §7).
+#[derive(RustEmbed)]
+#[folder = "admin/"]
+struct AdminFiles;
+
+pub struct Admin {
+    env: Environment<'static>,
+}
+
+impl Default for Admin {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Admin {
+    pub fn new() -> Self {
+        let mut env = Environment::new();
+        env.set_undefined_behavior(UndefinedBehavior::Chainable);
+        env.set_formatter(html_formatter);
+        env.add_function("url_for", url_for);
+        env.set_loader(|name| {
+            Ok(AdminFiles::get(&format!("templates/{name}"))
+                .and_then(|f| String::from_utf8(f.data.into_owned()).ok()))
+        });
+        Self { env }
+    }
+
+    pub fn render<S: Serialize>(&self, name: &str, ctx: &S) -> Result<String> {
+        let tmpl = self.env.get_template(name).map_err(template_error)?;
+        tmpl.render(minijinja::Value::from(minijinja::value::Serde(ctx)))
+            .map_err(template_error)
+    }
+
+    /// `/admin/assets/...`
+    pub fn asset(&self, path: &str) -> Option<(Cow<'static, [u8]>, &'static str)> {
+        let mime = mime_for(path)?;
+        safe_join(Path::new("static"), path)?;
+        AdminFiles::get(&format!("static/{path}")).map(|f| (f.data, mime))
+    }
+}
+
 /// 사용자 테마 파일. 경로 탈출이면 없는 것으로 본다.
 fn read_user(dir: &Path, sub: &str, name: &str) -> Option<String> {
     let path = safe_join(&dir.join(sub), name)?;

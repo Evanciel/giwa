@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT r.id, r.name, r.rank, r.permissions\n             FROM roles r JOIN member_roles mr ON mr.role_id = r.id\n             WHERE mr.member_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "roles",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "roles",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "name": "rank",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "roles",
+            "name": "rank"
+          }
+        }
+      },
+      {
+        "name": "permissions",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "roles",
+            "name": "permissions"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "1994fbd1ad7bc2685135a2f77370d7d72ca4c6e20b3a40830744df0fe63f887e"
+}

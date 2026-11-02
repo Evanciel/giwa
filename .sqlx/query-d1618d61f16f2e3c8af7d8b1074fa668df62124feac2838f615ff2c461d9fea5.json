@@ -1,0 +1,86 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, token_hash, member_id, csrf_token, created_at, expires_at\n             FROM sessions WHERE token_hash = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "sessions",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "token_hash",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "sessions",
+            "name": "token_hash"
+          }
+        }
+      },
+      {
+        "name": "member_id",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "sessions",
+            "name": "member_id"
+          }
+        }
+      },
+      {
+        "name": "csrf_token",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "sessions",
+            "name": "csrf_token"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "sessions",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "name": "expires_at",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "sessions",
+            "name": "expires_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "d1618d61f16f2e3c8af7d8b1074fa668df62124feac2838f615ff2c461d9fea5"
+}

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>{% block title %}관리{% endblock %} · {{ site.name | default("Maru") }}</title>
+<link rel="stylesheet" href="/admin/assets/admin.css">
+</head>
+<body>
+<header class="bar">
+  <a class="brand" href="/admin">{{ site.name | default("Maru") }} <span>관리</span></a>
+  {% if me %}
+  <nav aria-label="관리 메뉴">
+    <a href="/admin"{% if nav == "posts" %} aria-current="page"{% endif %}>글</a>
+    <a href="/admin/posts/new"{% if nav == "new" %} aria-current="page"{% endif %}>새 글</a>
+    <a href="/admin/password"{% if nav == "password" %} aria-current="page"{% endif %}>비밀번호</a>
+    <a href="/" target="_blank" rel="noopener">사이트 보기</a>
+  </nav>
+  <form method="post" action="/admin/logout" class="logout">
+    <input type="hidden" name="_csrf" value="{{ csrf }}">
+    <button type="submit" class="link">로그아웃</button>
+  </form>
+  {% endif %}
+</header>
+<main class="{% block main_class %}wide{% endblock %}">
+{% if notice %}<p class="notice" role="status">{{ notice }}</p>{% endif %}
+{% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+{% block content %}{% endblock %}
+</main>
+</body>
+</html>

@@ -17,6 +17,7 @@ hex.workspace = true
 percent-encoding.workspace = true
 pulldown-cmark.workspace = true
 ammonia.workspace = true
+argon2.workspace = true
 sha2.workspace = true
 schemars.workspace = true
 serde.workspace = true

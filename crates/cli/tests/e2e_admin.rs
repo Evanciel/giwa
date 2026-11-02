@@ -1,0 +1,536 @@
+//! U12·U13: 실제 바이너리·실제 포트로 로그인 링크, 세션, CSRF, 관리 화면 글 발행, 요청 제한을 확인한다.
+//! E2E-2 (PHASE1_PLAN §8) 의 자동화 가능한 부분. 실제 브라우저 확인은 따로 한다.
+#![allow(clippy::expect_used, clippy::unwrap_used)]
+
+use std::fs::File;
+use std::io::{BufRead, BufReader, Read, Write};
+use std::net::TcpStream;
+use std::path::Path;
+use std::process::{Child, Command, Stdio};
+
+use serde_json::Value;
+
+const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const PASSWORD: &str = "시험용-비밀번호-1234";
+
+struct Server(Child);
+
+impl Drop for Server {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
+fn maru(data: &Path, args: &[&str]) -> Value {
+    let out = Command::new(BIN)
+        .arg("--data")
+        .arg(data)
+        .args(args)
+        .arg("--json")
+        .output()
+        .expect("maru 실행");
+    let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
+    let v: Value =
+        serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"));
+    assert_eq!(v["ok"], true, "{v}");
+    v["data"].clone()
+}
+
+/// 서버 로그는 파일로 받아 비밀 값이 새지 않는지 나중에 본다.
+fn start_server(data: &Path, log: &Path) -> (Server, String) {
+    let mut child = Command::new(BIN)
+        .arg("--data")
+        .arg(data)
+        .args(["serve", "--bind", "127.0.0.1:0", "--json"])
+        .env("RUST_LOG", "debug")
+        .stdout(Stdio::piped())
+        .stderr(File::create(log).unwrap())
+        .spawn()
+        .expect("serve 실행");
+    let stdout = child.stdout.take().unwrap();
+    let server = Server(child);
+    let mut line = String::new();
+    BufReader::new(stdout).read_line(&mut line).unwrap();
+    let v: Value = serde_json::from_str(line.trim()).expect("serve 시작 JSON");
+    (server, v["data"]["bind"].as_str().unwrap().to_owned())
+}
+
+struct Res {
+    status: u16,
+    head: String,
+    body: String,
+}
+
+impl Res {
+    fn header(&self, name: &str) -> Option<String> {
+        let name = name.to_ascii_lowercase();
+        self.head.lines().find_map(|l| {
+            let (k, v) = l.split_once(':')?;
+            (k.trim().to_ascii_lowercase() == name).then(|| v.trim().to_owned())
+        })
+    }
+
+    fn cookies(&self) -> Vec<String> {
+        self.head
+            .lines()
+            .filter_map(|l| {
+                let (k, v) = l.split_once(':')?;
+                k.trim()
+                    .eq_ignore_ascii_case("set-cookie")
+                    .then(|| v.trim().to_owned())
+            })
+            .collect()
+    }
+
+    /// `Set-Cookie` 에서 이름에 맞는 값.
+    fn cookie(&self, name: &str) -> Option<String> {
+        self.cookies().into_iter().find_map(|c| {
+            let first = c.split(';').next()?.to_owned();
+            let (k, v) = first.split_once('=')?;
+            (k == name).then(|| v.to_owned())
+        })
+    }
+
+    fn location(&self) -> String {
+        self.header("location").unwrap_or_default()
+    }
+
+    /// 화면의 첫 `_csrf` 숨은 필드 값.
+    fn csrf(&self) -> String {
+        let at = self
+            .body
+            .find("name=\"_csrf\" value=\"")
+            .expect("_csrf 필드");
+        let rest = &self.body[at + 20..];
+        rest[..rest.find('"').unwrap()].to_owned()
+    }
+}
+
+fn http(bind: &str, method: &str, path: &str, headers: &[(&str, &str)], body: &str) -> Res {
+    let mut s = TcpStream::connect(bind).unwrap();
+    let mut req = format!("{method} {path} HTTP/1.1\r\nHost: {bind}\r\nConnection: close\r\n");
+    for (k, v) in headers {
+        req.push_str(&format!("{k}: {v}\r\n"));
+    }
+    req.push_str(&format!("Content-Length: {}\r\n\r\n{body}", body.len()));
+    s.write_all(req.as_bytes()).unwrap();
+    let mut raw = Vec::new();
+    s.read_to_end(&mut raw).unwrap();
+    let text = String::from_utf8(raw).unwrap();
+    let (head, body) = text.split_once("\r\n\r\n").unwrap_or((&text, ""));
+    Res {
+        status: head[9..12].parse().unwrap(),
+        head: head.to_owned(),
+        body: body.to_owned(),
+    }
+}
+
+fn form(pairs: &[(&str, &str)]) -> String {
+    pairs
+        .iter()
+        .map(|(k, v)| format!("{}={}", enc(k), enc(v)))
+        .collect::<Vec<_>>()
+        .join("&")
+}
+
+fn enc(s: &str) -> String {
+    s.bytes()
+        .map(|b| {
+            if b.is_ascii_alphanumeric() || b"-_.~".contains(&b) {
+                (b as char).to_string()
+            } else {
+                format!("%{b:02X}")
+            }
+        })
+        .collect()
+}
+
+const FORM: (&str, &str) = ("Content-Type", "application/x-www-form-urlencoded");
+
+fn path_of(url: &str) -> String {
+    let rest = url.split_once("://").unwrap().1;
+    rest[rest.find('/').unwrap()..].to_owned()
+}
+
+/// 로그인 링크를 열고 확인 버튼까지 눌러 세션 쿠키를 받는다.
+fn sign_in_with_link(bind: &str, link_path: &str) -> String {
+    let page = http(bind, "GET", link_path, &[], "");
+    assert_eq!(page.status, 200, "{}", page.body);
+    let pre = page.cookie("maru_csrf").unwrap();
+    let cookie = format!("maru_csrf={pre}");
+    let res = http(
+        bind,
+        "POST",
+        link_path,
+        &[FORM, ("Cookie", &cookie)],
+        &form(&[("_csrf", &pre)]),
+    );
+    assert_eq!(res.status, 303, "{}", res.body);
+    res.cookie("maru_session").unwrap()
+}
+
+fn db_scalar(data: &Path, sql: &'static str) -> i64 {
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    rt.block_on(async {
+        let db = maru_storage::Db::open(&data.join("maru.db"), false)
+            .await
+            .unwrap();
+        let v: i64 = sqlx::query_scalar(sql)
+            .fetch_one(db.read_pool())
+            .await
+            .unwrap();
+        db.close().await;
+        v
+    })
+}
+
+#[test]
+fn e2e2_link_password_post_logout_login() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("사이트");
+    let log = tmp.path().join("server.log");
+
+    // init 이 운영자와 로그인 링크를 낸다. 다시 실행하면 새로 내지 않는다.
+    let init = maru(&data, &["init", "--preset", "blog", "--yes"]);
+    assert_eq!(init["owner"]["email"], "owner@localhost");
+    assert_eq!(init["owner"]["created"], true);
+    let first_link = init["login_link"]["url"].as_str().unwrap().to_owned();
+    let again = maru(&data, &["init", "--preset", "blog", "--yes"]);
+    assert!(again["login_link"].is_null(), "{again}");
+    assert!(again["owner"].is_null(), "{again}");
+
+    // 새 링크를 받으면 이전 링크는 못 쓴다.
+    let link = maru(&data, &["login-link"]);
+    assert_eq!(link["email"], "owner@localhost");
+    let link_path = path_of(link["url"].as_str().unwrap());
+
+    let (_server, bind) = start_server(&data, &log);
+
+    // 비로그인은 로그인 화면으로.
+    let res = http(&bind, "GET", "/admin", &[], "");
+    assert_eq!(res.status, 303);
+    assert_eq!(res.location(), "/admin/login?next=/admin");
+    let res = http(&bind, "GET", "/admin/posts/new", &[], "");
+    assert_eq!(res.status, 303);
+
+    let old = http(&bind, "GET", &path_of(&first_link), &[], "");
+    assert_eq!(old.status, 401);
+    assert!(old.body.contains("maru login-link"));
+
+    // 링크 확인 화면: 헤더와 CSRF 쿠키.
+    let page = http(&bind, "GET", &link_path, &[], "");
+    assert_eq!(page.status, 200);
+    assert!(page.body.contains("owner@localhost"));
+    assert_eq!(
+        page.header("referrer-policy").as_deref(),
+        Some("no-referrer")
+    );
+    assert_eq!(page.header("cache-control").as_deref(), Some("no-store"));
+    assert!(
+        page.header("content-security-policy")
+            .unwrap()
+            .contains("frame-ancestors 'none'")
+    );
+    let pre = page.cookie("maru_csrf").unwrap();
+    let pre_cookie = format!("maru_csrf={pre}");
+
+    // CSRF 없이, 엉뚱한 값으로는 거부. 링크는 그대로 살아 있다.
+    let res = http(
+        &bind,
+        "POST",
+        &link_path,
+        &[FORM],
+        &form(&[("_csrf", &pre)]),
+    );
+    assert_eq!(res.status, 403);
+    let other = "0".repeat(64);
+    let res = http(
+        &bind,
+        "POST",
+        &link_path,
+        &[FORM, ("Cookie", &pre_cookie)],
+        &form(&[("_csrf", &other)]),
+    );
+    assert_eq!(res.status, 403);
+
+    // 사용 → 비밀번호 화면으로, 세션 쿠키 속성 확인.
+    let res = http(
+        &bind,
+        "POST",
+        &link_path,
+        &[FORM, ("Cookie", &pre_cookie)],
+        &form(&[("_csrf", &pre)]),
+    );
+    assert_eq!(res.status, 303, "{}", res.body);
+    assert_eq!(res.location(), "/admin/password");
+    let set = res
+        .cookies()
+        .into_iter()
+        .find(|c| c.starts_with("maru_session="))
+        .unwrap();
+    for attr in ["HttpOnly", "SameSite=Lax", "Path=/", "Max-Age=1209600"] {
+        assert!(set.contains(attr), "{set}");
+    }
+    assert!(
+        !set.contains("Secure"),
+        "http 에서는 Secure 를 붙이지 않는다: {set}"
+    );
+    let link_session = res.cookie("maru_session").unwrap();
+
+    // 재사용 거부.
+    let res = http(
+        &bind,
+        "POST",
+        &link_path,
+        &[FORM, ("Cookie", &pre_cookie)],
+        &form(&[("_csrf", &pre)]),
+    );
+    assert_eq!(res.status, 401);
+
+    // 비밀번호 정하기.
+    let s1 = format!("maru_session={link_session}");
+    let page = http(&bind, "GET", "/admin/password", &[("Cookie", &s1)], "");
+    assert_eq!(page.status, 200);
+    let csrf1 = page.csrf();
+    let res = http(
+        &bind,
+        "POST",
+        "/admin/password",
+        &[FORM, ("Cookie", &s1)],
+        &form(&[
+            ("_csrf", &csrf1),
+            ("password", PASSWORD),
+            ("confirm", "다른 값-1234567"),
+        ]),
+    );
+    assert_eq!(res.status, 400);
+    let res = http(
+        &bind,
+        "POST",
+        "/admin/password",
+        &[FORM, ("Cookie", &s1)],
+        &form(&[
+            ("_csrf", &csrf1),
+            ("password", PASSWORD),
+            ("confirm", PASSWORD),
+        ]),
+    );
+    assert_eq!(res.status, 303, "{}", res.body);
+    let session = res.cookie("maru_session").unwrap();
+    // 비밀번호를 바꾸면 이전 세션은 끊긴다.
+    assert_eq!(
+        http(&bind, "GET", "/admin", &[("Cookie", &s1)], "").status,
+        303
+    );
+
+    let s2 = format!("maru_session={session}");
+    let home = http(&bind, "GET", "/admin?done=password", &[("Cookie", &s2)], "");
+    assert_eq!(home.status, 200);
+    assert!(home.body.contains("비밀번호를 저장했습니다"));
+    let csrf2 = home.csrf();
+
+    // 두 번째 세션 (다른 기기). 그 CSRF 값은 첫 세션에서 통하지 않는다.
+    let l2 = maru(&data, &["login-link"]);
+    let other_session = sign_in_with_link(&bind, &path_of(l2["url"].as_str().unwrap()));
+    let s3 = format!("maru_session={other_session}");
+    let csrf3 = http(&bind, "GET", "/admin", &[("Cookie", &s3)], "").csrf();
+    assert_ne!(csrf2, csrf3);
+
+    let post_form = |csrf: &str| {
+        form(&[
+            ("_csrf", csrf),
+            ("board", "blog"),
+            ("title", "관리 화면에서 쓴 글"),
+            ("body_md", "## 소제목\n\n브라우저에서 발행합니다."),
+            ("intent", "publish"),
+        ])
+    };
+    let res = http(
+        &bind,
+        "POST",
+        "/admin/posts/new",
+        &[FORM, ("Cookie", &s2)],
+        &post_form(""),
+    );
+    assert_eq!(res.status, 403);
+    let res = http(
+        &bind,
+        "POST",
+        "/admin/posts/new",
+        &[FORM, ("Cookie", &s2)],
+        &post_form(&csrf3),
+    );
+    assert_eq!(res.status, 403);
+    assert_eq!(
+        db_scalar(
+            &data,
+            "SELECT count(*) FROM posts WHERE title = '관리 화면에서 쓴 글'"
+        ),
+        0
+    );
+
+    // 작성 + 발행.
+    let res = http(
+        &bind,
+        "POST",
+        "/admin/posts/new",
+        &[FORM, ("Cookie", &s2)],
+        &post_form(&csrf2),
+    );
+    assert_eq!(res.status, 303, "{}", res.body);
+    let loc = res.location();
+    assert!(loc.ends_with("?done=published"), "{loc}");
+    let edit = http(&bind, "GET", &loc, &[("Cookie", &s2)], "");
+    assert_eq!(edit.status, 200);
+    assert!(edit.body.contains("발행했습니다"));
+    let public = edit
+        .body
+        .split("href=\"")
+        .find(|s| s.starts_with("/b/blog/"))
+        .map(|s| s[..s.find('"').unwrap()].to_owned())
+        .expect("공개 페이지 링크");
+    let page = http(&bind, "GET", &public, &[], "");
+    assert_eq!(page.status, 200);
+    assert!(page.body.contains("브라우저에서 발행합니다."));
+    assert_eq!(
+        db_scalar(
+            &data,
+            "SELECT count(*) FROM audit_log a JOIN posts p ON p.id = a.target_id \
+             WHERE p.title = '관리 화면에서 쓴 글' AND a.actor_type = 'human' AND a.action = 'post.publish'"
+        ),
+        1
+    );
+
+    // 로그아웃 → 쿠키 삭제, 세션 행 삭제, 같은 쿠키 거부.
+    let sessions = db_scalar(&data, "SELECT count(*) FROM sessions");
+    let res = http(
+        &bind,
+        "POST",
+        "/admin/logout",
+        &[FORM, ("Cookie", &s2)],
+        &form(&[("_csrf", &csrf2)]),
+    );
+    assert_eq!(res.status, 303);
+    assert!(
+        res.cookies()
+            .iter()
+            .any(|c| c.starts_with("maru_session=;") && c.contains("Max-Age=0"))
+    );
+    assert_eq!(
+        db_scalar(&data, "SELECT count(*) FROM sessions"),
+        sessions - 1
+    );
+    assert_eq!(
+        http(&bind, "GET", "/admin", &[("Cookie", &s2)], "").status,
+        303
+    );
+    // 다른 기기는 영향 없음.
+    assert_eq!(
+        http(&bind, "GET", "/admin", &[("Cookie", &s3)], "").status,
+        200
+    );
+
+    // 비밀번호로 다시 로그인. 틀린 비밀번호와 없는 계정은 같은 응답.
+    let page = http(&bind, "GET", "/admin/login?next=/admin/posts/new", &[], "");
+    let pre = page.cookie("maru_csrf").unwrap();
+    let pc = format!("maru_csrf={pre}");
+    let attempt = |email: &str, pw: &str, next: &str| {
+        http(
+            &bind,
+            "POST",
+            "/admin/login",
+            &[FORM, ("Cookie", &pc)],
+            &form(&[
+                ("_csrf", &pre),
+                ("email", email),
+                ("password", pw),
+                ("next", next),
+            ]),
+        )
+    };
+    let wrong = attempt("owner@localhost", "틀린-비밀번호-0000", "/admin");
+    let ghost = attempt("ghost@localhost", PASSWORD, "/admin");
+    assert_eq!(wrong.status, 401);
+    assert_eq!(ghost.status, 401);
+    let msg = |b: &str| {
+        let at = b.find("role=\"alert\">").unwrap();
+        b[at..at + b[at..].find("</p>").unwrap()].to_owned()
+    };
+    assert_eq!(msg(&wrong.body), msg(&ghost.body));
+    let ok = attempt("owner@localhost", PASSWORD, "/admin/posts/new");
+    assert_eq!(ok.status, 303);
+    assert_eq!(ok.location(), "/admin/posts/new");
+    // 외부 next 는 /admin 으로.
+    let ok = attempt("owner@localhost", PASSWORD, "//evil.test/x");
+    assert_eq!(ok.location(), "/admin");
+
+    // 서버 로그에 비밀 값이 없다.
+    let logs = std::fs::read_to_string(&log).unwrap();
+    for secret in [
+        PASSWORD,
+        link_session.as_str(),
+        session.as_str(),
+        link_path.trim_start_matches("/admin/link/"),
+        csrf2.as_str(),
+    ] {
+        assert!(!logs.contains(secret), "로그에 비밀 값: {secret}");
+    }
+}
+
+#[test]
+fn login_attempts_are_rate_limited_per_connection_address() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("site");
+    maru(&data, &["init", "--yes"]);
+    let (_server, bind) = start_server(&data, &tmp.path().join("server.log"));
+    let page = http(&bind, "GET", "/admin/login", &[], "");
+    let pre = page.cookie("maru_csrf").unwrap();
+    let pc = format!("maru_csrf={pre}");
+    let body = form(&[
+        ("_csrf", &pre),
+        ("email", "owner@localhost"),
+        ("password", "틀린-비밀번호-0000"),
+    ]);
+    let mut statuses = Vec::new();
+    for i in 0..12 {
+        // 전달 헤더를 바꿔도 연결 주소로 센다.
+        let fwd = format!("203.0.113.{i}");
+        let res = http(
+            &bind,
+            "POST",
+            "/admin/login",
+            &[FORM, ("Cookie", &pc), ("X-Forwarded-For", &fwd)],
+            &body,
+        );
+        if res.status == 429 {
+            assert_eq!(res.header("retry-after").as_deref(), Some("60"));
+        }
+        statuses.push(res.status);
+    }
+    assert_eq!(&statuses[..10], &[401; 10], "{statuses:?}");
+    assert_eq!(&statuses[10..], &[429, 429], "{statuses:?}");
+    // 공개 화면은 별도 한도라 계속 열린다.
+    assert_eq!(http(&bind, "GET", "/", &[], "").status, 200);
+}
+
+#[test]
+fn agent_token_cannot_issue_login_link() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("site");
+    let init = maru(&data, &["init", "--yes"]);
+    let secret = init["token"]["secret"].as_str().unwrap();
+    let out = Command::new(BIN)
+        .arg("--data")
+        .arg(&data)
+        .args(["login-link", "--json"])
+        .env("MARU_TOKEN", secret)
+        .output()
+        .unwrap();
+    let v: Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["error"]["code"], "FORBIDDEN");
+}

@@ -11,7 +11,10 @@ use serde_json::Value;
 use crate::actor::Actor;
 use crate::audit::{AuditRecord, Target};
 use crate::error::{Error, Result};
-use crate::model::{Board, MenuLink, Page, PageStatus, Post, PostStatus, Revision, Role, Token};
+use crate::model::{
+    Board, LoginTicket, Member, MenuLink, Page, PageStatus, Post, PostStatus, Revision, Role,
+    Session, Token,
+};
 
 /// 서비스 함수의 첫 인자.
 #[derive(Clone)]
@@ -66,6 +69,16 @@ pub trait Store: Send + Sync {
     async fn list_pages(&self, status: Option<PageStatus>) -> Result<Vec<Page>>;
     async fn menu_rows(&self, location: &str) -> Result<Vec<MenuRow>>;
     async fn settings(&self) -> Result<Vec<(String, Value)>>;
+
+    async fn member_by_id(&self, id: &str) -> Result<Option<Member>>;
+    async fn member_by_email(&self, email: &str) -> Result<Option<Member>>;
+    async fn count_members(&self) -> Result<i64>;
+    async fn first_member(&self) -> Result<Option<Member>>;
+    async fn member_roles(&self, member_id: &str) -> Result<Vec<Role>>;
+    async fn session_by_hash(&self, hash: &str) -> Result<Option<Session>>;
+    async fn ticket_by_hash(&self, hash: &str) -> Result<Option<LoginTicket>>;
+    /// 만료된 세션·로그인 링크를 지운다. 시스템 정리라 감사 대상이 아니다 (PHASE1_PLAN §5).
+    async fn purge_expired(&self, now: &str) -> Result<u64>;
 }
 
 #[async_trait]
@@ -105,6 +118,20 @@ pub trait WriteTx: Send {
 
     async fn settings(&mut self) -> Result<Vec<(String, Value)>>;
     async fn put_setting(&mut self, key: &str, value: &Value, at: &str) -> Result<()>;
+
+    async fn member_by_id(&mut self, id: &str) -> Result<Option<Member>>;
+    async fn member_by_email(&mut self, email: &str) -> Result<Option<Member>>;
+    async fn insert_member(&mut self, m: &Member) -> Result<()>;
+    async fn update_member(&mut self, m: &Member) -> Result<()>;
+    async fn add_member_role(&mut self, member_id: &str, role: &str) -> Result<()>;
+    async fn insert_ticket(&mut self, t: &LoginTicket) -> Result<()>;
+    /// 회원의 아직 쓰지 않은 링크를 모두 지운다 (새 링크 발급 시).
+    async fn delete_open_tickets(&mut self, member_id: &str) -> Result<u64>;
+    /// 유효한 링크를 원자적으로 사용 처리한다. 동시에 두 번 불러도 한 번만 `Some`.
+    async fn use_ticket(&mut self, hash: &str, now: &str) -> Result<Option<LoginTicket>>;
+    async fn insert_session(&mut self, s: &Session) -> Result<()>;
+    async fn delete_session(&mut self, id: &str) -> Result<u64>;
+    async fn delete_member_sessions(&mut self, member_id: &str) -> Result<u64>;
 }
 
 /// 쓰기 트랜잭션. 드롭하면 롤백된다.

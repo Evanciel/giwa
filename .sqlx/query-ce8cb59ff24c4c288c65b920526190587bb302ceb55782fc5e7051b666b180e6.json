@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM login_tickets WHERE expires_at <= ? OR used_at IS NOT NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "ce8cb59ff24c4c288c65b920526190587bb302ceb55782fc5e7051b666b180e6"
+}

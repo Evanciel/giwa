@@ -1,0 +1,9 @@
+{% extends "_base.html" %}
+{% block title %}{{ heading }}{% endblock %}
+{% block main_class %}narrow{% endblock %}
+{% block content %}
+<h1>{{ heading }}</h1>
+<p>{{ body }}</p>
+{% if command %}<p class="hint">터미널에서: <code>{{ command }}</code></p>{% endif %}
+<p><a href="/admin/login">로그인 화면으로</a></p>
+{% endblock %}
