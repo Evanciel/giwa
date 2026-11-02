@@ -110,9 +110,10 @@ main { min-height: 50vh; }
 .prose input[type="checkbox"] { margin-right: .4em; }
 
 /* 푸터 */
-.site-footer { margin-top: var(--space-section); padding-block: calc(var(--space) * 5); color: var(--muted); font-size: var(--fs-sm); }
+/* 글자 크기는 .wrap 안쪽에만 준다. --measure 가 em 이라 .wrap 의 글자 크기가 바뀌면 폭도 바뀐다. */
+.site-footer { margin-top: var(--space-section); padding-block: calc(var(--space) * 5); color: var(--muted); }
 .site-footer .wrap { border-top: 1px solid var(--border); padding-top: calc(var(--space) * 4); }
-.site-footer p { margin: 0; }
+.site-footer p { margin: 0; font-size: var(--fs-sm); }
 .site-footer a { color: var(--muted); }
 .footer-nav { margin-bottom: calc(var(--space) * 1.5); }
 

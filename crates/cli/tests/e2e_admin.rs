@@ -495,8 +495,9 @@ fn login_attempts_are_rate_limited_per_connection_address() {
         ("email", "owner@localhost"),
         ("password", "틀린-비밀번호-0000"),
     ]);
+    // 분 단위 고정 창이라 도중에 분이 바뀌면 한 번 초기화된다. 그래도 21번 안에는 반드시 걸린다.
     let mut statuses = Vec::new();
-    for i in 0..12 {
+    for i in 0..21 {
         // 전달 헤더를 바꿔도 연결 주소로 센다.
         let fwd = format!("203.0.113.{i}");
         let res = http(
@@ -510,9 +511,19 @@ fn login_attempts_are_rate_limited_per_connection_address() {
             assert_eq!(res.header("retry-after").as_deref(), Some("60"));
         }
         statuses.push(res.status);
+        if res.status == 429 {
+            break;
+        }
     }
-    assert_eq!(&statuses[..10], &[401; 10], "{statuses:?}");
-    assert_eq!(&statuses[10..], &[429, 429], "{statuses:?}");
+    let first_limited = statuses
+        .iter()
+        .position(|s| *s == 429)
+        .unwrap_or_else(|| panic!("제한에 걸리지 않음: {statuses:?}"));
+    assert!((10..=20).contains(&first_limited), "{statuses:?}");
+    assert!(
+        statuses[..first_limited].iter().all(|s| *s == 401),
+        "{statuses:?}"
+    );
     // 공개 화면은 별도 한도라 계속 열린다.
     assert_eq!(http(&bind, "GET", "/", &[], "").status, 200);
 }

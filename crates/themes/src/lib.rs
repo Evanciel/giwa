@@ -345,6 +345,32 @@ mod tests {
         assert!(css.contains(":where(:root)"));
     }
 
+    /// `--measure` 는 em 이다. `.wrap` 을 감싸는 머리·본문·푸터 상자에 글자 크기를 주면
+    /// 그 영역만 폭이 달라져 왼쪽 선이 어긋난다 (UI-1 에서 푸터가 좁아진 버그).
+    #[test]
+    fn wrap_containers_keep_body_font_size() {
+        let css = std::str::from_utf8(&Builtin::get("static/site.css").unwrap().data)
+            .unwrap()
+            .to_owned();
+        for rule in css.split('}') {
+            let Some((selector, body)) = rule.split_once('{') else {
+                continue;
+            };
+            let selector = selector.lines().last().unwrap_or_default().trim();
+            if [
+                ".site-header",
+                ".site-footer",
+                "main",
+                ".wrap",
+                ".wrap.wide",
+            ]
+            .contains(&selector)
+            {
+                assert!(!body.contains("font-size"), "{selector} {{{body}}}");
+            }
+        }
+    }
+
     #[test]
     fn url_for_matches_core_builder() {
         let mut env = Environment::new();
