@@ -51,6 +51,8 @@ pub struct PublishedQuery {
     pub tag_id: Option<String>,
     /// 비밀글을 뺀다 (피드·사이트맵·태그 목록).
     pub exclude_secret: bool,
+    /// 마지막 활동(댓글·답변)이 늦은 스레드부터 (ADR-0058).
+    pub by_activity: bool,
 }
 
 impl PublishedQuery {
@@ -65,6 +67,7 @@ impl PublishedQuery {
             notices: None,
             tag_id: None,
             exclude_secret: false,
+            by_activity: false,
         }
     }
 }
@@ -237,6 +240,8 @@ pub trait WriteTx: Send {
     async fn count_board_posts(&mut self, board_id: &str) -> Result<i64>;
 
     async fn post_by_id(&mut self, id: &str) -> Result<Option<Post>>;
+    /// 마지막 활동 시각을 올린다. 더 늦은 값이 이미 있으면 그대로 둔다 (ADR-0058).
+    async fn touch_post(&mut self, id: &str, at: &str) -> Result<()>;
     /// 이 글에 바로 달린 답변글 수 (상태 무관, ADR-0056).
     async fn reply_count(&mut self, parent_id: &str) -> Result<i64>;
     async fn slug_taken(

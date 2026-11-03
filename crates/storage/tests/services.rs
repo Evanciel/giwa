@@ -54,6 +54,7 @@ async fn blog(ctx: &Ctx) {
             sort_order: 0,
             layout: None,
             field_schema: None,
+            list_order: None,
         },
     )
     .await
@@ -204,6 +205,7 @@ async fn denials_carry_the_right_code() {
             sort_order: 0,
             layout: None,
             field_schema: None,
+            list_order: None,
         },
     )
     .await
@@ -439,6 +441,7 @@ async fn private_board_hides_posts_from_guests() {
             sort_order: 0,
             layout: None,
             field_schema: None,
+            list_order: None,
         },
     )
     .await
@@ -776,6 +779,7 @@ async fn board_layout_defaults_and_validation() {
             sort_order: 0,
             layout: None,
             field_schema: None,
+            list_order: None,
         },
     )
     .await
@@ -803,6 +807,7 @@ async fn boards_crud_and_non_empty_delete() {
         sort_order: 1,
         layout: None,
         field_schema: None,
+        list_order: None,
     };
     let first = boards::ensure(&e.ctx, &local, input.clone()).await.unwrap();
     assert!(first.created);

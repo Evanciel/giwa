@@ -270,6 +270,21 @@ pub enum PostCmd {
     },
     /// 공개 글에 답변글 초안을 단다. 게시판·분류는 위 글을 따른다
     Reply(PostReplyArgs),
+    /// 글을 잠근다. 관리자 말고는 댓글·답변·고치기·지우기를 못 한다. `--off` 로 푼다
+    Lock {
+        id: String,
+        #[arg(long)]
+        off: bool,
+    },
+    /// 댓글을 답변으로 채택한다 (qna·forum 게시판). `--clear` 로 채택을 뺀다
+    Accept {
+        id: String,
+        /// 채택할 댓글 id (`maru comment list --post <글>`)
+        #[arg(long, conflicts_with = "clear", required_unless_present = "clear")]
+        comment: Option<String>,
+        #[arg(long)]
+        clear: bool,
+    },
     /// 글을 다른 게시판에 초안으로 복사한다
     Copy {
         id: String,
@@ -577,7 +592,7 @@ pub struct BoardCreateArgs {
     pub slug: String,
     #[arg(long)]
     pub name: String,
-    /// blog, notice, gallery, free, qna, faq
+    /// blog, notice, gallery, free, qna, faq, forum
     #[arg(long, default_value = "blog")]
     pub kind: String,
     #[arg(long, default_value_t = 0)]
@@ -585,6 +600,9 @@ pub struct BoardCreateArgs {
     /// 목록 형태: list(번호 목록), webzine(그림 + 요약), card(카드 격자), gallery(그림 격자). 생략하면 종류의 기본값
     #[arg(long)]
     pub layout: Option<String>,
+    /// 목록 순서: latest(새 글부터), activity(마지막 댓글·답변부터). 생략하면 종류의 기본값(forum 만 activity)
+    #[arg(long)]
+    pub order: Option<String>,
     /// 같은 슬러그가 있으면 그대로 둔다
     #[arg(long)]
     pub if_not_exists: bool,
@@ -605,6 +623,9 @@ pub struct BoardUpdateArgs {
     /// 목록 형태: list(번호 목록), webzine(그림 + 요약), card(카드 격자), gallery(그림 격자). 빈 값("")이면 종류의 기본값으로
     #[arg(long)]
     pub layout: Option<String>,
+    /// 목록 순서: latest, activity. 빈 값("")이면 종류의 기본값으로
+    #[arg(long)]
+    pub order: Option<String>,
     /// 읽기 최소 역할 (guest, member, editor, admin, owner)
     #[arg(long)]
     pub read: Option<String>,

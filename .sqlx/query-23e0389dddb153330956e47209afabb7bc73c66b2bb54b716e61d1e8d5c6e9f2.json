@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,\n                    actor_type, published_at, created_at, updated_at, scheduled_at, cover,\n                    category_id, is_notice, is_secret, view_count, guest_name, guest_pw_hash,\n                    parent_id, thread_id, thread_path, thread_owner, meta,\n                    (SELECT json_group_array(t.name ORDER BY pt.position)\n                       FROM post_tags pt JOIN tags t ON t.id = pt.tag_id\n                      WHERE pt.post_id = posts.id) AS \"tags!: String\"\n             FROM posts WHERE board_id = ? AND slug = ?",
+  "query": "SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,\n                    actor_type, published_at, created_at, updated_at, scheduled_at, cover,\n                    category_id, is_notice, is_secret, view_count, guest_name, guest_pw_hash,\n                    parent_id, thread_id, thread_path, thread_owner, meta,\n                    last_activity_at, accepted_comment_id, is_locked,\n                    (SELECT json_group_array(t.name ORDER BY pt.position)\n                       FROM post_tags pt JOIN tags t ON t.id = pt.tag_id\n                      WHERE pt.post_id = posts.id) AS \"tags!: String\"\n             FROM posts\n             WHERE kind = 'post' AND (?1 IS NULL OR board_id = ?1) AND (?2 IS NULL OR status = ?2)\n             ORDER BY updated_at DESC, id DESC\n             LIMIT ?3 OFFSET ?4",
   "describe": {
     "columns": [
       {
@@ -290,14 +290,47 @@
         }
       },
       {
-        "name": "tags!: String",
+        "name": "last_activity_at",
         "ordinal": 26,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "last_activity_at"
+          }
+        }
+      },
+      {
+        "name": "accepted_comment_id",
+        "ordinal": 27,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "accepted_comment_id"
+          }
+        }
+      },
+      {
+        "name": "is_locked",
+        "ordinal": 28,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "is_locked"
+          }
+        }
+      },
+      {
+        "name": "tags!: String",
+        "ordinal": 29,
         "type_info": "Text",
         "origin": "Expression"
       }
     ],
     "parameters": {
-      "Right": 2
+      "Right": 4
     },
     "nullable": [
       false,
@@ -326,8 +359,11 @@
       false,
       true,
       false,
+      true,
+      true,
+      false,
       true
     ]
   },
-  "hash": "d3e253bc3b473cfe8d28ae35df1ef85a6075ff778e0fe25584162b87b2a026d6"
+  "hash": "23e0389dddb153330956e47209afabb7bc73c66b2bb54b716e61d1e8d5c6e9f2"
 }

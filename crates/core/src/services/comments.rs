@@ -193,6 +193,7 @@ pub async fn create(ctx: &Ctx, actor: &Actor, input: NewComment) -> Result<Comme
     if !rules.open {
         return Err(Error::new(Code::Forbidden).with_message("error.comments_closed"));
     }
+    posts::check_unlocked(actor, &board, &post)?;
     let body = check_body(&input.body)?;
 
     let (actor_type, author_id, guest_name, guest_pw_hash) = match actor.kind() {
@@ -274,6 +275,10 @@ pub async fn create(ctx: &Ctx, actor: &Actor, input: NewComment) -> Result<Comme
         updated_at: now,
     };
     tx.insert_comment(&c).await?;
+    if c.status == CommentStatus::Published {
+        let root = post.thread_id.as_deref().unwrap_or(&post.id);
+        tx.touch_post(root, &c.created_at).await?;
+    }
     tx.audit(
         actor,
         "comment.create",
@@ -318,6 +323,35 @@ pub async fn editable(ctx: &Ctx, actor: &Actor, id: &str) -> Result<Editable> {
     })
 }
 
+/// 채택 확인 화면용 (ADR-0058).
+#[derive(Debug, Clone, Serialize, JsonSchema)]
+pub struct AcceptTarget {
+    pub comment: CommentView,
+    pub post_id: String,
+    pub post_title: String,
+    /// 이미 이 댓글이 채택되어 있다 (확인하면 채택을 뺀다)
+    pub accepted: bool,
+    pub board_slug: String,
+    pub post_slug: String,
+}
+
+/// 이 사람이 이 댓글을 채택(또는 채택 취소)할 수 있는가.
+pub async fn accept_target(ctx: &Ctx, actor: &Actor, id: &str) -> Result<AcceptTarget> {
+    let (c, board, post) = live(ctx, id).await?;
+    if c.status != CommentStatus::Published {
+        return Err(not_found(id));
+    }
+    posts::may_accept(actor, &board, &post)?;
+    Ok(AcceptTarget {
+        accepted: post.accepted_comment_id.as_deref() == Some(c.id.as_str()),
+        comment: one(ctx, c).await?,
+        post_id: post.id,
+        post_title: post.title,
+        board_slug: board.slug,
+        post_slug: post.slug,
+    })
+}
+
 /// 본문을 고친다. 회원은 자기 것, 비회원 댓글은 그 비밀번호, 관리자는 전부.
 pub async fn update(
     ctx: &Ctx,
@@ -326,8 +360,9 @@ pub async fn update(
     body: &str,
     guest_password: Option<&str>,
 ) -> Result<CommentView> {
-    let (before, board, _) = live(ctx, id).await?;
+    let (before, board, post) = live(ctx, id).await?;
     authorize(actor, &board, &before, guest_password)?;
+    posts::check_unlocked(actor, &board, &post)?;
     let body = check_body(body)?;
     if body == before.body {
         return one(ctx, before).await;
@@ -355,8 +390,9 @@ pub async fn delete(
     id: &str,
     guest_password: Option<&str>,
 ) -> Result<CommentView> {
-    let (before, board, _) = live(ctx, id).await?;
+    let (before, board, post) = live(ctx, id).await?;
     authorize(actor, &board, &before, guest_password)?;
+    posts::check_unlocked(actor, &board, &post)?;
     set_status(ctx, actor, before, CommentStatus::Deleted, "comment.delete").await
 }
 
@@ -441,6 +477,13 @@ async fn set_status(
     }
     let mut tx = Tx::begin(ctx).await?;
     tx.update_comment(&c).await?;
+    // 승인·되살리기로 처음 보이게 되면 스레드 활동으로 친다 (ADR-0058).
+    if c.status == CommentStatus::Published
+        && let Some(post) = tx.post_by_id(&c.post_id).await?
+    {
+        let root = post.thread_id.clone().unwrap_or(post.id);
+        tx.touch_post(&root, &clock::now()).await?;
+    }
     tx.audit(
         actor,
         action,

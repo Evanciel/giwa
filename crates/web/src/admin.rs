@@ -47,6 +47,7 @@ pub fn routes() -> Router<AppState> {
         .route("/admin/posts/{id}/revisions/{rev}/revert", post(revert))
         .route("/admin/posts/{id}/move", post(move_post))
         .route("/admin/posts/{id}/reply", post(reply_post))
+        .route("/admin/posts/{id}/lock", post(lock_post))
         .route("/admin/posts/{id}", get(edit_form).post(save))
         .route("/admin/posts/{id}/{action}", post(action))
         .route("/admin/media", post(upload).layer(crate::upload_limit()))
@@ -739,6 +740,8 @@ fn notice(done: &str) -> Option<&'static str> {
         "moved" => "다른 게시판으로 옮겼습니다.",
         "copied" => "복사해 초안으로 만들었습니다. 지금 보는 것이 복사본입니다.",
         "replied" => "답변 초안을 만들었습니다. 다듬은 뒤 발행하세요.",
+        "locked" => "글을 잠갔습니다. 관리자 말고는 댓글·답변·고치기를 못 합니다.",
+        "unlocked" => "글 잠금을 풀었습니다.",
         _ => return None,
     })
 }
@@ -1071,6 +1074,7 @@ async fn edit_page(
                 "status": p.status,
                 "status_label": status_label(p.status),
                 "scheduled": p.scheduled_at.as_deref().map(|s| clock::display_datetime(s, tz)),
+                "locked": p.is_locked,
             })),
             "values": values,
             "categories": cats.iter().map(|(b, c)| json!({ "board": b, "slug": c.slug, "name": c.name })).collect::<Vec<_>>(),
@@ -1570,6 +1574,39 @@ async fn reply_post(
     };
     match posts::reply(&state.ctx, &who.actor, &id, input).await {
         Ok(p) => Redirect::to(&format!("/admin/posts/{}?done=replied", p.id)).into_response(),
+        Err(e) => fail(&state, Some(&who), &e).await,
+    }
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct LockForm {
+    #[serde(default, rename = "_csrf")]
+    csrf: String,
+    /// `on` 이면 잠그고 그 밖이면 푼다
+    #[serde(default)]
+    lock: String,
+}
+
+/// 글 잠금·풀기 (ADR-0058).
+async fn lock_post(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Form(f): Form<LockForm>,
+) -> Response {
+    let who = match require(&state, &headers, &format!("/admin/posts/{id}")).await {
+        Ok(w) => w,
+        Err(r) => return *r,
+    };
+    if !session_csrf_ok(&who, &f.csrf) {
+        return csrf_failed(&state, Some(&who)).await;
+    }
+    let locked = f.lock == "on";
+    match posts::lock(&state.ctx, &who.actor, &id, locked).await {
+        Ok(p) => {
+            let done = if locked { "locked" } else { "unlocked" };
+            Redirect::to(&format!("/admin/posts/{}?done={done}", p.id)).into_response()
+        }
         Err(e) => fail(&state, Some(&who), &e).await,
     }
 }

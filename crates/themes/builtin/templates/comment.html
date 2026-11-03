@@ -57,6 +57,18 @@
   </form>
   <p class="account-links"><a href="{{ comment.back }}">글로 돌아가기</a></p>
 
+{% elif comment.view == "accept" %}
+  <h1 id="comment-title">{% if comment.accepted %}채택 취소{% else %}답변 채택{% endif %}</h1>
+  <p class="account-lead"><a href="{{ comment.back }}">{{ comment.post_title }}</a></p>
+  {% if comment.error %}<p class="form-error" role="alert">{{ comment.error }}</p>{% endif %}
+  <blockquote class="comment-quote"><p><strong>{{ comment.author_name }}</strong></p><p>{{ comment.body }}</p></blockquote>
+  <p class="hint">{% if comment.accepted %}이 댓글의 채택을 뺍니다.{% else %}이 댓글을 답변으로 채택합니다. 다른 댓글이 채택되어 있었다면 이것으로 바뀝니다.{% endif %}</p>
+  <form class="account-form" method="post" action="{{ comment.action }}">
+    <input type="hidden" name="_csrf" value="{{ comment.csrf }}">
+    <button type="submit">{% if comment.accepted %}채택 취소{% else %}채택하기{% endif %}</button>
+  </form>
+  <p class="account-links"><a href="{{ comment.back }}">글로 돌아가기</a></p>
+
 {% else %}
   <h1 id="comment-title">{{ comment.heading }}</h1>
   <p class="account-lead">{{ comment.body }}</p>

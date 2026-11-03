@@ -7,7 +7,11 @@ use crate::actor::{AuthorType, Permission, Scope};
 use crate::clock::Id;
 
 /// 게시판 종류 (SPEC §4). DB 에 CHECK 를 두지 않고 여기서 검증한다 (ADR-0016).
-pub const BOARD_KINDS: [&str; 6] = ["blog", "notice", "gallery", "free", "qna", "faq"];
+pub const BOARD_KINDS: [&str; 7] = ["blog", "notice", "gallery", "free", "qna", "faq", "forum"];
+/// 게시판 목록 순서 (ADR-0058). 빈 값이면 종류의 기본값.
+pub const BOARD_ORDERS: [&str; 2] = ["latest", "activity"];
+/// 댓글을 채택할 수 있는 게시판 종류 (ADR-0058).
+pub const ACCEPT_KINDS: [&str; 2] = ["qna", "forum"];
 
 /// 게시판 목록 형태 (ADR-0054). 테마가 이름마다 모양을 그린다.
 pub const BOARD_LAYOUTS: [&str; 4] = ["list", "webzine", "card", "gallery"];
@@ -116,6 +120,9 @@ pub struct Board {
     /// 목록 형태(`BOARD_LAYOUTS`). 빈 값이면 종류의 기본값 (ADR-0054)
     #[serde(default)]
     pub layout: String,
+    /// 목록 순서(`BOARD_ORDERS`). 빈 값이면 종류의 기본값 (ADR-0058)
+    #[serde(default)]
+    pub list_order: String,
     pub policy: BoardPolicy,
     pub sort_order: i64,
     /// 글에 붙일 여분 칸 정의 (ADR-0057)
@@ -143,6 +150,23 @@ impl Board {
             "gallery" => "gallery",
             _ => "list",
         }
+    }
+
+    /// 실제로 쓸 목록 순서. 따로 정하지 않았으면 `forum` 만 활동순.
+    pub fn effective_order(&self) -> &str {
+        if !self.list_order.is_empty() {
+            return &self.list_order;
+        }
+        if self.kind == "forum" {
+            "activity"
+        } else {
+            "latest"
+        }
+    }
+
+    /// 댓글을 채택할 수 있는 게시판인가.
+    pub fn accepts_answers(&self) -> bool {
+        ACCEPT_KINDS.contains(&self.kind.as_str())
     }
 }
 
@@ -267,6 +291,15 @@ pub struct Post {
     /// 여분 칸 값 (게시판 `field_schema` 의 키 → 값, ADR-0057)
     #[serde(default)]
     pub meta: serde_json::Map<String, serde_json::Value>,
+    /// 마지막 공개 댓글·답변 시각. 없으면 발행 시각을 쓴다 (ADR-0058)
+    #[serde(default)]
+    pub last_activity_at: Option<String>,
+    /// 채택한 댓글 (`qna`·`forum`, ADR-0058)
+    #[serde(default)]
+    pub accepted_comment_id: Option<Id>,
+    /// 잠긴 글: 관리자 말고는 댓글·답변·고치기·지우기를 못 한다 (ADR-0058)
+    #[serde(default)]
+    pub is_locked: bool,
 }
 
 impl Post {

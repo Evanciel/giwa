@@ -59,6 +59,7 @@ async fn env(policy: BoardPolicy) -> Env {
             sort_order: 0,
             layout: None,
             field_schema: None,
+            list_order: None,
         },
     )
     .await
@@ -243,6 +244,7 @@ async fn comments_can_be_closed() {
             sort_order: None,
             layout: None,
             field_schema: None,
+            list_order: None,
         },
     )
     .await

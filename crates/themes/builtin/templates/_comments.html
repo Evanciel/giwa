@@ -3,23 +3,32 @@
 <section class="comments" id="comments" aria-labelledby="comments-title">
   <h2 id="comments-title">댓글{% if comments.count %} <span class="count">{{ comments.count }}</span>{% endif %}</h2>
   {% if comments.pending %}<p class="form-notice" role="status">댓글을 받았습니다. 관리자가 확인한 뒤에 보입니다.</p>{% endif %}
+  {% if comments.accepted %}
+  <div class="accepted-answer">
+    <p class="accepted-label">채택된 답변</p>
+    <p class="comment-head"><strong class="comment-author">{{ comments.accepted.author_name }}</strong> <time>{{ comments.accepted.date }}</time></p>
+    <p class="comment-body">{{ comments.accepted.body }}</p>
+    <p class="comment-actions"><a href="#comment-{{ comments.accepted.id }}">댓글 자리로</a></p>
+  </div>
+  {% endif %}
 
   {% if comments.items %}
   <ol class="comment-list">
     {% for c in comments.items %}
-    <li class="comment{% if c.depth %} reply{% endif %}{% if c.deleted %} deleted{% endif %}" id="comment-{{ c.id }}">
+    <li class="comment{% if c.depth %} reply{% endif %}{% if c.deleted %} deleted{% endif %}{% if c.accepted %} accepted{% endif %}" id="comment-{{ c.id }}">
       {% if c.deleted %}
       <p class="comment-body muted">삭제된 댓글입니다.</p>
       {% else %}
       <p class="comment-head">
         <strong class="comment-author">{{ c.author_name }}</strong>{% if c.is_guest %} <span class="comment-badge">비회원</span>{% endif %}
-        <time datetime="{{ c.created_at }}">{{ c.date }}</time>{% if c.edited %} <span class="muted">· 고침</span>{% endif %}
+        <time datetime="{{ c.created_at }}">{{ c.date }}</time>{% if c.edited %} <span class="muted">· 고침</span>{% endif %}{% if c.accepted %} <span class="solved-mark">채택</span>{% endif %}
       </p>
       <p class="comment-body">{% if c.reply_to_name %}<span class="comment-to">@{{ c.reply_to_name }}</span> {% endif %}{{ c.body }}</p>
       <p class="comment-actions">
-        {% if comments.rules.open %}<a href="{{ c.reply_url }}">답글</a>{% endif %}
-        <a href="{{ c.edit_url }}" rel="nofollow">고치기</a>
-        <a href="{{ c.delete_url }}" rel="nofollow">지우기</a>
+        {% if comments.open %}<a href="{{ c.reply_url }}">답글</a>{% endif %}
+        {% if not comments.locked %}<a href="{{ c.edit_url }}" rel="nofollow">고치기</a>
+        <a href="{{ c.delete_url }}" rel="nofollow">지우기</a>{% endif %}
+        {% if c.accept_url %}<a href="{{ c.accept_url }}" rel="nofollow">{% if c.accepted %}채택 취소{% else %}채택{% endif %}</a>{% endif %}
       </p>
       {% endif %}
     </li>
@@ -27,7 +36,7 @@
   </ol>
   {% endif %}
 
-  {% if comments.rules.open %}
+  {% if comments.open %}
   <form class="comment-form account-form" id="comment-form" method="post" action="{{ comments.action }}">
     {% if comments.reply_to %}
     <input type="hidden" name="reply_to" value="{{ comments.reply_to.id }}">
@@ -51,6 +60,8 @@
     <div class="trap" aria-hidden="true"><label>웹사이트 <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
     <button type="submit">{% if comments.reply_to %}답글 달기{% else %}댓글 달기{% endif %}</button>
   </form>
+  {% elif comments.locked %}
+  <p class="hint locked-note">잠긴 글이라 댓글을 더 달거나 고칠 수 없습니다.</p>
   {% else %}
   <p class="hint">이 글에는 댓글을 더 달 수 없습니다.</p>
   {% endif %}

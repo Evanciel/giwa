@@ -69,6 +69,7 @@ async fn env() -> Env {
                 sort_order: 0,
                 layout: None,
                 field_schema: schema,
+                list_order: None,
             },
         )
         .await
@@ -124,6 +125,7 @@ async fn board_schema_is_checked_and_saved() {
             "market",
             BoardPatch {
                 field_schema: Some(bad),
+                list_order: None,
                 ..Default::default()
             },
         )
@@ -257,6 +259,7 @@ async fn moving_or_copying_keeps_only_fields_of_the_new_board() {
         "market",
         BoardPatch {
             field_schema: Some(vec![def("price", "가격", "number", true, &[])]),
+            list_order: None,
             ..Default::default()
         },
     )

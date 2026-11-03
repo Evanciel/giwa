@@ -28,6 +28,7 @@ pub fn routes() -> Router<AppState> {
         .route("/b/{board}/{post}/comments", post(create))
         .route("/c/{id}/edit", get(edit_form).post(edit))
         .route("/c/{id}/delete", get(delete_form).post(delete))
+        .route("/c/{id}/accept", get(accept_form).post(accept))
         .layer(middleware::map_response(no_store))
 }
 
@@ -344,6 +345,109 @@ async fn form_page(
     };
     let csrf = who.as_ref().map(|w| w.session.csrf_token.clone());
     page(state, headers, status, heading, view, csrf.as_deref()).await
+}
+
+// ---- 답변 채택 (ADR-0058) ----
+
+#[derive(Debug, Default, Deserialize)]
+struct AcceptForm {
+    #[serde(default, rename = "_csrf")]
+    csrf: String,
+}
+
+async fn accept_form(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    headers: HeaderMap,
+) -> Response {
+    accept_page(&state, &headers, &id, StatusCode::OK, None).await
+}
+
+async fn accept_page(
+    state: &AppState,
+    headers: &HeaderMap,
+    id: &str,
+    status: StatusCode,
+    error: Option<String>,
+) -> Response {
+    let (actor, who) = match viewer(state, headers).await {
+        Ok(v) => v,
+        Err(e) => return crate::error::page(state, &e).await,
+    };
+    let Some(who) = who else {
+        let next = format!("/c/{id}/accept");
+        return Redirect::to(&urls::with_query("/login", &[("next", &next)])).into_response();
+    };
+    let t = match comments::accept_target(&state.ctx, &actor, id).await {
+        Ok(t) => t,
+        Err(e) => return crate::error::page(state, &e).await,
+    };
+    let back = urls::path(&Target::Post {
+        board: &t.board_slug,
+        post: &t.post_slug,
+    });
+    let view = json!({
+        "view": "accept",
+        "action": format!("/c/{id}/accept"),
+        "back": format!("{back}#comment-{id}"),
+        "post_title": t.post_title,
+        "author_name": t.comment.author_name,
+        "body": t.comment.body,
+        "accepted": t.accepted,
+        "error": error,
+    });
+    let heading = if t.accepted {
+        "채택 취소"
+    } else {
+        "답변 채택"
+    };
+    page(
+        state,
+        headers,
+        status,
+        heading,
+        view,
+        Some(&who.session.csrf_token),
+    )
+    .await
+}
+
+async fn accept(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    headers: HeaderMap,
+    Form(f): Form<AcceptForm>,
+) -> Response {
+    let (actor, who) = match viewer(&state, &headers).await {
+        Ok(v) => v,
+        Err(e) => return crate::error::page(&state, &e).await,
+    };
+    let Some(w) = who.as_ref() else {
+        return refused(&state, &headers).await;
+    };
+    if !session_csrf_ok(w, &f.csrf) || !same_origin(&headers) {
+        return refused(&state, &headers).await;
+    }
+    let t = match comments::accept_target(&state.ctx, &actor, &id).await {
+        Ok(t) => t,
+        Err(e) => return crate::error::page(&state, &e).await,
+    };
+    let target = (!t.accepted).then_some(id.as_str());
+    match posts::accept(&state.ctx, &actor, &t.post_id, target).await {
+        Ok(_) => {
+            let back = urls::path(&Target::Post {
+                board: &t.board_slug,
+                post: &t.post_slug,
+            });
+            Redirect::to(&format!("{back}#comment-{id}")).into_response()
+        }
+        Err(e) if matches!(e.code(), Code::Validation | Code::Forbidden) => {
+            let status =
+                StatusCode::from_u16(e.code().http_status()).unwrap_or(StatusCode::BAD_REQUEST);
+            accept_page(&state, &headers, &id, status, Some(e.message())).await
+        }
+        Err(e) => crate::error::page(&state, &e).await,
+    }
 }
 
 fn csrf_ok(

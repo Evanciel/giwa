@@ -3,14 +3,14 @@
 {% if posts %}
 {% if layout == "list" %}
 <div class="post-table">
-  <div class="post-row post-row-head" aria-hidden="true"><span class="num">번호</span><span class="subject">제목</span>{% if board.write_url %}<span class="writer">글쓴이</span>{% endif %}<span class="date">날짜</span><span class="hits">조회</span></div>
+  <div class="post-row post-row-head" aria-hidden="true"><span class="num">번호</span><span class="subject">제목</span>{% if board.write_url %}<span class="writer">글쓴이</span>{% endif %}<span class="date">{% if board.order == "activity" %}최근 활동{% else %}날짜{% endif %}</span><span class="hits">조회</span></div>
   <ul>
   {% for post in posts %}
   <li class="post-row">
     <span class="num">{{ post.number }}</span>
     <span class="subject">{% include "_reply_mark.html" %}{% if post.category and not post.reply %}<a class="cat" href="{{ post.category.url }}">{{ post.category.name }}</a> {% endif %}<a class="title" href="{{ post.url }}">{% if post.is_secret %}{% include "_lock.html" %}{% endif %}{{ post.title }}</a>{% include "_title_marks.html" %}</span>
     {% if board.write_url %}<span class="writer">{% if post.author %}{{ post.author.name }}{% if post.author.guest %} <span class="comment-badge">비회원</span>{% endif %}{% endif %}</span>{% endif %}
-    <time class="date" datetime="{{ post.published_at }}">{{ post.date }}</time>
+    {% if board.order == "activity" %}<time class="date" datetime="{{ post.activity_at }}">{{ post.activity_date }}</time>{% else %}<time class="date" datetime="{{ post.published_at }}">{{ post.date }}</time>{% endif %}
     <span class="hits">{% if post.views is not none %}<span class="hits-label">조회 </span>{{ post.views }}{% endif %}</span>
   </li>
   {% endfor %}

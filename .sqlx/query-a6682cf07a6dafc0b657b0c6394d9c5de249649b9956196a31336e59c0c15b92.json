@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE posts SET last_activity_at = ?1\n             WHERE id = ?2 AND (last_activity_at IS NULL OR last_activity_at < ?1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "a6682cf07a6dafc0b657b0c6394d9c5de249649b9956196a31336e59c0c15b92"
+}

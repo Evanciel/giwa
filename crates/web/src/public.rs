@@ -613,7 +613,17 @@ async fn comments_json(
     q: &PostQuery,
 ) -> Result<Value> {
     let rules = comments::rules(board, s.captcha);
+    // 잠긴 글은 화면에서 폼·답글을 닫는다. 서비스도 막는다 (ADR-0058).
+    let open = rules.open && !post.is_locked;
     let list = comments::list_for_post(&state.ctx, actor, &post.id).await?;
+    let published =
+        |c: &comments::CommentView| c.status == maru_core::model::CommentStatus::Published;
+    // 채택한 댓글이 지금 공개 상태일 때만 보인다.
+    let accepted = post
+        .accepted_comment_id
+        .as_deref()
+        .and_then(|id| list.iter().find(|c| c.id == id && published(c)));
+    let can_accept = board.accepts_answers() && !post.is_locked;
     let reply_to = list
         .iter()
         .find(|c| c.id == q.reply && c.status == maru_core::model::CommentStatus::Published)
@@ -638,6 +648,9 @@ async fn comments_json(
                 ) + "#comment-form",
                 "edit_url": format!("/c/{}/edit", c.id),
                 "delete_url": format!("/c/{}/delete", c.id),
+                "accepted": accepted.is_some_and(|a| a.id == c.id),
+                // 고를 수 있는지는 누를 때 본다 (화면은 손님 기준).
+                "accept_url": (can_accept && published(c)).then(|| format!("/c/{}/accept", c.id)),
             })
         })
         .collect();
@@ -647,6 +660,14 @@ async fn comments_json(
         .count();
     Ok(json!({
         "rules": rules,
+        "open": open,
+        "locked": post.is_locked,
+        "accepted": accepted.map(|c| json!({
+            "id": c.id,
+            "author_name": c.author_name,
+            "body": c.body,
+            "date": clock::display_date(&c.created_at, s.tz_offset_min),
+        })),
         "items": items,
         "count": count,
         "action": format!("{}/comments", urls::path(&Target::Post { board: &board.slug, post: &post.slug })),
@@ -911,6 +932,8 @@ fn board_json(board: &Board) -> Value {
         "kind": board.kind,
         // 목록 형태 (ADR-0054): list·webzine·card·gallery
         "layout": board.effective_layout(),
+        // 목록 순서 (ADR-0058): latest·activity
+        "order": board.effective_order(),
         "url": urls::path(&Target::Board { board: &board.slug }),
         // 회원·손님이 공개 화면에서 쓰는 게시판이면 글쓰기 단추 (ADR-0053). 권한은 누를 때 본다.
         "write_url": public_write(board).then(|| format!("/write/{}", board.slug)),
@@ -1045,6 +1068,14 @@ fn post_summary(board_slug: &str, p: &Post, s: &SiteSettings) -> Value {
         "summary": summary,
         "is_notice": p.is_notice,
         "is_secret": p.is_secret,
+        // 포럼 (ADR-0058): 잠긴 글, 채택된 답변이 있는 글, 마지막 활동 시각
+        "is_locked": p.is_locked,
+        "solved": p.accepted_comment_id.is_some(),
+        "activity_at": p.last_activity_at.clone().unwrap_or_else(|| published.clone()),
+        "activity_date": clock::display_date(
+            p.last_activity_at.as_deref().unwrap_or(&published),
+            s.tz_offset_min,
+        ),
         // 답변글 (ADR-0056). 목록은 스레드 순서로 오고 깊이만큼 들여 쓴다.
         "reply": p.parent_id.is_some(),
         "depth": p.depth(),

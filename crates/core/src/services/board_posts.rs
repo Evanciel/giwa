@@ -226,11 +226,17 @@ pub async fn write(ctx: &Ctx, actor: &Actor, input: BoardWrite) -> Result<Post> 
         thread_path: String::new(),
         thread_owner: None,
         meta,
+        last_activity_at: None,
+        accepted_comment_id: None,
+        is_locked: false,
     };
     if let Some(spot) = spot {
         spot.apply(&mut post);
     }
     tx.insert_post(&post).await?;
+    if let (Some(root), PostStatus::Published) = (&post.thread_id, post.status) {
+        tx.touch_post(root, &post.created_at).await?;
+    }
     tx.insert_revision(&posts::revision_of(&post, actor))
         .await?;
     tx.audit(
@@ -272,6 +278,7 @@ pub async fn editable(ctx: &Ctx, actor: &Actor, id: &str) -> Result<Editable> {
         .board_by_id(&post.board_id)
         .await?
         .ok_or_else(|| posts::not_found(id))?;
+    posts::check_unlocked(actor, &board, &post)?;
     if post.guest_name.is_some() && !comments::can_moderate(actor, &board) {
         return Ok(Editable {
             post,

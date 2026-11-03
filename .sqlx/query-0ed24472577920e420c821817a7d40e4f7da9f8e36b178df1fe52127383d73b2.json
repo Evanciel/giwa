@@ -1,10 +1,10 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,\n                    actor_type, published_at, created_at, updated_at, scheduled_at, cover,\n                    category_id, is_notice, is_secret, view_count, guest_name, guest_pw_hash,\n                    parent_id, thread_id, thread_path, thread_owner, meta,\n                    (SELECT json_group_array(t.name ORDER BY pt.position)\n                       FROM post_tags pt JOIN tags t ON t.id = pt.tag_id\n                      WHERE pt.post_id = posts.id) AS \"tags!: String\"\n             FROM posts\n             WHERE kind = 'post' AND (?1 IS NULL OR board_id = ?1) AND (?2 IS NULL OR status = ?2)\n             ORDER BY updated_at DESC, id DESC\n             LIMIT ?3 OFFSET ?4",
+  "query": "SELECT p.id AS \"id!\", p.board_id AS \"board_id!\", p.kind AS \"kind!\",\n                      p.status AS \"status!\", p.title AS \"title!\", p.slug AS \"slug!\",\n                      p.body_md AS \"body_md!\", p.excerpt, p.author_id,\n                      p.actor_type AS \"actor_type!\", p.published_at,\n                      p.created_at AS \"created_at!\", p.updated_at AS \"updated_at!\",\n                      p.scheduled_at, p.cover,\n                      p.category_id, p.is_notice AS \"is_notice!\", p.is_secret AS \"is_secret!\",\n                      p.view_count AS \"view_count!\", p.guest_name, p.guest_pw_hash,\n                      p.parent_id, p.thread_id, p.thread_path AS \"thread_path!\", p.thread_owner,\n                      p.meta AS \"meta!\", p.last_activity_at, p.accepted_comment_id,\n                      p.is_locked AS \"is_locked!\",\n                      (SELECT json_group_array(t.name ORDER BY pt.position)\n                         FROM post_tags pt JOIN tags t ON t.id = pt.tag_id\n                        WHERE pt.post_id = p.id) AS \"tags!: String\"\n               FROM posts p\n               JOIN boards b ON b.id = p.board_id\n               JOIN roles r ON r.name = json_extract(b.policy, '$.read')\n               WHERE p.status = 'published' AND p.kind = 'post'\n                 AND r.rank <= ?1 AND (?2 IS NULL OR p.board_id = ?2)\n                 AND (?5 IS NULL OR p.category_id = ?5)\n                 AND (?6 IS NULL OR p.is_notice = ?6)\n                 AND (?7 IS NULL OR EXISTS (SELECT 1 FROM post_tags x\n                                             WHERE x.post_id = p.id AND x.tag_id = ?7))\n                 AND (?8 = 0 OR p.is_secret = 0)\n               ORDER BY CASE WHEN ?9 = 1\n                          THEN COALESCE((SELECT COALESCE(t.last_activity_at, t.published_at)\n                                           FROM posts t WHERE t.id = p.thread_id),\n                                        p.last_activity_at, p.published_at)\n                          ELSE COALESCE((SELECT t.published_at FROM posts t WHERE t.id = p.thread_id),\n                                        p.published_at)\n                        END DESC,\n                        COALESCE(p.thread_id, p.id) DESC, p.thread_path\n               LIMIT ?3 OFFSET ?4",
   "describe": {
     "columns": [
       {
-        "name": "id",
+        "name": "id!",
         "ordinal": 0,
         "type_info": "Text",
         "origin": {
@@ -15,7 +15,7 @@
         }
       },
       {
-        "name": "board_id",
+        "name": "board_id!",
         "ordinal": 1,
         "type_info": "Text",
         "origin": {
@@ -26,7 +26,7 @@
         }
       },
       {
-        "name": "kind",
+        "name": "kind!",
         "ordinal": 2,
         "type_info": "Text",
         "origin": {
@@ -37,7 +37,7 @@
         }
       },
       {
-        "name": "status",
+        "name": "status!",
         "ordinal": 3,
         "type_info": "Text",
         "origin": {
@@ -48,7 +48,7 @@
         }
       },
       {
-        "name": "title",
+        "name": "title!",
         "ordinal": 4,
         "type_info": "Text",
         "origin": {
@@ -59,7 +59,7 @@
         }
       },
       {
-        "name": "slug",
+        "name": "slug!",
         "ordinal": 5,
         "type_info": "Text",
         "origin": {
@@ -70,7 +70,7 @@
         }
       },
       {
-        "name": "body_md",
+        "name": "body_md!",
         "ordinal": 6,
         "type_info": "Text",
         "origin": {
@@ -103,7 +103,7 @@
         }
       },
       {
-        "name": "actor_type",
+        "name": "actor_type!",
         "ordinal": 9,
         "type_info": "Text",
         "origin": {
@@ -125,7 +125,7 @@
         }
       },
       {
-        "name": "created_at",
+        "name": "created_at!",
         "ordinal": 11,
         "type_info": "Text",
         "origin": {
@@ -136,7 +136,7 @@
         }
       },
       {
-        "name": "updated_at",
+        "name": "updated_at!",
         "ordinal": 12,
         "type_info": "Text",
         "origin": {
@@ -180,7 +180,7 @@
         }
       },
       {
-        "name": "is_notice",
+        "name": "is_notice!",
         "ordinal": 16,
         "type_info": "Integer",
         "origin": {
@@ -191,7 +191,7 @@
         }
       },
       {
-        "name": "is_secret",
+        "name": "is_secret!",
         "ordinal": 17,
         "type_info": "Integer",
         "origin": {
@@ -202,7 +202,7 @@
         }
       },
       {
-        "name": "view_count",
+        "name": "view_count!",
         "ordinal": 18,
         "type_info": "Integer",
         "origin": {
@@ -257,7 +257,7 @@
         }
       },
       {
-        "name": "thread_path",
+        "name": "thread_path!",
         "ordinal": 23,
         "type_info": "Text",
         "origin": {
@@ -279,7 +279,7 @@
         }
       },
       {
-        "name": "meta",
+        "name": "meta!",
         "ordinal": 25,
         "type_info": "Text",
         "origin": {
@@ -290,14 +290,47 @@
         }
       },
       {
-        "name": "tags!: String",
+        "name": "last_activity_at",
         "ordinal": 26,
         "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "last_activity_at"
+          }
+        }
+      },
+      {
+        "name": "accepted_comment_id",
+        "ordinal": 27,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "accepted_comment_id"
+          }
+        }
+      },
+      {
+        "name": "is_locked!",
+        "ordinal": 28,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "is_locked"
+          }
+        }
+      },
+      {
+        "name": "tags!: String",
+        "ordinal": 29,
+        "type_info": "Null",
         "origin": "Expression"
       }
     ],
     "parameters": {
-      "Right": 4
+      "Right": 9
     },
     "nullable": [
       false,
@@ -326,8 +359,11 @@
       false,
       true,
       false,
-      true
+      true,
+      true,
+      false,
+      null
     ]
   },
-  "hash": "d6318925c644ea9585d382f28a53a2a571abec9e5f41fe8403e01d17c5abb904"
+  "hash": "0ed24472577920e420c821817a7d40e4f7da9f8e36b178df1fe52127383d73b2"
 }

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, slug, name, kind, layout, policy, sort_order, field_schema, created_at, updated_at\n             FROM boards ORDER BY sort_order, slug",
+  "query": "SELECT id, slug, name, kind, layout, list_order, policy, sort_order, field_schema, created_at, updated_at\n         FROM boards WHERE id = ?",
   "describe": {
     "columns": [
       {
@@ -59,8 +59,19 @@
         }
       },
       {
-        "name": "policy",
+        "name": "list_order",
         "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "boards",
+            "name": "list_order"
+          }
+        }
+      },
+      {
+        "name": "policy",
+        "ordinal": 6,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -71,7 +82,7 @@
       },
       {
         "name": "sort_order",
-        "ordinal": 6,
+        "ordinal": 7,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -82,7 +93,7 @@
       },
       {
         "name": "field_schema",
-        "ordinal": 7,
+        "ordinal": 8,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -93,7 +104,7 @@
       },
       {
         "name": "created_at",
-        "ordinal": 8,
+        "ordinal": 9,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -104,7 +115,7 @@
       },
       {
         "name": "updated_at",
-        "ordinal": 9,
+        "ordinal": 10,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -115,9 +126,10 @@
       }
     ],
     "parameters": {
-      "Right": 0
+      "Right": 1
     },
     "nullable": [
+      false,
       false,
       false,
       false,
@@ -130,5 +142,5 @@
       false
     ]
   },
-  "hash": "9f5c2ebb8b4f6deade9f498fe10dd0bba0fadc6bc01859a7b08d67adf80e0d56"
+  "hash": "3b9f14dbd0378d388f063422fb95c209bf8483723ba9cb22510429666287b2d4"
 }

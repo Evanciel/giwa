@@ -8,7 +8,7 @@ use crate::audit::{self, Target};
 use crate::clock;
 use crate::error::{Code, Error, Result};
 use crate::fields::{self, FieldDef};
-use crate::model::{BOARD_KINDS, BOARD_LAYOUTS, Board, BoardPolicy};
+use crate::model::{BOARD_KINDS, BOARD_LAYOUTS, BOARD_ORDERS, Board, BoardPolicy};
 use crate::services::required_text;
 use crate::slug;
 use crate::store::{Ctx, Tx};
@@ -30,6 +30,9 @@ pub struct NewBoard {
     /// 글에 붙일 여분 칸 정의 (ADR-0057)
     #[serde(default)]
     pub field_schema: Option<Vec<FieldDef>>,
+    /// 목록 순서 `latest`·`activity`. 비우면 종류의 기본값 (ADR-0058)
+    #[serde(default)]
+    pub list_order: Option<String>,
 }
 
 fn default_kind() -> String {
@@ -66,6 +69,8 @@ async fn create_inner(
     check_kind(&input.kind)?;
     let layout = input.layout.unwrap_or_default();
     check_layout(&layout)?;
+    let list_order = input.list_order.unwrap_or_default();
+    check_order(&list_order)?;
     let field_schema = fields::check_schema(input.field_schema.unwrap_or_default())?;
     let policy = input.policy.unwrap_or_else(|| match input.kind.as_str() {
         "blog" => BoardPolicy::blog(),
@@ -98,6 +103,7 @@ async fn create_inner(
         name,
         kind: input.kind,
         layout,
+        list_order,
         policy,
         sort_order: input.sort_order,
         field_schema,
@@ -136,6 +142,9 @@ pub struct BoardPatch {
     /// 여분 칸 정의를 통째로 바꾼다. 빈 배열이면 모두 뺀다. 이미 쓴 글의 값은 그대로 둔다 (ADR-0057)
     #[serde(default)]
     pub field_schema: Option<Vec<FieldDef>>,
+    /// 목록 순서. 빈 문자열이면 종류의 기본값으로 되돌린다 (ADR-0058)
+    #[serde(default)]
+    pub list_order: Option<String>,
 }
 
 pub async fn update(ctx: &Ctx, actor: &Actor, slug: &str, patch: BoardPatch) -> Result<Board> {
@@ -166,6 +175,10 @@ pub async fn update(ctx: &Ctx, actor: &Actor, slug: &str, patch: BoardPatch) -> 
     }
     if let Some(f) = patch.field_schema {
         after.field_schema = fields::check_schema(f)?;
+    }
+    if let Some(o) = patch.list_order {
+        check_order(&o)?;
+        after.list_order = o;
     }
     if after == before {
         return Ok(before);
@@ -242,6 +255,16 @@ fn check_layout(layout: &str) -> Result<()> {
         .with_message("error.board_layout")
         .arg("value", layout)
         .arg("allowed", BOARD_LAYOUTS.join(", ")))
+}
+
+fn check_order(order: &str) -> Result<()> {
+    if order.is_empty() || BOARD_ORDERS.contains(&order) {
+        return Ok(());
+    }
+    Err(Error::new(Code::Validation)
+        .with_message("error.board_order")
+        .arg("value", order)
+        .arg("allowed", BOARD_ORDERS.join(", ")))
 }
 
 fn check_policy(policy: &BoardPolicy) -> Result<()> {

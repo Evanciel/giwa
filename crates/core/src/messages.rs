@@ -36,6 +36,13 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "error.board_layout" => {
             "게시판 형태 `{value}` 는 지원하지 않습니다. 가능한 값: {allowed} (비우면 종류의 기본값)"
         }
+        "error.board_order" => {
+            "목록 순서 `{value}` 는 지원하지 않습니다. 가능한 값: {allowed} (비우면 종류의 기본값)"
+        }
+        "error.post_locked" => "잠긴 글입니다. 관리자만 댓글·답변을 달거나 고칠 수 있습니다.",
+        "error.accept_kind" => "답변 채택은 질문(qna)·포럼(forum) 게시판에서만 됩니다.",
+        "error.accept_who" => "글쓴이나 게시판 관리자만 답변을 채택할 수 있습니다.",
+        "error.accept_comment" => "이 글에 공개된 댓글만 채택할 수 있습니다: {id}",
         "error.board_policy_role" => "게시판 정책의 역할 `{value}` 를 알 수 없습니다.",
         "error.board_exists" => "`{slug}` 게시판이 이미 있습니다.",
         "error.board_not_found" => "`{slug}` 게시판을 찾을 수 없습니다.",

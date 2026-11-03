@@ -26,7 +26,7 @@
   <p class="post-actions"><a href="{{ board.url }}">목록</a>{% if post.reply_url %}<a href="{{ post.reply_url }}" rel="nofollow">답변</a>{% endif %}{% if post.edit_url %}<a href="{{ post.edit_url }}" rel="nofollow">고치기</a><a href="{{ post.delete_url }}" rel="nofollow">지우기</a>{% endif %}</p>
   {% endif %}
 </article>
-{% if comments.rules.open or comments.items %}{% include "_comments.html" %}{% endif %}
+{% if comments.open or comments.locked or comments.items %}{% include "_comments.html" %}{% endif %}
 {% if nearby.prev or nearby.next %}
 <nav class="post-nav" aria-label="이전 글과 다음 글">
   {% if nearby.prev %}<a class="post-nav-prev" href="{{ nearby.prev.url }}"><span class="post-nav-label">이전 글</span><span class="post-nav-title">{% if nearby.prev.is_secret %}{% include "_lock.html" %}{% endif %}{{ nearby.prev.title }}</span></a>{% endif %}

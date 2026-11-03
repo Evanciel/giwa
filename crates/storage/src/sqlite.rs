@@ -44,6 +44,7 @@ struct BoardRow {
     name: String,
     kind: String,
     layout: String,
+    list_order: String,
     policy: String,
     sort_order: i64,
     field_schema: String,
@@ -62,6 +63,7 @@ impl TryFrom<BoardRow> for Board {
             name: r.name,
             kind: r.kind,
             layout: r.layout,
+            list_order: r.list_order,
             policy,
             sort_order: r.sort_order,
             field_schema: serde_json::from_str(&r.field_schema).map_err(Error::internal)?,
@@ -100,6 +102,9 @@ struct PostRow {
     thread_path: String,
     thread_owner: Option<String>,
     meta: String,
+    last_activity_at: Option<String>,
+    accepted_comment_id: Option<String>,
+    is_locked: i64,
 }
 
 impl TryFrom<PostRow> for Post {
@@ -136,6 +141,9 @@ impl TryFrom<PostRow> for Post {
             thread_path: r.thread_path,
             thread_owner: r.thread_owner,
             meta: serde_json::from_str(&r.meta).map_err(Error::internal)?,
+            last_activity_at: r.last_activity_at,
+            accepted_comment_id: r.accepted_comment_id,
+            is_locked: r.is_locked != 0,
         })
     }
 }
@@ -338,7 +346,7 @@ async fn settings<'e>(e: impl SqliteExecutor<'e>) -> Result<Vec<(String, Value)>
 async fn board_by_id<'e>(e: impl SqliteExecutor<'e>, id: &str) -> Result<Option<Board>> {
     sqlx::query_as!(
         BoardRow,
-        "SELECT id, slug, name, kind, layout, policy, sort_order, field_schema, created_at, updated_at
+        "SELECT id, slug, name, kind, layout, list_order, policy, sort_order, field_schema, created_at, updated_at
          FROM boards WHERE id = ?",
         id
     )
@@ -352,7 +360,7 @@ async fn board_by_id<'e>(e: impl SqliteExecutor<'e>, id: &str) -> Result<Option<
 async fn board_by_slug<'e>(e: impl SqliteExecutor<'e>, slug: &str) -> Result<Option<Board>> {
     sqlx::query_as!(
         BoardRow,
-        "SELECT id, slug, name, kind, layout, policy, sort_order, field_schema, created_at, updated_at
+        "SELECT id, slug, name, kind, layout, list_order, policy, sort_order, field_schema, created_at, updated_at
          FROM boards WHERE slug = ?",
         slug
     )
@@ -370,6 +378,7 @@ async fn post_by_id<'e>(e: impl SqliteExecutor<'e>, id: &str) -> Result<Option<P
                 actor_type, published_at, created_at, updated_at, scheduled_at, cover,
                 category_id, is_notice, is_secret, view_count, guest_name, guest_pw_hash,
                     parent_id, thread_id, thread_path, thread_owner, meta,
+                    last_activity_at, accepted_comment_id, is_locked,
                 (SELECT json_group_array(t.name ORDER BY pt.position)
                    FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
                   WHERE pt.post_id = posts.id) AS "tags!: String"
@@ -460,7 +469,7 @@ impl Store for SqliteStore {
     async fn list_boards(&self) -> Result<Vec<Board>> {
         let rows = sqlx::query_as!(
             BoardRow,
-            "SELECT id, slug, name, kind, layout, policy, sort_order, field_schema, created_at, updated_at
+            "SELECT id, slug, name, kind, layout, list_order, policy, sort_order, field_schema, created_at, updated_at
              FROM boards ORDER BY sort_order, slug"
         )
         .fetch_all(&self.db.read)
@@ -480,6 +489,7 @@ impl Store for SqliteStore {
                     actor_type, published_at, created_at, updated_at, scheduled_at, cover,
                     category_id, is_notice, is_secret, view_count, guest_name, guest_pw_hash,
                     parent_id, thread_id, thread_path, thread_owner, meta,
+                    last_activity_at, accepted_comment_id, is_locked,
                     (SELECT json_group_array(t.name ORDER BY pt.position)
                        FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
                       WHERE pt.post_id = posts.id) AS "tags!: String"
@@ -509,7 +519,8 @@ impl Store for SqliteStore {
                       p.category_id, p.is_notice AS "is_notice!", p.is_secret AS "is_secret!",
                       p.view_count AS "view_count!", p.guest_name, p.guest_pw_hash,
                       p.parent_id, p.thread_id, p.thread_path AS "thread_path!", p.thread_owner,
-                      p.meta AS "meta!",
+                      p.meta AS "meta!", p.last_activity_at, p.accepted_comment_id,
+                      p.is_locked AS "is_locked!",
                       (SELECT json_group_array(t.name ORDER BY pt.position)
                          FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
                         WHERE pt.post_id = p.id) AS "tags!: String"
@@ -523,8 +534,13 @@ impl Store for SqliteStore {
                  AND (?7 IS NULL OR EXISTS (SELECT 1 FROM post_tags x
                                              WHERE x.post_id = p.id AND x.tag_id = ?7))
                  AND (?8 = 0 OR p.is_secret = 0)
-               ORDER BY COALESCE((SELECT t.published_at FROM posts t WHERE t.id = p.thread_id),
-                                 p.published_at) DESC,
+               ORDER BY CASE WHEN ?9 = 1
+                          THEN COALESCE((SELECT COALESCE(t.last_activity_at, t.published_at)
+                                           FROM posts t WHERE t.id = p.thread_id),
+                                        p.last_activity_at, p.published_at)
+                          ELSE COALESCE((SELECT t.published_at FROM posts t WHERE t.id = p.thread_id),
+                                        p.published_at)
+                        END DESC,
                         COALESCE(p.thread_id, p.id) DESC, p.thread_path
                LIMIT ?3 OFFSET ?4"#,
             q.max_read_rank,
@@ -534,7 +550,8 @@ impl Store for SqliteStore {
             q.category_id,
             notice,
             q.tag_id,
-            q.exclude_secret
+            q.exclude_secret,
+            q.by_activity
         )
         .fetch_all(&self.db.read)
         .await
@@ -578,6 +595,7 @@ impl Store for SqliteStore {
                         actor_type, published_at, created_at, updated_at, scheduled_at, cover,
                         category_id, is_notice, is_secret, view_count, guest_name, guest_pw_hash,
                     parent_id, thread_id, thread_path, thread_owner, meta,
+                    last_activity_at, accepted_comment_id, is_locked,
                         (SELECT json_group_array(t.name ORDER BY pt.position)
                            FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
                           WHERE pt.post_id = posts.id) AS "tags!: String"
@@ -604,6 +622,7 @@ impl Store for SqliteStore {
                     actor_type, published_at, created_at, updated_at, scheduled_at, cover,
                     category_id, is_notice, is_secret, view_count, guest_name, guest_pw_hash,
                     parent_id, thread_id, thread_path, thread_owner, meta,
+                    last_activity_at, accepted_comment_id, is_locked,
                     (SELECT json_group_array(t.name ORDER BY pt.position)
                        FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
                       WHERE pt.post_id = posts.id) AS "tags!: String"
@@ -1063,6 +1082,7 @@ impl Store for SqliteStore {
                     actor_type, published_at, created_at, updated_at, scheduled_at, cover,
                     category_id, is_notice, is_secret, view_count, guest_name, guest_pw_hash,
                     parent_id, thread_id, thread_path, thread_owner, meta,
+                    last_activity_at, accepted_comment_id, is_locked,
                     (SELECT json_group_array(t.name ORDER BY pt.position)
                        FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
                       WHERE pt.post_id = posts.id) AS "tags!: String"
@@ -1086,6 +1106,7 @@ impl Store for SqliteStore {
                     actor_type, published_at, created_at, updated_at, scheduled_at, cover,
                     category_id, is_notice, is_secret, view_count, guest_name, guest_pw_hash,
                     parent_id, thread_id, thread_path, thread_owner, meta,
+                    last_activity_at, accepted_comment_id, is_locked,
                     (SELECT json_group_array(t.name ORDER BY pt.position)
                        FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
                       WHERE pt.post_id = posts.id) AS "tags!: String"
@@ -1124,7 +1145,8 @@ impl Store for SqliteStore {
                       c.category_id, c.is_notice AS "is_notice!", c.is_secret AS "is_secret!",
                       c.view_count AS "view_count!", c.guest_name, c.guest_pw_hash,
                       c.parent_id, c.thread_id, c.thread_path AS "thread_path!", c.thread_owner,
-                      c.meta AS "meta!",
+                      c.meta AS "meta!", c.last_activity_at, c.accepted_comment_id,
+                      c.is_locked AS "is_locked!",
                       (SELECT json_group_array(t.name ORDER BY pt.position)
                          FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
                         WHERE pt.post_id = c.id) AS "tags!: String"
@@ -1326,14 +1348,15 @@ impl WriteTx for SqliteWriteTx {
         let policy = json(&b.policy)?;
         let fields = json(&b.field_schema)?;
         sqlx::query!(
-            "INSERT INTO boards (id, slug, name, kind, layout, policy, sort_order, field_schema,
-                                 created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO boards (id, slug, name, kind, layout, list_order, policy, sort_order,
+                                 field_schema, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             b.id,
             b.slug,
             b.name,
             b.kind,
             b.layout,
+            b.list_order,
             policy,
             b.sort_order,
             fields,
@@ -1350,12 +1373,13 @@ impl WriteTx for SqliteWriteTx {
         let policy = json(&b.policy)?;
         let fields = json(&b.field_schema)?;
         sqlx::query!(
-            "UPDATE boards SET name = ?, kind = ?, layout = ?, policy = ?, sort_order = ?,
-                              field_schema = ?, updated_at = ?
+            "UPDATE boards SET name = ?, kind = ?, layout = ?, list_order = ?, policy = ?,
+                              sort_order = ?, field_schema = ?, updated_at = ?
              WHERE id = ?",
             b.name,
             b.kind,
             b.layout,
+            b.list_order,
             policy,
             b.sort_order,
             fields,
@@ -1388,6 +1412,19 @@ impl WriteTx for SqliteWriteTx {
 
     async fn post_by_id(&mut self, id: &str) -> Result<Option<Post>> {
         post_by_id(&mut *self.tx, id).await
+    }
+
+    async fn touch_post(&mut self, id: &str, at: &str) -> Result<()> {
+        sqlx::query!(
+            "UPDATE posts SET last_activity_at = ?1
+             WHERE id = ?2 AND (last_activity_at IS NULL OR last_activity_at < ?1)",
+            at,
+            id
+        )
+        .execute(&mut *self.tx)
+        .await
+        .map_err(db_error)?;
+        Ok(())
     }
 
     async fn reply_count(&mut self, parent_id: &str) -> Result<i64> {
@@ -1428,8 +1465,10 @@ impl WriteTx for SqliteWriteTx {
                                 author_id, actor_type, published_at, created_at, updated_at,
                                 scheduled_at, cover, category_id, is_notice, is_secret,
                                 guest_name, guest_pw_hash, parent_id, thread_id, thread_path,
-                                thread_owner, meta)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                thread_owner, meta, last_activity_at, accepted_comment_id,
+                                is_locked)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                     ?)",
             p.id,
             p.board_id,
             kind,
@@ -1454,7 +1493,10 @@ impl WriteTx for SqliteWriteTx {
             p.thread_id,
             p.thread_path,
             p.thread_owner,
-            meta
+            meta,
+            p.last_activity_at,
+            p.accepted_comment_id,
+            p.is_locked
         )
         .execute(&mut *self.tx)
         .await
@@ -1470,7 +1512,8 @@ impl WriteTx for SqliteWriteTx {
             "UPDATE posts SET board_id = ?, status = ?, title = ?, slug = ?, body_md = ?,
                               excerpt = ?, published_at = ?, updated_at = ?,
                               scheduled_at = ?, cover = ?, category_id = ?,
-                              is_notice = ?, is_secret = ?, meta = ?
+                              is_notice = ?, is_secret = ?, meta = ?,
+                              accepted_comment_id = ?, is_locked = ?
              WHERE id = ?",
             p.board_id,
             status,
@@ -1486,6 +1529,8 @@ impl WriteTx for SqliteWriteTx {
             p.is_notice,
             p.is_secret,
             meta,
+            p.accepted_comment_id,
+            p.is_locked,
             p.id
         )
         .execute(&mut *self.tx)

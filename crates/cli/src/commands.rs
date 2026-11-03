@@ -488,6 +488,33 @@ async fn post(g: &Global, cmd: PostCmd) -> Out {
             };
             post_out(&ctx, &p, verb).await
         }
+        PostCmd::Lock { id, off } => {
+            let p = posts::lock(&ctx, &actor, &id, !off).await?;
+            post_out(
+                &ctx,
+                &p,
+                if off {
+                    "잠금을 풀었습니다"
+                } else {
+                    "잠갔습니다"
+                },
+            )
+            .await
+        }
+        PostCmd::Accept { id, comment, clear } => {
+            let target = if clear { None } else { comment.as_deref() };
+            let p = posts::accept(&ctx, &actor, &id, target).await?;
+            post_out(
+                &ctx,
+                &p,
+                if p.accepted_comment_id.is_some() {
+                    "답변을 채택했습니다"
+                } else {
+                    "채택을 뺐습니다"
+                },
+            )
+            .await
+        }
         PostCmd::Copy { id, board } => {
             let p = posts::copy_to(&ctx, &actor, &id, posts::CopyInput { board }).await?;
             post_out(&ctx, &p, "초안으로 복사했습니다").await
@@ -806,6 +833,7 @@ async fn board(g: &Global, cmd: BoardCmd) -> Out {
                 sort_order: args.sort_order,
                 layout: args.layout,
                 field_schema: args.fields.as_deref().map(read_fields).transpose()?,
+                list_order: args.order,
             };
             let (b, created) = if args.if_not_exists {
                 let res = boards::ensure(&ctx, &actor, input).await?;
@@ -825,11 +853,12 @@ async fn board(g: &Global, cmd: BoardCmd) -> Out {
         BoardCmd::Show { slug } => {
             let b = boards::show(&ctx, &actor, &slug).await?;
             let human = format!(
-                "{} ({})  종류 {}  형태 {}  읽기 {}  쓰기 {} (승인 {})  댓글 {} (승인 {})  답변 {}",
+                "{} ({})  종류 {}  형태 {}  순서 {}  읽기 {}  쓰기 {} (승인 {})  댓글 {} (승인 {})  답변 {}",
                 b.name,
                 b.slug,
                 b.kind,
                 b.effective_layout(),
+                b.effective_order(),
                 b.policy.read,
                 b.policy.write,
                 b.policy.write_approval.as_str(),
@@ -899,6 +928,7 @@ async fn board(g: &Global, cmd: BoardCmd) -> Out {
                 sort_order: args.sort_order,
                 layout: args.layout,
                 field_schema: args.fields.as_deref().map(read_fields).transpose()?,
+                list_order: args.order,
             };
             let b = boards::update(&ctx, &actor, &args.slug, patch).await?;
             Ok((to_value(&b)?, format!("게시판을 고쳤습니다: {}", b.slug)))

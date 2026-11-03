@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE posts SET board_id = ?, status = ?, title = ?, slug = ?, body_md = ?,\n                              excerpt = ?, published_at = ?, updated_at = ?,\n                              scheduled_at = ?, cover = ?, category_id = ?,\n                              is_notice = ?, is_secret = ?, meta = ?,\n                              accepted_comment_id = ?, is_locked = ?\n             WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 17
+    },
+    "nullable": []
+  },
+  "hash": "e8ba171633e85749d2b04fb10660f8f2f34c0f0cec22babbf173ecf091b93e5b"
+}

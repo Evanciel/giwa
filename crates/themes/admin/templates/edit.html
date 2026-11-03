@@ -143,6 +143,13 @@
 {% if post %}
 <section class="post-tools write-danger" aria-label="리비전과 게시판">
   <a class="button secondary" href="/admin/posts/{{ post.id }}/revisions">리비전 보기</a>
+  {% if post.status != "deleted" %}
+  <form method="post" action="/admin/posts/{{ post.id }}/lock" class="lock-form">
+    <input type="hidden" name="_csrf" value="{{ csrf }}">
+    {% if post.locked %}<button type="submit" name="lock" value="off" class="secondary">잠금 풀기</button>
+    {% else %}<button type="submit" name="lock" value="on" class="secondary" title="관리자 말고는 댓글·답변·고치기·지우기를 못 합니다">글 잠그기</button>{% endif %}
+  </form>
+  {% endif %}
   {% if post.status != "deleted" and boards | length > 1 %}
   <form method="post" action="/admin/posts/{{ post.id }}/move" class="move-form">
     <input type="hidden" name="_csrf" value="{{ csrf }}">

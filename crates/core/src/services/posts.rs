@@ -2,15 +2,17 @@
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value};
+use serde_json::{Map, Value, json};
 
 use crate::actor::{Actor, Permission};
 use crate::audit::{self, Target};
 use crate::clock;
 use crate::error::{Code, Error, Result};
 use crate::fields;
-use crate::model::{Board, Category, Listing, PageReq, Post, PostKind, PostStatus, Revision, Tag};
-use crate::services::{boards, categories, required_text, tags};
+use crate::model::{
+    Board, Category, CommentStatus, Listing, PageReq, Post, PostKind, PostStatus, Revision, Tag,
+};
+use crate::services::{boards, categories, comments, required_text, tags};
 use crate::slug;
 use crate::store::{Ctx, PostFilter, PublishedQuery, Tx, WriteTx};
 
@@ -147,6 +149,12 @@ pub(crate) async fn reply_spot(
     if parent.is_secret && !can_read_secret(actor, board, &parent) {
         return Err(not_found(parent_id));
     }
+    check_unlocked(actor, board, &parent)?;
+    if let Some(root) = &parent.thread_id
+        && let Some(root) = tx.post_by_id(root).await?
+    {
+        check_unlocked(actor, board, &root)?;
+    }
     if parent.depth() >= MAX_REPLY_DEPTH {
         return Err(Error::new(Code::Validation)
             .with_message("error.reply_depth")
@@ -261,6 +269,9 @@ async fn create_inner(
         thread_path: String::new(),
         thread_owner: None,
         meta,
+        last_activity_at: None,
+        accepted_comment_id: None,
+        is_locked: false,
     };
     if let Some(spot) = spot {
         spot.apply(&mut post);
@@ -319,6 +330,9 @@ async fn publish_as(ctx: &Ctx, actor: &Actor, id: &str, action: &'static str) ->
         ..before.clone()
     };
     tx.update_post(&after).await?;
+    if let Some(root) = &after.thread_id {
+        tx.touch_post(root, &after.updated_at).await?;
+    }
     tx.audit(
         actor,
         action,
@@ -389,6 +403,8 @@ pub struct PublicFilter {
     pub tag_id: Option<String>,
     /// 비밀글을 아예 뺀다 (피드·사이트맵·태그 목록).
     pub exclude_secret: bool,
+    /// 마지막 활동이 늦은 스레드부터 (ADR-0058)
+    pub by_activity: bool,
 }
 
 /// 공개 글 목록. `board` 가 없으면 읽을 수 있는 모든 게시판.
@@ -423,6 +439,7 @@ pub async fn public_posts_where(
         notices: filter.notices,
         tag_id: filter.tag_id.clone(),
         exclude_secret: filter.exclude_secret,
+        by_activity: filter.by_activity,
         ..PublishedQuery::new(actor.rank(), page.limit(), page.offset())
     };
     let total = ctx.store.count_published(&q).await?;
@@ -495,6 +512,7 @@ pub async fn public_board(
         &PublicFilter {
             notices: Some(false),
             category_id: category.as_ref().map(|c| c.id.clone()),
+            by_activity: board.effective_order() == "activity",
             ..PublicFilter::default()
         },
         page,
@@ -669,6 +687,7 @@ pub async fn update(ctx: &Ctx, actor: &Actor, id: &str, patch: PostPatch) -> Res
     let mut tx = Tx::begin(ctx).await?;
     let (board, before) = load_for_write(&mut *tx, actor, id).await?;
     authorize_post(actor, &board, &before, Permission::PostWrite)?;
+    check_unlocked(actor, &board, &before)?;
     if before.status == PostStatus::Deleted {
         return Err(bad_transition(&before, before.status));
     }
@@ -827,6 +846,9 @@ async fn transition(
     let mut tx = Tx::begin(ctx).await?;
     let (board, before) = load_for_write(&mut *tx, actor, id).await?;
     authorize_post(actor, &board, &before, perm)?;
+    if perm == Permission::PostWrite {
+        check_unlocked(actor, &board, &before)?;
+    }
     let target = to(&before);
     if before.status == target {
         return Ok(before);
@@ -1001,6 +1023,7 @@ pub async fn revert(ctx: &Ctx, actor: &Actor, id: &str, rev: &str) -> Result<Pos
     let mut tx = Tx::begin(ctx).await?;
     let (board, before) = load_for_write(&mut *tx, actor, id).await?;
     authorize_post(actor, &board, &before, Permission::PostWrite)?;
+    check_unlocked(actor, &board, &before)?;
     if before.status == PostStatus::Deleted {
         return Err(bad_transition(&before, before.status));
     }
@@ -1208,6 +1231,123 @@ pub async fn bulk(ctx: &Ctx, actor: &Actor, input: BulkInput) -> Result<Vec<Bulk
         });
     }
     Ok(out)
+}
+
+/// 잠긴 글은 그 게시판 관리자만 건드린다 (ADR-0058).
+pub(crate) fn check_unlocked(actor: &Actor, board: &Board, post: &Post) -> Result<()> {
+    if post.is_locked && !comments::can_moderate(actor, board) {
+        return Err(Error::new(Code::Forbidden)
+            .with_message("error.post_locked")
+            .next(format!("maru post lock {} --off", post.id)));
+    }
+    Ok(())
+}
+
+/// REST `POST /posts/{id}/lock`
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct LockInput {
+    pub locked: bool,
+}
+
+/// REST `POST /posts/{id}/accept`. `comment_id` 가 비면 채택을 뺀다
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AcceptInput {
+    #[serde(default)]
+    pub comment_id: Option<String>,
+}
+
+/// 글을 잠그거나 푼다. 그 게시판 관리자만 (ADR-0058).
+pub async fn lock(ctx: &Ctx, actor: &Actor, id: &str, locked: bool) -> Result<Post> {
+    let mut tx = Tx::begin(ctx).await?;
+    let (board, before) = load_for_write(&mut *tx, actor, id).await?;
+    actor.require(Permission::PostModerate)?;
+    actor.require_board(Permission::PostModerate, &board.id)?;
+    actor.require_rank(Permission::PostModerate, &board.policy.moderate)?;
+    if before.status == PostStatus::Deleted {
+        return Err(bad_transition(&before, before.status));
+    }
+    if before.is_locked == locked {
+        return Ok(before);
+    }
+    let after = Post {
+        is_locked: locked,
+        updated_at: clock::now(),
+        ..before.clone()
+    };
+    tx.update_post(&after).await?;
+    tx.audit(
+        actor,
+        if locked { "post.lock" } else { "post.unlock" },
+        Target::post(&after.id),
+        audit::diff(Some(&before), Some(&after)),
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(after)
+}
+
+/// 댓글을 답변으로 채택한다. `None` 이면 채택을 뺀다 (ADR-0058).
+/// 글쓴 회원 본인이나 그 게시판 관리자만, `qna`·`forum` 게시판의 공개 글에서만.
+pub async fn accept(ctx: &Ctx, actor: &Actor, id: &str, comment_id: Option<&str>) -> Result<Post> {
+    let mut tx = Tx::begin(ctx).await?;
+    let (board, before) = load_for_write(&mut *tx, actor, id).await?;
+    may_accept(actor, &board, &before)?;
+    let accepted = match comment_id {
+        None => None,
+        Some(cid) => {
+            let c = tx
+                .comment_by_id(cid)
+                .await?
+                .filter(|c| c.post_id == before.id && c.status == CommentStatus::Published)
+                .ok_or_else(|| {
+                    Error::new(Code::Validation)
+                        .with_message("error.accept_comment")
+                        .arg("id", cid)
+                })?;
+            Some(c.id)
+        }
+    };
+    if accepted == before.accepted_comment_id {
+        return Ok(before);
+    }
+    let after = Post {
+        accepted_comment_id: accepted,
+        updated_at: clock::now(),
+        ..before.clone()
+    };
+    tx.update_post(&after).await?;
+    tx.audit(
+        actor,
+        if after.accepted_comment_id.is_some() {
+            "post.accept"
+        } else {
+            "post.unaccept"
+        },
+        Target::post(&after.id),
+        json!({ "before": before.accepted_comment_id, "after": after.accepted_comment_id }),
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(after)
+}
+
+/// 이 사람이 이 글의 답변을 고를 수 있는가 (ADR-0058).
+pub(crate) fn may_accept(actor: &Actor, board: &Board, post: &Post) -> Result<()> {
+    if !board.accepts_answers() {
+        return Err(Error::new(Code::Validation)
+            .with_message("error.accept_kind")
+            .next(format!("maru board update {} --kind forum", board.slug)));
+    }
+    if post.status != PostStatus::Published {
+        return Err(not_found(&post.id));
+    }
+    let moderator = comments::can_moderate(actor, board);
+    if !moderator && !(is_own(actor, post) && actor.has(Permission::PostWrite)) {
+        return Err(Error::new(Code::Forbidden).with_message("error.accept_who"));
+    }
+    check_unlocked(actor, board, post)
 }
 
 /// 본인 글이면 기본 권한, 남의 글이면 추가로 `post.moderate` (ADR-0029).
