@@ -3,6 +3,7 @@
 use axum::Router;
 use axum::extract::{Path, Query, State};
 use axum::http::{StatusCode, header};
+use axum::middleware;
 use axum::response::{Html, IntoResponse, Response};
 use axum::routing::get;
 use maru_core::model::{Board, Listing, MenuItem, MenuLink, Page, PageReq, Post, SiteSettings};
@@ -17,7 +18,9 @@ use serde_json::{Value, json};
 use crate::{AppState, error};
 
 pub fn routes() -> Router<AppState> {
-    Router::new()
+    // 화면·피드·테마 자산은 매번 렌더하되 ETag 로 전송을 줄인다.
+    // 미디어(영구 캐시)와 첨부(큰 본문)는 따로 둔다.
+    let rendered = Router::new()
         .route("/", get(home))
         .route("/b/{board}", get(board))
         .route("/b/{board}/{post}", get(post))
@@ -27,6 +30,9 @@ pub fn routes() -> Router<AppState> {
         .route("/robots.txt", get(crate::feeds::robots))
         .route("/assets/tokens.css", get(tokens_css))
         .route("/assets/{*path}", get(asset))
+        .route_layer(middleware::from_fn(crate::etag::conditional));
+    Router::new()
+        .merge(rendered)
         .route("/media/{*path}", get(media_file))
         .route("/files/{id}", get(file_download))
         .fallback(not_found)
