@@ -14,7 +14,7 @@ import {
 } from "prosemirror-markdown";
 import { Node, NodeSpec, Schema } from "prosemirror-model";
 
-import { maruDirectives, maruSyntax } from "./syntax";
+import { maruDirectives, maruSyntax, SPAN_VALUES } from "./syntax";
 
 // 새로 만드는 목록은 촘촘하게(항목 사이 빈 줄 없이) 쓴다. 읽어 온 목록은 원문의 간격을 따른다.
 function tightByDefault(name: string) {
@@ -179,7 +179,11 @@ function spanMark(name: string, prefix: string) {
     parseDOM: [
       {
         tag: `span[data-${name}]`,
-        getAttrs: (dom: HTMLElement | string) => ({ value: (dom as HTMLElement).getAttribute(`data-${name}`) }),
+        // 붙여 넣은 HTML 의 모르는 값은 버린다 (저장하면 문법이 글자로 남는다).
+        getAttrs: (dom: HTMLElement | string) => {
+          const value = (dom as HTMLElement).getAttribute(`data-${name}`) ?? "";
+          return SPAN_VALUES[name].includes(value) ? { value } : false;
+        },
       },
     ],
     toDOM: (mark: { attrs: { value: string } }) => ["span", { [`data-${name}`]: mark.attrs.value, class: `${prefix}-${mark.attrs.value}` }, 0] as const,

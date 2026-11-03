@@ -38,6 +38,7 @@ const rich: Record<string, string> = {
   "강조 상자": ":::info\n알아 두세요.\n\n- 목록도 됩니다\n:::\n\n:::warn\n**조심**\n:::",
   "겹친 상자·정렬": ":::tip\n바깥\n\n:::center\n가운데\n:::\n:::\n\n:::right\n오른쪽\n:::",
   "글자 꾸밈": "이건 :color[빨간 글자]{red} 와 :mark[형광펜 **굵게**]{yellow} 그리고 :size[큰 글자]{large}",
+  "숫자 크기·늘어난 팔레트": ":size[작은]{11} :size[큰 **굵게**]{38} :color[남색]{navy} :color[자주]{wine} :mark[민트]{mint} :mark[회색]{gray}",
   "닫히지 않은 상자는 글자": ":::info\n닫는 줄 없음",
   "사진 크기·캡션": "![바다](/media/2026/11/a.jpg#w50 \"동해 바다\")\n\n글 ![산](/media/2026/11/b.jpg#w75) 끝",
   "갤러리": ":::gallery\n![a](/media/a.jpg) ![b](/media/b.jpg)\n![c](/media/c.jpg)\n:::",
@@ -60,6 +61,12 @@ const rich: Record<string, string> = {
   check("상자·꾸밈 노드", r.ok && names.includes("box") && names.includes("color=red"), names.join(","));
   const bad = load("이건 :color[가]{magenta}");
   check("팔레트 밖 색은 글자 그대로", bad.ok && bad.doc.textContent.includes("{magenta}"), bad.ok ? bad.doc.textContent : "");
+  const odd = load("이건 :size[가]{25} 와 :size[나]{24px}");
+  check("단계 밖 크기는 글자 그대로", odd.ok && odd.doc.textContent.includes("{25}") && odd.doc.textContent.includes("{24px}"), odd.ok ? odd.doc.textContent : "");
+  const num = load(":size[가]{24}");
+  const marks: string[] = [];
+  if (num.ok) num.doc.descendants((node) => void marks.push(...node.marks.map((x) => `${x.type.name}=${x.attrs.value}`)));
+  check("숫자 크기는 마크", marks.includes("size=24"), marks.join(","));
 }
 
 // 사진 크기는 속성으로, 캡션은 제목으로 읽혀야 한다.

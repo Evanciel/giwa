@@ -200,15 +200,38 @@ main { min-height: 50vh; }
    색은 본문 글자색(--fg)과 섞어 밝은·어두운 화면 모두에서 대비를 유지한다. */
 .tc-red { color: color-mix(in srgb, #d0342c 80%, var(--fg)); }
 .tc-orange { color: color-mix(in srgb, #d9630b 80%, var(--fg)); }
+.tc-ochre { color: color-mix(in srgb, #a87a08 80%, var(--fg)); }
+.tc-brown { color: color-mix(in srgb, #9a5a2a 80%, var(--fg)); }
 .tc-green { color: color-mix(in srgb, #1f8a4c 80%, var(--fg)); }
+.tc-teal { color: color-mix(in srgb, #0f8a8a 80%, var(--fg)); }
 .tc-blue { color: color-mix(in srgb, #2563c9 80%, var(--fg)); }
+.tc-navy { color: color-mix(in srgb, #4050c0 80%, var(--fg)); }
 .tc-purple { color: color-mix(in srgb, #7c3aed 80%, var(--fg)); }
+.tc-wine { color: color-mix(in srgb, #a0285a 80%, var(--fg)); }
+.tc-pink { color: color-mix(in srgb, #d6338a 80%, var(--fg)); }
 .tc-gray { color: var(--muted); }
-.hl-yellow, .hl-green, .hl-blue, .hl-pink { padding: 0 .15em; border-radius: 3px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.hl-yellow, .hl-orange, .hl-green, .hl-mint, .hl-blue, .hl-purple, .hl-pink, .hl-gray { padding: 0 .15em; border-radius: 3px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 .hl-yellow { background: color-mix(in srgb, #f5c400 38%, transparent); }
+.hl-orange { background: color-mix(in srgb, #ff9a3c 34%, transparent); }
 .hl-green { background: color-mix(in srgb, #4cc76a 32%, transparent); }
+.hl-mint { background: color-mix(in srgb, #2ec4b6 30%, transparent); }
 .hl-blue { background: color-mix(in srgb, #4aa3ff 30%, transparent); }
+.hl-purple { background: color-mix(in srgb, #a78bfa 34%, transparent); }
 .hl-pink { background: color-mix(in srgb, #ff6fae 30%, transparent); }
+.hl-gray { background: color-mix(in srgb, var(--muted) 22%, transparent); }
+/* 글자 크기: 숫자는 px 단계, 읽는 사람이 바꾼 브라우저 글자 크기를 따르도록 rem 으로 (ADR-0046) */
+.fs-11 { font-size: .6875rem; }
+.fs-13 { font-size: .8125rem; }
+.fs-15 { font-size: .9375rem; }
+.fs-16 { font-size: 1rem; }
+.fs-19 { font-size: 1.1875rem; }
+.fs-24 { font-size: 1.5rem; }
+.fs-28 { font-size: 1.75rem; }
+.fs-30 { font-size: 1.875rem; }
+.fs-34 { font-size: 2.125rem; }
+.fs-38 { font-size: 2.375rem; }
+.fs-24, .fs-28, .fs-30, .fs-34, .fs-38 { line-height: 1.35; }
+/* 예전 글의 크기 값 */
 .fs-small { font-size: .85em; }
 .fs-large { font-size: 1.25em; }
 .fs-xlarge { font-size: 1.6em; line-height: 1.3; }

@@ -83,11 +83,12 @@ export function maruSyntax(md: MarkdownIt) {
 
 /** 블록 상자: 강조 상자 4종, 정렬 2종, 사진 격자, 접기(첫 문단이 요약, ADR-0041). */
 export const BOX_KINDS = ["info", "tip", "warn", "danger", "center", "right", "gallery", "details"] as const;
-/** 글자 꾸밈: 이름 → 쓸 수 있는 값. 테마 팔레트 안의 이름만 받는다. */
+/** 글자 꾸밈: 이름 → 쓸 수 있는 값. 테마 팔레트 안의 이름만 받는다 (ADR-0046).
+ *  크기의 small·large·xlarge 는 예전 글을 위해 남긴 값이라 메뉴에는 없다. */
 export const SPAN_VALUES: Record<string, readonly string[]> = {
-  color: ["red", "orange", "green", "blue", "purple", "gray"],
-  mark: ["yellow", "green", "blue", "pink"],
-  size: ["small", "large", "xlarge"],
+  color: ["red", "orange", "ochre", "brown", "green", "teal", "blue", "navy", "purple", "wine", "pink", "gray"],
+  mark: ["yellow", "orange", "green", "mint", "blue", "purple", "pink", "gray"],
+  size: ["11", "13", "15", "16", "19", "24", "28", "30", "34", "38", "small", "large", "xlarge"],
 };
 
 const BOX_OPEN = new RegExp(`^:::[ \t]*(${BOX_KINDS.join("|")})[ \t]*$`);
@@ -226,7 +227,7 @@ function spanRule(state: StateInline, silent: boolean): boolean {
   const labelStart = state.pos + m[0].length;
   const labelEnd = state.md.helpers.parseLinkLabel(state, labelStart - 1, false);
   if (labelEnd < 0) return false;
-  const v = state.src.slice(labelEnd + 1, state.posMax).match(/^\{([a-z]+)\}/);
+  const v = state.src.slice(labelEnd + 1, state.posMax).match(/^\{([a-z0-9]+)\}/);
   if (!v || !SPAN_VALUES[m[1]].includes(v[1])) return false;
   if (!silent) {
     const max = state.posMax;

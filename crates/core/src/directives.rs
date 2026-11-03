@@ -17,15 +17,31 @@ pub const BOX_KINDS: [&str; 8] = [
     "info", "tip", "warn", "danger", "center", "right", "gallery", "details",
 ];
 
-/// (문법 이름, 클래스 앞머리, 쓸 수 있는 값)
+/// (문법 이름, 클래스 앞머리, 쓸 수 있는 값). 크기의 숫자는 px 기준 단계(rem 으로 그린다),
+/// small·large·xlarge 는 예전 글을 위해 남긴 값이다 (ADR-0046).
 pub const SPANS: [(&str, &str, &[&str]); 3] = [
     (
         "color",
         "tc",
-        &["red", "orange", "green", "blue", "purple", "gray"],
+        &[
+            "red", "orange", "ochre", "brown", "green", "teal", "blue", "navy", "purple", "wine",
+            "pink", "gray",
+        ],
     ),
-    ("mark", "hl", &["yellow", "green", "blue", "pink"]),
-    ("size", "fs", &["small", "large", "xlarge"]),
+    (
+        "mark",
+        "hl",
+        &[
+            "yellow", "orange", "green", "mint", "blue", "purple", "pink", "gray",
+        ],
+    ),
+    (
+        "size",
+        "fs",
+        &[
+            "11", "13", "15", "16", "19", "24", "28", "30", "34", "38", "small", "large", "xlarge",
+        ],
+    ),
 ];
 
 fn box_class(kind: &str) -> String {
@@ -707,6 +723,13 @@ mod tests {
             "이건 <span class=\"tc-red\">빨간 **굵게**</span> 와 <span class=\"hl-yellow\">노랑</span>"
         );
         assert_eq!(ex(":color[가]{magenta}"), ":color[가]{magenta}");
+        assert_eq!(
+            ex(":size[큰]{24} :color[남]{navy} :mark[민]{mint} :size[옛]{large}"),
+            "<span class=\"fs-24\">큰</span> <span class=\"tc-navy\">남</span> \
+             <span class=\"hl-mint\">민</span> <span class=\"fs-large\">옛</span>"
+        );
+        assert_eq!(ex(":size[가]{25}"), ":size[가]{25}");
+        assert_eq!(ex(":size[가]{24px}"), ":size[가]{24px}");
         assert_eq!(ex("`:color[가]{red}`"), "`:color[가]{red}`");
         assert_eq!(ex("\\:color[가]{red}"), "\\:color[가]{red}");
         assert_eq!(ex(":color[가\n나]{red}"), ":color[가\n나]{red}");

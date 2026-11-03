@@ -80,6 +80,10 @@ interface Tool {
   icon?: string;
   /** 단추 글자를 상태에 따라 바꾼다 (단락: 본문·제목·소제목). */
   labelOf?: (s: EditorState, mode: Mode) => string;
+  /** 아이콘 아래 색 막대의 클래스 (글자색·형광펜: 지금 고른 색). null 이면 막대를 숨긴다. */
+  swatchOf?: (s: EditorState) => string | null;
+  /** 아이콘 옆 작은 글자 (글자 크기: 지금 크기 숫자). */
+  badgeOf?: (s: EditorState) => string;
   keys?: string;
   run: (ed: Editor) => void;
   /** Markdown 모드에서 할 일. 없으면 그 모드에서 버튼을 끈다. */
@@ -143,9 +147,9 @@ const TOOLS: (Tool | "|")[] = [
   { row: "format", label: "B", name: "굵게", keys: `${MOD}+B`, run: cmd(toggleMark(m.strong)), md: (ed) => ed.mdWrap("**", "**", "굵은 글"), active: (s) => markActive(s, m.strong), enabled: can(toggleMark(m.strong)) },
   { row: "format", label: "I", name: "기울임", keys: `${MOD}+I`, run: cmd(toggleMark(m.em)), md: (ed) => ed.mdWrap("*", "*", "기울인 글"), active: (s) => markActive(s, m.em), enabled: can(toggleMark(m.em)) },
   { row: "format", label: "S", name: "취소선", keys: `${MOD}+Shift+X`, run: cmd(toggleMark(m.strike)), md: (ed) => ed.mdWrap("~~", "~~", "지운 글"), active: (s) => markActive(s, m.strike), enabled: can(toggleMark(m.strike)) },
-  { row: "format", icon: "color", label: "글자색", name: "글자 색", run: (ed) => ed.openSpanMenu("color"), md: (ed) => ed.openSpanMenu("color"), active: (s) => !!spanValue(s, m.color) },
-  { row: "format", icon: "highlight", label: "형광펜", name: "형광펜", run: (ed) => ed.openSpanMenu("mark"), md: (ed) => ed.openSpanMenu("mark"), active: (s) => !!spanValue(s, m.highlight) },
-  { row: "format", icon: "size", label: "크기", name: "글자 크기", run: (ed) => ed.openSpanMenu("size"), md: (ed) => ed.openSpanMenu("size"), active: (s) => !!spanValue(s, m.size) },
+  { row: "format", icon: "color", label: "글자색", name: "글자 색", run: (ed) => ed.openSpanMenu("color"), md: (ed) => ed.openSpanMenu("color"), active: (s) => !!spanValue(s, m.color), swatchOf: (s) => spanClass(s, "color") },
+  { row: "format", icon: "highlight", label: "형광펜", name: "형광펜", run: (ed) => ed.openSpanMenu("mark"), md: (ed) => ed.openSpanMenu("mark"), active: (s) => !!spanValue(s, m.highlight), swatchOf: (s) => spanClass(s, "mark") },
+  { row: "format", icon: "size", label: "크기", name: "글자 크기", run: (ed) => ed.openSpanMenu("size"), md: (ed) => ed.openSpanMenu("size"), active: (s) => !!spanValue(s, m.size), badgeOf: (s) => sizeBadge(spanValue(s, m.size)) },
   "|",
   { row: "format", icon: "link", label: "링크", name: "링크", keys: `${MOD}+K`, run: (ed) => ed.openLink(), md: (ed) => ed.mdLink(), active: (s) => markActive(s, m.link) },
   { row: "format", icon: "code", label: "코드", name: "코드", keys: `${MOD}+E`, run: cmd(toggleMark(m.code)), md: (ed) => ed.mdWrap("`", "`", "코드"), active: (s) => markActive(s, m.code), enabled: can(toggleMark(m.code)) },
@@ -169,12 +173,50 @@ export function normalizeHref(raw: string): string | null {
   return `https://${v}`;
 }
 
-/** 꾸밈 메뉴: 문법 이름 → (값, 보이는 이름) */
-const SPAN_MENU: Record<"color" | "mark" | "size", { title: string; mark: "color" | "highlight" | "size"; prefix: string; items: [string, string][] }> = {
-  color: { title: "글자 색", mark: "color", prefix: "tc", items: [["red", "빨강"], ["orange", "주황"], ["green", "초록"], ["blue", "파랑"], ["purple", "보라"], ["gray", "회색"]] },
-  mark: { title: "형광펜", mark: "highlight", prefix: "hl", items: [["yellow", "노랑"], ["green", "연두"], ["blue", "하늘"], ["pink", "분홍"]] },
-  size: { title: "글자 크기", mark: "size", prefix: "fs", items: [["small", "작게"], ["large", "크게"], ["xlarge", "아주 크게"]] },
+/** 메뉴 단추 하나. `face` 가 있으면 그것을 보이고 `label` 은 읽어 주는 이름·툴팁이 된다. */
+interface MenuItem {
+  label: string;
+  face?: HTMLElement;
+  cls?: string;
+  current?: boolean;
+  /** 남는 메뉴에서 고를 때마다 다시 묻는 눌림 상태 */
+  isCurrent?: () => boolean;
+  run: () => void;
+}
+
+/** 꾸밈 메뉴: 문법 이름 → (값, 보이는 이름). `none` 은 맨 앞의 「꾸밈 없음」 단추 이름.
+ *  크기의 small·large·xlarge 는 예전 글에만 남아 있어 메뉴에 두지 않는다 (ADR-0046). */
+type SpanKind = "color" | "mark" | "size";
+const SIZE_STEPS = ["11", "13", "15", "16", "19", "24", "28", "30", "34", "38"];
+const SPAN_MENU: Record<SpanKind, { title: string; mark: "color" | "highlight" | "size"; prefix: string; none: string; items: [string, string][] }> = {
+  color: {
+    title: "글자 색",
+    mark: "color",
+    prefix: "tc",
+    none: "기본",
+    items: [["red", "빨강"], ["orange", "주황"], ["ochre", "황토"], ["brown", "갈색"], ["green", "초록"], ["teal", "청록"], ["blue", "파랑"], ["navy", "남색"], ["purple", "보라"], ["wine", "자주"], ["pink", "분홍"], ["gray", "회색"]],
+  },
+  mark: {
+    title: "형광펜",
+    mark: "highlight",
+    prefix: "hl",
+    none: "없음",
+    items: [["yellow", "노랑"], ["orange", "주황"], ["green", "연두"], ["mint", "민트"], ["blue", "하늘"], ["purple", "연보라"], ["pink", "분홍"], ["gray", "회색"]],
+  },
+  size: { title: "글자 크기", mark: "size", prefix: "fs", none: "본문", items: SIZE_STEPS.map((v) => [v, v]) },
 };
+
+/** 지금 글자의 꾸밈 클래스 (tc-red 같은 것). 툴바 색 막대에 쓴다. */
+function spanClass(s: EditorState, kind: "color" | "mark"): string | null {
+  const spec = SPAN_MENU[kind];
+  const v = spanValue(s, m[spec.mark]);
+  return v ? `${spec.prefix}-${v}` : null;
+}
+
+/** 툴바 크기 단추 옆 숫자. 예전 값(small 등)은 숫자가 없어 비운다. */
+function sizeBadge(v: string | null): string {
+  return v && SIZE_STEPS.includes(v) ? v : "";
+}
 
 const BOX_MENU: Record<"callout" | "align", { title: string; none: string; items: [string, string][] }> = {
   callout: { title: "강조 상자", none: "상자 없애기", items: [["info", "알림"], ["tip", "도움말"], ["warn", "주의"], ["danger", "경고"]] },
@@ -197,6 +239,13 @@ class Editor {
   private count: HTMLElement;
   private saved: HTMLElement;
   private pop: HTMLFormElement;
+  /** 도구 막대와 입력 칸이 놓인 곳 (화면이 마련한 자리면 편집 칸 밖에 있다). */
+  private head!: HTMLElement;
+  /** 지금 열린 메뉴가 고른 뒤에도 남는 꾸밈 메뉴인지. 바깥을 누르면 닫는다. */
+  private popSticky = false;
+  /** 열어 둔 메뉴의 눌림 표시를 지금 선택에 맞춘다 (편집 칸에서 다른 글자를 고를 때). */
+  private popSync: (() => void) | null = null;
+  private openedByPointer = false;
   private file: HTMLInputElement;
   private attach: HTMLInputElement;
   private buttons: { tool: Tool; button: HTMLButtonElement }[] = [];
@@ -252,10 +301,17 @@ class Editor {
       } else {
         b.textContent = t.label;
       }
+      if (t.swatchOf) b.append(el("span", { class: "me-tool-swatch", hidden: "", "aria-hidden": "true" }));
+      if (t.badgeOf) b.append(el("span", { class: "me-tool-badge", "aria-hidden": "true" }));
       if (t.active) b.setAttribute("aria-pressed", "false");
       // 버튼을 눌러도 편집 영역의 선택이 풀리지 않게 한다.
       b.addEventListener("mousedown", (e) => e.preventDefault());
-      b.addEventListener("click", () => (this.mode === "rich" ? t.run(this) : t.md?.(this)));
+      b.addEventListener("click", (e) => {
+        // 마우스로 연 메뉴는 편집 칸에 포커스를 남겨 고른 글자가 계속 보이게 한다 (detail 0 = 키보드).
+        this.openedByPointer = e.detail > 0;
+        if (this.mode === "rich") t.run(this);
+        else t.md?.(this);
+      });
       rows[t.row].append(b);
       this.buttons.push({ tool: t, button: b });
     }
@@ -299,6 +355,7 @@ class Editor {
     const foot = slot("foot") ?? el("div", { class: "me-foot" });
     const savedSlot = form.querySelector<HTMLElement>("[data-editor-saved]");
     head.append(this.tools, this.pop, this.chars);
+    this.head = head;
     const view = el("div", { class: "me-view" });
     view.append(modes, previewButton, this.spellButton);
     foot.append(this.status, view, this.count);
@@ -563,7 +620,19 @@ class Editor {
         const label = tool.labelOf(s, this.mode);
         if (text && text.textContent !== label) text.textContent = label;
       }
+      const swatch = tool.swatchOf && button.querySelector<HTMLElement>(".me-tool-swatch");
+      if (swatch) {
+        const cls = rich ? tool.swatchOf!(s) : null;
+        swatch.hidden = !cls;
+        swatch.className = `me-tool-swatch ${cls ?? ""}`;
+      }
+      const badge = tool.badgeOf && button.querySelector(".me-tool-badge");
+      if (badge) {
+        const text = rich ? tool.badgeOf!(s) : "";
+        if (badge.textContent !== text) badge.textContent = text;
+      }
     }
+    this.popSync?.();
     const text = rich ? s.doc.textContent : this.textarea.value;
     // 공백을 뺀 글자 수로 읽는 시간을 어림한다(한국어 묵독 약 분당 500자).
     const solid = text.replace(/\s/g, "").length;
@@ -945,12 +1014,25 @@ class Editor {
       this.closePop();
       this.focusEditor();
     });
-    this.pop.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") {
+    // Esc 는 입력 칸·메뉴 안에서도, 메뉴를 열어 둔 채 편집 칸에 있어도 닫는다.
+    // 먼저 잡아야 편집기의 Esc(부모 고르기)가 선택을 바꾸지 않는다.
+    document.addEventListener(
+      "keydown",
+      (e) => {
+        if (e.key !== "Escape" || this.pop.hidden || !(e.target instanceof Element)) return;
+        if (!this.head.contains(e.target) && !this.root.contains(e.target)) return;
         e.preventDefault();
+        e.stopPropagation();
         this.closePop();
-        this.view.focus();
-      }
+        this.focusEditor();
+      },
+      true,
+    );
+    // 열어 둔 꾸밈 메뉴는 편집 칸·도구 막대 바깥을 누르면 닫는다.
+    document.addEventListener("pointerdown", (e) => {
+      if (!this.popSticky || this.pop.hidden || !(e.target instanceof Element)) return;
+      if (this.head.contains(e.target) || this.root.contains(e.target)) return;
+      this.closePop();
     });
   }
 
@@ -976,6 +1058,8 @@ class Editor {
     }
     this.pop.append(close);
     this.popApply = apply;
+    this.popSticky = false;
+    this.popSync = null;
     this.pop.hidden = false;
     input.focus();
     input.select();
@@ -1101,7 +1185,7 @@ class Editor {
       this.showDropLine(e.clientX, e.clientY, photosOnly);
     });
     // 편집 칸 밖(제목 칸, 도구 막대 등)에 놓으면 브라우저가 그 파일을 열어 쓰던 화면을 떠난다. 막고 알린다.
-    const inArea = (t: EventTarget | null) => t instanceof Node && (this.pm.contains(t) || t === this.textarea);
+    const inArea = (t: EventTarget | null) => t instanceof Element && (this.pm.contains(t) || t === this.textarea);
     document.addEventListener("dragover", (e) => {
       if (!hasFiles(e) || inArea(e.target)) return;
       e.preventDefault();
@@ -1251,6 +1335,8 @@ class Editor {
   private closePop() {
     this.pop.hidden = true;
     this.pop.replaceChildren();
+    this.popSticky = false;
+    this.popSync = null;
   }
 
   openLink() {
@@ -1270,20 +1356,46 @@ class Editor {
     );
   }
 
-  /** 선택지 단추를 늘어놓는 메뉴. 링크 입력 칸과 같은 자리를 쓴다. */
-  private openMenu(title: string, items: { label: string; cls?: string; current?: boolean; run: () => void }[]) {
+  /** 선택지 단추를 늘어놓는 메뉴. 링크 입력 칸과 같은 자리를 쓴다.
+   *  `stay` 면 고른 뒤에도 남아 다른 것을 이어서 고를 수 있다(닫기·Esc·바깥 누르기로 닫는다). */
+  private openMenu(title: string, items: MenuItem[], stay = false) {
     this.chars.hidden = true;
     const box = el("div", { class: "me-menu", role: "group", "aria-label": title });
+    const buttons: HTMLButtonElement[] = [];
+    const sync = () => items.forEach((it, i) => buttons[i].setAttribute("aria-pressed", String(it.isCurrent ? it.isCurrent() : !!it.current)));
     for (const it of items) {
-      const b = el("button", { type: "button", class: `me-menu-item ${it.cls ?? ""}`, "aria-pressed": String(!!it.current) }, it.label);
+      const b = el("button", { type: "button", class: `me-menu-item ${it.cls ?? ""}` });
+      if (it.face) {
+        b.append(it.face);
+        b.setAttribute("aria-label", it.label);
+        b.title = it.label;
+      } else {
+        b.textContent = it.label;
+      }
       b.addEventListener("mousedown", (e) => e.preventDefault());
-      b.addEventListener("click", () => {
+      b.addEventListener("click", (e) => {
         it.run();
+        if (stay) {
+          sync();
+          // 마우스로 골랐으면 편집 칸으로 돌아가 고른 글자가 보이게, 키보드면 메뉴에 남는다.
+          if (e.detail > 0) this.focusEditor();
+          return;
+        }
         this.closePop();
         if (this.mode === "rich") this.view.focus();
       });
+      buttons.push(b);
       box.append(b);
     }
+    sync();
+    // ← → Home End 로 단추 사이를 옮긴다.
+    box.addEventListener("keydown", (e) => {
+      const i = buttons.indexOf(document.activeElement as HTMLButtonElement);
+      const to = ({ ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: buttons.length - 1 } as Record<string, number>)[e.key];
+      if (i < 0 || to === undefined) return;
+      e.preventDefault();
+      buttons[(to + buttons.length) % buttons.length].focus();
+    });
     const close = el("button", { type: "button", class: "secondary" }, "닫기");
     close.addEventListener("click", () => {
       this.closePop();
@@ -1291,14 +1403,18 @@ class Editor {
     });
     this.pop.replaceChildren(el("span", { class: "me-menu-title" }, title), box, close);
     this.popApply = () => null;
+    this.popSync = stay ? sync : null;
+    this.popSticky = stay;
     this.pop.hidden = false;
-    (box.querySelector("button") as HTMLButtonElement | null)?.focus();
+    if (stay && this.openedByPointer && this.mode === "rich") this.view.focus();
+    else (buttons.find((b) => b.getAttribute("aria-pressed") === "true") ?? buttons[0])?.focus();
   }
 
-  openSpanMenu(kind: "color" | "mark" | "size") {
+  openSpanMenu(kind: SpanKind) {
     const spec = SPAN_MENU[kind];
     const type = m[spec.mark];
-    const cur = this.mode === "rich" ? spanValue(this.view.state, type) : null;
+    const rich = this.mode === "rich";
+    const now = () => (this.mode === "rich" ? spanValue(this.view.state, type) : null);
     const apply = (value: string | null) => {
       if (this.mode === "rich") {
         setSpan(type, value)(this.view.state, this.view.dispatch);
@@ -1306,10 +1422,29 @@ class Editor {
         this.mdWrap(`:${kind}[`, `]{${value}}`, "글자");
       }
     };
-    this.openMenu(spec.title, [
-      ...spec.items.map(([value, label]) => ({ label, cls: `${spec.prefix}-${value}`, current: cur === value, run: () => apply(value) })),
-      ...(this.mode === "rich" ? [{ label: "없애기", run: () => apply(null) }] : []),
-    ]);
+    // 색은 「가」 견본, 크기는 숫자를 그 크기에 가깝게(24 넘으면 24 로) 보인다.
+    const face = (value: string) => {
+      if (kind !== "size") return el("span", { class: `${spec.prefix}-${value}` }, "가");
+      const f = el("span", {}, value);
+      f.style.fontSize = `${Math.min(Number(value), 24) / 16}rem`;
+      return f;
+    };
+    // 서식 모드는 같은 글자에 여러 값을 바로 바꿔 볼 수 있게 메뉴를 남긴다.
+    // Markdown 모드는 누를 때마다 문법이 한 겹씩 더 감싸므로 한 번 고르면 닫는다.
+    this.openMenu(
+      spec.title,
+      [
+        ...(rich ? [{ label: spec.none, cls: "me-menu-none", isCurrent: () => now() === null, run: () => apply(null) }] : []),
+        ...spec.items.map(([value, label]) => ({
+          label: kind === "size" ? `${label}px` : label,
+          face: face(value),
+          cls: kind === "size" ? "me-size" : "me-swatch",
+          isCurrent: () => now() === value,
+          run: () => apply(value),
+        })),
+      ],
+      rich,
+    );
   }
 
   openBoxMenu(group: "callout" | "align") {
