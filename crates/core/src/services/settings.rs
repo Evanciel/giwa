@@ -29,6 +29,9 @@ pub struct SettingsPatch {
     pub naver_verification: Option<String>,
     #[serde(default)]
     pub google_verification: Option<String>,
+    /// 목차를 보일 최소 제목 수 (0 = 끔, 최대 20)
+    #[serde(default)]
+    pub toc_min_headings: Option<u32>,
 }
 
 /// 저장된 값 위에 기본값을 채운다. 모르는 키나 잘못된 값은 기본값으로 둔다.
@@ -88,6 +91,9 @@ pub async fn update(ctx: &Ctx, actor: &Actor, patch: SettingsPatch) -> Result<Si
     }
     if let Some(n) = patch.posts_per_page {
         changes.push(("posts_per_page", json!(n.clamp(1, 100))));
+    }
+    if let Some(n) = patch.toc_min_headings {
+        changes.push(("toc_min_headings", json!(n.min(20))));
     }
     for (key, v) in [
         ("naver_verification", &patch.naver_verification),

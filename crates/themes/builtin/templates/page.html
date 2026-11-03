@@ -5,6 +5,7 @@
   <header>
     <h1>{{ page.title }}</h1>
   </header>
+  {% with toc = page.toc %}{% include "_toc.html" %}{% endwith %}
   {# body_html 은 서버가 ammonia 로 정화한 값만 들어온다. #}
   <div class="prose">{{ page.body_html | safe }}</div>
 </article>

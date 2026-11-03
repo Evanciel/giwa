@@ -206,7 +206,9 @@ async fn post_inner(state: &AppState, board_slug: &str, post_slug: &str) -> Resu
         post: &post.slug,
     };
     let mut view = post_summary(&board.slug, &post, &site.settings);
-    view["body_html"] = Value::String(body_html(state, &post.body_md).await?);
+    let doc = body_document(state, &post.body_md, &site.settings).await?;
+    view["body_html"] = Value::String(doc.html.into_string());
+    view["toc"] = json!(doc.toc);
     let image = cover_image(state, &post).await?;
     Ok(json!({
         "meta": json!({
@@ -241,7 +243,7 @@ async fn page_inner(state: &AppState, slug: &str) -> Result<Value> {
         }),
         "site": site.json,
         "canonical": urls::absolute(&state.ctx.site_url, &target),
-        "page": page_json(&p, body_html(state, &p.body_md).await?),
+        "page": page_json(&p, body_document(state, &p.body_md, &site.settings).await?),
     }))
 }
 
@@ -412,20 +414,27 @@ async fn cover_image(state: &AppState, post: &Post) -> Result<Option<String>> {
     )))
 }
 
-/// 본문 HTML. 보관소 그림에는 크기와 축소본(srcset)을 붙인다.
-async fn body_html(state: &AppState, md: &str) -> Result<String> {
+/// 본문 HTML 과 목차. 보관소 그림에는 크기와 축소본(srcset)을 붙인다.
+/// 제목 수가 사이트 설정의 기준에 못 미치면(또는 설정이 0 이면) 목차는 비운다.
+async fn body_document(state: &AppState, md: &str, s: &SiteSettings) -> Result<markdown::Document> {
     let images = media::images_in(&state.ctx, md).await?;
-    Ok(markdown::render_with(md, &|url| images.get(url).cloned()).into_string())
+    let mut doc = markdown::render_document(md, &|url| images.get(url).cloned());
+    let min = s.toc_min_headings as usize;
+    if min == 0 || doc.toc.len() < min {
+        doc.toc.clear();
+    }
+    Ok(doc)
 }
 
-fn page_json(p: &Page, body_html: String) -> Value {
+fn page_json(p: &Page, doc: markdown::Document) -> Value {
     json!({
         "title": p.title,
         "slug": p.slug,
         "layout": p.layout,
         "url": urls::path(&Target::Page { page: &p.slug }),
         "summary": markdown::plain_text(&p.body_md, markdown::SUMMARY_CHARS),
-        "body_html": body_html,
+        "body_html": doc.html.into_string(),
+        "toc": doc.toc,
     })
 }
 

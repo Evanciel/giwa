@@ -367,6 +367,23 @@
 .callout-warn::before { content: "주의"; }
 .callout-danger { --c: #d0342c; }
 .callout-danger::before { content: "경고"; }
+/* 접기 상자: 편집 중에는 늘 펼쳐 두고, 첫 문단(= 공개 화면의 요약)을 굵게 보인다 (ADR-0041) */
+.fold {
+  margin-block: 1.25em;
+  padding: .8em 1.1em;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.fold::before {
+  content: "접기 — 첫 문단이 제목";
+  display: block;
+  margin-bottom: .3em;
+  color: var(--muted);
+  font-size: .8em;
+}
+.fold > p:first-child { font-weight: 700; }
+.fold > :first-child { margin-top: 0; }
+.fold > :last-child { margin-bottom: 0; }
 
 /* 꾸밈 메뉴 */
 .me-menu { display: flex; flex-wrap: wrap; gap: .25rem; }

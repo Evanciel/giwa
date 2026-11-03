@@ -390,6 +390,13 @@ pub struct SiteSettings {
     /// 구글 서치 콘솔 소유 확인 값
     #[serde(default)]
     pub google_verification: String,
+    /// 글·페이지에 h2~h4 제목이 이 개수 이상이면 본문 위에 목차를 보인다. 0 이면 끔
+    #[serde(default = "default_toc_min_headings")]
+    pub toc_min_headings: u32,
+}
+
+fn default_toc_min_headings() -> u32 {
+    3
 }
 
 impl Default for SiteSettings {
@@ -402,6 +409,7 @@ impl Default for SiteSettings {
             posts_per_page: 10,
             naver_verification: String::new(),
             google_verification: String::new(),
+            toc_min_headings: default_toc_min_headings(),
         }
     }
 }

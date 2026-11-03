@@ -305,10 +305,10 @@ export function gotoFootnote(label: string): Command {
 
 // ---- 강조 상자·정렬·글자 꾸밈 ----
 
-export type BoxGroup = "align" | "callout" | "gallery";
+export type BoxGroup = "align" | "callout" | "gallery" | "details";
 
 function boxGroup(kind: string): BoxGroup {
-  if (kind === "gallery") return "gallery";
+  if (kind === "gallery" || kind === "details") return kind;
   return kind === "center" || kind === "right" ? "align" : "callout";
 }
 

@@ -979,6 +979,16 @@ async fn settings_update_and_audit() {
         .await,
         1
     );
+    // 목차 기준: 기본 3, 0 은 끔, 20 을 넘으면 20 으로
+    assert_eq!(settings::site(&e.ctx).await.unwrap().toc_min_headings, 3);
+    for (input, stored) in [(0, 0), (99, 20)] {
+        let patch = settings::SettingsPatch {
+            toc_min_headings: Some(input),
+            ..Default::default()
+        };
+        let s = settings::update(&e.ctx, &local, patch).await.unwrap();
+        assert_eq!(s.toc_min_headings, stored);
+    }
     let bad = settings::SettingsPatch {
         tz_offset_min: Some(10_000),
         ..Default::default()

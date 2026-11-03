@@ -70,6 +70,7 @@ const box: NodeSpec = {
 
 export function boxClass(kind: string): string {
   if (kind === "gallery") return "gallery";
+  if (kind === "details") return "fold";
   return kind === "center" || kind === "right" ? `align-${kind}` : `callout callout-${kind}`;
 }
 

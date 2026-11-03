@@ -78,12 +78,16 @@ impl Res {
 }
 
 fn http(bind: &str, method: &str, path: &str, headers: &[(&str, &str)]) -> Res {
+    send(bind, method, path, headers, "")
+}
+
+fn send(bind: &str, method: &str, path: &str, headers: &[(&str, &str)], body: &str) -> Res {
     let mut s = TcpStream::connect(bind).unwrap();
     let mut req = format!("{method} {path} HTTP/1.1\r\nHost: {bind}\r\nConnection: close\r\n");
     for (k, v) in headers {
         req.push_str(&format!("{k}: {v}\r\n"));
     }
-    req.push_str("\r\n");
+    req.push_str(&format!("Content-Length: {}\r\n\r\n{body}", body.len()));
     s.write_all(req.as_bytes()).unwrap();
     let mut raw = Vec::new();
     s.read_to_end(&mut raw).unwrap();
@@ -106,6 +110,114 @@ fn path_of(url: &str) -> String {
 
 fn init(data: &Path) {
     maru(data, &["init", "--preset", "blog", "--yes"]);
+}
+
+/// 사이트 구조를 고칠 수 있는 토큰.
+fn structure_token(data: &Path) -> String {
+    let v = maru(
+        data,
+        &[
+            "token",
+            "create",
+            "--name",
+            "읽기 설정",
+            "--scope",
+            "structure",
+            "--yes",
+        ],
+    );
+    v["secret"].as_str().unwrap().to_owned()
+}
+
+/// 목차가 있는가, 그리고 목차 항목 수.
+fn toc_items(html: &str) -> Option<usize> {
+    let at = html.find("<nav class=\"toc\"")?;
+    let nav = &html[at..at + html[at..].find("</nav>").unwrap()];
+    Some(nav.matches("<li class=\"toc-l").count())
+}
+
+#[test]
+fn headings_get_anchors_and_toc_follows_site_setting() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("site");
+    init(&data);
+    let token = structure_token(&data);
+    let body = "도입\n\n## 준비물\n\n### 여권 & 비자\n\n## 준비물\n\n코드: `## 아님`\n";
+    let post = maru(
+        &data,
+        &[
+            "post",
+            "new",
+            "--title",
+            "여행 글",
+            "--slug",
+            "trip",
+            "--body",
+            body,
+            "--publish",
+        ],
+    );
+    let post_path = path_of(post["url"].as_str().unwrap());
+    let page = maru(
+        &data,
+        &[
+            "page",
+            "new",
+            "work",
+            "--title",
+            "소개",
+            "--body",
+            "## 하는 일\n\n## 연락",
+            "--publish",
+        ],
+    );
+    let page_path = path_of(page["url"].as_str().unwrap());
+    let (_server, bind) = start_server(&data);
+
+    // 1. 기본 기준 3: 제목 3개인 글엔 목차, 2개인 페이지엔 없음. 제목 id 와 자기 링크는 둘 다
+    let html = http(&bind, "GET", &post_path, &[]).text();
+    assert_eq!(toc_items(&html), Some(3), "{html}");
+    assert!(
+        html.contains("<li class=\"toc-l3\"><a href=\"#h-여권-비자\">여권 &amp; 비자</a>"),
+        "{html}"
+    );
+    assert!(html.contains("<h2 id=\"h-준비물\">"), "{html}");
+    assert!(html.contains("<h2 id=\"h-준비물-2\">"), "중복 제목: {html}");
+    assert!(
+        html.contains("class=\"heading-anchor\" href=\"#h-준비물\""),
+        "{html}"
+    );
+    let html = http(&bind, "GET", &page_path, &[]).text();
+    assert_eq!(toc_items(&html), None);
+    assert!(html.contains("<h2 id=\"h-하는-일\">"), "{html}");
+
+    // 2. CLI 로 기준 2 → 페이지에도 목차
+    let s = maru(&data, &["site", "set", "--toc-min-headings", "2"]);
+    assert_eq!(s["toc_min_headings"], 2);
+    let html = http(&bind, "GET", &page_path, &[]).text();
+    assert_eq!(toc_items(&html), Some(2), "{html}");
+
+    // 3. REST 로 0 → 목차 끔 (제목 id 는 남는다)
+    let auth = format!("Bearer {token}");
+    let res = send(
+        &bind,
+        "PATCH",
+        "/api/v1/settings",
+        &[
+            ("Authorization", &auth),
+            ("Content-Type", "application/json"),
+        ],
+        r#"{"toc_min_headings":0}"#,
+    );
+    assert_eq!(res.status, 200, "{}", res.text());
+    let html = http(&bind, "GET", &post_path, &[]).text();
+    assert_eq!(toc_items(&html), None);
+    assert!(html.contains("<h2 id=\"h-준비물\">"), "{html}");
+
+    // 4. RSS 에는 id 만, 링크 표시는 없다
+    let rss = http(&bind, "GET", "/rss.xml", &[]).text();
+    assert!(rss.contains("h-준비물"), "{rss}");
+    assert!(!rss.contains("heading-anchor"), "{rss}");
 }
 
 #[test]
@@ -175,4 +287,38 @@ fn public_pages_answer_conditional_requests() {
     assert!(admin.header("etag").is_none());
     let api = http(&bind, "GET", "/api/v1/settings", &[]);
     assert!(api.header("etag").is_none());
+}
+
+#[test]
+fn details_box_renders_as_faq_on_public_page() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("site");
+    init(&data);
+    let body = ":::details\n환불은 **언제** 되나요?\n\n결제 후 7일 안에 됩니다.\n:::\n\n:::details\n배송은 며칠?\n\n이틀\n:::\n";
+    let page = maru(
+        &data,
+        &[
+            "page",
+            "new",
+            "faq",
+            "--title",
+            "자주 묻는 질문",
+            "--body",
+            body,
+            "--publish",
+        ],
+    );
+    let (_server, bind) = start_server(&data);
+    let html = http(&bind, "GET", &path_of(page["url"].as_str().unwrap()), &[]).text();
+    assert_eq!(
+        html.matches("<details class=\"fold\">").count(),
+        2,
+        "{html}"
+    );
+    assert!(
+        html.contains("<summary>환불은 <strong>언제</strong> 되나요?</summary>"),
+        "{html}"
+    );
+    assert!(html.contains("<p>결제 후 7일 안에 됩니다.</p>"), "{html}");
+    assert!(!html.contains(":::details"), "{html}");
 }

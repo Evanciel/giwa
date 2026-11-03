@@ -1,6 +1,7 @@
 //! Maru 확장 문법 (ADR-0034). Markdown 을 pulldown-cmark 에 넘기기 전에 HTML 조각으로 바꾼다.
 //!
-//! - 블록 상자: `:::info` … `:::` (info·tip·warn·danger 강조 상자, center·right 정렬, gallery 사진 격자)
+//! - 블록 상자: `:::info` … `:::` (info·tip·warn·danger 강조 상자, center·right 정렬, gallery 사진 격자,
+//!   details 접기 — 첫 문단이 요약, ADR-0041)
 //! - 글자 꾸밈: `:color[글자]{red}`, `:mark[글자]{yellow}`, `:size[글자]{large}`
 //!
 //! 에디터(`editor/src/syntax.ts`)와 같은 규칙이어야 한다. 정해진 이름·값만 받고, 나머지는 글자 그대로 둔다.
@@ -10,10 +11,10 @@ use std::borrow::Cow;
 use std::ops::Range;
 use std::sync::LazyLock;
 
-use pulldown_cmark::{Event, Options, Parser, Tag};
+use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
 
-pub const BOX_KINDS: [&str; 7] = [
-    "info", "tip", "warn", "danger", "center", "right", "gallery",
+pub const BOX_KINDS: [&str; 8] = [
+    "info", "tip", "warn", "danger", "center", "right", "gallery", "details",
 ];
 
 /// (문법 이름, 클래스 앞머리, 쓸 수 있는 값)
@@ -31,6 +32,7 @@ fn box_class(kind: &str) -> String {
     match kind {
         "center" | "right" => format!("align-{kind}"),
         "gallery" => "gallery".to_owned(),
+        "details" => "fold".to_owned(),
         _ => format!("callout callout-{kind}"),
     }
 }
@@ -44,7 +46,8 @@ pub fn allowed_classes() -> &'static [(&'static str, Vec<String>)] {
 
 fn build_classes() -> Vec<(&'static str, Vec<String>)> {
     let mut divs = vec!["callout".to_owned()];
-    for k in BOX_KINDS {
+    // 접기 상자는 div 가 아니라 <details> 로 그린다.
+    for k in BOX_KINDS.into_iter().filter(|k| *k != "details") {
         divs.extend(
             box_class(k)
                 .split(' ')
@@ -62,6 +65,7 @@ fn build_classes() -> Vec<(&'static str, Vec<String>)> {
         ("div", divs),
         ("span", spans),
         ("strong", vec!["place-name".to_owned()]),
+        ("details", vec![box_class("details")]),
     ]
 }
 
@@ -75,7 +79,7 @@ pub fn expand(md: &str, options: Options) -> Cow<'_, str> {
     {
         return Cow::Borrowed(md);
     }
-    let boxed = expand_boxes(md);
+    let boxed = expand_boxes(md, options);
     Cow::Owned(expand_spans(&boxed, options))
 }
 
@@ -124,12 +128,24 @@ fn fenced_lines(lines: &[&str]) -> Vec<bool> {
     out
 }
 
-fn expand_boxes(md: &str) -> String {
+fn expand_boxes(md: &str, options: Options) -> String {
     let lines: Vec<&str> = md.split('\n').collect();
     let fenced = fenced_lines(&lines);
     let mut out = Vec::with_capacity(lines.len() + 8);
-    expand_range(&lines, &fenced, 0, lines.len(), &mut out);
+    let doc = Lines {
+        lines: &lines,
+        fenced: &fenced,
+        options,
+    };
+    expand_range(&doc, 0, lines.len(), &mut out);
     out.join("\n")
+}
+
+/// 상자를 펼칠 때 함께 넘기는 글 전체 정보.
+struct Lines<'a> {
+    lines: &'a [&'a str],
+    fenced: &'a [bool],
+    options: Options,
 }
 
 /// 여는 줄 앞은 빈 줄, 글(또는 상자)의 처음, 또는 다른 상자 줄이어야 한다.
@@ -145,17 +161,28 @@ fn opens_at(lines: &[&str], fenced: &[bool], start: usize, l: usize) -> Option<&
     (box_kind(prev).is_some() || is_box_close(prev)).then_some(kind)
 }
 
-fn expand_range(lines: &[&str], fenced: &[bool], start: usize, end: usize, out: &mut Vec<String>) {
+fn expand_range(doc: &Lines<'_>, start: usize, end: usize, out: &mut Vec<String>) {
+    let (lines, fenced) = (doc.lines, doc.fenced);
     let mut i = start;
     while i < end {
         if let Some(kind) = opens_at(lines, fenced, start, i)
             && let Some(close) = find_close(lines, fenced, i, end)
         {
-            out.push(format!("<div class=\"{}\">", box_class(kind)));
-            out.push(String::new());
-            expand_range(lines, fenced, i + 1, close, out);
-            out.push(String::new());
-            out.push("</div>".to_owned());
+            if kind == "details" {
+                let (summary, body) = details_summary(doc, i + 1, close);
+                out.push("<details class=\"fold\">".to_owned());
+                out.push(format!("<summary>{summary}</summary>"));
+                out.push(String::new());
+                expand_range(doc, body, close, out);
+                out.push(String::new());
+                out.push("</details>".to_owned());
+            } else {
+                out.push(format!("<div class=\"{}\">", box_class(kind)));
+                out.push(String::new());
+                expand_range(doc, i + 1, close, out);
+                out.push(String::new());
+                out.push("</div>".to_owned());
+            }
             out.push(String::new());
             i = close + 1;
             continue;
@@ -168,6 +195,48 @@ fn expand_range(lines: &[&str], fenced: &[bool], start: usize, end: usize, out: 
         out.push(lines[i].to_owned());
         i += 1;
     }
+}
+
+/// 접기 상자에 요약이 없을 때 보일 글자.
+pub const DETAILS_FALLBACK: &str = "자세히";
+
+/// 접기 상자(`:::details`)의 요약 = 상자 안 첫 문단 (ADR-0041). 글자 꾸밈까지 그린 HTML 한 줄과
+/// 내용이 시작하는 줄을 돌려준다. 첫 블록이 문단이 아니면(목록·제목·코드·상자) 요약은
+/// [`DETAILS_FALLBACK`] 이고 내용은 그 블록부터다. 에디터(`editor/src/markdown.ts`)와 같은 규칙.
+fn details_summary(doc: &Lines<'_>, from: usize, close: usize) -> (String, usize) {
+    let (lines, fenced) = (doc.lines, doc.fenced);
+    let Some(first) = (from..close).find(|&l| !is_blank(lines[l])) else {
+        return (DETAILS_FALLBACK.to_owned(), close);
+    };
+    let fallback = (DETAILS_FALLBACK.to_owned(), first);
+    if fenced[first] || box_kind(lines[first]).is_some() || parse_leaf(lines[first]).is_some() {
+        return fallback;
+    }
+    let last = (first..close)
+        .find(|&l| is_blank(lines[l]) || fenced[l] || box_kind(lines[l]).is_some())
+        .unwrap_or(close);
+    let chunk = lines[first..last].join("\n");
+    let chunk = expand_spans(&chunk, doc.options);
+    // 한 문단이어야 한다. `# 제목`·`- 목록`·`> 인용` 이나 문단 뒤에 바로 붙은 다른 블록은 요약이 아니다.
+    let events: Vec<Event<'_>> = Parser::new_ext(&chunk, doc.options).collect();
+    let single_paragraph = matches!(events.first(), Some(Event::Start(Tag::Paragraph)))
+        && events
+            .iter()
+            .filter(|e| matches!(e, Event::Start(Tag::Paragraph)))
+            .count()
+            == 1
+        && matches!(events.last(), Some(Event::End(TagEnd::Paragraph)));
+    if !single_paragraph {
+        return fallback;
+    }
+    let mut html = String::new();
+    pulldown_cmark::html::push_html(&mut html, events.into_iter());
+    let inner = html
+        .trim()
+        .trim_start_matches("<p>")
+        .trim_end_matches("</p>")
+        .replace('\n', " ");
+    (inner, last)
 }
 
 // ---- 한 줄 블록: `::video[주소]`, `::place[이름]{주소}` (ADR-0036) ----
@@ -473,6 +542,64 @@ mod tests {
 
     fn ex(md: &str) -> String {
         expand(md, Options::empty()).into_owned()
+    }
+
+    #[test]
+    fn details_first_paragraph_is_summary() {
+        let r = |md: &str| crate::markdown::render(md).into_string();
+        // 기본: 첫 문단 → 요약(인라인 서식 유지), 나머지 → 내용
+        let s = r(
+            ":::details\n환불은 **언제** 되나요?\n\n결제 후 7일 안에 됩니다.\n\n- 카드\n- 계좌\n:::",
+        );
+        assert!(
+            s.contains(
+                "<details class=\"fold\">\n<summary>환불은 <strong>언제</strong> 되나요?</summary>"
+            ),
+            "{s}"
+        );
+        assert!(s.contains("<p>결제 후 7일 안에 됩니다.</p>"), "{s}");
+        assert!(s.contains("<li>계좌</li>"), "{s}");
+        assert!(s.trim_end().ends_with("</details>"), "{s}");
+        assert!(
+            !s.contains("<p>환불은"),
+            "요약은 내용에 다시 나오지 않는다: {s}"
+        );
+        // 여러 줄 문단도 한 줄 요약으로, 글자 꾸밈도 그린다
+        let s = r(":::details\n배송은\n:color[며칠]{red} 걸려요?\n\n이틀\n:::");
+        assert!(
+            s.contains("<summary>배송은 <span class=\"tc-red\">며칠</span> 걸려요?</summary>"),
+            "{s}"
+        );
+        // 첫 블록이 문단이 아니면 「자세히」 + 그 블록부터 내용
+        for md in [
+            ":::details\n- 목록\n:::",
+            ":::details\n## 제목\n:::",
+            ":::details\n```\n코드\n```\n:::",
+            ":::details\n:::info\n안\n:::\n:::",
+            ":::details\n:::",
+        ] {
+            let s = r(md);
+            assert!(s.contains("<summary>자세히</summary>"), "{md} -> {s}");
+        }
+        assert!(r(":::details\n- 목록\n:::").contains("<li>목록</li>"));
+        assert!(r(":::details\n:::info\n안\n:::\n:::").contains("callout-info"));
+        // 접기 안에 접기 (FAQ 묶음)
+        let s = r(
+            ":::details\n묶음\n\n:::details\n질문 1\n\n답 1\n:::\n\n:::details\n질문 2\n\n답 2\n:::\n:::",
+        );
+        assert_eq!(s.matches("<details class=\"fold\">").count(), 3, "{s}");
+        assert!(s.contains("<summary>질문 2</summary>"), "{s}");
+        // 닫는 줄이 없으면 글자 그대로
+        assert!(r(":::details\n질문").contains(":::details"));
+        // 사용자가 쓴 details 의 속성·다른 클래스는 지운다
+        let s = r(
+            "<details open class=\"fold evil\" ontoggle=\"x()\"><summary onclick=\"y()\">a</summary>b</details>",
+        );
+        assert!(
+            !s.contains("open") && !s.contains("evil") && !s.contains("on"),
+            "{s}"
+        );
+        assert!(s.contains("<details class=\"fold\">"), "{s}");
     }
 
     #[test]
