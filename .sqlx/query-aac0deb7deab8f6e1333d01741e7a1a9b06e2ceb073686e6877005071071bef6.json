@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "WITH m AS (\n               SELECT rowid AS rid, bm25(search_fts, 5.0, 1.0, 3.0) AS score\n               FROM search_fts WHERE search_fts MATCH ?1\n           )\n           SELECT d.post_id, d.page_id\n           FROM m\n           JOIN search_docs d ON d.id = m.rid\n           LEFT JOIN posts p ON p.id = d.post_id\n           LEFT JOIN boards b ON b.id = p.board_id\n           LEFT JOIN roles r ON r.name = json_extract(b.policy, '$.read')\n           LEFT JOIN pages g ON g.id = d.page_id\n           WHERE (p.id IS NOT NULL AND p.status = 'published' AND p.kind = 'post'\n                  AND p.is_secret = 0 AND r.rank <= ?2 AND (?3 IS NULL OR p.board_id = ?3))\n              OR (g.id IS NOT NULL AND ?4 AND ?3 IS NULL AND g.status = 'published')\n           ORDER BY CASE WHEN ?5 THEN 0.0 ELSE m.score END,\n                    coalesce(p.published_at, g.published_at) DESC, d.id DESC\n           LIMIT ?6 OFFSET ?7",
+  "describe": {
+    "columns": [
+      {
+        "name": "post_id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "search_docs",
+            "name": "post_id"
+          }
+        }
+      },
+      {
+        "name": "page_id",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "search_docs",
+            "name": "page_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": [
+      true,
+      true
+    ]
+  },
+  "hash": "aac0deb7deab8f6e1333d01741e7a1a9b06e2ceb073686e6877005071071bef6"
+}

@@ -717,11 +717,11 @@ async fn own_and_other_permissions() {
     );
 
     // 목록: 기본 토큰은 본인 글만, 편집자는 전부
-    let own = posts::list(&e.ctx, &writer, None, None, PageReq::default())
+    let own = posts::list(&e.ctx, &writer, None, None, None, PageReq::default())
         .await
         .unwrap();
     assert_eq!(own.total, 1);
-    let all = posts::list(&e.ctx, &editor, None, None, PageReq::default())
+    let all = posts::list(&e.ctx, &editor, None, None, None, PageReq::default())
         .await
         .unwrap();
     assert_eq!(all.total, 2);

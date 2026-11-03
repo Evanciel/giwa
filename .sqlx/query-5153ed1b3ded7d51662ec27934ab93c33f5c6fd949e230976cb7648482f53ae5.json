@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM search_fts WHERE rowid = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "5153ed1b3ded7d51662ec27934ab93c33f5c6fd949e230976cb7648482f53ae5"
+}

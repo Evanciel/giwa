@@ -579,6 +579,9 @@ struct HomeQuery {
     done: String,
     #[serde(default)]
     page: Option<u32>,
+    /// 제목·내용·태그 검색 (초안·비밀글 포함, GAP C5)
+    #[serde(default)]
+    q: String,
 }
 
 fn post_row(p: &Post, board_slug: &str, board_name: &str, tz: i32) -> Value {
@@ -610,8 +613,29 @@ async fn home(
         Err(r) => return *r,
     };
     let page = PageReq::new(q.page.unwrap_or(1), 50);
-    let listing = match posts::list(&state.ctx, &who.actor, None, None, page).await {
+    let search = q.q.trim();
+    let mut search_error = None;
+    let listing = match posts::list(
+        &state.ctx,
+        &who.actor,
+        None,
+        None,
+        Some(search).filter(|s| !s.is_empty()),
+        page,
+    )
+    .await
+    {
         Ok(l) => l,
+        // 잘못된 검색어는 오류 화면 대신 목록 위에 알린다.
+        Err(e) if e.code() == Code::Validation && !search.is_empty() => {
+            search_error = Some(e.message());
+            maru_core::model::Listing {
+                items: vec![],
+                total: 0,
+                page: page.page,
+                per_page: page.per_page,
+            }
+        }
         Err(e) => return fail(&state, Some(&who), &e).await,
     };
     let boards = boards::list(&state.ctx, &who.actor)
@@ -638,6 +662,13 @@ async fn home(
         })
         .collect();
     let pages = (listing.total + i64::from(page.per_page) - 1) / i64::from(page.per_page);
+    let at = |n: u32| {
+        let n = n.to_string();
+        urls::with_query(
+            "/admin",
+            &[("q", search), ("page", if n == "1" { "" } else { &n })],
+        )
+    };
     let ctx = merge(
         base(&state, Some(&who), "posts").await,
         json!({
@@ -646,6 +677,10 @@ async fn home(
             "total": listing.total,
             "page": page.page,
             "pages": pages.max(1),
+            "q": search,
+            "search_error": search_error,
+            "prev_url": (page.page > 1).then(|| at(page.page - 1)),
+            "next_url": (i64::from(page.page) < pages).then(|| at(page.page + 1)),
             "needs_password": !who.member.has_password(),
         }),
     );

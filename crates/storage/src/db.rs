@@ -51,8 +51,10 @@ impl Db {
     }
 
     /// 내장 마이그레이션을 적용한다. DB가 바이너리보다 새로우면 `SCHEMA_TOO_NEW`.
+    /// 이어서 검색 색인 버전을 확인해 자르는 규칙이 바뀌었으면 다시 만든다 (ADR-0050).
     pub async fn migrate(&self) -> Result<()> {
-        MIGRATOR.run(&self.write).await.map_err(migrate_error)
+        MIGRATOR.run(&self.write).await.map_err(migrate_error)?;
+        crate::search::ensure(&self.write).await
     }
 
     /// 지정 버전까지 되돌린다. 테스트와 복구용.

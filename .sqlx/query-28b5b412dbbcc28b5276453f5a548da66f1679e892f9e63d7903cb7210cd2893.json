@@ -1,0 +1,57 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, title, body_md,\n                  (SELECT json_group_array(t.name ORDER BY pt.position)\n                     FROM post_tags pt JOIN tags t ON t.id = pt.tag_id\n                    WHERE pt.post_id = posts.id) AS \"tags!: String\"\n           FROM posts ORDER BY id",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "title",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "name": "body_md",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "body_md"
+          }
+        }
+      },
+      {
+        "name": "tags!: String",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "28b5b412dbbcc28b5276453f5a548da66f1679e892f9e63d7903cb7210cd2893"
+}

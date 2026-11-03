@@ -8,7 +8,9 @@ use maru_core::model::{
     Member, MemberStatus, Page, PageStatus, Post, PostKind, PostStatus, PostTemplate, Revision,
     Role, Session, Tag, Token,
 };
-use maru_core::store::{MenuRow, PostFilter, PublishedQuery, Store, WriteTx};
+use maru_core::store::{
+    MenuRow, PostFilter, PublishedQuery, SearchQuery, SearchRef, Store, WriteTx,
+};
 use maru_core::{Code, Error, Result, clock, slug, urls};
 use serde_json::Value;
 use sqlx::{Sqlite, SqliteExecutor, Transaction};
@@ -190,7 +192,7 @@ fn unknown(column: &str, value: &str) -> Error {
     Error::internal(format!("{column} 에 알 수 없는 값: {value}"))
 }
 
-fn db_error(e: sqlx::Error) -> Error {
+pub(crate) fn db_error(e: sqlx::Error) -> Error {
     if e.as_database_error()
         .is_some_and(|d| d.is_unique_violation())
     {
@@ -252,6 +254,21 @@ async fn page_by_slug<'e>(e: impl SqliteExecutor<'e>, slug: &str) -> Result<Opti
                 published_at, created_at, updated_at
          FROM pages WHERE slug = ?",
         slug
+    )
+    .fetch_optional(e)
+    .await
+    .map_err(db_error)?
+    .map(Page::try_from)
+    .transpose()
+}
+
+async fn page_by_id<'e>(e: impl SqliteExecutor<'e>, id: &str) -> Result<Option<Page>> {
+    sqlx::query_as!(
+        PageRow,
+        "SELECT id, slug, title, body_md, status, layout, author_id, actor_type, sort_order,
+                published_at, created_at, updated_at
+         FROM pages WHERE id = ?",
+        id
     )
     .fetch_optional(e)
     .await
@@ -529,6 +546,33 @@ impl Store for SqliteStore {
 
     async fn list_posts(&self, q: &PostFilter) -> Result<Vec<Post>> {
         let status = q.status.map(PostStatus::as_str);
+        // 검색어가 있으면 색인에 걸린 글만. `MATCH NULL` 을 피하려고 쿼리를 나눈다.
+        if let Some(fts) = &q.search {
+            let rows = sqlx::query_as!(
+                PostRow,
+                r#"SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,
+                        actor_type, published_at, created_at, updated_at, scheduled_at, cover,
+                        category_id, is_notice, is_secret, view_count,
+                        (SELECT json_group_array(t.name ORDER BY pt.position)
+                           FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
+                          WHERE pt.post_id = posts.id) AS "tags!: String"
+                 FROM posts
+                 WHERE kind = 'post' AND (?1 IS NULL OR board_id = ?1) AND (?2 IS NULL OR status = ?2)
+                   AND id IN (SELECT d.post_id FROM search_fts f JOIN search_docs d ON d.id = f.rowid
+                               WHERE search_fts MATCH ?5)
+                 ORDER BY updated_at DESC, id DESC
+                 LIMIT ?3 OFFSET ?4"#,
+                q.board_id,
+                status,
+                q.limit,
+                q.offset,
+                fts
+            )
+            .fetch_all(&self.db.read)
+            .await
+            .map_err(db_error)?;
+            return convert(rows);
+        }
         let rows = sqlx::query_as!(
             PostRow,
             r#"SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,
@@ -554,6 +598,20 @@ impl Store for SqliteStore {
 
     async fn count_posts(&self, q: &PostFilter) -> Result<i64> {
         let status = q.status.map(PostStatus::as_str);
+        if let Some(fts) = &q.search {
+            return sqlx::query_scalar!(
+                r#"SELECT count(*) AS "n!: i64" FROM posts
+                   WHERE kind = 'post' AND (?1 IS NULL OR board_id = ?1) AND (?2 IS NULL OR status = ?2)
+                     AND id IN (SELECT d.post_id FROM search_fts f JOIN search_docs d ON d.id = f.rowid
+                                 WHERE search_fts MATCH ?3)"#,
+                q.board_id,
+                status,
+                fts
+            )
+            .fetch_one(&self.db.read)
+            .await
+            .map_err(db_error);
+        }
         sqlx::query_scalar!(
             r#"SELECT count(*) AS "n!: i64" FROM posts
                WHERE kind = 'post' AND (?1 IS NULL OR board_id = ?1) AND (?2 IS NULL OR status = ?2)"#,
@@ -580,6 +638,10 @@ impl Store for SqliteStore {
 
     async fn page_by_slug(&self, slug: &str) -> Result<Option<Page>> {
         page_by_slug(&self.db.read, slug).await
+    }
+
+    async fn page_by_id(&self, id: &str) -> Result<Option<Page>> {
+        page_by_id(&self.db.read, id).await
     }
 
     async fn list_pages(&self, status: Option<PageStatus>) -> Result<Vec<Page>> {
@@ -969,6 +1031,10 @@ impl Store for SqliteStore {
         .map_err(db_error)?;
         convert(rows)
     }
+
+    async fn search(&self, q: &SearchQuery) -> Result<(Vec<SearchRef>, i64)> {
+        crate::search::search(&self.db.read, q).await
+    }
 }
 
 // ---- 분류·태그 ----
@@ -1242,7 +1308,8 @@ impl WriteTx for SqliteWriteTx {
         .execute(&mut *self.tx)
         .await
         .map_err(db_error)?;
-        write_post_tags(&mut self.tx, &p.id, &p.tags).await
+        write_post_tags(&mut self.tx, &p.id, &p.tags).await?;
+        crate::search::put_post(&mut self.tx, p).await
     }
 
     async fn update_post(&mut self, p: &Post) -> Result<()> {
@@ -1274,7 +1341,8 @@ impl WriteTx for SqliteWriteTx {
         if res.rows_affected() != 1 {
             return Err(Error::new(Code::NotFound).arg("id", p.id.clone()));
         }
-        write_post_tags(&mut self.tx, &p.id, &p.tags).await
+        write_post_tags(&mut self.tx, &p.id, &p.tags).await?;
+        crate::search::put_post(&mut self.tx, p).await
     }
 
     async fn set_view_count(&mut self, id: &str, n: i64) -> Result<()> {
@@ -1361,18 +1429,7 @@ impl WriteTx for SqliteWriteTx {
     }
 
     async fn page_by_id(&mut self, id: &str) -> Result<Option<Page>> {
-        sqlx::query_as!(
-            PageRow,
-            "SELECT id, slug, title, body_md, status, layout, author_id, actor_type, sort_order,
-                    published_at, created_at, updated_at
-             FROM pages WHERE id = ?",
-            id
-        )
-        .fetch_optional(&mut *self.tx)
-        .await
-        .map_err(db_error)?
-        .map(Page::try_from)
-        .transpose()
+        page_by_id(&mut *self.tx, id).await
     }
 
     async fn page_by_slug(&mut self, slug: &str) -> Result<Option<Page>> {
@@ -1401,7 +1458,7 @@ impl WriteTx for SqliteWriteTx {
         .execute(&mut *self.tx)
         .await
         .map_err(db_error)?;
-        Ok(())
+        crate::search::put_page(&mut self.tx, p).await
     }
 
     async fn update_page(&mut self, p: &Page) -> Result<()> {
@@ -1423,7 +1480,11 @@ impl WriteTx for SqliteWriteTx {
         .execute(&mut *self.tx)
         .await
         .map_err(db_error)?;
-        Ok(())
+        crate::search::put_page(&mut self.tx, p).await
+    }
+
+    async fn rebuild_search(&mut self) -> Result<(i64, i64)> {
+        crate::search::rebuild(&mut self.tx).await
     }
 
     async fn menu_rows(&mut self, location: &str) -> Result<Vec<MenuRow>> {

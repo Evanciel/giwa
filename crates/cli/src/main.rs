@@ -75,6 +75,8 @@ enum Command {
     /// 올린 서체 (글 안 꾸밈·사이트 본문 서체에 쓴다)
     #[command(subcommand)]
     Font(FontCmd),
+    /// 사이트 검색 (공개 화면 `/search` 와 같은 결과). `maru search reindex` 는 색인 다시 만들기
+    Search(SearchArgs),
     /// 관리 화면 로그인 링크를 만든다 (10분, 1회용)
     LoginLink(LoginLinkArgs),
     /// 설치 상태를 점검한다 (데이터, DB, 포트, 운영자, 테마)
@@ -101,6 +103,32 @@ pub struct InitArgs {
     /// 운영자 표시 이름
     #[arg(long, default_value = "운영자")]
     pub owner_name: String,
+}
+
+#[derive(Debug, Args)]
+#[command(args_conflicts_with_subcommands = true)]
+pub struct SearchArgs {
+    #[command(subcommand)]
+    pub cmd: Option<SearchCmd>,
+    /// 검색어. 띄어 쓰면 모두, `OR` 는 어느 하나, `"구"` 는 붙은 그대로, `-낱말` 은 빼기
+    pub q: Option<String>,
+    /// 이 게시판 안에서만 (게시판 슬러그)
+    #[arg(long)]
+    pub board: Option<String>,
+    /// 찾을 곳: all(제목·내용·태그), title, body, tag
+    #[arg(long = "in", default_value = "all")]
+    pub range: String,
+    /// 순서: rank(정확도), new(최신)
+    #[arg(long, default_value = "rank")]
+    pub sort: String,
+    #[arg(long, default_value_t = 1)]
+    pub page: u32,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum SearchCmd {
+    /// 검색 색인을 처음부터 다시 만든다 (여러 번 해도 같다). 보통은 서버가 스스로 맞춘다
+    Reindex,
 }
 
 #[derive(Debug, Args)]
@@ -312,6 +340,9 @@ pub struct PostListArgs {
     /// draft, review, published, hidden, deleted ...
     #[arg(long)]
     pub status: Option<String>,
+    /// 제목·내용·태그에 이 말이 든 글만 (초안·비밀글 포함)
+    #[arg(long)]
+    pub q: Option<String>,
     #[arg(long, default_value_t = 1)]
     pub page: u32,
     #[arg(long, default_value_t = 20)]
@@ -581,6 +612,9 @@ pub struct SiteSetArgs {
     /// 공개 화면에 조회수를 보일지 (true/false). 꺼도 세기는 계속한다
     #[arg(long)]
     pub show_views: Option<bool>,
+    /// 공개 화면 머리글에 검색 칸을 보일지 (true/false)
+    #[arg(long)]
+    pub show_search: Option<bool>,
 }
 
 #[derive(Debug, Subcommand)]

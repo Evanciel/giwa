@@ -737,14 +737,20 @@ pub async fn ensure_draft(
 }
 
 /// 관리용 목록. 남의 글 관리 권한이 없으면 본인 글만 남긴다.
+/// `search` 가 있으면 제목·내용·태그에 그 말이 든 글만 (초안·비밀글 포함, GAP C5).
 pub async fn list(
     ctx: &Ctx,
     actor: &Actor,
     board: Option<&str>,
     status: Option<PostStatus>,
+    search: Option<&str>,
     page: PageReq,
 ) -> Result<Listing<Post>> {
     actor.require(Permission::PostWrite)?;
+    let search = match search.map(str::trim).filter(|s| !s.is_empty()) {
+        Some(q) => Some(crate::search::Query::parse(q)?.to_fts(crate::search::Range::All)),
+        None => None,
+    };
     let board_id = match board {
         Some(slug) => Some(
             ctx.store
@@ -758,6 +764,7 @@ pub async fn list(
     let filter = PostFilter {
         board_id,
         status,
+        search,
         limit: page.limit(),
         offset: page.offset(),
     };

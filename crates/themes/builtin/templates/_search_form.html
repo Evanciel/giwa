@@ -1,0 +1,11 @@
+{# 검색 칸. 스크립트 없이 GET 폼으로 동작한다. search.action 이 게시판이면 게시판 안 검색. #}
+<form class="search-form" role="search" action="{{ search.action }}" method="get">
+  <label class="visually-hidden" for="search-in">찾을 곳</label>
+  <select id="search-in" name="in">
+    {% for r in search.ranges %}<option value="{{ r.value }}"{% if r.current %} selected{% endif %}>{{ r.label }}</option>{% endfor %}
+  </select>
+  <label class="visually-hidden" for="search-q">검색어</label>
+  <input id="search-q" type="search" name="q" value="{{ search.q }}" maxlength="100" placeholder="검색어" autocomplete="off" enterkeyhint="search">
+  {% if search.sort == "new" %}<input type="hidden" name="sort" value="new">{% endif %}
+  <button type="submit">검색</button>
+</form>

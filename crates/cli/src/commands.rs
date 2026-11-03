@@ -13,8 +13,8 @@ use maru_core::services::boards::{self, NewBoard};
 use maru_core::services::posts::{self, NewPost};
 use maru_core::services::tokens::{self, NewToken};
 use maru_core::services::{
-    auth, categories, design, files, fonts, media, menus, pages, presets, settings, tags,
-    templates, views,
+    anonymous_actor, auth, categories, design, files, fonts, media, menus, pages, presets, search,
+    settings, tags, templates, views,
 };
 use maru_core::urls::{self, Target};
 use maru_core::{Actor, Code, Ctx, Error, Result};
@@ -24,8 +24,8 @@ use serde_json::{Value, json};
 use crate::output;
 use crate::{
     BoardCmd, CategoryCmd, Command, DesignCmd, FileCmd, FontCmd, Global, InitArgs, LoginLinkArgs,
-    MediaCmd, MenuCmd, MenuSetArgs, PageCmd, PostCmd, PostListArgs, PostNewArgs, ServeArgs,
-    SiteCmd, TagCmd, TemplateCmd, TokenCmd, TokenCreateArgs,
+    MediaCmd, MenuCmd, MenuSetArgs, PageCmd, PostCmd, PostListArgs, PostNewArgs, SearchArgs,
+    SearchCmd, ServeArgs, SiteCmd, TagCmd, TemplateCmd, TokenCmd, TokenCreateArgs,
 };
 
 pub async fn run(g: &Global, command: Command) -> ExitCode {
@@ -46,6 +46,7 @@ pub async fn run(g: &Global, command: Command) -> ExitCode {
         Command::Site(cmd) => site(g, cmd).await,
         Command::Design(cmd) => design_cmd(g, cmd).await,
         Command::Font(cmd) => font_cmd(g, cmd).await,
+        Command::Search(args) => search_cmd(g, args).await,
         Command::LoginLink(args) => login_link(g, args).await,
     };
     match res {
@@ -562,6 +563,7 @@ async fn post_list(ctx: &Ctx, actor: &Actor, args: PostListArgs) -> Out {
         actor,
         args.board.as_deref(),
         status,
+        args.q.as_deref(),
         PageReq::new(args.page, args.per_page),
     )
     .await?;
@@ -1021,6 +1023,7 @@ async fn site(g: &Global, cmd: SiteCmd) -> Out {
                 google_verification: args.google_verification,
                 toc_min_headings: args.toc_min_headings,
                 show_views: args.show_views,
+                show_search: args.show_search,
             };
             settings::update(&ctx, &actor, patch).await
         }
@@ -1032,13 +1035,14 @@ async fn site(g: &Global, cmd: SiteCmd) -> Out {
         n => format!("제목 {n}개 이상"),
     };
     let human = format!(
-        "이름 {}\n설명 {}\n언어 {}  시간대 UTC{:+}분  페이지당 글 {}  목차 {toc}  조회수 {}",
+        "이름 {}\n설명 {}\n언어 {}  시간대 UTC{:+}분  페이지당 글 {}  목차 {toc}  조회수 {}  검색 칸 {}",
         s.name,
         s.description,
         s.lang,
         s.tz_offset_min,
         s.posts_per_page,
-        if s.show_views { "보임" } else { "숨김" }
+        if s.show_views { "보임" } else { "숨김" },
+        if s.show_search { "보임" } else { "숨김" }
     );
     Ok((to_value(&s)?, human))
 }
@@ -1508,6 +1512,54 @@ async fn category_cmd(g: &Global, cmd: CategoryCmd) -> Out {
     };
     db.close().await;
     res
+}
+
+/// 검색은 손님 기준(공개 화면과 같은 결과). 초안·비밀글까지 찾으려면 `maru post list --q`.
+async fn search_cmd(g: &Global, args: SearchArgs) -> Out {
+    if let Some(SearchCmd::Reindex) = args.cmd {
+        let (ctx, _config, db) = open(g).await?;
+        let actor = actor(&ctx).await?;
+        let res = search::reindex(&ctx, &actor).await;
+        db.close().await;
+        let done = res?;
+        let human = format!(
+            "검색 색인을 다시 만들었습니다: 글 {}개, 페이지 {}개",
+            done.posts, done.pages
+        );
+        return Ok((to_value(&done)?, human));
+    }
+    let Some(q) = args.q else {
+        return Err(Error::new(Code::Usage)
+            .with_hint("hint.usage")
+            .next("maru search \"제주 국밥\"")
+            .next("maru search reindex"));
+    };
+    let (range, sort) = search::parse_options(&args.range, &args.sort)?;
+    let (ctx, _config, db) = open(g).await?;
+    let res = async {
+        let guest = anonymous_actor(&ctx).await?;
+        let input = search::SearchInput {
+            q,
+            board: args.board,
+            range,
+            sort,
+            page: args.page,
+        };
+        search::search(&ctx, &guest, input).await
+    }
+    .await;
+    db.close().await;
+    let r = res?;
+    let mut human = format!("“{}” 검색 결과 {}건", r.q, r.total);
+    if r.total_pages() > 1 {
+        human.push_str(&format!(" ({}/{}쪽)", r.page, r.total_pages()));
+    }
+    for h in &r.items {
+        let place = h.board.as_ref().map_or("페이지", |b| b.name.as_str());
+        let text: String = h.snippet.iter().map(|s| s.text.as_str()).collect();
+        human.push_str(&format!("\n- {}  [{place}]  {}\n  {text}", h.title, h.url));
+    }
+    Ok((to_value(&r)?, human))
 }
 
 async fn tag_cmd(g: &Global, cmd: TagCmd) -> Out {

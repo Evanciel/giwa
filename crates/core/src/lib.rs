@@ -12,6 +12,7 @@ pub mod markdown;
 pub mod messages;
 pub mod model;
 pub mod output;
+pub mod search;
 pub mod services;
 pub mod slug;
 pub mod store;

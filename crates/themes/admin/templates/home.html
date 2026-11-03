@@ -6,8 +6,15 @@
 {% endif %}
 <div class="heading-row">
   <h1>글 <span class="count">{{ total }}</span></h1>
+  <form class="list-search" role="search" action="/admin" method="get">
+    <label class="visually-hidden" for="admin-q">글 검색</label>
+    <input id="admin-q" type="search" name="q" value="{{ q }}" maxlength="100" placeholder="제목·내용·태그 검색" autocomplete="off">
+    <button type="submit" class="secondary">검색</button>
+    {% if q %}<a class="aside" href="/admin">지우기</a>{% endif %}
+  </form>
   <a class="button" href="/admin/posts/new">새 글</a>
 </div>
+{% if search_error %}<p class="error" role="alert">{{ search_error }}</p>{% endif %}
 {% if posts %}
 <table class="posts">
   <thead>
@@ -27,11 +34,14 @@
 </table>
 {% if pages > 1 %}
 <nav class="pager" aria-label="쪽">
-  {% if page > 1 %}<a href="/admin?page={{ page - 1 }}">이전</a>{% endif %}
+  {% if prev_url %}<a href="{{ prev_url }}">이전</a>{% endif %}
   <span>{{ page }} / {{ pages }}</span>
-  {% if page < pages %}<a href="/admin?page={{ page + 1 }}">다음</a>{% endif %}
+  {% if next_url %}<a href="{{ next_url }}">다음</a>{% endif %}
 </nav>
 {% endif %}
+{% elif search_error %}
+{% elif q %}
+<p class="empty">“{{ q }}” 이(가) 든 글이 없습니다.</p>
 {% else %}
 <p class="empty">아직 글이 없습니다. <a href="/admin/posts/new">첫 글을 써 보세요.</a></p>
 {% endif %}

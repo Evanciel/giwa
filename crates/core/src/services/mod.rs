@@ -12,6 +12,7 @@ pub mod menus;
 pub mod pages;
 pub mod posts;
 pub mod presets;
+pub mod search;
 pub mod settings;
 pub mod tags;
 pub mod templates;

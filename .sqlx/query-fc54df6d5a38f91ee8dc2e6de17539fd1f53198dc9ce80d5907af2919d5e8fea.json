@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE search_state SET version = ? WHERE id = 1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "fc54df6d5a38f91ee8dc2e6de17539fd1f53198dc9ce80d5907af2919d5e8fea"
+}

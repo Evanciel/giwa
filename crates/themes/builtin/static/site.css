@@ -113,6 +113,49 @@ main { min-height: 50vh; }
 .pagination a:hover { border-color: var(--primary); color: var(--primary); }
 .pagination [rel="next"] { margin-left: auto; }
 
+/* 검색 (GAP C5): 머리글 칸, 검색 화면·게시판 안 검색 폼, 결과 */
+.site-search { display: flex; align-items: center; margin-left: auto; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); transition: border-color var(--motion) ease-out; }
+.site-search:focus-within { border-color: var(--primary); }
+.site-search input { width: 9rem; min-width: 0; border: 0; background: transparent; color: var(--fg); font: inherit; font-size: var(--fs-sm); padding: calc(var(--space) * .75) 0 calc(var(--space) * .75) calc(var(--space) * 1.75); outline: none; }
+.site-search button { display: grid; place-items: center; border: 0; background: none; color: var(--muted); padding: calc(var(--space) * .75) calc(var(--space) * 1.25); cursor: pointer; }
+.site-search button:hover { color: var(--primary); }
+@media (max-width: 520px) { .site-search { order: 3; flex-basis: 100%; } .site-search input { flex: 1; width: auto; } }
+
+.search-form { display: flex; flex-wrap: wrap; gap: calc(var(--space) * 1); margin-bottom: calc(var(--space) * 5); }
+.search-form select, .search-form input, .search-form button { font: inherit; font-size: var(--fs-sm); color: var(--fg); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: calc(var(--space) * 1) calc(var(--space) * 1.5); }
+.search-form input { flex: 1 1 12rem; min-width: 0; }
+.search-form input:focus, .search-form select:focus { border-color: var(--primary); outline: none; }
+.search-form button { background: var(--fg); border-color: var(--fg); color: var(--bg); font-weight: 600; cursor: pointer; }
+.search-form button:hover { background: var(--primary); border-color: var(--primary); }
+.board-search { margin-top: calc(var(--space) * 8); padding-top: calc(var(--space) * 4); border-top: 1px solid var(--border); }
+.board-search .search-form { margin: 0; justify-content: center; }
+.board-search .search-form input { flex-grow: 0; flex-basis: 16rem; }
+.search-back { margin: calc(var(--space) * -4) 0 calc(var(--space) * 4); font-size: var(--fs-sm); }
+.search-back a { color: var(--muted); text-decoration: none; }
+.search-back a:hover { color: var(--primary); }
+
+.search-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: calc(var(--space) * 1) calc(var(--space) * 3); margin-bottom: calc(var(--space) * 4); padding-bottom: calc(var(--space) * 2); border-bottom: 1px solid var(--border); }
+.search-count { margin: 0; color: var(--muted); }
+.search-count strong { color: var(--fg); }
+.search-sort { list-style: none; margin: 0; padding: 0; display: flex; gap: calc(var(--space) * 2); font-size: var(--fs-sm); }
+.search-sort a { color: var(--muted); text-decoration: none; }
+.search-sort a[aria-current="true"] { color: var(--fg); font-weight: 650; }
+.search-error { padding: calc(var(--space) * 2) calc(var(--space) * 2.5); border: 1px solid var(--border); border-left: 3px solid var(--primary); border-radius: var(--radius-sm); background: var(--surface); }
+.search-error p { margin: 0; }
+.hint { color: var(--muted); font-size: var(--fs-sm); }
+.search-error .hint { margin-top: calc(var(--space) * .75); }
+
+.hit-list { list-style: none; padding: 0; margin: 0; display: grid; gap: calc(var(--space) * 4.5); }
+.hit-list article { display: grid; gap: calc(var(--space) * .75); }
+.hit-list h2 { margin: 0; font-size: var(--fs-lg); font-weight: 650; }
+.hit-list h2 a { color: var(--fg); text-decoration: none; transition: color var(--motion) ease-out; }
+.hit-list h2 a:hover { color: var(--primary); }
+.snippet { margin: 0; color: var(--muted); line-height: 1.65; overflow-wrap: anywhere; }
+.snippet mark { background: color-mix(in srgb, var(--primary) 16%, transparent); color: var(--fg); border-radius: 3px; padding: 0 .1em; }
+.hit-tags { margin: 0; display: flex; flex-wrap: wrap; gap: calc(var(--space) * 1.25); font-size: var(--fs-sm); }
+.hit-tags a { color: var(--muted); text-decoration: none; }
+.hit-tags a:hover { color: var(--primary); }
+
 /* 글·페이지 */
 .post > header, .page > header { margin-bottom: calc(var(--space) * 6); }
 .post h1, .page h1 { font-size: var(--fs-h1); margin: 0; letter-spacing: -0.025em; }

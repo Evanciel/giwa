@@ -35,6 +35,9 @@ pub struct SettingsPatch {
     /// 공개 화면에 조회수를 보일지 (세기는 늘 한다)
     #[serde(default)]
     pub show_views: Option<bool>,
+    /// 공개 화면 머리글에 검색 칸을 보일지
+    #[serde(default)]
+    pub show_search: Option<bool>,
 }
 
 /// 저장된 값 위에 기본값을 채운다. 모르는 키나 잘못된 값은 기본값으로 둔다.
@@ -100,6 +103,9 @@ pub async fn update(ctx: &Ctx, actor: &Actor, patch: SettingsPatch) -> Result<Si
     }
     if let Some(b) = patch.show_views {
         changes.push(("show_views", json!(b)));
+    }
+    if let Some(b) = patch.show_search {
+        changes.push(("show_search", json!(b)));
     }
     for (key, v) in [
         ("naver_verification", &patch.naver_verification),

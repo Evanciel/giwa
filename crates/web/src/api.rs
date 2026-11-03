@@ -12,7 +12,7 @@ use axum::{Json, Router};
 use maru_core::model::{MenuItem, PageReq, PageStatus, PostStatus};
 use maru_core::output::Success;
 use maru_core::services::{
-    anonymous_actor, boards, categories, design, files, fonts, media, menus, pages, posts,
+    anonymous_actor, boards, categories, design, files, fonts, media, menus, pages, posts, search,
     settings, tags, templates, tokens, views,
 };
 use maru_core::{Actor, Code, Error};
@@ -84,6 +84,8 @@ pub fn routes() -> Router<AppState> {
         .route("/templates/{id}", axum::routing::delete(delete_template))
         .route("/preview", post(preview))
         .route("/slug-check", get(check_slug))
+        .route("/search", get(site_search))
+        .route("/search/reindex", post(reindex_search))
         .fallback(|| async { ApiError(Error::new(Code::NotFound)) })
 }
 
@@ -133,6 +135,8 @@ async fn list_boards(
 struct ListQuery {
     board: Option<String>,
     status: Option<String>,
+    /// 제목·내용·태그 검색 (초안·비밀글 포함, 권한 안에서)
+    q: Option<String>,
     page: Option<u32>,
     per_page: Option<u32>,
 }
@@ -151,7 +155,15 @@ async fn list_posts(
         None => None,
     };
     let page = PageReq::new(q.page.unwrap_or(1), q.per_page.unwrap_or(20));
-    let list = posts::list(&state.ctx, &actor, q.board.as_deref(), status, page).await?;
+    let list = posts::list(
+        &state.ctx,
+        &actor,
+        q.board.as_deref(),
+        status,
+        q.q.as_deref(),
+        page,
+    )
+    .await?;
     Ok(ok(StatusCode::OK, list))
 }
 
@@ -578,6 +590,49 @@ async fn list_templates(
     Ok(ok(
         StatusCode::OK,
         templates::list(&state.ctx, &actor).await?,
+    ))
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct SearchQuery {
+    #[serde(default)]
+    q: String,
+    board: Option<String>,
+    #[serde(default, rename = "in")]
+    range: String,
+    #[serde(default)]
+    sort: String,
+    page: Option<u32>,
+}
+
+/// `GET /search?q=&board=&in=&sort=&page=` 공개 화면 `/search` 와 같은 결과 (GAP C5).
+async fn site_search(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Query(q): Query<SearchQuery>,
+) -> Result<Response, ApiError> {
+    let (range, sort) = search::parse_options(&q.range, &q.sort)?;
+    let input = search::SearchInput {
+        q: q.q,
+        board: q.board,
+        range,
+        sort,
+        page: q.page.unwrap_or(1),
+    };
+    Ok(ok(
+        StatusCode::OK,
+        search::search(&state.ctx, &actor, input).await?,
+    ))
+}
+
+/// `POST /search/reindex` 검색 색인 다시 만들기 (사이트 관리 권한).
+async fn reindex_search(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+) -> Result<Response, ApiError> {
+    Ok(ok(
+        StatusCode::OK,
+        search::reindex(&state.ctx, &actor).await?,
     ))
 }
 

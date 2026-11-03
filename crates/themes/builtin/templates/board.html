@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 {% block main %}
-<h1 class="page-title">{{ board.name }}{% if category %} <span class="page-sub">· {{ category.name }}</span>{% endif %}</h1>
+<h1 class="page-title">{{ board.name }}{% if category %} <span class="page-sub">· {{ category.name }}</span>{% endif %}{% if search.searched %} <span class="page-sub">· 검색</span>{% endif %}</h1>
+{% if search.searched %}
+<p class="search-back"><a href="{{ board.url }}">← {{ board.name }} 목록으로</a></p>
+{% include "_hits.html" %}
+{% else %}
 {% if categories %}
 <nav class="cats" aria-label="분류">
   <ul>
@@ -23,4 +27,6 @@
 </ul>
 {% endif %}
 {% include "_list.html" %}
+{% endif %}
+{% if search %}<section class="board-search" aria-label="{{ board.name }} 안에서 검색">{% include "_search_form.html" %}</section>{% endif %}
 {% endblock %}

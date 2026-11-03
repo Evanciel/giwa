@@ -31,6 +31,11 @@
   <div class="wrap">
     <a class="brand" href="{{ site.home_url }}">{{ site.name }}</a>
     {% if site.menus and site.menus.header %}<nav class="site-nav" aria-label="주 메뉴">{% with items = site.menus.header %}{% include "_menu.html" %}{% endwith %}</nav>{% endif %}
+    {% if site.show_search %}<form class="site-search" role="search" action="{{ site.search_url }}" method="get">
+      <label class="visually-hidden" for="site-q">사이트 검색</label>
+      <input id="site-q" type="search" name="q" maxlength="100" placeholder="검색" autocomplete="off" enterkeyhint="search">
+      <button type="submit" aria-label="검색"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="7" cy="7" r="4.8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10.6 10.6 14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+    </form>{% endif %}
   </div>
 </header>
 <main id="main" class="{% block main_class %}wrap{% endblock %}">

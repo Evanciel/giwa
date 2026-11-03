@@ -1,0 +1,36 @@
+{# 검색 결과 목록. snippet 은 { text, hit } 조각이고 자동 이스케이프된다 (|safe 없음). #}
+{% if search.error %}
+<div class="search-error" role="alert">
+  <p>{{ search.error }}</p>
+  {% if search.hint %}<p class="hint">{{ search.hint }}</p>{% endif %}
+</div>
+{% else %}
+<div class="search-head">
+  <p class="search-count" role="status"><strong>“{{ search.q }}”</strong> 검색 결과 {{ search.total }}건</p>
+  {% if search.total > 1 %}
+  <ul class="search-sort" aria-label="정렬">
+    {% for s in search.sorts %}<li><a href="{{ s.url }}"{% if s.current %} aria-current="true"{% endif %}>{{ s.label }}</a></li>{% endfor %}
+  </ul>
+  {% endif %}
+</div>
+{% if search.items %}
+<ol class="hit-list">
+  {% for h in search.items %}
+  <li>
+    <article>
+      <h2><a href="{{ h.url }}">{{ h.title }}</a></h2>
+      <p class="meta">{% if h.board %}<a class="cat" href="{{ h.board.url }}">{{ h.board.name }}</a>{% else %}페이지{% endif %}{% if h.date %} · <time datetime="{{ h.published_at }}">{{ h.date }}</time>{% endif %}</p>
+      {% if h.snippet %}<p class="snippet">{% for s in h.snippet %}{% if s.hit %}<mark>{{ s.text }}</mark>{% else %}{{ s.text }}{% endif %}{% endfor %}</p>{% endif %}
+      {% if h.tags %}<p class="hit-tags">{% for t in h.tags %}<a href="{{ t.url }}">#{{ t.name }}</a>{% endfor %}</p>{% endif %}
+    </article>
+  </li>
+  {% endfor %}
+</ol>
+{% include "_pagination.html" %}
+{% else %}
+<div class="empty">
+  <p>찾는 글이 없습니다. 다른 말로 찾아 보세요.</p>
+  <p class="hint">2글자 이상 낱말로, 띄어쓰기를 바꿔서, 또는 「제목+내용」 으로 넓혀 보세요.</p>
+</div>
+{% endif %}
+{% endif %}

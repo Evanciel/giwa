@@ -59,11 +59,37 @@ impl PublishedQuery {
     }
 }
 
+/// 공개 검색 조건 (GAP C5). 공개 범위 SQL 은 저장소 구현 한 곳에만 있다.
+#[derive(Debug, Clone)]
+pub struct SearchQuery {
+    /// FTS5 질의 (`search::Query::to_fts`). 사용자 입력을 그대로 넣지 않는다.
+    pub fts: String,
+    /// 이 게시판의 글만. 있으면 페이지는 빠진다.
+    pub board_id: Option<String>,
+    /// 이 서열 이하의 `read` 정책을 가진 게시판만 포함한다.
+    pub max_read_rank: i64,
+    /// 공개 페이지도 넣는다.
+    pub pages: bool,
+    /// 참이면 최신순, 거짓이면 정확도순(같으면 최신).
+    pub newest: bool,
+    pub limit: i64,
+    pub offset: i64,
+}
+
+/// 검색 결과 한 건 (어느 글·페이지인지만). 내용은 서비스가 다시 읽는다.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SearchRef {
+    Post(String),
+    Page(String),
+}
+
 /// 관리용 글 목록 조건.
 #[derive(Debug, Clone)]
 pub struct PostFilter {
     pub board_id: Option<String>,
     pub status: Option<PostStatus>,
+    /// FTS5 질의 (`search::Query::to_fts`). 사용자 입력을 그대로 넣지 않는다.
+    pub search: Option<String>,
     pub limit: i64,
     pub offset: i64,
 }
@@ -92,6 +118,7 @@ pub trait Store: Send + Sync {
     async fn revisions_of_post(&self, post_id: &str) -> Result<Vec<Revision>>;
 
     async fn page_by_slug(&self, slug: &str) -> Result<Option<Page>>;
+    async fn page_by_id(&self, id: &str) -> Result<Option<Page>>;
     async fn list_pages(&self, status: Option<PageStatus>) -> Result<Vec<Page>>;
     async fn menu_rows(&self, location: &str) -> Result<Vec<MenuRow>>;
     async fn settings(&self) -> Result<Vec<(String, Value)>>;
@@ -143,6 +170,9 @@ pub trait Store: Send + Sync {
     /// 태그가 겹치지 않는 다른 게시판의 글은 넣지 않는다.
     async fn related_posts(&self, post: &Post, max_read_rank: i64, limit: i64)
     -> Result<Vec<Post>>;
+
+    /// 공개 검색: 공개된 글(비밀글 제외, 읽을 수 있는 게시판)·공개 페이지. 맞은 수도 돌려준다.
+    async fn search(&self, q: &SearchQuery) -> Result<(Vec<SearchRef>, i64)>;
 }
 
 #[async_trait]
@@ -190,6 +220,9 @@ pub trait WriteTx: Send {
     async fn page_by_slug(&mut self, slug: &str) -> Result<Option<Page>>;
     async fn insert_page(&mut self, page: &Page) -> Result<()>;
     async fn update_page(&mut self, page: &Page) -> Result<()>;
+    /// 검색 색인을 처음부터 다시 만든다 (글 수, 페이지 수).
+    /// `insert_post`·`update_post`·페이지 쓰기는 같은 트랜잭션에서 색인을 스스로 맞춘다.
+    async fn rebuild_search(&mut self) -> Result<(i64, i64)>;
 
     async fn menu_rows(&mut self, location: &str) -> Result<Vec<MenuRow>>;
     /// 위치의 메뉴를 통째로 바꾼다.

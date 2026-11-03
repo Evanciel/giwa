@@ -63,6 +63,13 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "error.post_secret" => "비밀글입니다. 작성자와 관리자만 읽을 수 있습니다.",
         "error.post_views" => "조회수는 0 이상 {max} 이하의 정수여야 합니다.",
         "hint.post_secret" => "작성자라면 로그인한 뒤 다시 여세요.",
+        "error.search_query" => {
+            "검색어가 비었거나, 빼기(-)만 있거나, {max}자·낱말 10개를 넘습니다: {query}"
+        }
+        "error.search_option" => {
+            "검색 `{name}` 값 `{value}` 는 쓸 수 없습니다. 가능한 값: {allowed}"
+        }
+        "hint.search_query" => "예: `제주 국밥`, `제주 OR 부산`, `\"올레 7코스\"`, `국밥 -부산`",
         "error.file_not_found" => "`{id}` 첨부 파일을 찾을 수 없습니다.",
         "error.file_type" => "첨부할 수 없는 파일입니다: {name} (가능한 형식: {allowed})",
         "error.file_content" => "파일 내용이 확장자({ext})와 맞지 않습니다: {name}",

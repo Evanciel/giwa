@@ -475,6 +475,9 @@ pub struct SiteSettings {
     /// 공개 화면(글·게시판 목록)에 조회수를 보인다. 꺼도 세기는 계속한다
     #[serde(default = "default_true")]
     pub show_views: bool,
+    /// 공개 화면 머리글에 사이트 검색 칸을 보인다 (`/search` 는 꺼도 열린다)
+    #[serde(default = "default_true")]
+    pub show_search: bool,
 }
 
 fn default_toc_min_headings() -> u32 {
@@ -497,6 +500,7 @@ impl Default for SiteSettings {
             google_verification: String::new(),
             toc_min_headings: default_toc_min_headings(),
             show_views: true,
+            show_search: true,
         }
     }
 }

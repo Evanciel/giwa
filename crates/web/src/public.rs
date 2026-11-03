@@ -8,9 +8,12 @@ use axum::http::{Extensions, HeaderMap, Method, StatusCode, header};
 use axum::middleware;
 use axum::response::{Html, IntoResponse, Response};
 use axum::routing::get;
+use maru_core::Actor;
 use maru_core::model::{
     Board, Category, Listing, MenuItem, MenuLink, Page, PageReq, Post, SiteSettings,
 };
+use maru_core::search::Range;
+use maru_core::services::search::{self, SearchInput, Sort};
 use maru_core::services::{
     anonymous_actor, boards, design, files, media, menus, pages, posts, settings, tags,
 };
@@ -31,6 +34,7 @@ pub fn routes() -> Router<AppState> {
         .route("/p/{page}", get(page))
         .route("/tags", get(tags_index))
         .route("/tags/{tag}", get(tag_page))
+        .route("/search", get(search_page))
         .route("/sitemap.xml", get(crate::feeds::sitemap))
         .route("/rss.xml", get(crate::feeds::rss))
         .route("/robots.txt", get(crate::feeds::robots))
@@ -51,6 +55,13 @@ struct PageQuery {
     page: Option<u32>,
     /// 게시판 분류 주소. 빈 값은 전체.
     category: Option<String>,
+    /// 게시판 안 검색어 (GAP C5). 있으면 목록 대신 검색 결과.
+    #[serde(default)]
+    q: String,
+    #[serde(default, rename = "in")]
+    range: String,
+    #[serde(default)]
+    sort: String,
 }
 
 /// 템플릿에 넘기는 사이트 공통 값. 설정·메뉴를 못 읽어도 화면은 기본값으로 뜬다.
@@ -77,6 +88,8 @@ async fn site_value(state: &AppState, s: &SiteSettings) -> Value {
         "url": state.ctx.site_url,
         "home_url": urls::path(&Target::Home),
         "rss_url": urls::path(&Target::Rss),
+        "search_url": urls::path(&Target::Search),
+        "show_search": s.show_search,
         "naver_verification": s.naver_verification,
         "google_verification": s.google_verification,
         "menus": {
@@ -185,6 +198,9 @@ async fn board_inner(state: &AppState, slug: &str, q: PageQuery) -> Result<Value
     let site = load_site(state).await?;
     let actor = anonymous_actor(&state.ctx).await?;
     let board = boards::readable(&state.ctx, &actor, slug).await?;
+    if !q.q.trim().is_empty() {
+        return board_search(state, &site, &actor, &board, q).await;
+    }
     let page = PageReq::new(q.page.unwrap_or(1), site.settings.posts_per_page);
     let category = q.category.as_deref().filter(|c| !c.is_empty());
     let found = posts::public_board(&state.ctx, &actor, &board, category, page).await?;
@@ -234,6 +250,194 @@ async fn board_inner(state: &AppState, slug: &str, q: PageQuery) -> Result<Value
         "notices": notices,
         "posts": items,
         "pagination": pagination(&found.posts, &urls::path(&target)),
+        "search": search_form(&urls::path(&Target::Board { board: &board.slug }), "", Range::All, Sort::Rank),
+    }))
+}
+
+/// 게시판 안 검색 결과 (`/b/{board}?q=`). 목록 자리에 결과를 보인다.
+async fn board_search(
+    state: &AppState,
+    site: &Site,
+    actor: &Actor,
+    board: &Board,
+    q: PageQuery,
+) -> Result<Value> {
+    let base = urls::path(&Target::Board { board: &board.slug });
+    let params = SearchParams {
+        q: q.q,
+        range: q.range,
+        sort: q.sort,
+        page: q.page,
+    };
+    let (found, pager) = search_view(state, site, actor, &params, Some(board), &base).await?;
+    Ok(json!({
+        "meta": json!({
+            "title": format!("“{}” 검색 · {} · {}", params.q.trim(), board.name, site.settings.name),
+            "noindex": true,
+        }),
+        "site": site.json,
+        "canonical": urls::absolute(&state.ctx.site_url, &Target::Board { board: &board.slug }),
+        "board": board_json(board),
+        "categories": [],
+        "category": Value::Null,
+        "notices": [],
+        "posts": [],
+        "search": found,
+        "pagination": pager,
+    }))
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct SearchParams {
+    #[serde(default)]
+    q: String,
+    #[serde(default, rename = "in")]
+    range: String,
+    #[serde(default)]
+    sort: String,
+    page: Option<u32>,
+}
+
+const RANGES: [(Range, &str); 4] = [
+    (Range::All, "제목+내용"),
+    (Range::Title, "제목"),
+    (Range::Body, "내용"),
+    (Range::Tag, "태그"),
+];
+
+/// 검색 칸 값 (아직 찾지 않은 상태).
+fn search_form(action: &str, q: &str, range: Range, sort: Sort) -> Value {
+    json!({
+        "action": action,
+        "q": q,
+        "in": range.as_str(),
+        "sort": sort.as_str(),
+        "ranges": RANGES.iter().map(|(r, label)| json!({
+            "value": r.as_str(),
+            "label": label,
+            "current": *r == range,
+        })).collect::<Vec<_>>(),
+        "searched": false,
+    })
+}
+
+/// 검색 결과 화면 값 (`/search`·게시판 안 검색 공통). 검색어가 잘못되면 오류 화면 대신 안내를 넣는다.
+async fn search_view(
+    state: &AppState,
+    site: &Site,
+    actor: &Actor,
+    p: &SearchParams,
+    board: Option<&Board>,
+    base: &str,
+) -> Result<(Value, Value)> {
+    let range = Range::parse(p.range.trim()).unwrap_or_default();
+    let sort = Sort::parse(p.sort.trim()).unwrap_or_default();
+    let q = p.q.trim();
+    let mut view = search_form(base, q, range, sort);
+    if q.is_empty() {
+        return Ok((view, Value::Null));
+    }
+    view["searched"] = json!(true);
+    let keep = |sort: Sort| {
+        urls::with_query(
+            base,
+            &[
+                ("q", q),
+                (
+                    "in",
+                    if range == Range::All {
+                        ""
+                    } else {
+                        range.as_str()
+                    },
+                ),
+                (
+                    "sort",
+                    if sort == Sort::Rank {
+                        ""
+                    } else {
+                        sort.as_str()
+                    },
+                ),
+            ],
+        )
+    };
+    view["sorts"] = json!([
+        { "label": "정확도순", "url": keep(Sort::Rank), "current": sort == Sort::Rank },
+        { "label": "최신순", "url": keep(Sort::New), "current": sort == Sort::New },
+    ]);
+    let input = SearchInput {
+        q: q.to_owned(),
+        board: board.map(|b| b.slug.clone()),
+        range,
+        sort,
+        page: p.page.unwrap_or(1),
+    };
+    let found = match search::search(&state.ctx, actor, input).await {
+        Ok(r) => r,
+        Err(e) if e.code() == Code::Validation => {
+            view["error"] = json!(e.message());
+            view["hint"] = json!(e.hint());
+            view["total"] = json!(0);
+            view["items"] = json!([]);
+            return Ok((view, Value::Null));
+        }
+        Err(e) => return Err(e),
+    };
+    let tz = site.settings.tz_offset_min;
+    view["total"] = json!(found.total);
+    view["items"] = Value::Array(
+        found
+            .items
+            .iter()
+            .map(|h| {
+                let published = h.published_at.clone().unwrap_or_default();
+                json!({
+                    "kind": h.kind,
+                    "title": h.title,
+                    "url": h.url,
+                    "board": h.board.as_ref().map(|b| json!({
+                        "name": b.name,
+                        "url": urls::path(&Target::Board { board: &b.slug }),
+                    })),
+                    "published_at": published,
+                    "date": clock::display_date(&published, tz),
+                    "snippet": h.snippet,
+                    "tags": h.tags.iter().map(|name| json!({
+                        "name": name,
+                        "url": tag_url(&slug::tag(name)),
+                    })).collect::<Vec<_>>(),
+                })
+            })
+            .collect(),
+    );
+    let pager = pages_json(i64::from(found.page), found.total_pages(), &keep(sort));
+    Ok((view, pager))
+}
+
+async fn search_page(State(state): State<AppState>, Query(p): Query<SearchParams>) -> Response {
+    let v = search_inner(&state, p).await;
+    render(&state, "search.html", v).await
+}
+
+async fn search_inner(state: &AppState, p: SearchParams) -> Result<Value> {
+    let site = load_site(state).await?;
+    let actor = anonymous_actor(&state.ctx).await?;
+    let base = urls::path(&Target::Search);
+    let (found, pager) = search_view(state, &site, &actor, &p, None, &base).await?;
+    let q = p.q.trim();
+    let title = if q.is_empty() {
+        format!("검색 · {}", site.settings.name)
+    } else {
+        format!("“{q}” 검색 · {}", site.settings.name)
+    };
+    Ok(json!({
+        // 검색 결과는 검색 엔진에 내보내지 않는다.
+        "meta": json!({ "title": title, "noindex": true }),
+        "site": site.json,
+        "canonical": urls::absolute(&state.ctx.site_url, &Target::Search),
+        "search": found,
+        "pagination": pager,
     }))
 }
 
@@ -700,8 +904,10 @@ fn post_summary(board_slug: &str, p: &Post, s: &SiteSettings) -> Value {
 
 /// `base` 는 첫 쪽 주소. 이미 쿼리(`?category=`)가 있으면 `&page=` 로 잇는다.
 fn pagination<T>(list: &Listing<T>, base: &str) -> Value {
-    let total_pages = list.total_pages();
-    let page = i64::from(list.page);
+    pages_json(i64::from(list.page), list.total_pages(), base)
+}
+
+fn pages_json(page: i64, total_pages: i64, base: &str) -> Value {
     let sep = if base.contains('?') { '&' } else { '?' };
     let link = |n: i64| {
         if n == 1 {

@@ -3,6 +3,7 @@
 pub mod blobs;
 pub mod data_dir;
 pub mod db;
+mod search;
 pub mod sqlite;
 
 use std::sync::Arc;

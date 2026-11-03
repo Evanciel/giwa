@@ -43,6 +43,8 @@ pub enum Target<'a> {
     },
     Sitemap,
     Rss,
+    /// 사이트 검색 화면. 검색어는 [`with_query`] 로 붙인다.
+    Search,
 }
 
 /// 쿼리 값에서는 `&`·`=`·`+` 도 인코딩한다.
@@ -70,7 +72,25 @@ pub fn path(target: &Target<'_>) -> String {
         Target::Tag { tag } => format!("/tags/{}", enc(tag)),
         Target::Sitemap => "/sitemap.xml".to_owned(),
         Target::Rss => "/rss.xml".to_owned(),
+        Target::Search => "/search".to_owned(),
     }
+}
+
+/// 경로에 쿼리를 붙인다. 빈 값은 뺀다. 경로에 이미 `?` 가 있으면 `&` 로 잇는다.
+pub fn with_query(path: &str, params: &[(&str, &str)]) -> String {
+    let mut out = path.to_owned();
+    let mut sep = if path.contains('?') { '&' } else { '?' };
+    for (k, v) in params {
+        if v.is_empty() {
+            continue;
+        }
+        out.push(sep);
+        out.push_str(k);
+        out.push('=');
+        out.push_str(&enc_query(v));
+        sep = '&';
+    }
+    out
 }
 
 /// `site_url` 기준 절대 URL. `Host` 헤더는 쓰지 않는다.
@@ -102,6 +122,21 @@ pub fn media(blob_path: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn query_values_are_encoded_and_empty_ones_dropped() {
+        assert_eq!(
+            with_query(
+                &path(&Target::Search),
+                &[("q", "제주 a&b"), ("in", ""), ("sort", "new")]
+            ),
+            "/search?q=%EC%A0%9C%EC%A3%BC%20a%26b&sort=new"
+        );
+        assert_eq!(
+            with_query("/b/x?category=y", &[("q", "z")]),
+            "/b/x?category=y&q=z"
+        );
+    }
 
     #[test]
     fn hangul_is_percent_encoded() {
