@@ -56,5 +56,10 @@
     <p>{{ site.name }} · <a href="{{ site.rss_url }}">RSS</a></p>
   </div>
 </footer>
+{% if widgets.popup %}
+{# 팝업 (ADR-0060). 처음엔 숨겨 두고 site.js 가 「보지 않기」 기한을 보고 연다. JS 가 없으면 뜨지 않는다. #}
+<div class="popups">{% for w in widgets.popup %}{% include "widgets/popup.html" %}{% endfor %}</div>
+<script src="/assets/site.js" defer></script>
+{% endif %}
 </body>
 </html>

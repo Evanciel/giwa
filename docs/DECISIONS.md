@@ -598,3 +598,16 @@
   - 경로: REST `GET /api/v1/widget-types`, `GET|POST /api/v1/widgets`, `GET|PATCH|DELETE /api/v1/widgets/{id}`. CLI `widget types|list|place|configure|remove`. 관리 화면 `/admin/widgets`(영역별 목록, 위로·아래로·끄기·켜기·빼기, JSON 설정으로 놓기). MCP 는 Phase 3, changeset 도 Phase 3(ADR-0023).
 - **대안:** 모듈 레지스트리부터 — S1 이 모듈 시스템을 기다린다. core 가 HTML 을 만드는 트레이트(SPEC 초안) — 사용자 테마가 위젯 모양을 못 바꾼다. 메뉴처럼 영역 통째로 바꾸기 — 에이전트가 위젯 하나 고치기 번거롭다. 기간 조회수 표 — 조회수를 날마다 따로 쌓아야 한다.
 - **결과:** 저장소 테스트(`crates/storage/tests/widgets.rs`)가 정규화·같은 설정 다시 놓기·순서, 종류·영역·범위·설정 거부 14가지와 없는 게시판, `design.edit` 권한, 바뀐 것만 감사, 화면 범위 고르기·순서·꺼진 위젯, 인기 글 순서·게시판·기간·비밀글 제외를, e2e(`crates/cli/tests/e2e_widgets.rs`)가 CLI 종류·거부(다음 명령)·놓기·다시 놓기 → 첫 화면 두 단·최신 글·정화된 글 상자, 게시판·페이지 범위, 끄기 → 사라짐, 빼기 → DB 0·한 단을 확인한다.
+
+## ADR-0060 팝업: 위젯 종류 `popup` 과 전용 영역, 기간은 서버·「보지 않기」는 브라우저
+
+- **배경:** 한국 홈페이지에 흔한 공지 팝업(기간을 정해 띄우고 「오늘 하루 보지 않기」로 닫는다)이 없었다(GAP S2). 그누보드 7 에도 없다. 위젯(ADR-0059)이 범위·순서·켜고 끄기·감사·다섯 경로를 이미 갖췄다.
+- **결정:**
+  - 위젯 종류 `popup` + 영역 `popup`. 둘은 짝으로만 쓴다(`error.widget_popup_region`). 새 표·새 경로는 없다(`maru widget place popup --region popup --config …`).
+  - 설정 `PopupConfig`: `body`(Markdown, 필수, 본문과 같은 정화), `image`(`/media/…`), `link`(메뉴 규칙), `starts_at`·`ends_at`(RFC3339 → 저장 형식 UTC, 시작 < 끝), `dismiss_days`(0~30, 기본 1, 0 이면 닫기만), `position`(`center`·`bottom-left`·`bottom-right`).
+  - 기간은 서버가 고른다: `for_screen` 이 `starts_at ≤ 지금 < ends_at` 인 팝업만 돌려준다. 공개 화면 ETag 가 본문 해시라 기간이 바뀌면 응답도 바뀐다.
+  - 보이기·닫기는 브라우저: HTML 에 `hidden` 으로 들어가고 `/assets/site.js`(CSP `script-src 'self'`)가 `localStorage` 의 `maru-popup:<id>:<고친 시각>` 기한을 보고 연다. 내용을 고치면 키가 바뀌어 다시 뜬다. 저장소를 못 쓰면 닫기만 되고, JS 가 없으면 뜨지 않는다. 팝업이 없는 화면에는 스크립트도 없다.
+  - 접근성: `role="dialog"` + `aria-labelledby`(제목, 없으면 숨긴 「알림」), 열리면 맨 위 팝업 단추에 초점, Esc 로 맨 위부터 닫고, 다 닫으면 원래 초점으로. 덮개는 없다(본문을 계속 쓸 수 있게). 640px 아래는 위치와 상관없이 아래쪽 판, 최대 70vh.
+  - 함께 고침(S1): 사진 모음 열 수를 CSP `style-src 'self'` 가 막는 `style` 속성 대신 `cols-N` 클래스로.
+- **대안:** 팝업 표·서비스 따로 — 다섯 경로를 하나 더 만든다. 쿠키로 「보지 않기」 — 서버가 사람마다 다른 응답을 만들어 손님 기준 렌더·ETag 가 깨진다. 브라우저가 기간 판단 — 시계가 틀린 PC 에서 어긋난다. 모달 덮개 — 팝업 여러 개가 본문을 가린다.
+- **결과:** 저장소 테스트(`crates/storage/tests/widgets.rs`)가 종류·영역 짝 거부(놓기·옮기기), 기간 형식·순서, `dismiss_days`·`position` 범위, 기간 밖 팝업이 `for_screen` 에서 빠지는 것을, e2e(`crates/cli/tests/e2e_widgets.rs`)가 짝 거부 → 첫 화면에 숨긴 dialog·「3일 동안 보지 않기」·위치·정화된 본문·`site.js`, 끝난 팝업 없음, `style` 속성 없음, 범위 밖 게시판에는 팝업·스크립트 없음, `/assets/site.js` 200 을 확인한다. 브라우저에서 두 팝업 열림·초점, Esc, 「오늘 하루 보지 않기」 → 새로 고쳐도 숨김(닫기만 한 것은 다시 뜸), 모바일 아래쪽 판·가로 넘침 없음을 확인했다.

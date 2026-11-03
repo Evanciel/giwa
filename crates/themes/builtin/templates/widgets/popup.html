@@ -1,0 +1,13 @@
+{# html 은 서버가 본문과 같은 규칙(ammonia)으로 정화한 값만 들어온다. #}
+<section class="popup popup-{{ w.data.position }}" role="dialog" aria-labelledby="pop-{{ w.id }}" data-popup="{{ w.data.key }}" data-dismiss-days="{{ w.data.dismiss_days }}" hidden>
+  <h2 class="popup-title{% if not w.title %} visually-hidden{% endif %}" id="pop-{{ w.id }}">{{ w.title or "알림" }}</h2>
+  <div class="popup-body">
+    {% if w.data.image %}{% if w.data.link %}<a href="{{ w.data.link.href }}"{% if w.data.link.external %} rel="noopener noreferrer"{% endif %}>{% endif %}<img src="{{ w.data.image.src }}" alt="" width="{{ w.data.image.width }}" height="{{ w.data.image.height }}" decoding="async">{% if w.data.link %}</a>{% endif %}{% endif %}
+    <div class="prose">{{ w.data.html | safe }}</div>
+    {% if w.data.link and not w.data.image %}<p class="popup-link"><a href="{{ w.data.link.href }}"{% if w.data.link.external %} rel="noopener noreferrer"{% endif %}>자세히 보기</a></p>{% endif %}
+  </div>
+  <div class="popup-actions">
+    {% if w.data.dismiss_days %}<button type="button" class="popup-dismiss" data-popup-dismiss>{% if w.data.dismiss_days == 1 %}오늘 하루 보지 않기{% else %}{{ w.data.dismiss_days }}일 동안 보지 않기{% endif %}</button>{% endif %}
+    <button type="button" class="popup-close" data-popup-close>닫기</button>
+  </div>
+</section>

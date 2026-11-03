@@ -7,7 +7,7 @@ use maru_core::model::{PageReq, SiteSettings, Widget};
 use maru_core::services::posts::PublicFilter;
 use maru_core::services::widgets::{
     self, GalleryGridConfig, ImageBannerConfig, LatestPostsConfig, MarkdownBlockConfig, MenuConfig,
-    NoticeBarConfig, PopularPostsConfig, Screen, SearchConfig,
+    NoticeBarConfig, PopularPostsConfig, PopupConfig, Screen, SearchConfig,
 };
 use maru_core::services::{anonymous_actor, boards, media, posts, settings};
 use maru_core::urls::{self, Target};
@@ -176,6 +176,30 @@ async fn view(
             .await?;
             let items = summaries_any_board(state, &list.items, site).await?;
             json!({ "posts": items, "columns": c.columns })
+        }
+        "popup" => {
+            let c: PopupConfig = cfg(w)?;
+            let images = media::images_in(ctx, &c.body).await?;
+            let html = markdown::render_with(&c.body, &|u| images.get(u).cloned());
+            let image = if c.image.is_empty() {
+                Value::Null
+            } else {
+                match media::image_info(ctx, &c.image).await? {
+                    Some(info) => {
+                        json!({ "src": c.image, "width": info.width, "height": info.height })
+                    }
+                    None => Value::Null,
+                }
+            };
+            json!({
+                "html": html.into_string(),
+                "image": image,
+                "link": link_json(&c.link),
+                "dismiss_days": c.dismiss_days,
+                "position": c.position,
+                // 내용이 바뀌면 「보지 않기」를 다시 묻도록 저장 키에 고친 시각을 섞는다.
+                "key": format!("{}:{}", w.id, w.updated_at),
+            })
         }
         _ => return Ok(None),
     };

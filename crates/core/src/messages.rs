@@ -185,6 +185,9 @@ pub fn lookup(key: &str) -> Option<&'static str> {
             "위젯 범위는 all, home, boards, board:<주소>, page:<주소> 중 하나입니다: {value}"
         }
         "error.widget_config" => "`{kind}` 위젯 설정이 올바르지 않습니다: {reason}",
+        "error.widget_popup_region" => {
+            "팝업은 popup 영역에만, popup 영역에는 팝업만 놓을 수 있습니다 (종류 {kind}, 영역 {region})."
+        }
         "error.widget_not_found" => "위젯을 찾을 수 없습니다: {id}",
         "error.widget_too_many" => "위젯은 {max}개까지 놓을 수 있습니다.",
         "error.menu_url" => "메뉴 주소는 https://, http:// 또는 / 로 시작해야 합니다: {value}",

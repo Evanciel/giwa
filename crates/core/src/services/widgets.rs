@@ -123,6 +123,40 @@ pub struct GalleryGridConfig {
     pub columns: u32,
 }
 
+/// 팝업(레이어, ADR-0060). `popup` 영역에만 놓인다.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PopupConfig {
+    /// Markdown 본문
+    pub body: String,
+    /// 이 사이트에 올린 그림(`/media/…`). 비우면 그림 없음
+    #[serde(default)]
+    pub image: String,
+    #[serde(default)]
+    pub link: String,
+    /// 이 시각부터 (RFC3339). 비우면 바로
+    #[serde(default)]
+    pub starts_at: String,
+    /// 이 시각 전까지 (RFC3339). 비우면 끝없이
+    #[serde(default)]
+    pub ends_at: String,
+    /// 「N일 동안 보지 않기」의 N. 0 이면 닫기 단추만. 0~30, 기본 1
+    #[serde(default = "one")]
+    pub dismiss_days: u32,
+    /// `center`, `bottom-left`, `bottom-right`. 좁은 화면은 늘 아래쪽 판
+    #[serde(default = "center")]
+    pub position: String,
+}
+
+/// 팝업 위치.
+pub const POPUP_POSITIONS: [&str; 3] = ["center", "bottom-left", "bottom-right"];
+
+fn one() -> u32 {
+    1
+}
+fn center() -> String {
+    "center".into()
+}
 fn five() -> u32 {
     5
 }
@@ -143,7 +177,7 @@ fn list_view() -> String {
 }
 
 /// 종류 id, 이름, 설명.
-const KINDS: [(&str, &str, &str); 8] = [
+const KINDS: [(&str, &str, &str); 9] = [
     (
         "latest_posts",
         "최신 글",
@@ -168,6 +202,11 @@ const KINDS: [(&str, &str, &str); 8] = [
         "사진 모음",
         "게시판 글의 대표 사진을 바둑판으로",
     ),
+    (
+        "popup",
+        "팝업",
+        "기간을 정해 띄우는 공지 창 (popup 영역 전용)",
+    ),
 ];
 
 fn schema_of<T: JsonSchema>() -> Value {
@@ -190,6 +229,7 @@ pub fn types() -> Vec<WidgetType> {
                 "notice_bar" => schema_of::<NoticeBarConfig>(),
                 "search" => schema_of::<SearchConfig>(),
                 "image_banner" => schema_of::<ImageBannerConfig>(),
+                "popup" => schema_of::<PopupConfig>(),
                 _ => schema_of::<GalleryGridConfig>(),
             },
         })
@@ -279,20 +319,44 @@ pub async fn get(ctx: &Ctx, actor: &Actor, id: &str) -> Result<Widget> {
 }
 
 /// 공개 화면에 붙일 켜진 위젯. 영역 → 순서. 권한을 보지 않는다(설정은 공개 화면에 그대로 드러나는 값이다).
+/// 팝업은 기간 안(`starts_at ≤ 지금 < ends_at`)인 것만 (ADR-0060).
 pub async fn for_screen(ctx: &Ctx, screen: Screen<'_>) -> Result<Vec<Widget>> {
+    let now = clock::now();
     Ok(ctx
         .store
         .list_widgets()
         .await?
         .into_iter()
-        .filter(|w| w.enabled && screen.matches(&w.scope))
+        .filter(|w| w.enabled && screen.matches(&w.scope) && in_period(w, &now))
         .collect())
+}
+
+/// 저장 형식(UTC, 같은 자릿수)이라 문자열 비교로 앞뒤를 안다.
+fn in_period(w: &Widget, now: &str) -> bool {
+    if w.kind != "popup" {
+        return true;
+    }
+    let field = |k: &str| w.config.get(k).and_then(Value::as_str).unwrap_or("");
+    let (starts, ends) = (field("starts_at"), field("ends_at"));
+    (starts.is_empty() || starts <= now) && (ends.is_empty() || now < ends)
+}
+
+/// `popup` 종류와 `popup` 영역은 짝으로만 쓴다.
+fn check_pair(kind: &str, region: &str) -> Result<()> {
+    if (kind == "popup") == (region == "popup") {
+        return Ok(());
+    }
+    Err(Error::new(Code::Validation)
+        .with_message("error.widget_popup_region")
+        .arg("kind", kind)
+        .arg("region", region))
 }
 
 pub async fn place(ctx: &Ctx, actor: &Actor, input: NewWidget) -> Result<Widget> {
     actor.require(Permission::DesignEdit)?;
     let kind = check_kind(&input.kind)?;
     let region = check_region(&input.region)?;
+    check_pair(&kind, &region)?;
     let scope = check_scope(&input.scope)?;
     let title = check_title(&input.title)?;
     let config = check_config(ctx, &kind, input.config).await?;
@@ -353,6 +417,7 @@ pub async fn configure(ctx: &Ctx, actor: &Actor, id: &str, patch: WidgetPatch) -
     let mut after = before.clone();
     if let Some(r) = &patch.region {
         after.region = check_region(r)?;
+        check_pair(&after.kind, &after.region)?;
     }
     if let Some(s) = &patch.scope {
         after.scope = check_scope(s)?;
@@ -520,6 +585,20 @@ fn check_link(kind: &str, link: &str) -> Result<String> {
         .map_err(|_| bad_config(kind, format!("link 주소가 올바르지 않습니다: {l}")))
 }
 
+/// RFC3339 시각을 저장 형식(UTC)으로. 빈 값은 그대로.
+fn check_time(kind: &str, field: &str, v: &str) -> Result<String> {
+    let t = v.trim();
+    if t.is_empty() {
+        return Ok(String::new());
+    }
+    clock::parse(t).map(clock::format).ok_or_else(|| {
+        bad_config(
+            kind,
+            format!("{field} 는 RFC3339 시각 (예: 2026-11-11T09:00:00+09:00)"),
+        )
+    })
+}
+
 fn short_text(kind: &str, field: &str, v: &str, max: usize, required: bool) -> Result<String> {
     let t = v.trim();
     if (required && t.is_empty()) || t.chars().count() > max {
@@ -588,6 +667,29 @@ async fn check_config(ctx: &Ctx, kind: &str, config: Value) -> Result<Value> {
                     .ok_or_else(|| bad_config(kind, "slides.image 가 비었습니다"))?;
                 s.alt = short_text(kind, "slides.alt", &s.alt, 120, false)?;
                 s.link = check_link(kind, &s.link)?;
+            }
+            json!(c)
+        }
+        "popup" => {
+            let mut c: PopupConfig = parse(kind, config)?;
+            c.body = super::body_text(c.body, MAX_MARKDOWN_BYTES)?;
+            if c.body.trim().is_empty() {
+                return Err(bad_config(kind, "body 가 비었습니다"));
+            }
+            c.image = posts::check_cover(&c.image)?.unwrap_or_default();
+            c.link = check_link(kind, &c.link)?;
+            c.starts_at = check_time(kind, "starts_at", &c.starts_at)?;
+            c.ends_at = check_time(kind, "ends_at", &c.ends_at)?;
+            if !c.starts_at.is_empty() && !c.ends_at.is_empty() && c.starts_at >= c.ends_at {
+                return Err(bad_config(kind, "ends_at 은 starts_at 보다 뒤여야 합니다"));
+            }
+            in_range(kind, "dismiss_days", c.dismiss_days, 0, 30)?;
+            c.position = c.position.trim().to_owned();
+            if !POPUP_POSITIONS.contains(&c.position.as_str()) {
+                return Err(bad_config(
+                    kind,
+                    format!("position 은 {}", POPUP_POSITIONS.join(", ")),
+                ));
             }
             json!(c)
         }

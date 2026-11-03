@@ -432,3 +432,93 @@ async fn popular_posts_order_by_views_then_recency_and_skip_secret() {
     );
     let _ = c;
 }
+
+#[tokio::test]
+async fn popups_pair_with_their_region_and_follow_their_period() {
+    let e = env().await;
+    let local = Actor::local();
+    for (kind, region) in [("popup", "sidebar"), ("search", "popup")] {
+        let err = widgets::place(
+            &e.ctx,
+            &local,
+            new(kind, region, "all", json!({ "body": "x" })),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(err.code(), Code::Validation, "{kind}·{region}");
+    }
+    for bad in [
+        json!({ "body": "" }),
+        json!({ "body": "x", "starts_at": "내일" }),
+        json!({ "body": "x", "starts_at": "2030-01-02T00:00:00Z", "ends_at": "2030-01-01T00:00:00Z" }),
+        json!({ "body": "x", "dismiss_days": 31 }),
+        json!({ "body": "x", "position": "top" }),
+        json!({ "body": "x", "image": "https://evil.example/a.png" }),
+    ] {
+        let err = widgets::place(&e.ctx, &local, new("popup", "popup", "all", bad.clone()))
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), Code::Validation, "{bad}");
+    }
+    let now = widgets::place(
+        &e.ctx,
+        &local,
+        new(
+            "popup",
+            "popup",
+            "home",
+            json!({ "body": "지금", "starts_at": "2020-01-01T09:00:00+09:00", "ends_at": "2099-01-01T00:00:00Z" }),
+        ),
+    )
+    .await
+    .unwrap();
+    // 시각은 저장 형식(UTC)으로, 나머지는 기본값
+    assert_eq!(now.config["starts_at"], "2020-01-01T00:00:00.000000Z");
+    assert_eq!(now.config["dismiss_days"], 1);
+    assert_eq!(now.config["position"], "center");
+    let later = widgets::place(
+        &e.ctx,
+        &local,
+        new(
+            "popup",
+            "popup",
+            "home",
+            json!({ "body": "나중", "starts_at": "2099-01-01T00:00:00Z" }),
+        ),
+    )
+    .await
+    .unwrap();
+    let over = widgets::place(
+        &e.ctx,
+        &local,
+        new(
+            "popup",
+            "popup",
+            "home",
+            json!({ "body": "끝남", "ends_at": "2020-01-01T00:00:00Z" }),
+        ),
+    )
+    .await
+    .unwrap();
+    let shown: Vec<_> = widgets::for_screen(&e.ctx, Screen::Home)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|w| w.id)
+        .collect();
+    assert_eq!(shown, vec![now.id.clone()]);
+    assert!(!shown.contains(&later.id) && !shown.contains(&over.id));
+    // 팝업을 다른 영역으로 옮길 수 없다
+    let err = widgets::configure(
+        &e.ctx,
+        &local,
+        &now.id,
+        WidgetPatch {
+            region: Some("main".into()),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(err.code(), Code::Validation);
+}

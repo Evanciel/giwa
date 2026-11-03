@@ -99,7 +99,7 @@ fn widgets_render_by_scope_and_disappear_when_turned_off() {
     }
 
     let types = maru(&data, &["widget", "types"]);
-    assert_eq!(types.as_array().unwrap().len(), 8);
+    assert_eq!(types.as_array().unwrap().len(), 9);
     assert!(types[0]["config_schema"].is_object(), "{types}");
 
     let bad = run(
@@ -228,4 +228,103 @@ fn widgets_render_by_scope_and_disappear_when_turned_off() {
     let gone = run(&data, &["widget", "remove", id]);
     assert_eq!(gone["ok"], false);
     assert_eq!(gone["error"]["code"], "NOT_FOUND", "{gone}");
+}
+
+#[test]
+fn popups_render_hidden_with_script_only_in_period_and_scope() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("사이트");
+    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    let bad = run(
+        &data,
+        &[
+            "widget",
+            "place",
+            "popup",
+            "--region",
+            "main",
+            "--config",
+            r#"{"body":"x"}"#,
+        ],
+    );
+    maru(
+        &data,
+        &[
+            "post",
+            "new",
+            "--publish",
+            "--title",
+            "사진 글",
+            "--body",
+            "본문",
+        ],
+    );
+    assert_eq!(bad["ok"], false, "팝업은 popup 영역에만");
+    maru(
+        &data,
+        &[
+            "widget",
+            "place",
+            "popup",
+            "--region",
+            "popup",
+            "--scope",
+            "home",
+            "--title",
+            "점검 안내",
+            "--config",
+            r#"{"body":"**11일** 새벽 점검","dismiss_days":3,"position":"bottom-right","ends_at":"2099-01-01T00:00:00Z"}"#,
+        ],
+    );
+    maru(
+        &data,
+        &[
+            "widget",
+            "place",
+            "popup",
+            "--region",
+            "popup",
+            "--config",
+            r#"{"body":"지난 행사","ends_at":"2020-01-01T00:00:00Z"}"#,
+        ],
+    );
+    // 사진 모음 열 수는 style 속성이 아니라 클래스로 (CSP style-src 'self')
+    maru(
+        &data,
+        &[
+            "widget",
+            "place",
+            "gallery_grid",
+            "--region",
+            "main",
+            "--scope",
+            "home",
+            "--config",
+            r#"{"board":"blog","columns":3}"#,
+        ],
+    );
+
+    let (_server, info) = start_server(&data);
+    let bind = info["bind"].as_str().unwrap().to_owned();
+    let (_, home) = get(&bind, "/");
+    assert!(home.contains("role=\"dialog\""), "{home}");
+    assert!(home.contains("data-dismiss-days=\"3\" hidden>"));
+    assert!(home.contains("3일 동안 보지 않기"));
+    assert!(home.contains("popup-bottom-right"));
+    assert!(home.contains("<strong>11일</strong> 새벽 점검"));
+    assert!(home.contains("src=\"/assets/site.js\""));
+    assert!(!home.contains("지난 행사"), "기간이 끝난 팝업은 빠진다");
+    assert!(home.contains("widget-gallery cols-3"));
+    assert!(
+        !home.contains("style=\""),
+        "CSP 가 막는 style 속성을 쓰지 않는다"
+    );
+
+    let (_, board) = get(&bind, "/b/blog");
+    assert!(!board.contains("role=\"dialog\""), "home 범위");
+    assert!(!board.contains("site.js"), "팝업이 없으면 스크립트도 없다");
+
+    let (status, js) = get(&bind, "/assets/site.js");
+    assert_eq!(status, 200);
+    assert!(js.contains("maru-popup:"));
 }

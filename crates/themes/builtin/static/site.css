@@ -595,11 +595,35 @@ p.widget-notice_bar a { color: var(--primary); font-weight: 600; }
 .widget-banner.is-carousel { display: grid; grid-auto-flow: column; grid-auto-columns: 100%; gap: calc(var(--space) * 2); overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: thin; }
 .widget-banner.is-carousel > li { scroll-snap-align: start; }
 .widget-banner.is-carousel:focus-visible { outline: 2px solid var(--primary); outline-offset: 4px; }
-.widget-gallery { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr)); gap: calc(var(--space) * 1.5); }
-@media (max-width: 640px) { .widget-gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.widget-gallery { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: calc(var(--space) * 1.5); }
+.widget-gallery.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.widget-gallery.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.widget-gallery.cols-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.widget-gallery.cols-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+@media (max-width: 640px) { .widget-gallery, .widget-gallery[class*="cols-"] { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .widget-gallery a { position: relative; display: block; aspect-ratio: 1; overflow: hidden; border-radius: var(--radius-sm); background: var(--surface); border: 1px solid var(--border); color: var(--fg); text-decoration: none; }
 .widget-gallery img { width: 100%; height: 100%; object-fit: cover; transition: transform .3s ease; }
 .widget-gallery a:hover img { transform: scale(1.04); }
 .widget-gallery .caption { position: absolute; inset: auto 0 0 0; padding: calc(var(--space) * 3) var(--space) var(--space); background: linear-gradient(transparent, rgb(0 0 0 / .65)); color: #fff; font-size: var(--fs-sm); line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .widget-gallery a:has(.tile-fallback) .caption { padding-top: var(--space); background: var(--surface); color: var(--fg); border-top: 1px solid var(--border); }
 @media (prefers-reduced-motion: reduce) { .widget-gallery img { transition: none; } .widget-gallery a:hover img { transform: none; } }
+
+/* 팝업 (ADR-0060). 덮개 없이 떠 있어 본문을 계속 쓸 수 있다. 여러 개면 겹쳐 쌓인다. */
+.popups { position: fixed; inset: 0; z-index: 50; pointer-events: none; }
+.popup { position: absolute; pointer-events: auto; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; width: min(26rem, 100% - 2rem); max-height: min(36rem, 100% - 2rem); background: var(--surface); color: var(--fg); border: 1px solid var(--border); border-radius: var(--radius-md); box-shadow: 0 18px 48px rgb(0 0 0 / .22); overflow: hidden; }
+.popup[hidden] { display: none; }
+.popup-center { top: 50%; left: 50%; transform: translate(-50%, -50%); }
+.popup-center + .popup-center { transform: translate(calc(-50% + 1.25rem), calc(-50% + 1.25rem)); }
+.popup-bottom-left { left: 1rem; bottom: 1rem; }
+.popup-bottom-right { right: 1rem; bottom: 1rem; }
+.popup-title { margin: 0; padding: calc(var(--space) * 2) calc(var(--space) * 2.5) 0; font-size: var(--fs-base); }
+.popup-body { overflow: auto; padding: calc(var(--space) * 1.5) calc(var(--space) * 2.5) calc(var(--space) * 2); font-size: var(--fs-sm); }
+.popup-body img { display: block; width: 100%; height: auto; margin-bottom: calc(var(--space) * 1.5); border-radius: var(--radius-sm); }
+.popup-link { margin: calc(var(--space) * 1.5) 0 0; }
+.popup-actions { display: flex; justify-content: space-between; gap: var(--space); padding: calc(var(--space) * 1.25) calc(var(--space) * 2); border-top: 1px solid var(--border); background: var(--bg); }
+.popup-actions button { padding: .5em .9em; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--fg); font: inherit; font-size: var(--fs-sm); cursor: pointer; }
+.popup-actions .popup-close { margin-left: auto; border-color: var(--fg); background: var(--fg); color: var(--bg); }
+.popup-actions button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+@media (max-width: 640px) {
+  .popup, .popup-center, .popup-center + .popup-center { top: auto; left: 0; right: 0; bottom: 0; width: 100%; max-height: 70vh; transform: none; border-radius: var(--radius-md) var(--radius-md) 0 0; }
+}

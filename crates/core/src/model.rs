@@ -586,7 +586,8 @@ pub struct MenuItem {
 }
 
 /// 위젯을 놓는 영역 (SPEC §8.3, ADR-0059). 테마가 그리지 않는 영역의 위젯은 빠진다.
-pub const WIDGET_REGIONS: [&str; 5] = ["header", "hero", "main", "sidebar", "footer"];
+/// `popup` 은 팝업 종류 전용 자리다 (ADR-0060).
+pub const WIDGET_REGIONS: [&str; 6] = ["header", "hero", "main", "sidebar", "footer", "popup"];
 
 /// 영역에 놓인 위젯 하나. `config` 는 종류마다 정해진 모양으로 core 가 검사·정규화한 값이다.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]

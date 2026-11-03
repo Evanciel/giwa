@@ -2166,6 +2166,7 @@ fn region_label(region: &str) -> &'static str {
         "hero" => "큰 배너 자리",
         "main" => "본문 위",
         "sidebar" => "곁가지",
+        "popup" => "팝업",
         _ => "바닥글",
     }
 }
