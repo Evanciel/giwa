@@ -50,6 +50,11 @@ pub fn absolute(site_url: &str, target: &Target<'_>) -> String {
     format!("{}{}", site_url.trim_end_matches('/'), path(target))
 }
 
+/// 첨부 파일 내려받기 주소.
+pub fn file(id: &str) -> String {
+    format!("/files/{id}")
+}
+
 /// 미디어 파일 주소. 보관소 경로는 ASCII 규칙(`blobs::valid_path`)을 따르므로 인코딩하지 않는다.
 pub fn media(blob_path: &str) -> String {
     format!("/media/{blob_path}")

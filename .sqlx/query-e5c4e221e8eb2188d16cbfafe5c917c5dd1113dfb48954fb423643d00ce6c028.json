@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE post_templates SET name = ?, body_md = ?, updated_at = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "e5c4e221e8eb2188d16cbfafe5c917c5dd1113dfb48954fb423643d00ce6c028"
+}

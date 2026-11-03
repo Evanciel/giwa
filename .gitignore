@@ -17,3 +17,6 @@
 # 편집기
 .vscode/
 .idea/
+# 에디터 빌드 도구 (npm ci 로 다시 받는다)
+/editor/node_modules/
+/editor/test/.out/

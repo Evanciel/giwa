@@ -75,6 +75,10 @@ textarea { resize: vertical; line-height: 1.7; }
 .editor textarea#body_md { font-family: D2Coding, ui-monospace, Consolas, monospace; font-size: .95rem; }
 details { margin-top: .6rem; }
 summary { cursor: pointer; color: var(--muted); }
+fieldset.schedule { margin: .8rem 0 0; padding: .4rem .9rem .8rem; border: 1px solid var(--border); border-radius: var(--radius); }
+fieldset.schedule legend { color: var(--muted); padding: 0 .3rem; }
+fieldset.schedule input[type=datetime-local] { width: auto; max-width: 100%; }
+.scheduled { margin: .3rem 0 .4rem; }
 
 button, .button {
   font: inherit; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-block;

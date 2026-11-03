@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id!\" FROM posts\n               WHERE scheduled_at IS NOT NULL AND scheduled_at <= ?1\n                 AND kind = 'post' AND status IN ('draft', 'review', 'hidden')\n               ORDER BY scheduled_at, id\n               LIMIT ?2",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "058c5ea5c02d220de24ffe4a0562fb449997a439e691ca629eefcb226061b9d8"
+}

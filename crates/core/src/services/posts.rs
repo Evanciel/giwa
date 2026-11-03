@@ -14,6 +14,11 @@ use crate::store::{Ctx, PostFilter, PublishedQuery, Tx, WriteTx};
 
 const MAX_TITLE: usize = 200;
 const MAX_BODY_BYTES: usize = 1024 * 1024;
+/// 한 번에 발행하는 예약 글 수. 남은 것은 다음 주기에.
+const DUE_BATCH: i64 = 50;
+const MAX_COVER: usize = 300;
+/// 예약은 1년 안쪽만.
+const MAX_SCHEDULE_DAYS: i64 = 366;
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -28,6 +33,9 @@ pub struct NewPost {
     pub body_md: String,
     #[serde(default)]
     pub excerpt: Option<String>,
+    /// 대표 이미지 (`/media/...`). 비우면 본문 첫 사진
+    #[serde(default)]
+    pub cover: Option<String>,
 }
 
 pub async fn create_draft(ctx: &Ctx, actor: &Actor, input: NewPost) -> Result<Post> {
@@ -41,6 +49,7 @@ pub async fn create_draft(ctx: &Ctx, actor: &Actor, input: NewPost) -> Result<Po
         .excerpt
         .map(|e| e.trim().to_owned())
         .filter(|e| !e.is_empty());
+    let cover = check_cover(input.cover.as_deref().unwrap_or(""))?;
 
     let mut tx = Tx::begin(ctx).await?;
     let board = tx
@@ -81,6 +90,8 @@ pub async fn create_draft(ctx: &Ctx, actor: &Actor, input: NewPost) -> Result<Po
         published_at: None,
         created_at: now.clone(),
         updated_at: now,
+        scheduled_at: None,
+        cover,
     };
     tx.insert_post(&post).await?;
     tx.insert_revision(&revision_of(&post, actor)).await?;
@@ -97,6 +108,24 @@ pub async fn create_draft(ctx: &Ctx, actor: &Actor, input: NewPost) -> Result<Po
 
 /// 초안·검토·숨김 글을 발행한다. 이미 발행된 글이면 그대로 돌려준다(멱등).
 pub async fn publish(ctx: &Ctx, actor: &Actor, id: &str) -> Result<Post> {
+    publish_as(ctx, actor, id, "post.publish").await
+}
+
+/// 예약 시각이 지난 글을 발행한다. 서버가 주기적으로 부른다.
+/// 예약은 발행 권한이 있는 사람만 걸 수 있으므로 여기서는 로컬 권한으로 발행한다.
+/// 한 글이 실패해도 나머지는 계속하고, 글마다 결과를 돌려준다 (실패한 글은 다음 주기에 다시).
+pub async fn publish_due(ctx: &Ctx) -> Result<Vec<(String, Result<Post>)>> {
+    let ids = ctx.store.due_posts(&clock::now(), DUE_BATCH).await?;
+    let actor = Actor::local();
+    let mut out = Vec::with_capacity(ids.len());
+    for id in ids {
+        let res = publish_as(ctx, &actor, &id, "post.publish_scheduled").await;
+        out.push((id, res));
+    }
+    Ok(out)
+}
+
+async fn publish_as(ctx: &Ctx, actor: &Actor, id: &str, action: &'static str) -> Result<Post> {
     let mut tx = Tx::begin(ctx).await?;
     let (board, before) = load_for_write(&mut *tx, actor, id).await?;
     authorize_post(actor, &board, &before, Permission::PostPublish)?;
@@ -114,12 +143,13 @@ pub async fn publish(ctx: &Ctx, actor: &Actor, id: &str) -> Result<Post> {
         status: PostStatus::Published,
         published_at: before.published_at.clone().or_else(|| Some(now.clone())),
         updated_at: now,
+        scheduled_at: None,
         ..before.clone()
     };
     tx.update_post(&after).await?;
     tx.audit(
         actor,
-        "post.publish",
+        action,
         Target::post(&after.id),
         audit::diff(Some(&before), Some(&after)),
     )
@@ -214,6 +244,13 @@ pub struct PostPatch {
     /// 빈 문자열이면 요약을 지운다
     #[serde(default)]
     pub excerpt: Option<String>,
+    /// 대표 이미지 (`/media/...`). 빈 문자열이면 지운다
+    #[serde(default)]
+    pub cover: Option<String>,
+    /// 예약 발행 시각 (RFC3339, 예: `2026-11-05T09:00:00+09:00`). 빈 문자열이면 예약을 취소한다.
+    /// 발행 권한이 필요하고, 아직 공개되지 않은 글에만 걸린다
+    #[serde(default)]
+    pub scheduled_at: Option<String>,
 }
 
 /// 글을 고친다. 제목이나 본문이 바뀌면 리비전을 남긴다.
@@ -234,6 +271,25 @@ pub async fn update(ctx: &Ctx, actor: &Actor, id: &str, patch: PostPatch) -> Res
     if let Some(e) = patch.excerpt {
         let e = e.trim().to_owned();
         after.excerpt = (!e.is_empty()).then_some(e);
+    }
+    if let Some(c) = &patch.cover {
+        after.cover = check_cover(c)?;
+    }
+    if let Some(at) = &patch.scheduled_at {
+        after.scheduled_at = check_schedule(at)?;
+        if after.scheduled_at.is_some() && after.scheduled_at != before.scheduled_at {
+            authorize_post(actor, &board, &before, Permission::PostPublish)?;
+            if !matches!(
+                before.status,
+                PostStatus::Draft | PostStatus::Review | PostStatus::Hidden
+            ) {
+                return Err(Error::new(Code::Conflict)
+                    .with_message("error.post_schedule_status")
+                    .arg("status", before.status.as_str())
+                    .with_hint("hint.post_schedule_status")
+                    .next(format!("maru post hide {}", before.id)));
+            }
+        }
     }
     if let Some(s) = &patch.slug {
         let s = slug::normalize(s)?;
@@ -351,9 +407,15 @@ async fn transition(
     if target == PostStatus::Published {
         authorize_post(actor, &board, &before, Permission::PostPublish)?;
     }
+    // 예약은 아직 공개 전인 글에만 남는다. 삭제·공개되면 함께 지운다.
+    let keep_schedule = matches!(
+        target,
+        PostStatus::Draft | PostStatus::Review | PostStatus::Hidden
+    );
     let after = Post {
         status: target,
         updated_at: clock::now(),
+        scheduled_at: before.scheduled_at.clone().filter(|_| keep_schedule),
         ..before.clone()
     };
     tx.update_post(&after).await?;
@@ -555,12 +617,56 @@ pub fn preview(_ctx: &Ctx, actor: &Actor, input: PreviewInput) -> Result<Preview
 }
 
 fn check_body(body: String) -> Result<String> {
-    if body.len() > MAX_BODY_BYTES {
-        return Err(Error::new(Code::Validation)
-            .with_message("error.body_too_large")
-            .arg("max", MAX_BODY_BYTES.to_string()));
+    super::body_text(body, MAX_BODY_BYTES)
+}
+
+/// 글의 대표 이미지: 지정한 것, 없으면 본문에 처음 나오는 보관소 사진.
+pub fn cover_of(post: &Post) -> Option<String> {
+    post.cover.clone().or_else(|| {
+        crate::markdown::image_urls(&post.body_md)
+            .into_iter()
+            .find(|u| u.starts_with("/media/"))
+    })
+}
+
+/// 대표 이미지는 이 사이트에 올린 파일만. 빈 값은 없음(본문 첫 사진을 쓴다).
+fn check_cover(value: &str) -> Result<Option<String>> {
+    let v = value.trim();
+    if v.is_empty() {
+        return Ok(None);
     }
-    Ok(body.trim_start_matches('\u{feff}').to_owned())
+    let ok = v.len() <= MAX_COVER
+        && v.starts_with("/media/")
+        && !v.contains("..")
+        && v.bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"/._-".contains(&b));
+    if !ok {
+        return Err(Error::new(Code::Validation)
+            .with_message("error.cover_url")
+            .arg("value", v));
+    }
+    Ok(Some(v.to_owned()))
+}
+
+/// 예약 시각을 저장 형태(UTC)로. 빈 값은 예약 취소. 지금 이후 1년 안쪽만 받는다.
+fn check_schedule(value: &str) -> Result<Option<String>> {
+    let v = value.trim();
+    if v.is_empty() {
+        return Ok(None);
+    }
+    let at = clock::parse(v).ok_or_else(|| {
+        Error::new(Code::Validation)
+            .with_message("error.timestamp")
+            .arg("value", v)
+    })?;
+    let now = time::OffsetDateTime::now_utc();
+    if at <= now || at > now + time::Duration::days(MAX_SCHEDULE_DAYS) {
+        return Err(Error::new(Code::Validation)
+            .with_message("error.schedule_range")
+            .arg("days", MAX_SCHEDULE_DAYS.to_string())
+            .arg("value", v));
+    }
+    Ok(Some(clock::format(at)))
 }
 
 pub(crate) fn not_found(id: &str) -> Error {

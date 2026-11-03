@@ -22,4 +22,5 @@ toml.workspace = true
 [dev-dependencies]
 tempfile.workspace = true
 image.workspace = true
+time.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

@@ -345,7 +345,8 @@ fn e2e2_link_password_post_logout_login() {
             ("_csrf", csrf),
             ("board", "blog"),
             ("title", "관리 화면에서 쓴 글"),
-            ("body_md", "## 소제목\n\n브라우저에서 발행합니다."),
+            // 브라우저는 textarea 줄바꿈을 CRLF 로 보낸다.
+            ("body_md", "## 소제목\r\n\r\n브라우저에서 발행합니다."),
             ("intent", "publish"),
         ])
     };
@@ -387,6 +388,36 @@ fn e2e2_link_password_post_logout_login() {
     let edit = http(&bind, "GET", &loc, &[("Cookie", &s2)], "");
     assert_eq!(edit.status, 200);
     assert!(edit.body.contains("발행했습니다"));
+    // 저장할 때 줄바꿈을 LF 하나로 맞춘다 (CLI·REST 로 쓴 글과 같은 모양).
+    assert_eq!(
+        db_scalar(
+            &data,
+            "SELECT count(*) FROM posts WHERE title = '관리 화면에서 쓴 글' \
+             AND body_md = '## 소제목' || char(10) || char(10) || '브라우저에서 발행합니다.'"
+        ),
+        1
+    );
+
+    // 글 에디터: textarea 는 그대로 두고(스크립트 없이도 저장된다) 번들을 붙인다.
+    assert!(edit.body.contains("data-editor>"), "{}", edit.body);
+    assert!(
+        edit.body
+            .contains("<script src=\"/admin/assets/editor.js\" defer></script>")
+    );
+    let csp = edit.header("content-security-policy").unwrap_or_default();
+    assert!(csp.contains("script-src 'self'"), "{csp}");
+    assert!(csp.contains("connect-src 'self'"), "{csp}");
+    assert!(!csp.contains("unsafe-inline"), "{csp}");
+    for (asset, mime) in [
+        ("editor.js", "javascript"),
+        ("editor.css", "text/css"),
+        ("editor.licenses.txt", "text/plain"),
+    ] {
+        let res = http(&bind, "GET", &format!("/admin/assets/{asset}"), &[], "");
+        assert_eq!(res.status, 200, "{asset}");
+        let ct = res.header("content-type").unwrap_or_default();
+        assert!(ct.contains(mime), "{asset}: {ct}");
+    }
     let public = edit
         .body
         .split("href=\"")

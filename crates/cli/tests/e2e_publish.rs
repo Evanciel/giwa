@@ -584,3 +584,164 @@ fn seo_outputs_follow_public_state() {
     let (_, rss) = http(&bind, "GET", "/rss.xml", &[], "");
     assert!(!rss.contains(url));
 }
+
+#[test]
+fn scheduled_post_goes_public_when_server_runs() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("예약");
+    let init = maru(&data, &["init", "--preset", "blog", "--yes"]);
+    let token = init["token"]["secret"].as_str().unwrap().to_owned();
+
+    let tomorrow = (time::OffsetDateTime::now_utc() + time::Duration::days(1))
+        .format(&time::format_description::well_known::Rfc3339)
+        .unwrap();
+    let p = maru(
+        &data,
+        &[
+            "post",
+            "new",
+            "--title",
+            "내일 아침 글",
+            "--body",
+            "예약된 본문",
+            "--schedule",
+            &tomorrow,
+        ],
+    );
+    let id = p["id"].as_str().unwrap().to_owned();
+    let slug = p["slug"].as_str().unwrap().to_owned();
+    assert_eq!(p["status"], "draft");
+    assert!(p["scheduled_at"].is_string(), "{p}");
+    let public_path = format!("/b/blog/{}", encode(&slug));
+
+    // 기본 토큰(발행 권한 없음)은 REST 로 예약할 수 없다
+    let (_server, bind) = start_server(&data);
+    let auth = format!("Bearer {token}");
+    let (status, res) = http(
+        &bind,
+        "PATCH",
+        &format!("/api/v1/posts/{id}"),
+        &[
+            ("Authorization", &auth),
+            ("Content-Type", "application/json"),
+        ],
+        &format!(r#"{{"scheduled_at":"{tomorrow}"}}"#),
+    );
+    assert_eq!(status, 403, "{res}");
+    let (status, _) = http(&bind, "GET", &public_path, &[], "");
+    assert_eq!(status, 404);
+    drop(_server);
+
+    // 예약 시각이 지난 것처럼 만들고 서버를 켜면, 켜자마자 발행된다
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    rt.block_on(async {
+        let db = maru_storage::Db::open(&data.join("maru.db"), false)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE posts SET scheduled_at = '2000-01-01T00:00:00.000000Z' WHERE id = ?")
+            .bind(&id)
+            .execute(db.write_pool())
+            .await
+            .unwrap();
+        db.close().await;
+    });
+    let (_server, bind) = start_server(&data);
+    let mut status = 0;
+    for _ in 0..50 {
+        status = http(&bind, "GET", &public_path, &[], "").0;
+        if status == 200 {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    assert_eq!(status, 200, "예약 글이 발행되지 않음");
+    let shown = maru(&data, &["post", "show", &id]);
+    assert_eq!(shown["status"], "published");
+    assert!(shown["scheduled_at"].is_null());
+
+    // 공개된 글은 예약할 수 없다 (CLI)
+    let out = Command::new(BIN)
+        .arg("--data")
+        .arg(&data)
+        .args(["post", "edit", &id, "--schedule", &tomorrow, "--json"])
+        .output()
+        .unwrap();
+    let v: Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(v["error"]["code"], "CONFLICT", "{v}");
+}
+
+#[test]
+fn post_templates_through_cli_and_rest() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("틀");
+    let init = maru(&data, &["init", "--preset", "blog", "--yes"]);
+    let token = init["token"]["secret"].as_str().unwrap().to_owned();
+
+    let a = maru(
+        &data,
+        &[
+            "template",
+            "save",
+            "--name",
+            "주간 회고",
+            "--body",
+            "## 한 일\n\n- ",
+        ],
+    );
+    let b = maru(
+        &data,
+        &[
+            "template",
+            "save",
+            "--name",
+            "주간 회고",
+            "--body",
+            "## 한 일\n\n- ",
+        ],
+    );
+    assert_eq!(a["id"], b["id"]);
+    let list = maru(&data, &["template", "list"]);
+    let names: Vec<&str> = list
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| t["name"].as_str().unwrap())
+        .collect();
+    assert!(
+        names.contains(&"여행기") && names.contains(&"주간 회고"),
+        "{names:?}"
+    );
+
+    let (_server, bind) = start_server(&data);
+    let auth = format!("Bearer {token}");
+    let (status, res) = http(
+        &bind,
+        "GET",
+        "/api/v1/templates",
+        &[("Authorization", &auth)],
+        "",
+    );
+    assert_eq!(status, 200, "{res}");
+    assert!(
+        res.contains("주간 회고") && res.contains("\"builtin\":true"),
+        "{res}"
+    );
+    // 기본 토큰은 저장할 수 없다
+    let (status, res) = http(
+        &bind,
+        "POST",
+        "/api/v1/templates",
+        &[
+            ("Authorization", &auth),
+            ("Content-Type", "application/json"),
+        ],
+        r#"{"name":"x","body_md":"y"}"#,
+    );
+    assert_eq!(status, 403, "{res}");
+
+    let del = maru(&data, &["template", "delete", "주간 회고"]);
+    assert_eq!(del["name"], "주간 회고");
+}

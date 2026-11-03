@@ -147,6 +147,12 @@ pub struct Post {
     pub published_at: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+    /// 이 시각이 지나면 서버가 발행한다. 공개된 글에는 없다.
+    #[serde(default)]
+    pub scheduled_at: Option<String>,
+    /// 대표 이미지 주소 (`/media/...`). 없으면 본문 첫 사진을 쓴다.
+    #[serde(default)]
+    pub cover: Option<String>,
 }
 
 impl Post {
@@ -219,6 +225,33 @@ pub struct MediaVariant {
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub url: String,
     pub size: i64,
+}
+
+/// 첨부 파일. 그림과 달리 다시 인코딩하지 않고, 내려받기(`Content-Disposition: attachment`)로만 내보낸다.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+pub struct Attachment {
+    pub id: Id,
+    /// 보관소 상대 경로 (`files/2026/11/<id>.pdf`)
+    pub path: String,
+    /// 내려받는 주소 (`/files/<id>`)
+    pub url: String,
+    /// 올릴 때의 파일 이름. 화면과 내려받기 이름에만 쓴다
+    pub filename: String,
+    pub mime: String,
+    pub size: i64,
+    pub created_at: String,
+}
+
+/// 글 틀. 새 글 본문으로 불러오는 뼈대.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+pub struct PostTemplate {
+    pub id: Id,
+    pub name: String,
+    pub body_md: String,
+    /// 바이너리에 든 기본 틀. 고치거나 지울 수 없다
+    pub builtin: bool,
+    pub created_at: String,
+    pub updated_at: String,
 }
 
 /// 목록 조회의 쪽 단위.

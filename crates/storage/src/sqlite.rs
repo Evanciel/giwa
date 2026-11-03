@@ -4,8 +4,8 @@ use async_trait::async_trait;
 use maru_core::actor::{AuthorType, Permission, Scope};
 use maru_core::audit::AuditRecord;
 use maru_core::model::{
-    Board, BoardPolicy, LoginTicket, Media, MediaVariant, Member, MemberStatus, Page, PageStatus,
-    Post, PostKind, PostStatus, Revision, Role, Session, Token,
+    Attachment, Board, BoardPolicy, LoginTicket, Media, MediaVariant, Member, MemberStatus, Page,
+    PageStatus, Post, PostKind, PostStatus, PostTemplate, Revision, Role, Session, Token,
 };
 use maru_core::store::{MenuRow, PostFilter, PublishedQuery, Store, WriteTx};
 use maru_core::{Code, Error, Result, urls};
@@ -78,6 +78,8 @@ struct PostRow {
     published_at: Option<String>,
     created_at: String,
     updated_at: String,
+    scheduled_at: Option<String>,
+    cover: Option<String>,
 }
 
 impl TryFrom<PostRow> for Post {
@@ -100,6 +102,8 @@ impl TryFrom<PostRow> for Post {
             published_at: r.published_at,
             created_at: r.created_at,
             updated_at: r.updated_at,
+            scheduled_at: r.scheduled_at,
+            cover: r.cover,
         })
     }
 }
@@ -316,7 +320,7 @@ async fn post_by_id<'e>(e: impl SqliteExecutor<'e>, id: &str) -> Result<Option<P
     sqlx::query_as!(
         PostRow,
         "SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,
-                actor_type, published_at, created_at, updated_at
+                actor_type, published_at, created_at, updated_at, scheduled_at, cover
          FROM posts WHERE id = ?",
         id
     )
@@ -421,7 +425,7 @@ impl Store for SqliteStore {
         sqlx::query_as!(
             PostRow,
             "SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,
-                    actor_type, published_at, created_at, updated_at
+                    actor_type, published_at, created_at, updated_at, scheduled_at, cover
              FROM posts WHERE board_id = ? AND slug = ?",
             board_id,
             slug
@@ -442,7 +446,8 @@ impl Store for SqliteStore {
                       p.status AS "status!", p.title AS "title!", p.slug AS "slug!",
                       p.body_md AS "body_md!", p.excerpt, p.author_id,
                       p.actor_type AS "actor_type!", p.published_at,
-                      p.created_at AS "created_at!", p.updated_at AS "updated_at!"
+                      p.created_at AS "created_at!", p.updated_at AS "updated_at!",
+                      p.scheduled_at, p.cover
                FROM posts p
                JOIN boards b ON b.id = p.board_id
                JOIN roles r ON r.name = json_extract(b.policy, '$.read')
@@ -482,7 +487,7 @@ impl Store for SqliteStore {
         let rows = sqlx::query_as!(
             PostRow,
             "SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,
-                    actor_type, published_at, created_at, updated_at
+                    actor_type, published_at, created_at, updated_at, scheduled_at, cover
              FROM posts
              WHERE kind = 'post' AND (?1 IS NULL OR board_id = ?1) AND (?2 IS NULL OR status = ?2)
              ORDER BY updated_at DESC, id DESC
@@ -677,6 +682,57 @@ impl Store for SqliteStore {
         convert(rows)
     }
 
+    async fn due_posts(&self, now: &str, limit: i64) -> Result<Vec<String>> {
+        sqlx::query_scalar!(
+            r#"SELECT id AS "id!" FROM posts
+               WHERE scheduled_at IS NOT NULL AND scheduled_at <= ?1
+                 AND kind = 'post' AND status IN ('draft', 'review', 'hidden')
+               ORDER BY scheduled_at, id
+               LIMIT ?2"#,
+            now,
+            limit
+        )
+        .fetch_all(&self.db.read)
+        .await
+        .map_err(db_error)
+    }
+
+    async fn attachment_by_id(&self, id: &str) -> Result<Option<Attachment>> {
+        attachment_by_id(&self.db.read, id).await
+    }
+
+    async fn list_attachments(&self, limit: i64, offset: i64) -> Result<Vec<Attachment>> {
+        let rows = sqlx::query_as!(
+            AttachmentRow,
+            "SELECT id, path, filename, mime, size, created_at
+             FROM files ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?",
+            limit,
+            offset
+        )
+        .fetch_all(&self.db.read)
+        .await
+        .map_err(db_error)?;
+        Ok(rows.into_iter().map(Attachment::from).collect())
+    }
+
+    async fn count_attachments(&self) -> Result<i64> {
+        sqlx::query_scalar!(r#"SELECT count(*) AS "n!: i64" FROM files"#)
+            .fetch_one(&self.db.read)
+            .await
+            .map_err(db_error)
+    }
+
+    async fn list_templates(&self) -> Result<Vec<PostTemplate>> {
+        let rows = sqlx::query_as!(
+            TemplateRow,
+            "SELECT id, name, body_md, created_at, updated_at FROM post_templates ORDER BY name"
+        )
+        .fetch_all(&self.db.read)
+        .await
+        .map_err(db_error)?;
+        Ok(rows.into_iter().map(PostTemplate::from).collect())
+    }
+
     async fn count_media(&self) -> Result<i64> {
         sqlx::query_scalar!("SELECT COUNT(*) FROM media")
             .fetch_one(&self.db.read)
@@ -803,8 +859,9 @@ impl WriteTx for SqliteWriteTx {
             (p.kind.as_str(), p.status.as_str(), p.actor_type.as_str());
         sqlx::query!(
             "INSERT INTO posts (id, board_id, kind, status, title, slug, body_md, excerpt,
-                                author_id, actor_type, published_at, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                author_id, actor_type, published_at, created_at, updated_at,
+                                scheduled_at, cover)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             p.id,
             p.board_id,
             kind,
@@ -817,7 +874,9 @@ impl WriteTx for SqliteWriteTx {
             actor_type,
             p.published_at,
             p.created_at,
-            p.updated_at
+            p.updated_at,
+            p.scheduled_at,
+            p.cover
         )
         .execute(&mut *self.tx)
         .await
@@ -829,7 +888,8 @@ impl WriteTx for SqliteWriteTx {
         let status = p.status.as_str();
         let res = sqlx::query!(
             "UPDATE posts SET board_id = ?, status = ?, title = ?, slug = ?, body_md = ?,
-                              excerpt = ?, published_at = ?, updated_at = ?
+                              excerpt = ?, published_at = ?, updated_at = ?,
+                              scheduled_at = ?, cover = ?
              WHERE id = ?",
             p.board_id,
             status,
@@ -839,6 +899,8 @@ impl WriteTx for SqliteWriteTx {
             p.excerpt,
             p.published_at,
             p.updated_at,
+            p.scheduled_at,
+            p.cover,
             p.id
         )
         .execute(&mut *self.tx)
@@ -1240,6 +1302,157 @@ impl WriteTx for SqliteWriteTx {
             .map_err(db_error)?;
         Ok(())
     }
+
+    async fn attachment_by_id(&mut self, id: &str) -> Result<Option<Attachment>> {
+        attachment_by_id(&mut *self.tx, id).await
+    }
+
+    async fn insert_attachment(&mut self, a: &Attachment) -> Result<()> {
+        sqlx::query!(
+            "INSERT INTO files (id, path, filename, mime, size, created_at)
+             VALUES (?, ?, ?, ?, ?, ?)",
+            a.id,
+            a.path,
+            a.filename,
+            a.mime,
+            a.size,
+            a.created_at
+        )
+        .execute(&mut *self.tx)
+        .await
+        .map_err(db_error)?;
+        Ok(())
+    }
+
+    async fn delete_attachment(&mut self, id: &str) -> Result<()> {
+        sqlx::query!("DELETE FROM files WHERE id = ?", id)
+            .execute(&mut *self.tx)
+            .await
+            .map_err(db_error)?;
+        Ok(())
+    }
+
+    async fn template_by_id(&mut self, id: &str) -> Result<Option<PostTemplate>> {
+        let row = sqlx::query_as!(
+            TemplateRow,
+            "SELECT id, name, body_md, created_at, updated_at FROM post_templates WHERE id = ?",
+            id
+        )
+        .fetch_optional(&mut *self.tx)
+        .await
+        .map_err(db_error)?;
+        Ok(row.map(PostTemplate::from))
+    }
+
+    async fn template_by_name(&mut self, name: &str) -> Result<Option<PostTemplate>> {
+        let row = sqlx::query_as!(
+            TemplateRow,
+            "SELECT id, name, body_md, created_at, updated_at FROM post_templates WHERE name = ?",
+            name
+        )
+        .fetch_optional(&mut *self.tx)
+        .await
+        .map_err(db_error)?;
+        Ok(row.map(PostTemplate::from))
+    }
+
+    async fn insert_template(&mut self, t: &PostTemplate) -> Result<()> {
+        sqlx::query!(
+            "INSERT INTO post_templates (id, name, body_md, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?)",
+            t.id,
+            t.name,
+            t.body_md,
+            t.created_at,
+            t.updated_at
+        )
+        .execute(&mut *self.tx)
+        .await
+        .map_err(db_error)?;
+        Ok(())
+    }
+
+    async fn update_template(&mut self, t: &PostTemplate) -> Result<()> {
+        sqlx::query!(
+            "UPDATE post_templates SET name = ?, body_md = ?, updated_at = ? WHERE id = ?",
+            t.name,
+            t.body_md,
+            t.updated_at,
+            t.id
+        )
+        .execute(&mut *self.tx)
+        .await
+        .map_err(db_error)?;
+        Ok(())
+    }
+
+    async fn delete_template(&mut self, id: &str) -> Result<()> {
+        sqlx::query!("DELETE FROM post_templates WHERE id = ?", id)
+            .execute(&mut *self.tx)
+            .await
+            .map_err(db_error)?;
+        Ok(())
+    }
+}
+
+// ---- 글 틀 ----
+
+struct TemplateRow {
+    id: String,
+    name: String,
+    body_md: String,
+    created_at: String,
+    updated_at: String,
+}
+
+impl From<TemplateRow> for PostTemplate {
+    fn from(r: TemplateRow) -> Self {
+        PostTemplate {
+            id: r.id,
+            name: r.name,
+            body_md: r.body_md,
+            builtin: false,
+            created_at: r.created_at,
+            updated_at: r.updated_at,
+        }
+    }
+}
+
+// ---- 첨부 파일 ----
+
+struct AttachmentRow {
+    id: String,
+    path: String,
+    filename: String,
+    mime: String,
+    size: i64,
+    created_at: String,
+}
+
+impl From<AttachmentRow> for Attachment {
+    fn from(r: AttachmentRow) -> Self {
+        Attachment {
+            url: urls::file(&r.id),
+            id: r.id,
+            path: r.path,
+            filename: r.filename,
+            mime: r.mime,
+            size: r.size,
+            created_at: r.created_at,
+        }
+    }
+}
+
+async fn attachment_by_id<'e>(e: impl SqliteExecutor<'e>, id: &str) -> Result<Option<Attachment>> {
+    let row = sqlx::query_as!(
+        AttachmentRow,
+        "SELECT id, path, filename, mime, size, created_at FROM files WHERE id = ?",
+        id
+    )
+    .fetch_optional(e)
+    .await
+    .map_err(db_error)?;
+    Ok(row.map(Attachment::from))
 }
 
 // ---- 미디어 ----

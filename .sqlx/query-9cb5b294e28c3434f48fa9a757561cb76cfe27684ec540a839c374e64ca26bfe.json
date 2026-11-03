@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,\n                actor_type, published_at, created_at, updated_at\n         FROM posts WHERE id = ?",
+  "query": "SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,\n                actor_type, published_at, created_at, updated_at, scheduled_at, cover\n         FROM posts WHERE id = ?",
   "describe": {
     "columns": [
       {
@@ -145,6 +145,28 @@
             "name": "updated_at"
           }
         }
+      },
+      {
+        "name": "scheduled_at",
+        "ordinal": 13,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "scheduled_at"
+          }
+        }
+      },
+      {
+        "name": "cover",
+        "ordinal": 14,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "cover"
+          }
+        }
       }
     ],
     "parameters": {
@@ -163,8 +185,10 @@
       false,
       true,
       false,
-      false
+      false,
+      true,
+      true
     ]
   },
-  "hash": "7c4f6ce3ddbddacc887abca239ff0dd0b8b52085bc1e29bb5c1f4942259c1d29"
+  "hash": "9cb5b294e28c3434f48fa9a757561cb76cfe27684ec540a839c374e64ca26bfe"
 }

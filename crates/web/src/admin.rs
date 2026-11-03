@@ -15,11 +15,12 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
 use axum::{Router, middleware};
+use maru_core::clock;
 use maru_core::model::{PageReq, Post, PostStatus};
 use maru_core::output::Success;
 use maru_core::services::auth::{self, NewSession, SignedIn};
 use maru_core::services::posts::{self, NewPost, PostPatch};
-use maru_core::services::{boards, media};
+use maru_core::services::{boards, files, media, settings, templates};
 use maru_core::urls::{self, Target};
 use maru_core::{Code, Error};
 use serde::Deserialize;
@@ -45,6 +46,11 @@ pub fn routes() -> Router<AppState> {
             "/admin/media",
             post(upload).layer(DefaultBodyLimit::max(crate::UPLOAD_LIMIT)),
         )
+        .route(
+            "/admin/files",
+            post(upload_file).layer(DefaultBodyLimit::max(crate::UPLOAD_LIMIT)),
+        )
+        .route("/admin/templates", get(list_templates).post(save_template))
         .route("/admin/preview", post(preview))
         .route("/admin/assets/{*path}", get(asset))
         .layer(middleware::map_response(admin_headers))
@@ -61,8 +67,9 @@ async fn admin_headers(mut res: Response) -> Response {
     h.insert(
         header::CONTENT_SECURITY_POLICY,
         HeaderValue::from_static(
-            "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'none'; \
-             object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+            "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; \
+             connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; \
+             frame-ancestors 'none'; frame-src https://www.youtube-nocookie.com https://player.vimeo.com",
         ),
     );
     res
@@ -527,6 +534,8 @@ fn notice(done: &str) -> Option<&'static str> {
         "password" => "비밀번호를 저장했습니다. 다른 기기의 로그인은 끊겼습니다.",
         "saved" => "저장했습니다.",
         "published" => "발행했습니다.",
+        "scheduled" => "예약했습니다. 그 시각이 되면 서버가 발행합니다.",
+        "unscheduled" => "예약을 취소했습니다.",
         "hidden" => "숨겼습니다.",
         "deleted" => "삭제했습니다.",
         "restored" => "되살렸습니다.",
@@ -554,7 +563,7 @@ struct HomeQuery {
     page: Option<u32>,
 }
 
-fn post_row(p: &Post, board_slug: &str, board_name: &str) -> Value {
+fn post_row(p: &Post, board_slug: &str, board_name: &str, tz: i32) -> Value {
     let public = p.is_public().then(|| {
         urls::path(&Target::Post {
             board: board_slug,
@@ -569,6 +578,7 @@ fn post_row(p: &Post, board_slug: &str, board_name: &str) -> Value {
         "board": board_name,
         "updated": p.updated_at.get(..10).unwrap_or(&p.updated_at),
         "public_url": public,
+        "scheduled": p.scheduled_at.as_deref().map(|s| clock::display_datetime(s, tz)),
     })
 }
 
@@ -589,6 +599,10 @@ async fn home(
     let boards = boards::list(&state.ctx, &who.actor)
         .await
         .unwrap_or_default();
+    let tz = settings::site(&state.ctx)
+        .await
+        .map(|s| s.tz_offset_min)
+        .unwrap_or(540);
     let rows: Vec<Value> = listing
         .items
         .iter()
@@ -598,6 +612,7 @@ async fn home(
                 p,
                 b.map(|b| b.slug.as_str()).unwrap_or_default(),
                 b.map(|b| b.name.as_str()).unwrap_or_default(),
+                tz,
             )
         })
         .collect();
@@ -630,9 +645,28 @@ struct PostForm {
     body_md: String,
     #[serde(default)]
     excerpt: String,
-    /// `draft` 또는 `publish`
+    #[serde(default)]
+    cover: String,
+    /// 브라우저 `datetime-local` 값 (사이트 시간대)
+    #[serde(default)]
+    scheduled_at: String,
+    /// `draft`, `publish`, `schedule`, `unschedule`
     #[serde(default)]
     intent: String,
+}
+
+/// 폼의 예약 의도를 서비스 입력으로. `None` 이면 예약을 건드리지 않는다.
+async fn schedule_value(state: &AppState, f: &PostForm) -> Result<Option<String>, Error> {
+    match f.intent.as_str() {
+        "unschedule" => Ok(Some(String::new())),
+        "schedule" => {
+            let tz = settings::site(&state.ctx).await?.tz_offset_min;
+            maru_core::clock::from_local_input(&f.scheduled_at, tz)
+                .map(Some)
+                .ok_or_else(|| Error::new(Code::Validation).with_message("error.schedule_pick"))
+        }
+        _ => Ok(None),
+    }
 }
 
 async fn edit_page(
@@ -647,6 +681,10 @@ async fn edit_page(
     let boards = boards::list(&state.ctx, &who.actor)
         .await
         .unwrap_or_default();
+    let tz = settings::site(&state.ctx)
+        .await
+        .map(|s| s.tz_offset_min)
+        .unwrap_or(540);
     let board_slug = post
         .and_then(|p| boards.iter().find(|b| b.id == p.board_id))
         .map(|b| b.slug.clone());
@@ -663,10 +701,12 @@ async fn edit_page(
         (Some(f), _) => json!({
             "board": f.board, "title": f.title, "slug": f.slug,
             "body_md": f.body_md, "excerpt": f.excerpt,
+            "cover": f.cover, "scheduled_at": f.scheduled_at,
         }),
         (None, Some(p)) => json!({
             "board": board_slug, "title": p.title, "slug": p.slug,
-            "body_md": p.body_md, "excerpt": p.excerpt,
+            "body_md": p.body_md, "excerpt": p.excerpt, "cover": p.cover,
+            "scheduled_at": p.scheduled_at.as_deref().map(|s| clock::to_local_input(s, tz)),
         }),
         (None, None) => json!({ "board": boards.first().map(|b| b.slug.clone()) }),
     };
@@ -683,6 +723,7 @@ async fn edit_page(
                 "id": p.id,
                 "status": p.status,
                 "status_label": status_label(p.status),
+                "scheduled": p.scheduled_at.as_deref().map(|s| clock::display_datetime(s, tz)),
             })),
             "values": values,
             "public_url": public_url,
@@ -724,6 +765,7 @@ async fn create(
         slug: opt(&f.slug),
         body_md: f.body_md.clone(),
         excerpt: opt(&f.excerpt),
+        cover: opt(&f.cover),
     };
     let post = match posts::create_draft(&state.ctx, &who.actor, input).await {
         Ok(p) => p,
@@ -741,12 +783,47 @@ async fn create(
         }
         Err(e) => return fail(&state, Some(&who), &e).await,
     };
-    finish_save(&state, &who, post, &f.intent).await
+    finish_save(&state, &who, post, &f).await
 }
 
-/// 저장 뒤 `intent=publish` 면 발행까지. 발행이 실패해도 저장은 남는다.
-async fn finish_save(state: &AppState, who: &SignedIn, post: Post, intent: &str) -> Response {
-    if intent == "publish" && post.status != PostStatus::Published {
+/// 저장 뒤 `intent=publish` 면 발행, `schedule`·`unschedule` 이면 예약까지. 실패해도 저장은 남는다.
+async fn finish_save(state: &AppState, who: &SignedIn, post: Post, f: &PostForm) -> Response {
+    if matches!(f.intent.as_str(), "schedule" | "unschedule") {
+        let res = match schedule_value(state, f).await {
+            Ok(at) => {
+                let patch = PostPatch {
+                    scheduled_at: at,
+                    ..Default::default()
+                };
+                posts::update(&state.ctx, &who.actor, &post.id, patch).await
+            }
+            Err(e) => Err(e),
+        };
+        return match res {
+            Ok(p) => {
+                let done = if p.scheduled_at.is_some() {
+                    "scheduled"
+                } else {
+                    "unscheduled"
+                };
+                Redirect::to(&format!("/admin/posts/{}?done={done}", p.id)).into_response()
+            }
+            Err(e) if e.code() != Code::Internal => {
+                edit_page(
+                    state,
+                    who,
+                    StatusCode::from_u16(e.code().http_status()).unwrap_or(StatusCode::BAD_REQUEST),
+                    Some(&post),
+                    None,
+                    Some("저장했지만 예약하지 못했습니다."),
+                    Some(e.message()),
+                )
+                .await
+            }
+            Err(e) => fail(state, Some(who), &e).await,
+        };
+    }
+    if f.intent == "publish" && post.status != PostStatus::Published {
         return match posts::publish(&state.ctx, &who.actor, &post.id).await {
             Ok(p) => Redirect::to(&format!("/admin/posts/{}?done=published", p.id)).into_response(),
             Err(e) if e.code() != Code::Internal => {
@@ -818,9 +895,11 @@ async fn save(
         slug: opt(&f.slug),
         body_md: Some(f.body_md.clone()),
         excerpt: Some(f.excerpt.clone()),
+        cover: Some(f.cover.clone()),
+        scheduled_at: None,
     };
     match posts::update(&state.ctx, &who.actor, &id, patch).await {
-        Ok(p) => finish_save(&state, &who, p, &f.intent).await,
+        Ok(p) => finish_save(&state, &who, p, &f).await,
         Err(e) if matches!(e.code(), Code::Validation | Code::Conflict) => {
             match posts::get(&state.ctx, &who.actor, &id).await {
                 Ok(p) => {
@@ -964,6 +1043,54 @@ async fn upload(
     };
     let m = crate::upload_media(&state, who.actor, input).await?;
     Ok((StatusCode::CREATED, Json(Success::new(m))).into_response())
+}
+
+/// 에디터의 글 틀 메뉴. REST `/api/v1/templates` 와 같은 서비스.
+async fn list_templates(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Response, ApiError> {
+    let who = json_session(&state, &headers).await?;
+    let list = templates::list(&state.ctx, &who.actor).await?;
+    Ok(Json(Success::new(list)).into_response())
+}
+
+async fn save_template(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    body: Result<Json<templates::SaveTemplate>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let who = json_session(&state, &headers).await?;
+    let Json(input) = body.map_err(|e| {
+        ApiError(
+            Error::new(Code::Validation)
+                .with_message("error.json_body")
+                .arg("detail", e.body_text()),
+        )
+    })?;
+    let t = templates::save(&state.ctx, &who.actor, input).await?;
+    Ok(Json(Success::new(t)).into_response())
+}
+
+#[derive(Debug, Deserialize)]
+struct FileQuery {
+    filename: String,
+}
+
+/// 에디터의 파일 첨부. REST `POST /api/v1/files` 와 같은 서비스.
+async fn upload_file(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<FileQuery>,
+    body: Bytes,
+) -> Result<Response, ApiError> {
+    let who = json_session(&state, &headers).await?;
+    let input = files::Upload {
+        filename: q.filename,
+        bytes: body.to_vec(),
+    };
+    let f = files::upload(&state.ctx, &who.actor, input).await?;
+    Ok((StatusCode::CREATED, Json(Success::new(f))).into_response())
 }
 
 async fn preview(

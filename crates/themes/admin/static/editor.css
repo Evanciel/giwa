@@ -1,0 +1,417 @@
+/* Maru 글 에디터. admin.css 의 색 변수를 쓴다. */
+.me {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.me:focus-within { border-color: var(--primary); }
+.me-bar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .25rem .75rem;
+  align-items: center;
+  padding: .375rem .5rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+.me-modes, .me-tools { display: flex; flex-wrap: wrap; gap: .125rem; align-items: center; }
+.me-modes { padding-right: .5rem; border-right: 1px solid var(--border); }
+.me button.me-mode, .me button.me-tool {
+  min-height: 2rem;
+  min-width: 2rem;
+  padding: .125rem .5rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  font-size: .875rem;
+  line-height: 1.2;
+  cursor: pointer;
+}
+.me button.me-tool:hover:not(:disabled), .me button.me-mode:hover { background: var(--bg); }
+.me button[aria-pressed="true"] {
+  background: var(--ok-bg);
+  border-color: var(--primary);
+  color: var(--fg);
+}
+.me button.me-mode[aria-pressed="true"] { font-weight: 600; }
+.me button.me-tool:disabled { opacity: .4; cursor: default; }
+.me-tool[aria-label="굵게"] { font-weight: 700; }
+.me-tool[aria-label="기울임"] { font-style: italic; }
+.me-tool[aria-label="취소선"] { text-decoration: line-through; }
+.me-tool[aria-label="코드"] { font-family: D2Coding, ui-monospace, Consolas, monospace; }
+.me-sep { width: 1px; height: 1.25rem; margin: 0 .25rem; background: var(--border); }
+
+.me-pop, .me-notice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  align-items: center;
+  padding: .5rem .75rem;
+  border-bottom: 1px solid var(--border);
+  font-size: .9rem;
+}
+.me-pop[hidden], .me-notice[hidden] { display: none; }
+.me-pop label { font-weight: 600; }
+.me-pop input { flex: 1 1 14rem; min-width: 0; }
+.me-notice { background: var(--ok-bg); }
+.me button.me-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--primary);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.me-rich, .me-preview, .me textarea.me-source {
+  min-height: 26rem;
+  max-height: 75vh;
+  overflow: auto;
+}
+.me textarea.me-source {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 1rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  resize: vertical;
+}
+.me textarea.me-source:focus-visible { outline: none; }
+.me-rich[hidden], .me-preview[hidden], .me textarea.me-source[hidden] { display: none; }
+
+/* 편집 영역. 공개 화면 본문과 비슷한 리듬으로 보여 준다. */
+.me-doc {
+  position: relative;
+  min-height: 26rem;
+  padding: 1rem 1.25rem 2rem;
+  outline: none;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-variant-ligatures: none;
+  line-height: 1.75;
+}
+.me-doc.me-empty::before {
+  content: attr(data-placeholder);
+  position: absolute;
+  color: var(--muted);
+  pointer-events: none;
+}
+.me-doc > :first-child, .me-preview > :first-child { margin-top: 0; }
+.me-doc p, .me-preview p { margin: 0 0 1em; }
+.me-doc h1, .me-doc h2, .me-doc h3, .me-preview h1, .me-preview h2, .me-preview h3 {
+  margin: 1.6em 0 .6em;
+  line-height: 1.35;
+  letter-spacing: -.01em;
+}
+.me-doc h1, .me-preview h1 { font-size: 1.75rem; }
+.me-doc h2, .me-preview h2 { font-size: 1.4rem; }
+.me-doc h3, .me-preview h3 { font-size: 1.15rem; }
+.me-doc blockquote, .me-preview blockquote {
+  margin: 0 0 1em;
+  padding: .25em 0 .25em 1em;
+  border-left: 3px solid var(--border);
+  color: var(--muted);
+}
+.me-doc ul, .me-doc ol, .me-preview ul, .me-preview ol { margin: 0 0 1em; padding-left: 1.5em; }
+.me-doc li > p, .me-preview li > p { margin: 0; }
+.me-doc code, .me-preview code {
+  padding: .1em .3em;
+  border-radius: 4px;
+  background: var(--bg);
+  font-family: D2Coding, ui-monospace, Consolas, monospace;
+  font-size: .9em;
+}
+.me-doc pre, .me-preview pre {
+  margin: 0 0 1em;
+  padding: .75rem 1rem;
+  border-radius: 6px;
+  background: var(--bg);
+  overflow-x: auto;
+  white-space: pre;
+}
+.me-doc pre code, .me-preview pre code { padding: 0; background: none; }
+.me-doc hr, .me-preview hr { margin: 2em 0; border: 0; border-top: 1px solid var(--border); }
+.me-doc img, .me-preview img { max-width: 100%; height: auto; border-radius: 4px; }
+.me-doc img.ProseMirror-selectednode { outline: 3px solid var(--primary); outline-offset: 2px; }
+.me-doc a, .me-preview a { color: var(--primary); }
+.me-doc a[href^="/files/"]::before, .me-preview a[href^="/files/"]::before { content: "📎 "; }
+.me-doc .ProseMirror-selectednode { outline: 2px solid var(--primary); }
+.me-doc li { position: relative; }
+.me-preview { padding: 1rem 1.25rem 2rem; line-height: 1.75; }
+.me-preview table { border-collapse: collapse; margin: 0 0 1em; }
+.me-preview th, .me-preview td { padding: .375rem .625rem; border: 1px solid var(--border); }
+.me-muted { color: var(--muted); }
+
+.me-uploading {
+  display: inline-block;
+  padding: .125rem .5rem;
+  border: 1px dashed var(--primary);
+  border-radius: 4px;
+  color: var(--muted);
+  font-size: .875rem;
+}
+
+.me-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: .375rem .75rem;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: .8rem;
+}
+.me-status.me-error { color: var(--warn); font-weight: 600; }
+.me-count { white-space: nowrap; }
+
+/* ProseMirror 가 요구하는 최소 규칙 */
+.ProseMirror-hideselection *::selection { background: transparent; }
+.ProseMirror-hideselection { caret-color: transparent; }
+.ProseMirror [draggable][contenteditable="false"] { user-select: text; }
+
+@media (max-width: 640px) {
+  .me-bar { padding: .25rem; }
+  .me-modes { border-right: 0; padding-right: 0; width: 100%; }
+  /* 고정 도구 막대가 화면을 덜 먹게 한 줄로 두고 옆으로 민다. */
+  .me-tools { flex-wrap: nowrap; width: 100%; overflow-x: auto; scrollbar-width: thin; }
+  .me-tools > * { flex: none; }
+  .me-doc { padding: .75rem .75rem 1.5rem; }
+  .me-rich, .me-preview, .me textarea.me-source, .me-doc { min-height: 18rem; }
+}
+.me-meta { display: inline-flex; gap: .75rem; white-space: nowrap; }
+
+/* 보기 단추(맞춤법·전체 화면)는 도구 막대 오른쪽 끝 */
+.me-view { display: flex; gap: .125rem; margin-left: auto; }
+
+/* 할 일 목록 */
+.me-doc li.me-task { list-style: none; display: flex; gap: .5rem; align-items: flex-start; margin-left: -1.25em; }
+.me-doc li.me-task > input { margin: .45em 0 0; width: 1rem; height: 1rem; flex: none; cursor: pointer; accent-color: var(--primary); }
+.me-doc li.me-task > .me-task-body { flex: 1; min-width: 0; }
+.me-doc li.me-task[data-checked="true"] > .me-task-body { color: var(--muted); text-decoration: line-through; }
+.me-preview li:has(> input[type="checkbox"]) { list-style: none; margin-left: -1.25em; }
+.me-preview sup.fnref { font-size: .75em; }
+.me-preview .footnote { display: flex; gap: .5em; margin-top: .5em; color: var(--muted); font-size: .9em; }
+.me-preview .footnote > p { margin: 0; }
+.me-preview :not(.footnote) + .footnote { margin-top: 2em; padding-top: .75em; border-top: 1px solid var(--border); }
+
+/* 각주 */
+.me-doc sup.me-fnref {
+  padding: 0 .2em;
+  border-radius: 3px;
+  background: var(--ok-bg);
+  color: var(--primary);
+  font-size: .75em;
+  cursor: pointer;
+}
+.me-doc sup.me-fnref::before { content: "["; }
+.me-doc sup.me-fnref::after { content: "]"; }
+.me-doc .me-fndef {
+  position: relative;
+  margin: .25em 0;
+  padding: .25em 0 .25em 2.25em;
+  border-top: 1px dashed var(--border);
+  color: var(--muted);
+  font-size: .9em;
+}
+.me-doc .me-fndef::before {
+  content: attr(data-label) ".";
+  position: absolute;
+  left: .25em;
+  color: var(--primary);
+  font-weight: 600;
+}
+
+/* 링크 말풍선 */
+.me-rich { position: relative; }
+.me-bubble {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  gap: .75rem;
+  align-items: center;
+  max-width: min(28rem, 100%);
+  padding: .375rem .625rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: 0 4px 16px rgb(0 0 0 / .12);
+  font-size: .85rem;
+}
+.me-bubble[hidden] { display: none; }
+.me-bubble-url { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; color: var(--primary); }
+
+/* 이모지·특수문자 */
+.me-chars { padding: .5rem .75rem; border-bottom: 1px solid var(--border); }
+.me-chars[hidden] { display: none; }
+.me-chars-tabs { display: flex; flex-wrap: wrap; gap: .25rem; margin-bottom: .5rem; }
+.me button.me-chars-tab {
+  padding: .125rem .5rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  font-size: .8rem;
+  cursor: pointer;
+}
+.me button.me-chars-tab[aria-selected="true"] { border-color: var(--primary); background: var(--ok-bg); font-weight: 600; }
+.me-chars-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(2.25rem, 1fr));
+  gap: .125rem;
+  max-height: 12rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.me button.me-char {
+  height: 2.25rem;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.me button.me-char:hover, .me button.me-char:focus-visible { background: var(--bg); }
+.me-chars-close { margin-top: .375rem; font-size: .85rem; }
+
+/* 전체 화면으로 쓰기 */
+.me.me-full {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  border-radius: 0;
+}
+.me.me-full .me-bar { border-radius: 0; }
+.me.me-full .me-rich, .me.me-full .me-preview, .me.me-full textarea.me-source { flex: 1; max-height: none; }
+.me.me-full .me-doc, .me.me-full .me-preview, .me.me-full textarea.me-source {
+  max-width: 46rem;
+  margin: 0 auto;
+  width: 100%;
+}
+html.me-full-lock, html.me-full-lock body { overflow: hidden; }
+
+/* ---- Maru 확장 문법 (ADR-0034): 강조 상자·정렬·글자 꾸밈 ----
+   색은 본문 글자색(--fg)과 섞어 밝은·어두운 화면 모두에서 대비를 유지한다. */
+.tc-red { color: color-mix(in srgb, #d0342c 80%, var(--fg)); }
+.tc-orange { color: color-mix(in srgb, #d9630b 80%, var(--fg)); }
+.tc-green { color: color-mix(in srgb, #1f8a4c 80%, var(--fg)); }
+.tc-blue { color: color-mix(in srgb, #2563c9 80%, var(--fg)); }
+.tc-purple { color: color-mix(in srgb, #7c3aed 80%, var(--fg)); }
+.tc-gray { color: var(--muted); }
+.hl-yellow, .hl-green, .hl-blue, .hl-pink { padding: 0 .15em; border-radius: 3px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.hl-yellow { background: color-mix(in srgb, #f5c400 38%, transparent); }
+.hl-green { background: color-mix(in srgb, #4cc76a 32%, transparent); }
+.hl-blue { background: color-mix(in srgb, #4aa3ff 30%, transparent); }
+.hl-pink { background: color-mix(in srgb, #ff6fae 30%, transparent); }
+.fs-small { font-size: .85em; }
+.fs-large { font-size: 1.25em; }
+.fs-xlarge { font-size: 1.6em; line-height: 1.3; }
+.align-center { text-align: center; }
+.align-right { text-align: right; }
+.align-center img { margin-inline: auto; }
+.callout {
+  --c: #2563c9;
+  margin-block: 1.25em;
+  padding: .9em 1.1em;
+  border-left: 4px solid var(--c);
+  border-radius: 0 6px 6px 0;
+  background: color-mix(in srgb, var(--c) 9%, transparent);
+}
+.callout::before {
+  content: attr(data-label);
+  display: block;
+  margin-bottom: .3em;
+  color: color-mix(in srgb, var(--c) 80%, var(--fg));
+  font-size: .85em;
+  font-weight: 700;
+}
+.callout > :first-child { margin-top: 0; }
+.callout > :last-child { margin-bottom: 0; }
+.callout-info { --c: #2563c9; }
+.callout-info::before { content: "알림"; }
+.callout-tip { --c: #1f8a4c; }
+.callout-tip::before { content: "도움말"; }
+.callout-warn { --c: #d9630b; }
+.callout-warn::before { content: "주의"; }
+.callout-danger { --c: #d0342c; }
+.callout-danger::before { content: "경고"; }
+
+/* 꾸밈 메뉴 */
+.me-menu { display: flex; flex-wrap: wrap; gap: .25rem; }
+.me-menu-title { font-weight: 600; }
+.me button.me-menu-item {
+  min-height: 2rem;
+  padding: .125rem .625rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  cursor: pointer;
+}
+.me button.me-menu-item.tc-red, .me button.me-menu-item.tc-orange, .me button.me-menu-item.tc-green,
+.me button.me-menu-item.tc-blue, .me button.me-menu-item.tc-purple { color: inherit; }
+.me button.me-menu-item[class*="tc-"]::before { content: "가"; margin-right: .35em; font-weight: 700; }
+.me button.me-menu-item.tc-red::before { color: #d0342c; }
+.me button.me-menu-item.tc-orange::before { color: #d9630b; }
+.me button.me-menu-item.tc-green::before { color: #1f8a4c; }
+.me button.me-menu-item.tc-blue::before { color: #2563c9; }
+.me button.me-menu-item.tc-purple::before { color: #7c3aed; }
+.me button.me-menu-item.tc-gray::before { color: var(--muted); }
+.me button.me-menu-item[aria-pressed="true"] { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
+.me-doc .callout, .me-doc .align-center, .me-doc .align-right { position: relative; }
+.me-doc div[data-box] { outline: 1px dashed transparent; }
+.me-doc div[data-box]:hover { outline-color: var(--border); }
+
+/* 사진 크기·캡션·갤러리 (ADR-0035). 미리보기는 공개 화면과 같은 HTML 이라 같은 규칙을 둔다. */
+.me-img { display: inline-block; max-width: 100%; vertical-align: bottom; }
+.me-img img { display: block; width: 100%; }
+.me-img.img-w75, .me-preview img.img-w75, .me-preview .figure.img-w75 { width: 75%; }
+.me-img.img-w50, .me-preview img.img-w50, .me-preview .figure.img-w50 { width: 50%; }
+.me-img.ProseMirror-selectednode { outline: 3px solid var(--primary); outline-offset: 2px; border-radius: 4px; }
+.me-cap { display: block; margin-top: .35em; color: var(--muted); font-size: .875em; text-align: center; }
+.me-preview .figure { margin: 1.5em 0; }
+.me-preview .figure img { display: block; width: 100%; }
+.me-preview .align-center .figure { margin-inline: auto; }
+.me-preview .align-right .figure { margin-left: auto; }
+.me-preview figcaption { margin-top: .5em; color: var(--muted); font-size: .875em; text-align: center; }
+.me-preview .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 10rem), 1fr)); gap: .5rem; margin-block: 1.5em; }
+.me-preview .gallery > p { display: contents; }
+.me-preview .gallery img { width: 100%; height: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+.me-preview .gallery .figure { margin: 0; }
+.me-doc .gallery { padding: .5rem; border: 1px dashed var(--border); border-radius: 6px; }
+.me-doc .gallery::before { content: "갤러리"; display: block; margin-bottom: .35em; color: var(--muted); font-size: .8em; font-weight: 700; }
+.me-doc .gallery p { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 8rem), 1fr)); gap: .5rem; margin: 0; }
+.me-doc .gallery .me-img { width: auto; }
+.me-doc .gallery .me-img img { aspect-ratio: 4 / 3; object-fit: cover; }
+
+/* 표 (GFM). 서식 모드는 data-align, 미리보기는 렌더러의 ta-* 클래스 */
+.me-table { overflow-x: auto; margin: 0 0 1em; }
+.me-doc table { border-collapse: collapse; min-width: 50%; }
+.me-doc th, .me-doc td { min-width: 4em; padding: .375rem .625rem; border: 1px solid var(--border); vertical-align: top; }
+.me-doc th { background: var(--surface, rgba(0,0,0,.03)); font-weight: 700; }
+.me-doc [data-align="center"], .me-preview .ta-center { text-align: center; }
+.me-doc [data-align="right"], .me-preview .ta-right { text-align: right; }
+.me-doc td.selectedCell, .me-doc th:focus-within, .me-doc td:focus-within { outline: 2px solid color-mix(in srgb, var(--primary) 50%, transparent); outline-offset: -2px; }
+
+/* 동영상·장소 카드 (ADR-0036). 편집 화면에서는 재생기 대신 카드로 보인다. */
+.me-embed { display: flex; flex-direction: column; gap: .2em; margin: 0 0 1em; padding: .75rem 1rem; border: 1px solid var(--border); border-radius: 6px; background: var(--surface, rgba(0,0,0,.03)); color: var(--fg); font-size: .9em; overflow-wrap: anywhere; }
+.me-embed.ProseMirror-selectednode { outline: 3px solid var(--primary); outline-offset: 2px; }
+.me-place span { color: var(--muted); }
+.me-preview .video { position: relative; aspect-ratio: 16 / 9; margin: 0 0 1em; }
+.me-preview .video iframe { width: 100%; height: 100%; border: 0; border-radius: 6px; }
+.me-preview .place { margin: 0 0 1em; padding: .75rem 1rem; border: 1px solid var(--border); border-radius: 6px; }
+.me-preview .place-addr { display: block; color: var(--muted); font-size: .9em; }
+.me-preview .place-links a { margin-right: .75em; font-size: .9em; }

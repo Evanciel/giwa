@@ -6,6 +6,7 @@ pub mod blobs;
 pub mod clock;
 pub mod config;
 pub mod design;
+pub mod directives;
 pub mod error;
 pub mod markdown;
 pub mod messages;

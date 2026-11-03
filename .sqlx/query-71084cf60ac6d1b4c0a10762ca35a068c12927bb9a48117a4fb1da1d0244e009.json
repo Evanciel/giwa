@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,\n                    actor_type, published_at, created_at, updated_at\n             FROM posts\n             WHERE kind = 'post' AND (?1 IS NULL OR board_id = ?1) AND (?2 IS NULL OR status = ?2)\n             ORDER BY updated_at DESC, id DESC\n             LIMIT ?3 OFFSET ?4",
+  "query": "SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,\n                    actor_type, published_at, created_at, updated_at, scheduled_at, cover\n             FROM posts\n             WHERE kind = 'post' AND (?1 IS NULL OR board_id = ?1) AND (?2 IS NULL OR status = ?2)\n             ORDER BY updated_at DESC, id DESC\n             LIMIT ?3 OFFSET ?4",
   "describe": {
     "columns": [
       {
@@ -145,6 +145,28 @@
             "name": "updated_at"
           }
         }
+      },
+      {
+        "name": "scheduled_at",
+        "ordinal": 13,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "scheduled_at"
+          }
+        }
+      },
+      {
+        "name": "cover",
+        "ordinal": 14,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "cover"
+          }
+        }
       }
     ],
     "parameters": {
@@ -163,8 +185,10 @@
       false,
       true,
       false,
-      false
+      false,
+      true,
+      true
     ]
   },
-  "hash": "518ca553d7b0b43c7ae89a48bfb0e554b9d85016c2fa2488dd285bc5fa8dd03d"
+  "hash": "71084cf60ac6d1b4c0a10762ca35a068c12927bb9a48117a4fb1da1d0244e009"
 }

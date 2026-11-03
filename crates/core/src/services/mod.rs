@@ -4,12 +4,14 @@
 pub mod auth;
 pub mod boards;
 pub mod design;
+pub mod files;
 pub mod media;
 pub mod menus;
 pub mod pages;
 pub mod posts;
 pub mod presets;
 pub mod settings;
+pub mod templates;
 pub mod tokens;
 
 use crate::actor::Actor;
@@ -34,4 +36,34 @@ pub(crate) fn required_text(field: &'static str, value: &str, max_chars: usize) 
             .arg("max", max_chars.to_string()));
     }
     Ok(v.to_owned())
+}
+
+/// 본문 Markdown 을 저장 형태로 맞춘다: 크기 검사, BOM 제거, 줄바꿈을 `\n` 하나로.
+/// 브라우저 폼은 textarea 줄바꿈을 `\r\n` 으로 보낸다. 경로마다 다르게 저장되지 않게 여기서 통일한다.
+pub(crate) fn body_text(body: String, max_bytes: usize) -> Result<String> {
+    if body.len() > max_bytes {
+        return Err(Error::new(Code::Validation)
+            .with_message("error.body_too_large")
+            .arg("max", max_bytes.to_string()));
+    }
+    let body = body.trim_start_matches('\u{feff}');
+    Ok(if body.contains('\r') {
+        body.replace("\r\n", "\n").replace('\r', "\n")
+    } else {
+        body.to_owned()
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::body_text;
+
+    #[test]
+    fn body_line_endings_are_unified() {
+        assert_eq!(
+            body_text("\u{feff}가\r\n나\r다\n".into(), 100).unwrap(),
+            "가\n나\n다\n"
+        );
+        assert!(body_text("가".repeat(40), 100).is_err());
+    }
 }

@@ -207,6 +207,10 @@ fn html_formatter(
     state: &mut minijinja::State,
     value: &minijinja::Value,
 ) -> std::result::Result<(), minijinja::Error> {
+    // 값이 없는 칸(null)은 빈칸으로 그린다. 글자로 찍으면 폼에 "none" 이 들어가 저장 때 그대로 남는다.
+    if value.is_none() || value.is_undefined() {
+        return Ok(());
+    }
     if !matches!(state.auto_escape(), AutoEscape::Html) || value.is_safe() {
         return minijinja::escape_formatter(out, state, value);
     }
@@ -285,6 +289,24 @@ mod tests {
         assert!(html.contains("&quot;a&quot; &amp; &#x27;b&#x27;"));
         assert!(html.contains("<p>ok</p>"), "정화된 본문은 |safe 로 그대로");
         assert!(html.contains(r#"href="/assets/site.css""#));
+    }
+
+    /// 요약이 없는 글을 고치면 요약 칸이 비어 있어야 한다. 예전엔 "none" 이 찍혀 저장 때 요약이 됐다.
+    #[test]
+    fn null_values_render_as_empty() {
+        let admin = Admin::new();
+        let html = admin
+            .render(
+                "edit.html",
+                &json!({"site": {"name": "s"}, "values": {"title": "t", "excerpt": null, "slug": null}}),
+            )
+            .unwrap();
+        assert!(
+            html.contains(r#"name="excerpt" rows="3"></textarea>"#),
+            "{html}"
+        );
+        assert!(!html.to_ascii_lowercase().contains(">none<"), "{html}");
+        assert!(html.contains(r#"name="slug" maxlength="120" value="""#));
     }
 
     #[test]

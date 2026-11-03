@@ -6,7 +6,15 @@ Rust 크레이트 라이선스는 `cargo deny check licenses` 로 따로 검사�
 
 | 자산 | 위치 | 출처 | 라이선스 | 비고 |
 |---|---|---|---|---|
-| (없음) | | | | 내장 테마 CSS·템플릿은 자체 제작 |
+| ProseMirror (prosemirror-model·state·view·transform·commands·history·inputrules·keymap·schema-list·markdown) | `crates/themes/admin/static/editor.js` (번들) | https://prosemirror.net | MIT | 글 에디터 편집 엔진. ADR-0033 |
+| markdown-it, linkify-it, mdurl, uc.micro, punycode.js | 같은 번들 | https://github.com/markdown-it | MIT | 에디터 안의 Markdown 해석 |
+| entities | 같은 번들 | https://github.com/fb55/entities | BSD-2-Clause | markdown-it 의존 |
+| orderedmap, rope-sequence, w3c-keyname | 같은 번들 | https://github.com/marijnh | MIT | ProseMirror 의존 |
+
+내장 테마 CSS·템플릿과 에디터의 Maru 층(도구 막대·업로드·자동 저장·CSS)은 자체 제작이다.
+번들에 들어간 패키지의 버전과 라이선스 전문은 빌드할 때 `crates/themes/admin/static/editor.licenses.txt` 로
+자동으로 모인다(esbuild 메타파일 기준). 관리 화면은 이 파일을 `/admin/assets/editor.licenses.txt` 로 내보내고, 번들 첫 줄이 그 위치를 가리킨다.
+TOAST UI Editor(MIT)는 구조만 분석했고 코드는 가져오지 않았다.
 
 ## 예정
 

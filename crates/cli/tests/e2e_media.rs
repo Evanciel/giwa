@@ -204,6 +204,54 @@ fn media_upload_serve_and_preview_through_all_paths() {
     let small = m["variants"][0]["url"].as_str().unwrap();
     assert_eq!(http(&bind, "GET", small, &[], b"").status, 200);
 
+    // 공개 글: 보관소 그림에 크기·축소본(srcset)이 붙고, 크기 조각·캡션이 그려진다 (ADR-0035).
+    let body =
+        format!("![노란 벽]({url}#w50 \"가을 골목\")\n\n:::gallery\n![a]({url}) ![b]({url})\n:::");
+    let post = maru(
+        &data,
+        &[
+            "post",
+            "new",
+            "--title",
+            "사진",
+            "--slug",
+            "photos",
+            "--body",
+            &body,
+            "--publish",
+            "--yes",
+        ],
+    );
+    assert_eq!(post["ok"], true, "{post}");
+    let res = http(&bind, "GET", "/b/blog/photos", &[], b"");
+    assert_eq!(res.status, 200);
+    let html = res.text();
+    assert!(html.contains("<figure class=\"figure img-w50\">"), "{html}");
+    assert!(
+        html.contains("<figcaption>가을 골목</figcaption>"),
+        "{html}"
+    );
+    assert!(html.contains("width=\"1400\" height=\"700\""), "{html}");
+    assert!(html.contains(&format!("srcset=\"{small} 640w, ")), "{html}");
+    assert!(html.contains(&format!("{url} 1400w\"")), "{html}");
+    assert!(html.contains("<div class=\"gallery\">"), "{html}");
+    assert!(!html.contains("#w50"), "{html}");
+    // 대표 이미지를 정하지 않으면 본문 첫 사진: 공유 미리보기는 큰 축소본, 목록은 작은 축소본.
+    assert!(
+        html.contains("<meta property=\"og:image\" content=\"http://"),
+        "{html}"
+    );
+    assert!(html.contains("summary_large_image"), "{html}");
+    let home = http(&bind, "GET", "/", &[], b"").text();
+    assert!(
+        home.contains("class=\"thumb\" href=\"/b/blog/photos\""),
+        "{home}"
+    );
+    assert!(
+        home.contains(&format!("<img src=\"{small}\" alt=\"\"")),
+        "{home}"
+    );
+
     // 보관소 밖·규칙 밖 경로는 파일 시스템을 보지 않고 404.
     for bad in [
         "/media/../config.toml",
@@ -345,4 +393,128 @@ fn media_upload_serve_and_preview_through_all_paths() {
     assert_eq!(del["ok"], true, "{del}");
     let gone = rest_media["url"].as_str().unwrap();
     assert_eq!(http(&bind, "GET", gone, &[], b"").status, 404);
+}
+
+#[test]
+fn attachments_are_download_only_through_all_paths() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("첨부");
+    let init = maru(&data, &["init", "--yes"]);
+    let token = init["data"]["token"]["secret"].as_str().unwrap().to_owned();
+    let bearer = format!("Bearer {token}");
+    let (_server, bind) = start_server(&data);
+
+    // REST: 한글 이름 PDF
+    let pdf = b"%PDF-1.7\n1 0 obj << >> endobj\n%%EOF\n";
+    let res = http(
+        &bind,
+        "POST",
+        "/api/v1/files?filename=%EA%B2%AC%EC%A0%81%EC%84%9C%20v2.pdf",
+        &[("Authorization", &bearer)],
+        pdf,
+    );
+    assert_eq!(res.status, 201, "{}", res.text());
+    let file = res.json()["data"].clone();
+    assert_eq!(file["filename"], "견적서 v2.pdf");
+    let url = file["url"].as_str().unwrap().to_owned();
+    assert!(url.starts_with("/files/"), "{url}");
+
+    // 누구나 내려받지만 항상 attachment, 정해진 MIME, 샌드박스.
+    let res = http(&bind, "GET", &url, &[], b"");
+    assert_eq!(res.status, 200);
+    assert_eq!(res.body, pdf);
+    assert_eq!(
+        res.header("content-type").as_deref(),
+        Some("application/pdf")
+    );
+    let cd = res.header("content-disposition").unwrap();
+    assert!(cd.starts_with("attachment; "), "{cd}");
+    assert!(
+        cd.contains("filename*=UTF-8''%EA%B2%AC%EC%A0%81%EC%84%9C%20v2.pdf"),
+        "{cd}"
+    );
+    assert!(
+        res.header("content-security-policy")
+            .unwrap()
+            .contains("sandbox")
+    );
+
+    // 문서로 꾸민 HTML, 화이트리스트 밖 형식, 토큰 없음
+    for (name, body, want) in [
+        ("x.pdf", &b"<html><script>alert(1)</script>"[..], 400),
+        ("x.html", &b"<html></html>"[..], 400),
+        ("x.svg", &b"<svg/>"[..], 400),
+    ] {
+        let res = http(
+            &bind,
+            "POST",
+            &format!("/api/v1/files?filename={name}"),
+            &[("Authorization", &bearer)],
+            body,
+        );
+        assert_eq!(res.status, want, "{name}: {}", res.text());
+    }
+    let res = http(&bind, "POST", "/api/v1/files?filename=a.txt", &[], b"hi");
+    assert_eq!(res.status, 401);
+    for bad in [
+        "/files/없음",
+        "/files/01m6eft46wt5sp5seq1xjbbryw",
+        "/files/..%2fmaru.db",
+    ] {
+        assert_eq!(http(&bind, "GET", bad, &[], b"").status, 404, "{bad}");
+    }
+    // 보관 경로가 그림 경로로 새어 나가지 않는다.
+    let path = file["path"].as_str().unwrap();
+    assert_eq!(
+        http(&bind, "GET", &format!("/media/{path}"), &[], b"").status,
+        404
+    );
+
+    // 관리 화면(에디터)도 세션 + CSRF 로 같은 서비스.
+    let (cookie, csrf) = admin_session(&data, &bind);
+    let res = http(
+        &bind,
+        "POST",
+        "/admin/files?filename=%EB%A9%94%EB%AA%A8.txt",
+        &[("Cookie", &cookie), ("X-CSRF-Token", &csrf)],
+        "장 볼 것: 우유".as_bytes(),
+    );
+    assert_eq!(res.status, 201, "{}", res.text());
+    let res = http(
+        &bind,
+        "POST",
+        "/admin/files?filename=a.txt",
+        &[("Cookie", &cookie)],
+        b"x",
+    );
+    assert_eq!(res.status, 403, "{}", res.text());
+
+    // 본문 링크는 그대로 공개 화면에 남는다.
+    let body = format!("자료: [견적서 v2.pdf (1KB)]({url})");
+    let post = maru(
+        &data,
+        &[
+            "post",
+            "new",
+            "--title",
+            "첨부",
+            "--slug",
+            "att",
+            "--body",
+            &body,
+            "--publish",
+            "--yes",
+        ],
+    );
+    assert_eq!(post["ok"], true, "{post}");
+    let html = http(&bind, "GET", "/b/blog/att", &[], b"").text();
+    assert!(html.contains(&format!("<a href=\"{url}\"")), "{html}");
+
+    // CLI: 목록·지우기
+    let all = maru(&data, &["file", "list"]);
+    assert_eq!(all["data"]["total"], 2, "{all}");
+    let id = file["id"].as_str().unwrap();
+    let del = maru(&data, &["file", "delete", id]);
+    assert_eq!(del["ok"], true, "{del}");
+    assert_eq!(http(&bind, "GET", &url, &[], b"").status, 404);
 }

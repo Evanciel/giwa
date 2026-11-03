@@ -33,6 +33,7 @@ predicates.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true
 image.workspace = true
+time.workspace = true
 maru-storage.workspace = true
 sqlx.workspace = true
 tokio.workspace = true

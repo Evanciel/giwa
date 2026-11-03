@@ -21,7 +21,7 @@ use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use maru_core::Actor;
 use maru_core::model::Media;
-use maru_core::services::{auth, media};
+use maru_core::services::{auth, media, posts};
 use maru_core::{Code, Ctx, Error, Result};
 use maru_themes::{Admin, Theme};
 use tokio::net::TcpListener;
@@ -38,6 +38,8 @@ pub(crate) const UPLOAD_LIMIT: usize = BODY_LIMIT;
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 /// 만료 세션·링크·요청 제한 키 정리 주기.
 const PURGE_EVERY: Duration = Duration::from_secs(10 * 60);
+/// 예약 발행 확인 주기. 예약 시각보다 최대 이만큼 늦게 발행된다.
+const SCHEDULE_EVERY: Duration = Duration::from_secs(20);
 /// argon2 를 동시에 계산하는 최대 수.
 const LOGIN_CONCURRENCY: usize = 2;
 /// 이미지 디코딩·인코딩을 동시에 하는 최대 수.
@@ -124,7 +126,8 @@ async fn security_headers(mut res: Response) -> Response {
     h.entry(header::CONTENT_SECURITY_POLICY)
         .or_insert(HeaderValue::from_static(
             "default-src 'self'; img-src 'self' https: data:; style-src 'self'; \
-         script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'",
+         script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'; \
+         frame-src https://www.youtube-nocookie.com https://player.vimeo.com",
         ));
     res
 }
@@ -136,6 +139,7 @@ pub async fn serve(
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> Result<()> {
     let purge = tokio::spawn(purge_loop(state.clone()));
+    let scheduled = tokio::spawn(schedule_loop(state.clone()));
     let res = axum::serve(
         listener,
         router(state).into_make_service_with_connect_info::<SocketAddr>(),
@@ -144,7 +148,28 @@ pub async fn serve(
     .await
     .map_err(maru_core::Error::internal);
     purge.abort();
+    scheduled.abort();
     res
+}
+
+/// 예약 시각이 지난 글을 발행한다. 서버를 켤 때 한 번, 그 뒤로 주기마다.
+/// 꺼져 있던 동안 지난 예약도 켜자마자 발행된다.
+async fn schedule_loop(state: AppState) {
+    let mut tick = tokio::time::interval(SCHEDULE_EVERY);
+    loop {
+        tick.tick().await;
+        match posts::publish_due(&state.ctx).await {
+            Ok(results) => {
+                for (id, res) in results {
+                    match res {
+                        Ok(p) => tracing::info!(post = %id, title = %p.title, "예약 글 발행"),
+                        Err(e) => tracing::warn!(post = %id, error = ?e, "예약 발행 실패"),
+                    }
+                }
+            }
+            Err(e) => tracing::warn!(error = ?e, "예약 발행 확인 실패"),
+        }
+    }
 }
 
 async fn purge_loop(state: AppState) {

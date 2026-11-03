@@ -12,7 +12,7 @@ use axum::{Json, Router};
 use maru_core::model::{MenuItem, PageReq, PageStatus, PostStatus};
 use maru_core::output::Success;
 use maru_core::services::{
-    anonymous_actor, boards, design, media, menus, pages, posts, settings, tokens,
+    anonymous_actor, boards, design, files, media, menus, pages, posts, settings, templates, tokens,
 };
 use maru_core::{Actor, Code, Error};
 use serde::Deserialize;
@@ -46,6 +46,15 @@ pub fn routes() -> Router<AppState> {
             "/media/{id}",
             get(get_media).patch(update_media).delete(delete_media),
         )
+        .route(
+            "/files",
+            get(list_files)
+                .post(upload_file)
+                .layer(DefaultBodyLimit::max(crate::UPLOAD_LIMIT)),
+        )
+        .route("/files/{id}", get(get_file).delete(delete_file))
+        .route("/templates", get(list_templates).post(save_template))
+        .route("/templates/{id}", axum::routing::delete(delete_template))
         .route("/preview", post(preview))
         .fallback(|| async { ApiError(Error::new(Code::NotFound)) })
 }
@@ -413,6 +422,95 @@ async fn delete_media(
     Ok(ok(
         StatusCode::OK,
         media::delete(&state.ctx, &actor, &id).await?,
+    ))
+}
+
+async fn list_templates(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+) -> Result<Response, ApiError> {
+    Ok(ok(
+        StatusCode::OK,
+        templates::list(&state.ctx, &actor).await?,
+    ))
+}
+
+/// `POST /templates` 같은 이름이 있으면 덮어쓴다.
+async fn save_template(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    body: Result<Json<templates::SaveTemplate>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let Json(input) = body.map_err(bad_json)?;
+    Ok(ok(
+        StatusCode::OK,
+        templates::save(&state.ctx, &actor, input).await?,
+    ))
+}
+
+/// `DELETE /templates/{id 또는 이름}`
+async fn delete_template(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(id): Path<String>,
+) -> Result<Response, ApiError> {
+    Ok(ok(
+        StatusCode::OK,
+        templates::delete(&state.ctx, &actor, &id).await?,
+    ))
+}
+
+#[derive(Debug, Deserialize)]
+struct FileQuery {
+    filename: String,
+}
+
+/// `POST /files?filename=<이름>`, 본문은 파일 바이트 그대로 (`/media` 와 같은 방식).
+async fn upload_file(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Query(q): Query<FileQuery>,
+    body: Bytes,
+) -> Result<Response, ApiError> {
+    let input = files::Upload {
+        filename: q.filename,
+        bytes: body.to_vec(),
+    };
+    let f = files::upload(&state.ctx, &actor, input).await?;
+    Ok(ok(StatusCode::CREATED, f))
+}
+
+async fn list_files(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Query(q): Query<MediaListQuery>,
+) -> Result<Response, ApiError> {
+    let page = PageReq::new(q.page.unwrap_or(1), q.per_page.unwrap_or(20));
+    Ok(ok(
+        StatusCode::OK,
+        files::list(&state.ctx, &actor, page).await?,
+    ))
+}
+
+async fn get_file(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(id): Path<String>,
+) -> Result<Response, ApiError> {
+    Ok(ok(
+        StatusCode::OK,
+        files::get(&state.ctx, &actor, &id).await?,
+    ))
+}
+
+async fn delete_file(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(id): Path<String>,
+) -> Result<Response, ApiError> {
+    Ok(ok(
+        StatusCode::OK,
+        files::delete(&state.ctx, &actor, &id).await?,
     ))
 }
 

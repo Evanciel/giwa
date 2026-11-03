@@ -40,8 +40,23 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "error.post_transition" => "`{from}` 상태의 글은 `{to}` 상태로 바꿀 수 없습니다.",
         "error.body_too_large" => "본문이 너무 큽니다 (최대 {max}바이트).",
         "error.timestamp" => "시각은 RFC3339 형식이어야 합니다: {value}",
+        "error.schedule_range" => "예약 시각은 지금 이후 {days}일 안쪽이어야 합니다: {value}",
+        "error.schedule_pick" => "예약할 날짜와 시각을 고르세요.",
+        "error.post_schedule_status" => "`{status}` 상태의 글은 예약할 수 없습니다.",
+        "hint.post_schedule_status" => "공개된 글은 숨긴 뒤 예약하세요.",
+        "error.cover_url" => {
+            "대표 이미지는 이 사이트에 올린 사진 주소(/media/...)여야 합니다: {value}"
+        }
         "error.token_invalid" => "토큰이 없거나 만료·폐기되었습니다.",
         "error.token_not_found" => "`{id}` 토큰을 찾을 수 없습니다.",
+        "error.post_template_builtin" => {
+            "기본 틀 `{name}` 은 고치거나 지울 수 없습니다. 다른 이름으로 저장하세요."
+        }
+        "error.post_template_not_found" => "`{name}` 틀을 찾을 수 없습니다.",
+        "error.file_not_found" => "`{id}` 첨부 파일을 찾을 수 없습니다.",
+        "error.file_type" => "첨부할 수 없는 파일입니다: {name} (가능한 형식: {allowed})",
+        "error.file_content" => "파일 내용이 확장자({ext})와 맞지 않습니다: {name}",
+        "error.file_name" => "파일 이름이 비었습니다 (최대 {max}자).",
         "error.media_not_found" => "`{id}` 미디어를 찾을 수 없습니다.",
         "error.media_type" => "이미지 파일(jpg, png, gif, webp)만 올릴 수 있습니다: {name}",
         "error.media_too_large" => "파일이 너무 큽니다. {max}MB 이하만 올릴 수 있습니다.",

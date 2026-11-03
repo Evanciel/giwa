@@ -1,0 +1,25 @@
+{
+  "name": "maru-editor",
+  "private": true,
+  "license": "MIT OR Apache-2.0",
+  "description": "Maru 관리 화면 글 에디터. 빌드 결과(crates/themes/admin/static/editor.js)만 바이너리에 들어간다.",
+  "scripts": {
+    "build": "esbuild src/main.ts --bundle --minify --format=iife --target=es2020 --charset=utf8 --legal-comments=none --metafile=node_modules/.editor-meta.json \"--banner:js=/*! Maru 글 에디터. 포함된 오픈소스 라이선스: /admin/assets/editor.licenses.txt */\" --outfile=../crates/themes/admin/static/editor.js && node scripts/licenses.mjs",
+    "test": "esbuild test/roundtrip.ts --bundle --platform=node --format=esm --outfile=test/.out/roundtrip.mjs && node test/.out/roundtrip.mjs"
+  },
+  "dependencies": {
+    "markdown-it": "14.3.3",
+    "prosemirror-commands": "1.7.2",
+    "prosemirror-history": "1.5.1",
+    "prosemirror-inputrules": "1.5.1",
+    "prosemirror-keymap": "1.2.3",
+    "prosemirror-markdown": "1.13.9",
+    "prosemirror-model": "1.25.12",
+    "prosemirror-schema-list": "1.6.0",
+    "prosemirror-state": "1.4.4",
+    "prosemirror-view": "1.42.9"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

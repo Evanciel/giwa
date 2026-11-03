@@ -16,7 +16,8 @@
 <meta property="og:locale" content="{{ meta.locale or 'ko_KR' }}">
 {% if meta.published_time %}<meta property="article:published_time" content="{{ meta.published_time }}">{% endif %}
 {% if meta.modified_time %}<meta property="article:modified_time" content="{{ meta.modified_time }}">{% endif %}
-<meta name="twitter:card" content="summary">
+{% if meta.image %}<meta property="og:image" content="{{ meta.image }}">
+<meta name="twitter:card" content="summary_large_image">{% else %}<meta name="twitter:card" content="summary">{% endif %}
 {% if site.naver_verification %}<meta name="naver-site-verification" content="{{ site.naver_verification }}">{% endif %}
 {% if site.google_verification %}<meta name="google-site-verification" content="{{ site.google_verification }}">{% endif %}
 <link rel="alternate" type="application/rss+xml" title="{{ site.name }}" href="{{ site.rss_url }}">

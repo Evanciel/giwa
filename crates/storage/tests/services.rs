@@ -65,6 +65,7 @@ fn draft(title: &str) -> NewPost {
         slug: None,
         body_md: "본문입니다.".into(),
         excerpt: None,
+        cover: None,
     }
 }
 
@@ -1021,6 +1022,224 @@ async fn preset_apply_is_idempotent_and_keeps_user_edits() {
     assert_eq!(
         pages::get(&e.ctx, &local, "about").await.unwrap().status,
         PageStatus::Hidden
+    );
+    e.db.close().await;
+}
+
+// ---- 예약 발행·대표 이미지 ----
+
+fn later(days: i64) -> String {
+    maru_core::clock::format(time::OffsetDateTime::now_utc() + time::Duration::days(days))
+}
+
+#[tokio::test]
+async fn scheduled_post_is_published_when_due() {
+    let e = env().await;
+    blog(&e.ctx).await;
+    let local = Actor::local();
+    let p = posts::create_draft(&e.ctx, &local, draft("예약 글"))
+        .await
+        .unwrap();
+    let at = later(1);
+    let patch = posts::PostPatch {
+        scheduled_at: Some(at.clone()),
+        ..Default::default()
+    };
+    let p = posts::update(&e.ctx, &local, &p.id, patch.clone())
+        .await
+        .unwrap();
+    assert_eq!(p.scheduled_at.as_deref(), Some(at.as_str()));
+    assert_eq!(p.status, PostStatus::Draft);
+    // 같은 값을 다시 걸어도 그대로 (멱등)
+    let again = posts::update(&e.ctx, &local, &p.id, patch).await.unwrap();
+    assert_eq!(again.updated_at, p.updated_at);
+    // 아직 때가 아니면 아무것도 하지 않는다
+    assert!(posts::publish_due(&e.ctx).await.unwrap().is_empty());
+
+    // 시각이 지난 것처럼 만든다
+    sqlx::query("UPDATE posts SET scheduled_at = '2000-01-01T00:00:00.000000Z'")
+        .execute(e.db.write_pool())
+        .await
+        .unwrap();
+    let done = posts::publish_due(&e.ctx).await.unwrap();
+    assert_eq!(done.len(), 1);
+    let published = done[0].1.as_ref().unwrap();
+    assert_eq!(published.status, PostStatus::Published);
+    assert!(published.scheduled_at.is_none());
+    assert!(published.published_at.is_some());
+    assert_eq!(
+        scalar(
+            &e.db,
+            "SELECT count(*) FROM audit_log WHERE action = 'post.publish_scheduled'"
+        )
+        .await,
+        1
+    );
+    // 두 번째 주기에는 할 일이 없다
+    assert!(posts::publish_due(&e.ctx).await.unwrap().is_empty());
+    e.db.close().await;
+}
+
+#[tokio::test]
+async fn schedule_rules() {
+    let e = env().await;
+    blog(&e.ctx).await;
+    let local = Actor::local();
+    let p = posts::create_draft(&e.ctx, &local, draft("규칙"))
+        .await
+        .unwrap();
+    let set = |at: &str| posts::PostPatch {
+        scheduled_at: Some(at.into()),
+        ..Default::default()
+    };
+    for bad in ["내일", "2000-01-01T00:00:00Z", &later(400)] {
+        let err = posts::update(&e.ctx, &local, &p.id, set(bad))
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), Code::Validation, "{bad}");
+    }
+    // 발행 권한 없는 에이전트는 예약할 수 없다
+    let writer = Actor::agent("w".into(), &Scope::DEFAULT, None);
+    let mine = posts::create_draft(&e.ctx, &writer, draft("에이전트 글"))
+        .await
+        .unwrap();
+    let err = posts::update(&e.ctx, &writer, &mine.id, set(&later(1)))
+        .await
+        .unwrap_err();
+    assert_eq!(err.code(), Code::Forbidden);
+    // 공개된 글은 예약할 수 없다
+    posts::publish(&e.ctx, &local, &p.id).await.unwrap();
+    let err = posts::update(&e.ctx, &local, &p.id, set(&later(1)))
+        .await
+        .unwrap_err();
+    assert_eq!(err.code(), Code::Conflict);
+    // 숨기면 다시 예약할 수 있고, 삭제하면 예약도 지워진다
+    posts::hide(&e.ctx, &local, &p.id).await.unwrap();
+    let p = posts::update(&e.ctx, &local, &p.id, set(&later(2)))
+        .await
+        .unwrap();
+    assert!(p.scheduled_at.is_some());
+    let p = posts::delete(&e.ctx, &local, &p.id).await.unwrap();
+    assert!(p.scheduled_at.is_none());
+    // 빈 문자열은 취소
+    let q = posts::create_draft(&e.ctx, &local, draft("취소"))
+        .await
+        .unwrap();
+    posts::update(&e.ctx, &local, &q.id, set(&later(1)))
+        .await
+        .unwrap();
+    let q = posts::update(&e.ctx, &local, &q.id, set("")).await.unwrap();
+    assert!(q.scheduled_at.is_none());
+    e.db.close().await;
+}
+
+#[tokio::test]
+async fn cover_is_checked_and_falls_back_to_first_photo() {
+    let e = env().await;
+    blog(&e.ctx).await;
+    let local = Actor::local();
+    let mut input = draft("사진 글");
+    input.body_md = "글 ![밖](https://example.test/a.jpg) ![첫](/media/2026/11/abc.jpg)".into();
+    let p = posts::create_draft(&e.ctx, &local, input).await.unwrap();
+    assert_eq!(p.cover, None);
+    assert_eq!(
+        posts::cover_of(&p).as_deref(),
+        Some("/media/2026/11/abc.jpg")
+    );
+    let set = |c: &str| posts::PostPatch {
+        cover: Some(c.into()),
+        ..Default::default()
+    };
+    let p = posts::update(&e.ctx, &local, &p.id, set(" /media/2026/11/def.png "))
+        .await
+        .unwrap();
+    assert_eq!(p.cover.as_deref(), Some("/media/2026/11/def.png"));
+    assert_eq!(
+        posts::cover_of(&p).as_deref(),
+        Some("/media/2026/11/def.png")
+    );
+    for bad in [
+        "https://example.test/x.jpg",
+        "/media/../maru.db",
+        "/media/a b.jpg",
+        "/media/a\".jpg",
+        "javascript:alert(1)",
+    ] {
+        let err = posts::update(&e.ctx, &local, &p.id, set(bad))
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), Code::Validation, "{bad}");
+    }
+    let p = posts::update(&e.ctx, &local, &p.id, set("")).await.unwrap();
+    assert_eq!(p.cover, None);
+    e.db.close().await;
+}
+
+#[tokio::test]
+async fn templates_upsert_by_name_and_protect_builtins() {
+    use maru_core::services::templates::{self, SaveTemplate};
+    let e = env().await;
+    let local = Actor::local();
+    let save = |name: &str, body: &str| SaveTemplate {
+        name: name.into(),
+        body_md: body.into(),
+    };
+    let builtin = templates::list(&e.ctx, &local).await.unwrap();
+    assert!(builtin.iter().any(|t| t.name == "여행기" && t.builtin));
+
+    let a = templates::save(&e.ctx, &local, save("주간 회고", "## 한 일\r\n\r\n- "))
+        .await
+        .unwrap();
+    assert_eq!(a.body_md, "## 한 일\n\n- ");
+    // 같은 내용이면 그대로, 다른 내용이면 같은 ID 로 덮어쓴다
+    let same = templates::save(&e.ctx, &local, save("주간 회고", "## 한 일\n\n- "))
+        .await
+        .unwrap();
+    assert_eq!(same.updated_at, a.updated_at);
+    let b = templates::save(&e.ctx, &local, save(" 주간 회고 ", "## 배운 것"))
+        .await
+        .unwrap();
+    assert_eq!(b.id, a.id);
+    assert_eq!(b.body_md, "## 배운 것");
+    assert_eq!(
+        scalar(&e.db, "SELECT count(*) FROM post_templates").await,
+        1
+    );
+    let list = templates::list(&e.ctx, &local).await.unwrap();
+    assert_eq!(list.len(), builtin.len() + 1);
+
+    // 기본 틀 이름·ID 는 저장·삭제할 수 없다
+    let err = templates::save(&e.ctx, &local, save("여행기", "x"))
+        .await
+        .unwrap_err();
+    assert_eq!(err.code(), Code::Conflict);
+    let err = templates::delete(&e.ctx, &local, "builtin-travel")
+        .await
+        .unwrap_err();
+    assert_eq!(err.code(), Code::Conflict);
+    // 기본 토큰(초안 권한)은 읽기만
+    let writer = Actor::agent("w".into(), &Scope::DEFAULT, None);
+    assert!(templates::list(&e.ctx, &writer).await.is_ok());
+    let err = templates::save(&e.ctx, &writer, save("남의 틀", "x"))
+        .await
+        .unwrap_err();
+    assert_eq!(err.code(), Code::Forbidden);
+
+    // 이름으로 지운다. 감사 기록이 남는다
+    templates::delete(&e.ctx, &local, "주간 회고")
+        .await
+        .unwrap();
+    let err = templates::delete(&e.ctx, &local, "주간 회고")
+        .await
+        .unwrap_err();
+    assert_eq!(err.code(), Code::NotFound);
+    assert_eq!(
+        scalar(
+            &e.db,
+            "SELECT count(*) FROM audit_log WHERE action LIKE 'template.%'"
+        )
+        .await,
+        3
     );
     e.db.close().await;
 }

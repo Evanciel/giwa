@@ -1,0 +1,2 @@
+DROP INDEX IF EXISTS files_created;
+DROP TABLE IF EXISTS files;

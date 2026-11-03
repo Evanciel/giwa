@@ -6,7 +6,9 @@ use axum::http::{StatusCode, header};
 use axum::response::{Html, IntoResponse, Response};
 use axum::routing::get;
 use maru_core::model::{Board, Listing, MenuItem, MenuLink, Page, PageReq, Post, SiteSettings};
-use maru_core::services::{anonymous_actor, boards, design, menus, pages, posts, settings};
+use maru_core::services::{
+    anonymous_actor, boards, design, files, media, menus, pages, posts, settings,
+};
 use maru_core::urls::{self, Target};
 use maru_core::{Code, Error, Result, blobs, clock, markdown};
 use serde::Deserialize;
@@ -28,6 +30,7 @@ pub fn routes() -> Router<AppState> {
         .route("/assets/tokens.css", get(tokens_css))
         .route("/assets/{*path}", get(asset))
         .route("/media/{*path}", get(media_file))
+        .route("/files/{id}", get(file_download))
         .fallback(not_found)
 }
 
@@ -137,6 +140,7 @@ async fn home_inner(state: &AppState, q: PageQuery) -> Result<Value> {
             post_summary(slug, p, &site.settings)
         })
         .collect::<Vec<_>>();
+    let items = with_thumbs(state, items, &list.items).await?;
     Ok(json!({
         "meta": json!({ "title": site.settings.name, "description": site.settings.description }),
         "site": site.json,
@@ -167,6 +171,7 @@ async fn board_inner(state: &AppState, slug: &str, q: PageQuery) -> Result<Value
         .iter()
         .map(|p| post_summary(&board.slug, p, &site.settings))
         .collect::<Vec<_>>();
+    let items = with_thumbs(state, items, &list.items).await?;
     Ok(json!({
         "meta": json!({
             "title": format!("{} · {}", board.name, site.settings.name),
@@ -197,11 +202,13 @@ async fn post_inner(state: &AppState, board_slug: &str, post_slug: &str) -> Resu
         post: &post.slug,
     };
     let mut view = post_summary(&board.slug, &post, &site.settings);
-    view["body_html"] = Value::String(markdown::render(&post.body_md).into_string());
+    view["body_html"] = Value::String(body_html(state, &post.body_md).await?);
+    let image = cover_image(state, &post).await?;
     Ok(json!({
         "meta": json!({
             "title": format!("{} · {}", post.title, site.settings.name),
             "description": view["summary"],
+            "image": image,
             "type": "article",
             "published_time": post.published_at,
             "modified_time": post.updated_at,
@@ -230,7 +237,7 @@ async fn page_inner(state: &AppState, slug: &str) -> Result<Value> {
         }),
         "site": site.json,
         "canonical": urls::absolute(&state.ctx.site_url, &target),
-        "page": page_json(&p),
+        "page": page_json(&p, body_html(state, &p.body_md).await?),
     }))
 }
 
@@ -293,6 +300,56 @@ async fn media_file(State(state): State<AppState>, Path(path): Path<String>) -> 
     }
 }
 
+/// 첨부 파일은 항상 내려받기로, 정해진 MIME 으로만 보낸다 (브라우저 안에서 열리지 않는다).
+async fn file_download(State(state): State<AppState>, Path(id): Path<String>) -> Response {
+    match files::download(&state.ctx, &id).await {
+        Ok((file, bytes)) => (
+            [
+                (header::CONTENT_TYPE, file.mime.clone()),
+                (
+                    header::CONTENT_DISPOSITION,
+                    content_disposition(&file.filename),
+                ),
+                (header::CACHE_CONTROL, "public, max-age=86400".to_owned()),
+                (
+                    header::CONTENT_SECURITY_POLICY,
+                    "default-src 'none'; sandbox".to_owned(),
+                ),
+            ],
+            bytes,
+        )
+            .into_response(),
+        Err(e) if e.code() == Code::NotFound => error::page(&state, &e).await,
+        Err(e) => {
+            tracing::error!(error = ?e, "첨부 파일 읽기 실패");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
+}
+
+/// `attachment; filename="<ASCII 대체>"; filename*=UTF-8''<퍼센트 인코딩>` (RFC 6266).
+fn content_disposition(name: &str) -> String {
+    let fallback: String = name
+        .chars()
+        .map(|c| {
+            if c == ' ' || (c.is_ascii_graphic() && !matches!(c, '"' | '\\' | '%')) {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    let mut encoded = String::new();
+    for b in name.bytes() {
+        if b.is_ascii_alphanumeric() || b"-._~".contains(&b) {
+            encoded.push(char::from(b));
+        } else {
+            encoded.push_str(&format!("%{b:02X}"));
+        }
+    }
+    format!("attachment; filename=\"{fallback}\"; filename*=UTF-8''{encoded}")
+}
+
 async fn not_found(State(state): State<AppState>) -> Response {
     error::page(&state, &Error::new(Code::NotFound)).await
 }
@@ -306,14 +363,65 @@ fn board_json(board: &Board) -> Value {
     })
 }
 
-fn page_json(p: &Page) -> Value {
+/// 목록 썸네일: 대표 이미지의 가장 작은 축소본(없으면 원본)과 원본 크기.
+/// 보관소에서 찾지 못한 사진(지워진 것 등)은 깨진 그림이 되지 않게 빼 둔다.
+async fn with_thumbs(
+    state: &AppState,
+    mut items: Vec<Value>,
+    posts: &[Post],
+) -> Result<Vec<Value>> {
+    for (view, p) in items.iter_mut().zip(posts) {
+        let Some(url) = posts::cover_of(p) else {
+            continue;
+        };
+        let Some(info) = media::image_info(&state.ctx, &url).await? else {
+            continue;
+        };
+        let src = info
+            .variants
+            .iter()
+            .min_by_key(|(w, _)| *w)
+            .map(|(_, u)| u.clone())
+            .unwrap_or(url);
+        view["thumb"] = json!({ "src": src, "width": info.width, "height": info.height });
+    }
+    Ok(items)
+}
+
+/// 공유 미리보기(`og:image`)용 절대 주소. 가장 큰 축소본, 없으면 원본.
+async fn cover_image(state: &AppState, post: &Post) -> Result<Option<String>> {
+    let Some(url) = posts::cover_of(post) else {
+        return Ok(None);
+    };
+    let Some(info) = media::image_info(&state.ctx, &url).await? else {
+        return Ok(None);
+    };
+    let best = info
+        .variants
+        .iter()
+        .max_by_key(|(w, _)| *w)
+        .map(|(_, u)| u.clone())
+        .unwrap_or(url);
+    Ok(Some(format!(
+        "{}{best}",
+        state.ctx.site_url.trim_end_matches('/')
+    )))
+}
+
+/// 본문 HTML. 보관소 그림에는 크기와 축소본(srcset)을 붙인다.
+async fn body_html(state: &AppState, md: &str) -> Result<String> {
+    let images = media::images_in(&state.ctx, md).await?;
+    Ok(markdown::render_with(md, &|url| images.get(url).cloned()).into_string())
+}
+
+fn page_json(p: &Page, body_html: String) -> Value {
     json!({
         "title": p.title,
         "slug": p.slug,
         "layout": p.layout,
         "url": urls::path(&Target::Page { page: &p.slug }),
         "summary": markdown::plain_text(&p.body_md, SUMMARY_CHARS),
-        "body_html": markdown::render(&p.body_md).into_string(),
+        "body_html": body_html,
     })
 }
 
@@ -322,6 +430,7 @@ fn post_summary(board_slug: &str, p: &Post, s: &SiteSettings) -> Value {
     let summary = p
         .excerpt
         .clone()
+        .filter(|e| !e.trim().is_empty())
         .unwrap_or_else(|| markdown::plain_text(&p.body_md, SUMMARY_CHARS));
     json!({
         "id": p.id,

@@ -12,7 +12,7 @@ use maru_core::model::{MenuItem, MenuLink, Page, PageReq, PageStatus, PostStatus
 use maru_core::services::boards::{self, NewBoard};
 use maru_core::services::posts::{self, NewPost};
 use maru_core::services::tokens::{self, NewToken};
-use maru_core::services::{auth, design, media, menus, pages, presets, settings};
+use maru_core::services::{auth, design, files, media, menus, pages, presets, settings, templates};
 use maru_core::urls::{self, Target};
 use maru_core::{Actor, Code, Ctx, Error, Result};
 use maru_storage::{DataDir, Db};
@@ -20,8 +20,9 @@ use serde_json::{Value, json};
 
 use crate::output;
 use crate::{
-    BoardCmd, Command, DesignCmd, Global, InitArgs, LoginLinkArgs, MediaCmd, MenuCmd, MenuSetArgs,
-    PageCmd, PostCmd, PostListArgs, PostNewArgs, ServeArgs, SiteCmd, TokenCmd, TokenCreateArgs,
+    BoardCmd, Command, DesignCmd, FileCmd, Global, InitArgs, LoginLinkArgs, MediaCmd, MenuCmd,
+    MenuSetArgs, PageCmd, PostCmd, PostListArgs, PostNewArgs, ServeArgs, SiteCmd, TemplateCmd,
+    TokenCmd, TokenCreateArgs,
 };
 
 pub async fn run(g: &Global, command: Command) -> ExitCode {
@@ -33,6 +34,8 @@ pub async fn run(g: &Global, command: Command) -> ExitCode {
         Command::Board(cmd) => board(g, cmd).await,
         Command::Token(cmd) => token(g, cmd).await,
         Command::Media(cmd) => media_cmd(g, cmd).await,
+        Command::File(cmd) => file_cmd(g, cmd).await,
+        Command::Template(cmd) => template_cmd(g, cmd).await,
         Command::Page(cmd) => page(g, cmd).await,
         Command::Menu(cmd) => menu(g, cmd).await,
         Command::Site(cmd) => site(g, cmd).await,
@@ -367,6 +370,8 @@ async fn post(g: &Global, cmd: PostCmd) -> Out {
                 slug: args.slug,
                 body_md,
                 excerpt: args.excerpt,
+                cover: args.cover,
+                scheduled_at: schedule_arg(&ctx, args.schedule).await?,
             };
             let p = posts::update(&ctx, &actor, &args.id, patch).await?;
             post_out(&ctx, &p, "고쳤습니다").await
@@ -394,10 +399,29 @@ async fn post_out(ctx: &Ctx, p: &maru_core::model::Post, verb: &str) -> Out {
     let url = post_url(ctx, &p.board_id, &p.slug).await?;
     let mut data = to_value(p)?;
     data["url"] = Value::String(url.clone());
-    Ok((
-        data,
-        format!("{verb}: {} [{}]\n{url}", p.title, p.status.as_str()),
-    ))
+    let mut human = format!("{verb}: {} [{}]\n{url}", p.title, p.status.as_str());
+    if let Some(at) = &p.scheduled_at {
+        human.push_str(&format!("\n예약 발행: {at} (UTC)"));
+    }
+    Ok((data, human))
+}
+
+/// `--schedule` 값을 서비스가 받는 RFC3339 로. 빈 값은 그대로(예약 취소).
+async fn schedule_arg(ctx: &Ctx, value: Option<String>) -> Result<Option<String>> {
+    let Some(v) = value else {
+        return Ok(None);
+    };
+    if v.trim().is_empty() {
+        return Ok(Some(String::new()));
+    }
+    let tz = settings::site(ctx).await?.tz_offset_min;
+    maru_core::clock::from_local_input(&v, tz)
+        .map(Some)
+        .ok_or_else(|| {
+            Error::new(Code::Validation)
+                .with_message("error.timestamp")
+                .arg("value", v)
+        })
 }
 
 async fn post_new(ctx: &Ctx, actor: &Actor, args: PostNewArgs) -> Out {
@@ -412,7 +436,9 @@ async fn post_new(ctx: &Ctx, actor: &Actor, args: PostNewArgs) -> Out {
         slug: args.slug,
         body_md,
         excerpt: args.excerpt,
+        cover: args.cover,
     };
+    let schedule = schedule_arg(ctx, args.schedule).await?;
     let (mut p, created) = if args.if_not_exists {
         let res = posts::ensure_draft(ctx, actor, input).await?;
         (res.item, res.created)
@@ -421,6 +447,13 @@ async fn post_new(ctx: &Ctx, actor: &Actor, args: PostNewArgs) -> Out {
     };
     if args.publish {
         p = posts::publish(ctx, actor, &p.id).await?;
+    }
+    if let Some(at) = schedule {
+        let patch = posts::PostPatch {
+            scheduled_at: Some(at),
+            ..Default::default()
+        };
+        p = posts::update(ctx, actor, &p.id, patch).await?;
     }
     let url = post_url(ctx, &p.board_id, &p.slug).await?;
     let mut data = to_value(&p)?;
@@ -432,7 +465,9 @@ async fn post_new(ctx: &Ctx, actor: &Actor, args: PostNewArgs) -> Out {
         (true, false) => "초안 저장",
     };
     let mut human = format!("{verb}: {} (id {})\n{url}", p.title, p.id);
-    if !args.publish && created {
+    if let Some(at) = &p.scheduled_at {
+        human.push_str(&format!("\n예약 발행: {at} (UTC)"));
+    } else if !args.publish && created {
         human.push_str(&format!("\n다음: maru post publish {}", p.id));
     }
     Ok((data, human))
@@ -1123,6 +1158,93 @@ async fn media_cmd(g: &Global, cmd: MediaCmd) -> Out {
     };
     db.close().await;
     res
+}
+
+async fn file_cmd(g: &Global, cmd: FileCmd) -> Out {
+    let (ctx, _config, db) = open(g).await?;
+    let actor = actor(&ctx).await?;
+    let res = match cmd {
+        FileCmd::Upload { file } => {
+            let bytes = std::fs::read(&file).map_err(|e| {
+                Error::new(Code::NotFound)
+                    .with_message("error.io")
+                    .arg("path", file.display().to_string())
+                    .with_source(e)
+            })?;
+            let filename = file
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            let f = files::upload(&ctx, &actor, files::Upload { filename, bytes }).await;
+            f.and_then(|f| file_out(&f, "올렸습니다"))
+        }
+        FileCmd::List { page, per_page } => {
+            let list = files::list(&ctx, &actor, PageReq::new(page, per_page)).await?;
+            let mut human = format!("첨부 파일 {}개", list.total);
+            for f in &list.items {
+                human.push_str(&format!(
+                    "\n{}  {}KB  {}  {}",
+                    f.id,
+                    f.size / 1024,
+                    f.url,
+                    f.filename
+                ));
+            }
+            Ok((to_value(&list)?, human))
+        }
+        FileCmd::Delete { id } => {
+            let f = files::delete(&ctx, &actor, &id).await?;
+            file_out(&f, "지웠습니다")
+        }
+    };
+    db.close().await;
+    res
+}
+
+async fn template_cmd(g: &Global, cmd: TemplateCmd) -> Out {
+    let (ctx, _config, db) = open(g).await?;
+    let actor = actor(&ctx).await?;
+    let res = match cmd {
+        TemplateCmd::List => {
+            let list = templates::list(&ctx, &actor).await?;
+            let mut human = format!("글 틀 {}개", list.len());
+            for t in &list {
+                let kind = if t.builtin { "기본" } else { "저장" };
+                human.push_str(&format!("\n{}  [{kind}] {}", t.id, t.name));
+            }
+            Ok((to_value(&list)?, human))
+        }
+        TemplateCmd::Save { name, body, from } => {
+            let body_md = match (body, from) {
+                (Some(b), _) => b,
+                (None, Some(path)) => read_body(&path)?,
+                (None, None) => String::new(),
+            };
+            let t =
+                templates::save(&ctx, &actor, templates::SaveTemplate { name, body_md }).await?;
+            let human = format!("틀을 저장했습니다: {} (id {})", t.name, t.id);
+            Ok((to_value(&t)?, human))
+        }
+        TemplateCmd::Delete { id } => {
+            let t = templates::delete(&ctx, &actor, &id).await?;
+            let human = format!("틀을 지웠습니다: {}", t.name);
+            Ok((to_value(&t)?, human))
+        }
+    };
+    db.close().await;
+    res
+}
+
+fn file_out(f: &maru_core::model::Attachment, verb: &str) -> Out {
+    let human = format!(
+        "{verb}: {} ({}KB)\n{}\n본문에 넣기: [{}]({})",
+        f.filename,
+        f.size / 1024,
+        f.url,
+        f.filename,
+        f.url
+    );
+    Ok((to_value(f)?, human))
 }
 
 /// 사람용 출력에는 본문에 바로 붙일 Markdown 한 줄을 같이 낸다.

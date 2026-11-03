@@ -243,3 +243,91 @@
   - `/media/*` 는 `Cache-Control: immutable`, `nosniff`, `CSP: default-src 'none'; sandbox`로 내보낸다.
 - **대안:** libwebp 로 손실 WebP 변환. 용량은 가장 작지만 C 의존이 생긴다. 순수 Rust 손실 WebP 인코더가 나오면 저장 형식에 WebP를 더하고 이 ADR을 갱신한다.
 - **결과:** SPEC의 「webp 변환」은 보류한다. 공개 화면의 `srcset`(축소본 활용)은 테마 작업에서 한다. MCP 툴(`upload_media`, `list_media`, `set_alt_text`)은 Phase 3 MCP 서버에서 같은 서비스를 노출한다.
+
+## ADR-0033 글 에디터는 ProseMirror 위에 직접 만든 Maru 층, 저장 형식은 Markdown
+
+- **배경:** 관리 화면의 글쓰기는 textarea 하나였다. 블로그를 쓰려면 서식 도구, 이미지 붙여 넣기·끌어 놓기, 미리보기가 필요하다. 후보는 TOAST UI Editor(MIT)를 그대로 쓰기, Tiptap, 직접 만들기였다. TOAST UI 는 2023년 이후 유지보수가 사실상 멈췄고, 번들이 크고(약 500KB+), 자체 Markdown 파서로 미리보기를 그려 서버 렌더러(pulldown-cmark + ammonia)와 결과가 어긋날 수 있다. 다만 그 구조(Markdown·WYSIWYG 두 모드가 같은 원문을 공유, 이미지 업로드 훅, 도구 막대 명령 레지스트리)는 검증된 설계라 구조만 분석했다.
+- **결정:**
+  - 편집 엔진은 ProseMirror(MIT), 그 위의 도구 막대·단축키·입력 규칙·업로드·자동 저장·CSS 는 직접 만든다(`editor/`, TypeScript). esbuild 로 IIFE 번들 하나(`editor.js`)를 만들어 커밋하고 rust-embed 로 바이너리에 넣는다. 실행 시 Node 가 필요 없다(원칙 5).
+  - 원문은 언제나 textarea 의 Markdown 이다. 스크립트가 꺼져도 폼은 그대로 저장된다. 모드는 서식(ProseMirror), Markdown(textarea), 미리보기 셋이고, 미리보기는 `POST /admin/preview` 로 서버 렌더러가 그린다(공개 화면과 같은 HTML).
+  - 손실 방지: 글을 열 때 parse → serialize 한 결과와 원문을 markdown-it 으로 각각 HTML 로 그려 비교한다. 다르거나 표·HTML·할 일 목록·각주가 있으면 서식 모드를 막고 Markdown 으로 연다. 이미 연 원문은 덮어쓰지 않는다.
+  - 이미지는 서버에 원본 바이트로 올린다(ADR-0032, `POST /admin/media`, 세션 쿠키 + `X-CSRF-Token`). TOAST UI 기본값인 base64 본문 삽입은 쓰지 않는다. 클립보드 그림처럼 이름이 의미 없으면 대체 텍스트를 비워 두고 쓰라고 안내한다.
+  - 자동 저장은 브라우저 localStorage 에 글별로(폼 주소 기준) 둔다. 비밀값이 아니라 쓰던 원고이고, 제출하면 지운다.
+  - 관리 화면 CSP 는 `script-src 'self'`, `connect-src 'self'`, `style-src 'self'`(인라인 없음)로 연다.
+  - 번들에 들어간 패키지의 라이선스 전문은 빌드 때 `editor.licenses.txt` 로 모은다(THIRD_PARTY.md).
+- **대안:** TOAST UI 그대로 — 유지보수 정지, 렌더러 불일치. Tiptap — ProseMirror 위의 층이라 장점이 겹치고 Markdown 왕복은 별도 확장에 기대야 한다. contenteditable 직접 구현 — 한글 IME·선택 처리 비용이 너무 크다.
+- **결과:** 번들 약 370KB(압축 전). tower-http 압축, 표 서식 편집, 붙여 넣은 HTML 의 외부 이미지 처리, 공개 화면 `srcset` 은 후속으로 둔다. 한글 IME 조합·실제 끌어 놓기·파일 선택은 자동 검증이 닿지 않으므로 바꿀 때마다 사람이 확인한다.
+
+## ADR-0034 글 꾸밈은 Markdown 확장 문법(directive)으로, 값은 정해진 팔레트 안에서만
+
+- **배경:** 네이버 블로그 수준의 글쓰기에는 강조 상자, 문단 정렬, 글자 색·형광펜·크기가 필요하다. 원문은 Markdown 이어야 하고(ADR-0033), 공개 화면은 ammonia 로 정화한다. 인라인 `style` 이나 임의 클래스를 허용하면 XSS 표면이 넓어지고, 테마를 바꾸면 색이 깨진다.
+- **결정:**
+  - 블록: `:::info|tip|warn|danger` (강조 상자), `:::center|right` (정렬) … `:::`. 여는 줄은 0칸 들여쓰기이고, 빈 줄·문서 시작·다른 상자 줄 뒤에만 올 수 있으며, 짝이 맞는 닫는 줄이 있어야 한다. 코드 펜스 안의 줄은 보지 않는다. 상자는 겹칠 수 있다.
+  - 인라인: `:color[글자]{red|orange|green|blue|purple|gray}`, `:mark[글자]{yellow|green|blue|pink}`, `:size[글자]{small|large|xlarge}`. 줄을 넘지 않고, `\:` 은 문법이 아니며, 팔레트 밖 값은 글자 그대로 둔다.
+  - 서버는 pulldown-cmark 앞 단계(`core::directives::expand`)에서 HTML 로 펼치고, ammonia 에는 이 문법이 만드는 클래스(`callout callout-*`, `align-*`, `tc-*`, `hl-*`, `fs-*`)만 허용 목록으로 준다. 사용자가 직접 쓴 같은 이름의 클래스는 남지만 다른 클래스·속성은 지워진다.
+  - 에디터는 markdown-it 플러그인(`maruDirectives`)과 ProseMirror 노드(`box`)·마크(`color`·`highlight`·`size`)로 같은 문법을 읽고 쓴다. 손실 검사에도 같은 플러그인을 쓴다.
+  - 색은 테마 토큰(`--fg` 와 섞은 `color-mix`)으로 정해 밝은·어두운 테마 모두에서 대비를 지킨다.
+  - 각주는 서버가 직접 번호 id(`fn-N`, `fnref-N`)로 그리고, 정화 단계는 이 형태의 id 만 남긴다.
+- **대안:** 인라인 HTML(`<span style>`) — 정화와 충돌, 테마 무관한 색. 임의 색 코드(`{#ff0000}`) — 어두운 테마에서 대비가 깨진다. CommonMark generic directive 전체(`{.class #id key=val}`) — 허용 범위가 넓어 정화 규칙이 복잡해진다.
+- **결과:** 원문이 Markdown 으로 남아 에이전트도 같은 문법으로 꾸밀 수 있다(CLI·MCP 그대로). 문법을 모르는 다른 Markdown 도구에서는 `:::info` 같은 글자가 보인다. 인용구 모양 변형은 아직 없다.
+
+## ADR-0035 사진 크기는 주소 조각, 캡션은 그림 제목, 갤러리는 상자, 축소본은 렌더 때 DB 에서
+
+- **배경:** 블로그 사진은 크기(100·75·50%)·캡션·여러 장 격자가 필요하고, 공개 화면은 업로드 때 만든 축소본(640·1280, ADR-0032)을 `srcset` 으로 써야 모바일에서 가볍다. 원문은 Markdown 이어야 하고(ADR-0033), 다른 Markdown 도구에서 열어도 그림이 깨지면 안 된다.
+- **결정:**
+  - 크기: 그림 주소 끝 조각 `#w75`·`#w50`(`![바다](/media/…/a.jpg#w50)`). 조각은 서버가 요청하지 않으므로 다른 도구에서도 그림이 그대로 보인다. 렌더러가 조각을 떼고 `img-w50` 클래스로 바꾼다. 정해진 값만 받는다.
+  - 캡션: CommonMark 그림 제목(`![바다](a.jpg "동해 바다")`). 그림 하나만 있는 문단에 제목이 있으면 `<figure class="figure">` + `<figcaption>` 으로 그린다. 글 사이에 낀 그림은 제목을 `title` 로만 둔다.
+  - 갤러리: 상자 문법에 `:::gallery` 를 더한다(ADR-0034). 공개 화면은 CSS 격자(안의 문단은 `display: contents`)로 그린다.
+  - 축소본: 공개 화면이 렌더할 때 본문의 `/media/…/<id>.<ext>` 그림을 `media_by_id` 로 찾아(한 글 60장까지) `width`·`height`·`srcset`·`sizes` 를 붙인다. 원문에는 저장하지 않으므로 축소본 규칙이 바뀌어도 글을 고칠 필요가 없다. 모든 그림에 `loading="lazy" decoding="async"` 를 붙인다.
+  - 정화: `srcset` 은 `/media/` 로 시작하고 안전한 글자로만 된 후보일 때만, `sizes`·`loading`·`decoding` 은 렌더러가 쓰는 값일 때만 남긴다. 사용자가 직접 쓴 다른 값은 지운다.
+  - 에디터: 그림 노드에 `width` 속성, 캡션은 `title`. 그림을 고르면 「사진 크기」「캡션」 단추가 켜진다.
+- **대안:** `{width=50%}` 같은 속성 문법 — 다른 도구에서 글자로 보인다. 원문에 `srcset` 을 저장 — 축소본 규칙이 바뀌면 모든 글이 낡는다. 축소본 파일 존재를 파일 시스템으로 확인 — 원본 폭을 몰라 `srcset` 에 원본을 넣을 수 없다.
+- **결과:** 글 하나를 그릴 때 그림 수만큼 DB 조회가 늘어난다(SQLite 로컬 조회라 작다). RSS·관리 미리보기는 축소본 없이 그린다.
+
+## ADR-0036 동영상·장소는 한 줄 문법, 재생기는 정화 뒤 검증된 주소만
+
+- **배경:** 블로그 글에는 유튜브·비메오 동영상과 장소(이름·주소·지도) 블록이 자주 들어간다. 정화 단계(ammonia)에 iframe 을 허용하면 사용자가 쓴 iframe 도 남고, 주소만 걸러도 빈 `<iframe>` 이 남는다. 지도 그림은 카카오·네이버 키가 필요하다.
+- **결정:**
+  - 문법: 한 줄 블록 `::video[주소]`, `::place[이름]{주소}`. 상자 문법(ADR-0034)과 같은 자리 조건(앞은 빈 줄·처음·상자 줄, 뒤는 빈 줄·끝·상자 닫는 줄)을 서버와 에디터가 똑같이 본다.
+  - 동영상 주소는 유튜브(`youtu.be/ID`, `youtube.com/watch?v=ID`, `shorts/`, `embed/`, `live/`)와 비메오(`vimeo.com/숫자`)만 받고, 재생기 주소는 `youtube-nocookie.com/embed/ID`, `player.vimeo.com/video/숫자` 로 바꾼다. 정규식 없이 같은 순서로 자르는 함수를 Rust(`directives::video_embed`)와 TS(`videoEmbed`)에 두고 같은 사례로 시험한다.
+  - 정화 단계에는 iframe 을 넣지 않는다. 문법은 `<div class="video"><a href="재생기 주소">동영상 보기</a></div>` 로 펼치고, 정화가 끝난 HTML 에서 재생기 주소 모양이 맞는 이 상자만 iframe 으로 바꾼다(`embed_videos`). RSS 처럼 iframe 을 못 그리는 곳에서도 링크가 남는다.
+  - 공개·관리 화면 CSP 에 `frame-src https://www.youtube-nocookie.com https://player.vimeo.com` 만 더한다. iframe 에는 `referrerpolicy="strict-origin-when-cross-origin"`, `loading="lazy"` 를 붙인다.
+  - 장소는 키 없이 이름·주소와 네이버 지도·카카오맵 검색 링크로 그린다. 지도 그림은 Phase 4 `map` 모듈에서 사용자가 키를 넣으면 붙인다.
+- **대안:** 주소만 한 줄 쓰면 자동으로 재생기(네이버 방식) — 기존 글의 유튜브 링크 문단이 갑자기 재생기로 바뀐다. ammonia 에 iframe 허용 + 속성 필터 — 잘못된 iframe 이 빈 태그로 남는다.
+- **결과:** 편집 화면은 재생기 대신 카드로 보인다(편집 중 자동 재생·외부 요청 없음). 링크 카드(E12)는 서버가 외부 페이지를 읽어야 해서 HTTP 클라이언트 의존성 결정이 필요하다.
+
+## ADR-0037 예약 발행은 상태가 아니라 시각 열, 대표 이미지는 지정 또는 본문 첫 사진
+
+- **배경:** 블로그는 글을 미리 써 두고 정한 시각에 공개하는 예약 발행과, 목록 썸네일·공유 미리보기(`og:image`)용 대표 이미지가 필요하다. GAP_PLAN 은 `scheduled` 상태를 적었지만 `posts.status` 에는 CHECK 제약이 있고, 상태를 늘리면 모든 전이 규칙과 공개 판정이 바뀐다.
+- **결정:**
+  - `posts.scheduled_at`(UTC 고정 자릿수 문자열)과 `posts.cover` 열을 더한다. 상태는 그대로 초안·검토·숨김이다.
+  - 예약은 글 고치기(`PostPatch.scheduled_at`)로 건다. 발행 권한이 필요하고, 아직 공개되지 않은 글에만, 지금 이후 366일 안쪽만 받는다. 빈 문자열은 취소. 공개·삭제로 바뀌면 예약을 지운다.
+  - `maru serve` 가 켜질 때 한 번, 그 뒤 20초마다 `posts::publish_due` 를 부른다. 시각이 지난 글을 로컬 권한으로 발행하고 감사 기록은 `post.publish_scheduled` 로 남긴다. 서버가 꺼져 있던 동안 지난 예약은 켜자마자 발행된다. 글 하나가 실패해도 나머지는 계속하고 다음 주기에 다시 한다.
+  - 관리 화면은 브라우저 `datetime-local` 값을 사이트 시간대(`tz_offset_min`)로 읽고(`clock::from_local_input`), CLI `--schedule` 은 RFC3339 와 같은 지역 시각 형식을 둘 다 받는다.
+  - 대표 이미지는 이 사이트에 올린 사진 주소(`/media/…`)만 지정할 수 있고, 비우면 본문의 첫 보관소 사진을 쓴다(`posts::cover_of`). 목록은 가장 작은 축소본을, `og:image` 는 가장 큰 축소본의 절대 주소를 쓴다. 보관소에서 찾지 못한 사진은 빼서 깨진 그림을 만들지 않는다.
+  - 요약을 비우면 본문 앞부분을 쓴다. 이때 표 칸은 띄어 쓰고 그림 설명(alt)은 뺀다.
+- **대안:** `scheduled` 상태 추가 — 마이그레이션이 CHECK 를 바꾸려면 표를 다시 만들어야 하고 전이 규칙이 복잡해진다. 운영체제 작업 스케줄러 — 단일 바이너리 원칙(5)에 어긋난다. 외부 이미지도 대표 이미지로 허용 — 크기·축소본을 알 수 없고 외부 요청이 생긴다.
+- **결과:** 예약은 서버가 켜져 있어야 그 시각에 발행된다(최대 20초 늦음). 화면에 이 점을 적었다.
+
+## ADR-0038 첨부 파일은 다시 인코딩하지 않는 대신 화이트리스트·서명 검사·내려받기 전용
+
+- **배경:** PDF·한글(HWP·HWPX)·오피스·압축 파일 첨부가 필요하다. 그림처럼 다시 인코딩할 수 없어서, HTML·SVG·스크립트를 문서처럼 꾸며 올리면 사이트 주소로 열리는 저장형 XSS 가 생길 수 있다.
+- **결정:**
+  - 그림(`media`)과 다른 `files` 표와 서비스(`services::files`)를 둔다. 보관 경로는 `files/YYYY/MM/<id>.<확장자>` 이고 이름은 경로에 쓰지 않는다. `/media/*` 는 jpg·png 만 내보내므로 첨부가 그쪽으로 새지 않는다.
+  - 확장자 화이트리스트(pdf, hwp, hwpx, docx, xlsx, pptx, doc, xls, ppt, zip, txt, csv, md)와 내용 서명(`%PDF-`, ZIP `PK\x03\x04`, OLE `D0 CF 11 E0…`, 글자는 UTF-8·NUL 없음)이 둘 다 맞아야 받는다. 10MB 이하.
+  - 내려받기는 `/files/<id>` 하나다. 항상 `Content-Disposition: attachment`(RFC 6266, `filename*=UTF-8''…`), 확장자로 정한 MIME, `nosniff`, `CSP: default-src 'none'; sandbox` 로 보낸다. 그림처럼 누구나 받을 수 있다(글에 링크로 붙이는 파일).
+  - 파일 이름은 경로·제어 문자·`"<>|:*?` 를 지우고 120자로 줄인다(확장자는 살린다). 한글 이름은 그대로 둔다.
+  - 본문에는 `[견적서.pdf (120KB)](/files/<id>)` 링크로 넣고, 공개 화면은 `/files/` 링크에 📎 표시를 붙인다. 업로드는 PostUpload, 삭제는 PostModerate 권한이다.
+- **대안:** media 표에 섞기 — 폭·높이·축소본이 없는 행이 생기고 그림 전용 규칙(다시 인코딩)이 흐려진다. 바이러스 검사 — 외부 엔진이 필요하다(단일 바이너리 원칙). 첨부를 브라우저 안에서 보기(PDF inline) — 꾸민 파일이 사이트 출처로 열린다.
+- **결과:** 내려받은 파일 자체의 안전(매크로 등)은 받는 사람 기기의 몫이다. 글이 지워져도 첨부는 남는다(그림과 같다). 첨부 관리 화면은 아직 없고 CLI·REST 로 목록·삭제한다.
+
+## ADR-0039 글 틀은 기본 틀(바이너리) + 저장한 틀(DB), 이름 기준 덮어쓰기
+
+- **배경:** 네이버 블로그의 템플릿, 그누보드의 게시판 기본 글처럼 자주 쓰는 글 모양을 불러오는 기능이 필요하다. 에이전트가 여러 번 실행해도 틀이 늘어나지 않아야 한다(원칙 3).
+- **결정:**
+  - 기본 틀 네 개(여행기·리뷰·공지·레시피)는 `services::templates` 상수로 두고 `builtin-*` ID 를 준다. 고치거나 지울 수 없다. 에디터 왕복 시험이 이 파일을 직접 읽어 서식 모드로 열리는지 확인한다.
+  - 사용자 틀은 `post_templates` 표에 둔다. 저장은 이름 기준 upsert(같은 내용이면 그대로), 삭제는 ID 나 이름으로. 목록은 글쓰기 권한, 저장·삭제는 발행 권한이다.
+  - 에디터 「틀」 메뉴: 빈 글이면 틀로 채우고, 쓰던 글이 있으면 커서 자리에 넣는다(실행 취소 가능). 「지금 글을 틀로 저장…」으로 현재 본문을 저장한다.
+  - REST `GET/POST /api/v1/templates`, `DELETE /api/v1/templates/{id|이름}`, CLI `maru template list|save|delete`, 관리 화면 `/admin/templates`(세션 + CSRF)가 같은 서비스를 쓴다.
+- **대안:** 게시판마다 기본 글 하나(그누보드 방식) — 블로그는 글 종류가 게시판보다 다양하다. 틀을 설정(settings) JSON 에 저장 — 감사 기록과 개별 삭제가 어색하다.
+- **결과:** 게시판별 기본 틀 지정은 아직 없다(필요해지면 게시판 정책에 틀 ID 를 더한다).

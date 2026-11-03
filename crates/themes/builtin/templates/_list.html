@@ -2,7 +2,8 @@
 <ul class="post-list">
   {% for post in posts %}
   <li>
-    <article>
+    <article{% if post.thumb %} class="has-thumb"{% endif %}>
+      {% if post.thumb %}<a class="thumb" href="{{ post.url }}" tabindex="-1" aria-hidden="true"><img src="{{ post.thumb.src }}" alt="" width="{{ post.thumb.width }}" height="{{ post.thumb.height }}" loading="lazy" decoding="async"></a>{% endif %}
       <h2><a href="{{ post.url }}">{{ post.title }}</a></h2>
       <p class="meta"><time datetime="{{ post.published_at }}">{{ post.date }}</time></p>
       {% if post.summary %}<p class="summary">{{ post.summary }}</p>{% endif %}

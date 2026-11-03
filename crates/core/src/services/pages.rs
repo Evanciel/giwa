@@ -332,12 +332,7 @@ fn check_layout(layout: &str) -> Result<()> {
 }
 
 fn check_body(body: String) -> Result<String> {
-    if body.len() > MAX_BODY_BYTES {
-        return Err(Error::new(Code::Validation)
-            .with_message("error.body_too_large")
-            .arg("max", MAX_BODY_BYTES.to_string()));
-    }
-    Ok(body.trim_start_matches('\u{feff}').to_owned())
+    super::body_text(body, MAX_BODY_BYTES)
 }
 
 pub(crate) fn not_found(slug: &str) -> Error {

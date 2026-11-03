@@ -1,0 +1,1277 @@
+// Maru 글 에디터. 관리 화면의 `textarea[data-editor]` 를 서식 편집기로 바꾼다.
+//
+// - 저장되는 값은 언제나 textarea 의 Markdown 이다. 스크립트가 꺼져 있으면 textarea 가 그대로 동작한다.
+// - 세 모드: 서식(ProseMirror), Markdown(원문 textarea), 미리보기(서버 렌더러 = 공개 화면과 같은 결과).
+// - 서식 편집기가 원문을 바꾸지 않고는 열 수 없는 글(표·HTML 등)은 Markdown 으로 연다 (markdown.ts).
+
+import { history, redo, undo } from "prosemirror-history";
+import { Fragment, Node, Slice } from "prosemirror-model";
+import { Command, EditorState, Selection } from "prosemirror-state";
+import { EditorView } from "prosemirror-view";
+import { setBlockType, toggleMark } from "prosemirror-commands";
+
+import { CHAR_GROUPS, recentChars, rememberChar, splitChars } from "./chars";
+import {
+  blockActive,
+  boxKind,
+  buildPlugins,
+  setBox,
+  setSpan,
+  spanValue,
+  currentLink,
+  gotoFootnote,
+  insertFootnote,
+  insertRule,
+  insertTable,
+  addRow,
+  addColumn,
+  deleteRow,
+  deleteColumn,
+  deleteTable,
+  setColumnAlign,
+  columnAlign,
+  tableContext,
+  linkHref,
+  linkRange,
+  markActive,
+  removeLink,
+  selectedImage,
+  setImageAlt,
+  setImageAttrs,
+  setLink,
+  taskActive,
+  toggleChecked,
+  toggleCodeBlock,
+  toggleHeading,
+  toggleList,
+  toggleQuote,
+  toggleTask,
+  wrappedIn,
+} from "./commands";
+import { IMAGE_WIDTHS, load, parse, schema, serialize } from "./markdown";
+import { videoEmbed } from "./syntax";
+import {
+  altFromName,
+  ATTACH_ACCEPT,
+  ATTACH_EXTENSIONS,
+  attachFile,
+  attachLabel,
+  imageFiles,
+  insertUploads,
+  placeholderPlugin,
+  sortFiles,
+  uploadFile,
+} from "./upload";
+import type { Attached } from "./upload";
+import { fetchTemplates, saveTemplate } from "./templates";
+import type { Template } from "./templates";
+
+type Mode = "rich" | "md" | "preview";
+
+interface Tool {
+  label: string;
+  name: string;
+  keys?: string;
+  run: (ed: Editor) => void;
+  /** Markdown 모드에서 할 일. 없으면 그 모드에서 버튼을 끈다. */
+  md?: (ed: Editor) => void;
+  active?: (s: EditorState) => boolean;
+  enabled?: (s: EditorState) => boolean;
+}
+
+const MOD = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl";
+
+function el<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  attrs: Record<string, string> = {},
+  text = "",
+): HTMLElementTagNameMap[K] {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  if (text) e.textContent = text;
+  return e;
+}
+
+function cmd(c: Command) {
+  return (ed: Editor) => {
+    c(ed.view.state, ed.view.dispatch, ed.view);
+    ed.view.focus();
+  };
+}
+
+function can(c: Command) {
+  return (s: EditorState) => c(s);
+}
+
+const n = schema.nodes;
+const m = schema.marks;
+
+const TOOLS: (Tool | "|")[] = [
+  { label: "제목", name: "큰 제목", keys: `${MOD}+Alt+2`, run: cmd(toggleHeading(2)), md: (ed) => ed.mdLines("## "), active: (s) => blockActive(s, n.heading, { level: 2 }), enabled: can(setBlockType(n.heading, { level: 2 })) },
+  { label: "소제목", name: "작은 제목", keys: `${MOD}+Alt+3`, run: cmd(toggleHeading(3)), md: (ed) => ed.mdLines("### "), active: (s) => blockActive(s, n.heading, { level: 3 }), enabled: can(setBlockType(n.heading, { level: 3 })) },
+  "|",
+  { label: "B", name: "굵게", keys: `${MOD}+B`, run: cmd(toggleMark(m.strong)), md: (ed) => ed.mdWrap("**", "**", "굵은 글"), active: (s) => markActive(s, m.strong), enabled: can(toggleMark(m.strong)) },
+  { label: "I", name: "기울임", keys: `${MOD}+I`, run: cmd(toggleMark(m.em)), md: (ed) => ed.mdWrap("*", "*", "기울인 글"), active: (s) => markActive(s, m.em), enabled: can(toggleMark(m.em)) },
+  { label: "S", name: "취소선", keys: `${MOD}+Shift+X`, run: cmd(toggleMark(m.strike)), md: (ed) => ed.mdWrap("~~", "~~", "지운 글"), active: (s) => markActive(s, m.strike), enabled: can(toggleMark(m.strike)) },
+  { label: "</>", name: "코드", keys: `${MOD}+E`, run: cmd(toggleMark(m.code)), md: (ed) => ed.mdWrap("`", "`", "코드"), active: (s) => markActive(s, m.code), enabled: can(toggleMark(m.code)) },
+  { label: "링크", name: "링크", keys: `${MOD}+K`, run: (ed) => ed.openLink(), md: (ed) => ed.mdLink(), active: (s) => markActive(s, m.link) },
+  { label: "글자색", name: "글자 색", run: (ed) => ed.openSpanMenu("color"), md: (ed) => ed.openSpanMenu("color"), active: (s) => !!spanValue(s, m.color) },
+  { label: "형광펜", name: "형광펜", run: (ed) => ed.openSpanMenu("mark"), md: (ed) => ed.openSpanMenu("mark"), active: (s) => !!spanValue(s, m.highlight) },
+  { label: "크기", name: "글자 크기", run: (ed) => ed.openSpanMenu("size"), md: (ed) => ed.openSpanMenu("size"), active: (s) => !!spanValue(s, m.size) },
+  "|",
+  { label: "상자", name: "강조 상자", run: (ed) => ed.openBoxMenu("callout"), md: (ed) => ed.openBoxMenu("callout"), active: (s) => !!boxKind(s, "callout") },
+  { label: "정렬", name: "문단 정렬", run: (ed) => ed.openBoxMenu("align"), md: (ed) => ed.openBoxMenu("align"), active: (s) => !!boxKind(s, "align") },
+  "|",
+  { label: "인용", name: "인용", run: cmd(toggleQuote), md: (ed) => ed.mdLines("> "), active: (s) => wrappedIn(s, n.blockquote), enabled: can(toggleQuote) },
+  { label: "• 목록", name: "글머리 목록", run: cmd(toggleList(n.bullet_list)), md: (ed) => ed.mdLines("- "), active: (s) => wrappedIn(s, n.bullet_list), enabled: can(toggleList(n.bullet_list)) },
+  { label: "1. 목록", name: "번호 목록", run: cmd(toggleList(n.ordered_list)), md: (ed) => ed.mdLines((i) => `${i + 1}. `), active: (s) => wrappedIn(s, n.ordered_list), enabled: can(toggleList(n.ordered_list)) },
+  { label: "☑ 할 일", name: "할 일 목록", keys: `${MOD}+Shift+9`, run: cmd(toggleTask), md: (ed) => ed.mdLines("- [ ] "), active: taskActive, enabled: can(toggleTask) },
+  { label: "코드 블록", name: "코드 블록", run: cmd(toggleCodeBlock), md: (ed) => ed.mdFence(), active: (s) => blockActive(s, n.code_block), enabled: can(toggleCodeBlock) },
+  { label: "구분선", name: "구분선", run: cmd(insertRule), md: (ed) => ed.mdInsert("\n\n---\n\n") },
+  { label: "표", name: "표 넣기 (칸 사이는 Tab 으로 이동)", run: cmd(insertTable()), md: (ed) => ed.mdInsert("\n\n| 제목 | 제목 |\n| --- | --- |\n| 내용 | 내용 |\n\n"), enabled: can(insertTable()) },
+  { label: "표 편집", name: "줄·칸 더하기·지우기, 정렬", run: (ed) => ed.openTableMenu(), enabled: (s) => !!tableContext(s) },
+  { label: "각주", name: "각주 달기", run: cmd(insertFootnote), md: (ed) => ed.mdFootnote() },
+  { label: "☺", name: "이모지·특수문자", run: (ed) => ed.toggleChars(), md: (ed) => ed.toggleChars() },
+  "|",
+  { label: "이미지", name: "이미지 올리기", run: (ed) => ed.pickFiles(), md: (ed) => ed.pickFiles() },
+  { label: "대체 텍스트", name: "선택한 그림의 대체 텍스트", run: (ed) => ed.openAlt(), enabled: (s) => !!selectedImage(s) },
+  { label: "사진 크기", name: "선택한 그림의 크기", run: (ed) => ed.openImageSize(), enabled: (s) => !!selectedImage(s) },
+  { label: "캡션", name: "선택한 그림의 캡션", run: (ed) => ed.openCaption(), enabled: (s) => !!selectedImage(s) },
+  { label: "틀", name: "글 틀 불러오기·저장 (여행기·리뷰·공지·레시피 등)", run: (ed) => void ed.openTemplates(), md: (ed) => void ed.openTemplates() },
+  { label: "파일", name: "파일 첨부 (PDF·한글·오피스·zip 등, 10MB 이하)", run: (ed) => ed.pickAttachments(), md: (ed) => ed.pickAttachments() },
+  { label: "동영상", name: "유튜브·비메오 동영상 넣기", run: (ed) => ed.openVideo(), md: (ed) => ed.openVideo() },
+  { label: "장소", name: "장소(이름·주소·지도 링크) 넣기", run: (ed) => ed.openPlace(), md: (ed) => ed.openPlace() },
+  { label: "갤러리", name: "사진 여러 장을 격자로 묶기", run: cmd(setBox("gallery", "gallery")), md: (ed) => ed.mdBox("gallery"), active: (s) => !!boxKind(s, "gallery") },
+  "|",
+  { label: "↶", name: "실행 취소", keys: `${MOD}+Z`, run: cmd(undo), md: (ed) => ed.mdHistory("undo"), enabled: can(undo) },
+  { label: "↷", name: "다시 실행", keys: `${MOD}+Shift+Z`, run: cmd(redo), md: (ed) => ed.mdHistory("redo"), enabled: can(redo) },
+];
+
+/** 링크 주소를 고친다. 도메인만 쓰면 https 를 붙이고, 스크립트 주소는 거부한다. */
+export function normalizeHref(raw: string): string | null {
+  const v = raw.trim();
+  if (!v) return "";
+  if (/^(https?:|mailto:)/i.test(v) || v.startsWith("/") || v.startsWith("#")) return v;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(v)) return null;
+  return `https://${v}`;
+}
+
+/** 꾸밈 메뉴: 문법 이름 → (값, 보이는 이름) */
+const SPAN_MENU: Record<"color" | "mark" | "size", { title: string; mark: "color" | "highlight" | "size"; prefix: string; items: [string, string][] }> = {
+  color: { title: "글자 색", mark: "color", prefix: "tc", items: [["red", "빨강"], ["orange", "주황"], ["green", "초록"], ["blue", "파랑"], ["purple", "보라"], ["gray", "회색"]] },
+  mark: { title: "형광펜", mark: "highlight", prefix: "hl", items: [["yellow", "노랑"], ["green", "연두"], ["blue", "하늘"], ["pink", "분홍"]] },
+  size: { title: "글자 크기", mark: "size", prefix: "fs", items: [["small", "작게"], ["large", "크게"], ["xlarge", "아주 크게"]] },
+};
+
+const BOX_MENU: Record<"callout" | "align", { title: string; none: string; items: [string, string][] }> = {
+  callout: { title: "강조 상자", none: "상자 없애기", items: [["info", "알림"], ["tip", "도움말"], ["warn", "주의"], ["danger", "경고"]] },
+  align: { title: "문단 정렬", none: "왼쪽(기본)", items: [["center", "가운데"], ["right", "오른쪽"]] },
+};
+
+function mdImage(alt: string, url: string): string {
+  return `![${alt.replace(/([\[\]\\])/g, "\\$1")}](${url})`;
+}
+
+class Editor {
+  view: EditorView;
+  mode: Mode = "rich";
+  private root: HTMLElement;
+  private pm: HTMLElement;
+  private preview: HTMLElement;
+  private notice: HTMLElement;
+  private status: HTMLElement;
+  private count: HTMLElement;
+  private saved: HTMLElement;
+  private pop: HTMLFormElement;
+  private file: HTMLInputElement;
+  private attach: HTMLInputElement;
+  private buttons: { tool: Tool; button: HTMLButtonElement }[] = [];
+  private modeButtons = new Map<Mode, HTMLButtonElement>();
+  private tools: HTMLElement;
+  private chars: HTMLElement;
+  private bubble: HTMLElement;
+  private spellButton: HTMLButtonElement;
+  private fullButton: HTMLButtonElement;
+  private spell = false;
+  private syncTimer = 0;
+  private draftTimer = 0;
+  private submitting = false;
+  private initialMd: string;
+  private initialTitle: string;
+  private draftKey: string;
+
+  constructor(
+    private textarea: HTMLTextAreaElement,
+    private form: HTMLFormElement,
+    private csrf: string,
+    private title: HTMLInputElement | null,
+  ) {
+    this.initialMd = textarea.value;
+    this.initialTitle = title?.value ?? "";
+    this.draftKey = `maru:draft:${form.getAttribute("action") ?? location.pathname}`;
+
+    this.root = el("div", { class: "me" });
+    const bar = el("div", { class: "me-bar" });
+    const modes = el("div", { class: "me-modes", role: "group", "aria-label": "편집 방식" });
+    for (const [mode, label] of [["rich", "서식"], ["md", "Markdown"], ["preview", "미리보기"]] as [Mode, string][]) {
+      const b = el("button", { type: "button", class: "me-mode", "aria-pressed": "false" }, label);
+      b.addEventListener("click", () => this.setMode(mode));
+      modes.append(b);
+      this.modeButtons.set(mode, b);
+    }
+    this.tools = el("div", { class: "me-tools", role: "toolbar", "aria-label": "서식" });
+    for (const t of TOOLS) {
+      if (t === "|") {
+        this.tools.append(el("span", { class: "me-sep", "aria-hidden": "true" }));
+        continue;
+      }
+      const title = t.keys ? `${t.name} (${t.keys})` : t.name;
+      const b = el("button", { type: "button", class: "me-tool", title, "aria-label": t.name }, t.label);
+      if (t.active) b.setAttribute("aria-pressed", "false");
+      // 버튼을 눌러도 편집 영역의 선택이 풀리지 않게 한다.
+      b.addEventListener("mousedown", (e) => e.preventDefault());
+      b.addEventListener("click", () => (this.mode === "rich" ? t.run(this) : t.md?.(this)));
+      this.tools.append(b);
+      this.buttons.push({ tool: t, button: b });
+    }
+    const view = el("div", { class: "me-view", role: "group", "aria-label": "보기" });
+    this.spellButton = el("button", { type: "button", class: "me-mode", "aria-pressed": "false", title: "브라우저 맞춤법 검사 표시" }, "맞춤법");
+    this.spellButton.addEventListener("click", () => this.setSpell(!this.spell));
+    this.fullButton = el("button", { type: "button", class: "me-mode", "aria-pressed": "false", title: "전체 화면으로 쓰기 (Esc 로 나가기)" }, "전체 화면");
+    this.fullButton.addEventListener("click", () => this.setFull(!this.root.classList.contains("me-full")));
+    view.append(this.spellButton, this.fullButton);
+    bar.append(modes, this.tools, view);
+
+    this.chars = el("div", { class: "me-chars", hidden: "", role: "dialog", "aria-label": "이모지·특수문자" });
+    this.bubble = el("div", { class: "me-bubble", hidden: "", role: "toolbar", "aria-label": "링크" });
+    this.pop = el("form", { class: "me-pop", hidden: "" });
+    this.notice = el("div", { class: "me-notice", role: "status", hidden: "" });
+    this.pm = el("div", { class: "me-rich" });
+    this.preview = el("div", { class: "me-preview prose", hidden: "", tabindex: "0", "aria-label": "미리보기" });
+    this.file = el("input", { type: "file", accept: "image/jpeg,image/png,image/gif,image/webp", multiple: "", hidden: "" });
+    this.attach = el("input", { type: "file", accept: ATTACH_ACCEPT, multiple: "", hidden: "" });
+    const foot = el("div", { class: "me-foot" });
+    this.status = el("span", { class: "me-status", role: "status", "aria-live": "polite" });
+    this.count = el("span", { class: "me-count" });
+    this.saved = el("span", { class: "me-saved" });
+    const right = el("span", { class: "me-meta" });
+    right.append(this.saved, this.count);
+    foot.append(this.status, right);
+
+    textarea.before(this.root);
+    this.root.append(bar, this.pop, this.chars, this.notice, this.pm, textarea, this.preview, foot, this.file, this.attach);
+    this.pm.append(this.bubble);
+    textarea.classList.add("me-source");
+
+    const label = document.querySelector<HTMLLabelElement>(`label[for="${textarea.id}"]`);
+    if (label) {
+      label.id ||= `${textarea.id}-label`;
+      label.querySelector(".hint")?.remove();
+    }
+
+    const loaded = load(textarea.value);
+    this.view = new EditorView(this.pm, {
+      state: this.createState(loaded.ok ? loaded.doc : parse("")),
+      dispatchTransaction: (tr) => {
+        const next = this.view.state.apply(tr);
+        this.view.updateState(next);
+        if (tr.docChanged) {
+          this.scheduleSync();
+          this.scheduleDraft();
+        }
+        this.refresh();
+      },
+      attributes: (state) => ({
+        class: state.doc.childCount === 1 && state.doc.firstChild?.isTextblock && state.doc.firstChild.content.size === 0 ? "me-doc me-empty" : "me-doc",
+        role: "textbox",
+        "aria-multiline": "true",
+        ...(label ? { "aria-labelledby": label.id } : { "aria-label": "본문" }),
+        "data-placeholder": "여기에 글을 쓰세요. 이미지는 끌어다 놓거나 붙여 넣으면 올라갑니다.",
+        spellcheck: String(this.spell),
+      }),
+      nodeViews: {
+        // 그림은 캡션(제목)을 아래에 보여 준다. 캡션은 편집 내용이 아니라 표시만 한다(캡션 단추로 고친다).
+        image: (node) => {
+          const wrap = el("span", { class: "me-img" });
+          const img = el("img", {});
+          const cap = el("span", { class: "me-cap", contenteditable: "false" });
+          const paint = (n2: typeof node) => {
+            const { src, alt, title, width } = n2.attrs;
+            img.setAttribute("src", src);
+            img.setAttribute("alt", alt ?? "");
+            wrap.className = width ? `me-img img-w${width}` : "me-img";
+            cap.textContent = title ?? "";
+            cap.hidden = !title;
+          };
+          paint(node);
+          wrap.append(img, cap);
+          return {
+            dom: wrap,
+            update: (next) => {
+              if (next.type !== node.type) return false;
+              paint(next);
+              return true;
+            },
+          };
+        },
+        // 할 일 항목은 누를 수 있는 체크 상자를 앞에 붙인다. 상자는 편집 내용이 아니다.
+        list_item: (node, view, getPos) => {
+          const li = document.createElement("li");
+          if (node.attrs.checked === null) return { dom: li, contentDOM: li };
+          li.className = "me-task";
+          li.dataset.checked = String(node.attrs.checked);
+          const box = el("input", { type: "checkbox", contenteditable: "false", "aria-label": "완료 표시" });
+          box.checked = node.attrs.checked;
+          box.addEventListener("mousedown", (e) => e.preventDefault());
+          // 클릭의 기본 동작(체크 표시 바꾸기)은 그대로 두고 문서에도 같은 값을 적는다.
+          // preventDefault 하면 브라우저가 클릭 뒤에 표시를 되돌려 문서와 화면이 어긋난다.
+          box.addEventListener("click", () => {
+            const pos = getPos();
+            if (pos !== undefined) toggleChecked(pos)(view.state, view.dispatch);
+          });
+          const body = el("div", { class: "me-task-body" });
+          li.append(box, body);
+          return {
+            dom: li,
+            contentDOM: body,
+            update: (next) => {
+              if (next.type !== node.type || next.attrs.checked === null) return false;
+              box.checked = next.attrs.checked;
+              li.dataset.checked = String(next.attrs.checked);
+              return true;
+            },
+            stopEvent: (e) => e.target === box,
+            ignoreMutation: (m) => m.target === box || m.target === li,
+          };
+        },
+      },
+      handleClickOn: (view, _pos, node) => {
+        if (node.type !== n.footnote_ref) return false;
+        return gotoFootnote(node.attrs.label)(view.state, view.dispatch);
+      },
+      handlePaste: (view, event) => {
+        if (this.takeFiles(event.clipboardData?.files)) return true;
+        // 주소 하나만 붙여 넣으면: 고른 글자가 있으면 그 글자에 링크를, 없으면 주소를 링크로 넣는다.
+        const text = event.clipboardData?.getData("text/plain") ?? "";
+        const href = linkHref(text);
+        if (!href || view.state.selection.$from.parent.type.spec.code) return false;
+        const { empty, from } = view.state.selection;
+        if (!empty) {
+          setLink(href)(view.state, view.dispatch);
+        } else {
+          view.dispatch(view.state.tr.insert(from, schema.text(text.trim(), [m.link.create({ href })])).removeStoredMark(m.link));
+        }
+        return true;
+      },
+      handleDrop: (view, event, _slice, moved) => {
+        if (moved) return false;
+        const pos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos;
+        // 파일은 무엇이든 여기서 받는다. 놓아 두면 브라우저가 그 파일을 탭에 열어 쓰던 화면을 떠난다.
+        if (!this.takeFiles(event.dataTransfer?.files, pos)) return false;
+        event.preventDefault();
+        return true;
+      },
+      // 메모장 등에서 붙여 넣은 글은 Markdown 으로 읽는다. Shift 를 누르고 붙이면 글자 그대로.
+      clipboardTextParser: (text, $context, plain) => {
+        if (!plain && !$context.parent.type.spec.code) {
+          try {
+            const doc = parse(text);
+            return Slice.maxOpen(doc.content);
+          } catch {
+            // HTML 이 섞인 글은 아래처럼 문단으로
+          }
+        }
+        if ($context.parent.type.spec.code) return new Slice(Fragment.from(schema.text(text)), 0, 0);
+        const paras = text.split(/\r?\n/).map((line) => n.paragraph.create(null, line ? schema.text(line) : null));
+        return Slice.maxOpen(Fragment.from(paras));
+      },
+    });
+
+    this.bindSource();
+    this.bindFile();
+    this.bindAttach();
+    this.bindForm();
+    this.bindPopover();
+    this.bindChars();
+    try {
+      this.setSpell(localStorage.getItem("maru:editor-spell") === "on");
+    } catch {
+      this.setSpell(false);
+    }
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && this.root.classList.contains("me-full") && this.pop.hidden && this.chars.hidden) this.setFull(false);
+    });
+
+    if (loaded.ok) {
+      this.setMode(localStorage.getItem("maru:editor-mode") === "md" ? "md" : "rich", false);
+    } else {
+      this.setMode("md", false);
+      this.showNotice(`이 글에는 Markdown 으로만 고칠 수 있는 부분(${loaded.reason})이 있어 Markdown 으로 엽니다.`);
+    }
+    this.offerDraft();
+    this.refresh();
+  }
+
+  private createState(doc: Node): EditorState {
+    return EditorState.create({
+      doc,
+      plugins: [...buildPlugins(() => this.openLink()), history(), placeholderPlugin],
+    });
+  }
+
+  /** 현재 Markdown. 서식 모드면 문서에서 다시 쓴다. */
+  markdown(): string {
+    return this.mode === "rich" ? serialize(this.view.state.doc) : this.textarea.value;
+  }
+
+  private sync() {
+    window.clearTimeout(this.syncTimer);
+    if (this.mode === "rich") this.textarea.value = serialize(this.view.state.doc);
+  }
+
+  private scheduleSync() {
+    window.clearTimeout(this.syncTimer);
+    this.syncTimer = window.setTimeout(() => this.sync(), 150);
+  }
+
+  setMode(mode: Mode, focus = true) {
+    if (mode === this.mode && this.root.dataset.mode) return;
+    if (mode === "rich" && this.mode !== "rich") {
+      const loaded = load(this.textarea.value);
+      if (!loaded.ok) {
+        this.showNotice(`이 글에는 Markdown 으로만 고칠 수 있는 부분(${loaded.reason})이 있어 서식 편집기로 바꾸지 않습니다. 바꾸면 원문이 달라집니다.`);
+        return;
+      }
+      // 새 상태는 커서가 글 맨 앞이다. Markdown 에서 이어 쓰던 흐름대로 글 끝에 둔다.
+      const fresh = this.createState(loaded.doc);
+      this.view.updateState(fresh.apply(fresh.tr.setSelection(Selection.atEnd(fresh.doc))));
+      this.hideNotice();
+    }
+    // 처음 부를 때는 원문이 textarea 에 있다. 빈 문서(열 수 없는 글)나 정규화된 문서로 덮어쓰지 않는다.
+    if (this.mode === "rich" && this.root.dataset.mode) this.sync();
+    this.mode = mode;
+    this.root.dataset.mode = mode;
+    if (mode !== "preview") {
+      try {
+        localStorage.setItem("maru:editor-mode", mode);
+      } catch {
+        // 저장소를 못 쓰면 다음에도 기본값
+      }
+    }
+    for (const [k, b] of this.modeButtons) b.setAttribute("aria-pressed", String(k === mode));
+    this.pm.hidden = mode !== "rich";
+    this.textarea.hidden = mode !== "md";
+    this.preview.hidden = mode !== "preview";
+    this.tools.hidden = mode === "preview";
+    this.closePop();
+    this.chars.hidden = true;
+    this.chars.replaceChildren();
+    if (mode === "preview") void this.renderPreview();
+    if (focus) {
+      if (mode === "rich") this.view.focus();
+      if (mode === "md") this.textarea.focus();
+    }
+    this.refresh();
+  }
+
+  private async renderPreview() {
+    const md = this.markdown();
+    this.preview.textContent = "그리는 중…";
+    try {
+      const res = await fetch("/admin/preview", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json", "X-CSRF-Token": this.csrf },
+        body: JSON.stringify({ body_md: md }),
+      });
+      const body = await res.json();
+      if (!res.ok || !body.ok) throw new Error(body?.error?.message || `미리보기를 그리지 못했습니다 (${res.status}).`);
+      // 서버가 공개 화면과 같은 정화(ammonia)를 거친 HTML 이다.
+      this.preview.innerHTML = body.data.html || "<p class=\"me-muted\">본문이 비어 있습니다.</p>";
+    } catch (e) {
+      this.preview.textContent = (e as Error).message;
+    }
+  }
+
+  /** 툴바 상태와 글자 수. */
+  refresh() {
+    const s = this.view.state;
+    const rich = this.mode === "rich";
+    for (const { tool, button } of this.buttons) {
+      button.disabled = rich ? !!tool.enabled && !tool.enabled(s) : !tool.md;
+      if (tool.active) button.setAttribute("aria-pressed", String(rich && tool.active(s)));
+    }
+    const text = rich ? s.doc.textContent : this.textarea.value;
+    // 공백을 뺀 글자 수로 읽는 시간을 어림한다(한국어 묵독 약 분당 500자).
+    const solid = text.replace(/\s/g, "").length;
+    const minutes = Math.max(1, Math.round(solid / 500));
+    this.count.textContent = `${text.length.toLocaleString("ko-KR")}자 · 공백 빼고 ${solid.toLocaleString("ko-KR")}자 · 약 ${minutes}분`;
+    this.updateBubble();
+  }
+
+  // ---- 링크 말풍선: 커서가 링크 안에 있으면 열기·고치기·지우기 ----
+
+  private updateBubble() {
+    const range = this.mode === "rich" && this.view.hasFocus() ? linkRange(this.view.state) : null;
+    if (!range) {
+      this.bubble.hidden = true;
+      return;
+    }
+    const a = el("a", { href: range.href, target: "_blank", rel: "noopener noreferrer", class: "me-bubble-url", title: range.href }, range.href);
+    const edit = el("button", { type: "button", class: "me-link" }, "고치기");
+    edit.addEventListener("mousedown", (e) => e.preventDefault());
+    edit.addEventListener("click", () => this.openLink());
+    const del = el("button", { type: "button", class: "me-link" }, "링크 빼기");
+    del.addEventListener("mousedown", (e) => e.preventDefault());
+    del.addEventListener("click", () => {
+      removeLink(this.view.state, this.view.dispatch);
+      this.view.focus();
+    });
+    this.bubble.replaceChildren(a, edit, del);
+    const at = this.view.coordsAtPos(range.from);
+    const box = this.pm.getBoundingClientRect();
+    this.bubble.style.left = `${Math.max(0, Math.min(at.left - box.left, box.width - 280))}px`;
+    this.bubble.style.top = `${at.bottom - box.top + this.pm.scrollTop + 6}px`;
+    this.bubble.hidden = false;
+  }
+
+  // ---- 이모지·특수문자 ----
+
+  private charTarget: { from: number; to: number } | null = null;
+
+  private bindChars() {
+    this.chars.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        this.toggleChars(false);
+      }
+    });
+    this.view.dom.addEventListener("blur", () => window.setTimeout(() => this.updateBubble(), 150));
+  }
+
+  toggleChars(open = this.chars.hidden) {
+    if (!open) {
+      this.chars.hidden = true;
+      this.chars.replaceChildren();
+      if (this.mode === "rich") this.view.focus();
+      else this.textarea.focus();
+      return;
+    }
+    this.closePop();
+    this.charTarget =
+      this.mode === "rich"
+        ? { from: this.view.state.selection.from, to: this.view.state.selection.to }
+        : { from: this.textarea.selectionStart, to: this.textarea.selectionEnd };
+    const tabs = el("div", { class: "me-chars-tabs", role: "tablist" });
+    const grid = el("div", { class: "me-chars-grid" });
+    const groups: [string, string[]][] = [];
+    const recent = recentChars();
+    if (recent.length) groups.push(["최근", recent]);
+    for (const [name, s] of CHAR_GROUPS) groups.push([name, splitChars(s)]);
+    const show = (i: number) => {
+      tabs.querySelectorAll("button").forEach((b, j) => b.setAttribute("aria-selected", String(i === j)));
+      grid.replaceChildren(
+        ...groups[i][1].map((c) => {
+          const b = el("button", { type: "button", class: "me-char", "aria-label": c }, c);
+          b.addEventListener("click", () => this.insertChar(c));
+          return b;
+        }),
+      );
+    };
+    groups.forEach(([name], i) => {
+      const t = el("button", { type: "button", role: "tab", class: "me-chars-tab" }, name);
+      t.addEventListener("click", () => show(i));
+      tabs.append(t);
+    });
+    const close = el("button", { type: "button", class: "me-link me-chars-close" }, "닫기");
+    close.addEventListener("click", () => this.toggleChars(false));
+    this.chars.replaceChildren(tabs, grid, close);
+    show(0);
+    this.chars.hidden = false;
+    (grid.querySelector("button") as HTMLButtonElement | null)?.focus();
+  }
+
+  private insertChar(c: string) {
+    rememberChar(c);
+    const t = this.charTarget;
+    if (this.mode === "rich") {
+      const { state } = this.view;
+      const from = t ? Math.min(t.from, state.doc.content.size) : state.selection.from;
+      const to = t ? Math.min(t.to, state.doc.content.size) : state.selection.to;
+      this.view.dispatch(state.tr.insertText(c, from, to));
+      const pos = from + c.length;
+      this.charTarget = { from: pos, to: pos };
+    } else {
+      const from = t?.from ?? this.textarea.selectionStart;
+      const to = t?.to ?? this.textarea.selectionEnd;
+      this.replaceSource(from, to, c, from + c.length, from + c.length);
+      this.charTarget = { from: from + c.length, to: from + c.length };
+    }
+  }
+
+  // ---- 맞춤법·전체 화면 ----
+
+  private setSpell(on: boolean) {
+    this.spell = on;
+    this.spellButton.setAttribute("aria-pressed", String(on));
+    this.textarea.spellcheck = on;
+    this.view.setProps({});
+    try {
+      localStorage.setItem("maru:editor-spell", on ? "on" : "off");
+    } catch {
+      // 무시
+    }
+  }
+
+  private setFull(on: boolean) {
+    this.root.classList.toggle("me-full", on);
+    document.documentElement.classList.toggle("me-full-lock", on);
+    this.fullButton.setAttribute("aria-pressed", String(on));
+    this.fullButton.textContent = on ? "전체 화면 나가기" : "전체 화면";
+    if (this.mode === "rich") this.view.focus();
+  }
+
+  say(message: string, error = false) {
+    this.status.textContent = message;
+    this.status.classList.toggle("me-error", error);
+  }
+
+  private showNotice(text: string, actions: [string, () => void][] = []) {
+    this.notice.replaceChildren(el("span", {}, text));
+    for (const [label, fn] of actions) {
+      const b = el("button", { type: "button", class: "me-link" }, label);
+      b.addEventListener("click", fn);
+      this.notice.append(b);
+    }
+    this.notice.hidden = false;
+  }
+
+  private hideNotice() {
+    this.notice.hidden = true;
+    this.notice.replaceChildren();
+  }
+
+  // ---- Markdown 모드 ----
+
+  private bindSource() {
+    this.textarea.addEventListener("input", () => {
+      this.scheduleDraft();
+      this.refresh();
+    });
+    const upload = async (files: File[]) => {
+      for (const f of files) {
+        this.say("이미지를 올리는 중입니다…");
+        try {
+          const up = await uploadFile(f, this.csrf);
+          const ta = this.textarea;
+          const text = mdImage(up.alt_text ?? altFromName(f.name), up.url);
+          ta.setRangeText(text, ta.selectionStart, ta.selectionEnd, "end");
+          ta.dispatchEvent(new Event("input"));
+          this.say("이미지를 넣었습니다.");
+        } catch (e) {
+          this.say((e as Error).message, true);
+        }
+      }
+    };
+    this.uploadToSource = upload;
+    this.textarea.addEventListener("paste", (e) => {
+      if (this.takeFiles(e.clipboardData?.files)) e.preventDefault();
+    });
+    this.textarea.addEventListener("dragover", (e) => {
+      if (e.dataTransfer?.types.includes("Files")) e.preventDefault();
+    });
+    this.textarea.addEventListener("drop", (e) => {
+      if (this.takeFiles(e.dataTransfer?.files)) e.preventDefault();
+    });
+  }
+
+  private uploadToSource: (files: File[]) => Promise<void> = async () => {};
+
+  private bindFile() {
+    this.file.addEventListener("change", () => {
+      const files = imageFiles(this.file.files);
+      this.file.value = "";
+      if (!files.length) return;
+      if (this.mode === "rich") {
+        void insertUploads(this.view, files, this.csrf, (msg, err) => this.say(msg, err));
+      } else {
+        void this.uploadToSource(files);
+      }
+    });
+  }
+
+  pickFiles() {
+    this.file.click();
+  }
+
+  // ---- Markdown 모드 툴바: 선택한 글자에 문법을 넣는다 ----
+
+  /** 브라우저의 실행 취소 기록에 남도록 `insertText` 로 바꾼다. 안 되면 직접 바꾼다. */
+  private replaceSource(from: number, to: number, text: string, selFrom: number, selTo: number) {
+    const ta = this.textarea;
+    ta.focus();
+    ta.setSelectionRange(from, to);
+    if (!document.execCommand("insertText", false, text)) {
+      ta.setRangeText(text, from, to, "end");
+    }
+    ta.setSelectionRange(selFrom, selTo);
+    ta.dispatchEvent(new Event("input"));
+  }
+
+  mdWrap(before: string, after: string, placeholder: string) {
+    const ta = this.textarea;
+    const value = ta.value;
+    let { selectionStart: s, selectionEnd: e } = ta;
+    // 줄을 통째로 고르면 끝의 줄바꿈까지 잡힌다. 앞뒤 공백은 감싸지 않는다 (`**가 **` 는 굵게가 아니다).
+    while (s < e && /\s/.test(value[s])) s++;
+    while (e > s && /\s/.test(value[e - 1])) e--;
+    const picked = value.slice(s, e);
+    // 이미 감싸져 있으면 벗긴다.
+    if (value.slice(s - before.length, s) === before && value.slice(e, e + after.length) === after) {
+      this.replaceSource(s - before.length, e + after.length, picked, s - before.length, e - before.length);
+      return;
+    }
+    const inner = picked || placeholder;
+    const start = s + before.length;
+    this.replaceSource(s, e, before + inner + after, start, start + inner.length);
+  }
+
+  /** 선택한 줄마다 앞에 붙인다. 모든 줄에 이미 있으면 뗀다. */
+  mdLines(prefix: string | ((i: number) => string)) {
+    const ta = this.textarea;
+    const { selectionStart: s, selectionEnd: e, value } = ta;
+    const from = value.lastIndexOf("\n", s - 1) + 1;
+    const endNl = value.indexOf("\n", e === s ? e : e - 1);
+    const to = endNl === -1 ? value.length : endNl;
+    const lines = value.slice(from, to).split("\n");
+    const pre = (i: number) => (typeof prefix === "string" ? prefix : prefix(i));
+    const strip = /^(#{1,6} |> |[-*+] |\d+\. )/;
+    const all = lines.every((l, i) => l.startsWith(pre(i)));
+    const out = lines.map((l, i) => (all ? l.slice(pre(i).length) : pre(i) + l.replace(strip, ""))).join("\n");
+    this.replaceSource(from, to, out, from, from + out.length);
+  }
+
+  mdFence() {
+    const ta = this.textarea;
+    const { selectionStart: s, selectionEnd: e, value } = ta;
+    const picked = value.slice(s, e) || "코드";
+    const lead = s > 0 && value[s - 1] !== "\n" ? "\n\n" : "";
+    const text = `${lead}\`\`\`\n${picked}\n\`\`\`\n`;
+    const start = s + lead.length + 4;
+    this.replaceSource(s, e, text, start, start + picked.length);
+  }
+
+  mdLink() {
+    const ta = this.textarea;
+    const { selectionStart: s, selectionEnd: e, value } = ta;
+    const picked = value.slice(s, e) || "링크 글자";
+    const text = `[${picked}](https://)`;
+    const urlStart = s + picked.length + 3;
+    this.replaceSource(s, e, text, urlStart, urlStart + 8);
+  }
+
+  /** 커서 자리에 `[^n]` 을 넣고 글 끝에 `[^n]: ` 칸을 만든 뒤 그리로 옮긴다. */
+  mdFootnote() {
+    const ta = this.textarea;
+    const labels = [...ta.value.matchAll(/\[\^(\d+)\]/g)].map((x) => Number(x[1]));
+    const label = String(Math.max(0, ...labels) + 1);
+    const { selectionEnd: e } = ta;
+    const ref = `[^${label}]`;
+    this.replaceSource(e, e, ref, e + ref.length, e + ref.length);
+    const v = ta.value.replace(/\s+$/, "");
+    const def = `\n\n[^${label}]: `;
+    this.replaceSource(v.length, ta.value.length, def, v.length + def.length, v.length + def.length);
+  }
+
+  mdInsert(text: string) {
+    const { selectionStart: s, selectionEnd: e } = this.textarea;
+    this.replaceSource(s, e, text, s + text.length, s + text.length);
+  }
+
+  mdHistory(which: "undo" | "redo") {
+    this.textarea.focus();
+    document.execCommand(which);
+    this.refresh();
+  }
+
+  // ---- 링크·대체 텍스트 입력 칸 ----
+
+  private popApply: (value: string) => string | null = () => null;
+
+  private bindPopover() {
+    this.pop.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const input = this.pop.querySelector("input");
+      const err = this.popApply(input?.value ?? "");
+      if (err) {
+        this.say(err, true);
+        input?.focus();
+        return;
+      }
+      this.closePop();
+      this.focusEditor();
+    });
+    this.pop.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        this.closePop();
+        this.view.focus();
+      }
+    });
+  }
+
+  private openPop(label: string, value: string, placeholder: string, apply: (v: string) => string | null, remove?: () => void) {
+    const id = "me-pop-input";
+    const input = el("input", { id, type: "text", value, placeholder, autocomplete: "off" });
+    input.value = value;
+    const ok = el("button", { type: "submit" }, "적용");
+    const close = el("button", { type: "button", class: "secondary" }, "닫기");
+    close.addEventListener("click", () => {
+      this.closePop();
+      this.focusEditor();
+    });
+    this.pop.replaceChildren(el("label", { for: id }, label), input, ok);
+    if (remove) {
+      const del = el("button", { type: "button", class: "secondary" }, "지우기");
+      del.addEventListener("click", () => {
+        remove();
+        this.closePop();
+        this.view.focus();
+      });
+      this.pop.append(del);
+    }
+    this.pop.append(close);
+    this.popApply = apply;
+    this.pop.hidden = false;
+    input.focus();
+    input.select();
+  }
+
+  private focusEditor() {
+    if (this.mode === "rich") this.view.focus();
+    else if (this.mode === "md") this.textarea.focus();
+  }
+
+  /** 서식 모드면 블록 노드를, Markdown 모드면 그 문법 줄을 앞뒤 빈 줄과 함께 넣는다. */
+  private insertBlock(node: ReturnType<typeof schema.node>, md: string) {
+    if (this.mode === "rich") {
+      // 고른 것(사진·글자)을 지우지 않고 그 뒤에 넣는다.
+      const tr = this.view.state.tr;
+      if (!tr.selection.empty) tr.setSelection(Selection.near(tr.doc.resolve(tr.selection.to), 1));
+      this.view.dispatch(tr.replaceSelectionWith(node).scrollIntoView());
+    } else if (this.mode === "md") {
+      this.mdInsert(`\n\n${md}\n\n`);
+    }
+  }
+
+  async openTemplates() {
+    let list: Template[];
+    try {
+      list = await fetchTemplates(this.csrf);
+    } catch (e) {
+      this.say((e as Error).message, true);
+      return;
+    }
+    this.openMenu("글 틀", [
+      ...list.map((t) => ({ label: t.builtin ? t.name : `${t.name} (저장)`, run: () => this.applyTemplate(t.body_md) })),
+      // 메뉴가 닫힌 뒤에 이름 입력 칸을 연다.
+      { label: "지금 글을 틀로 저장…", cls: "me-menu-save", run: () => void setTimeout(() => this.saveAsTemplate(), 0) },
+    ]);
+  }
+
+  /** 빈 글이면 틀로 채우고, 쓰던 글이 있으면 커서 자리에 넣는다 (실행 취소로 되돌릴 수 있다). */
+  private applyTemplate(md: string) {
+    const empty = this.markdown().trim() === "";
+    if (this.mode === "rich") {
+      const r = load(md);
+      if (!r.ok) {
+        this.say("이 틀은 서식 모드로 열 수 없습니다. Markdown 모드에서 넣어 주세요.", true);
+        return;
+      }
+      const tr = this.view.state.tr;
+      if (empty) tr.replaceWith(0, tr.doc.content.size, r.doc.content);
+      else tr.replaceSelection(new Slice(r.doc.content, 0, 0));
+      this.view.dispatch(tr.scrollIntoView());
+    } else if (this.mode === "md") {
+      if (empty) {
+        const len = this.textarea.value.length;
+        this.replaceSource(0, len, md, 0, 0);
+      } else {
+        this.mdInsert(`\n\n${md}\n\n`);
+      }
+    }
+    this.say("틀을 넣었습니다.");
+  }
+
+  private saveAsTemplate() {
+    const body = this.markdown();
+    if (!body.trim()) {
+      this.say("본문이 비어 있어 틀로 저장할 수 없습니다.", true);
+      return;
+    }
+    this.openPop("틀 이름 (같은 이름이면 덮어씁니다)", "", "예: 주간 회고", (raw) => {
+      const name = raw.trim();
+      if (!name) return "이름을 적어 주세요.";
+      saveTemplate(name, body, this.csrf).then(
+        (t) => this.say(`'${t.name}' 틀로 저장했습니다.`),
+        (e: Error) => this.say(e.message, true),
+      );
+      return null;
+    });
+  }
+
+  pickAttachments() {
+    this.attach.click();
+  }
+
+  private bindAttach() {
+    this.attach.addEventListener("change", () => {
+      const files = Array.from(this.attach.files ?? []);
+      this.attach.value = "";
+      void this.attachAll(files);
+    });
+  }
+
+  /** `pos` 는 끌어다 놓은 자리(서식 모드). 둘째 파일부터는 앞 링크 뒤에 붙는다. */
+  private async attachAll(files: File[], pos?: number) {
+    for (const f of files) {
+      this.say(`${f.name} 첨부하는 중입니다…`);
+      try {
+        this.insertAttachment(await attachFile(f, this.csrf), pos);
+        pos = undefined;
+        this.say("파일을 첨부했습니다. 읽는 사람은 링크를 눌러 내려받습니다.");
+      } catch (e) {
+        this.say((e as Error).message, true);
+      }
+    }
+  }
+
+  /**
+   * 붙여 넣거나 끌어다 놓은 파일: 그림은 본문 그림으로, 문서는 첨부 링크로, 나머지는 이유를 알린다.
+   * 파일이 하나라도 있으면 true (호출한 쪽이 브라우저 기본 동작을 막는다).
+   */
+  private takeFiles(list: FileList | null | undefined, pos?: number): boolean {
+    const { images, attachments, rejected } = sortFiles(list);
+    if (!images.length && !attachments.length && !rejected.length) return false;
+    void (async () => {
+      if (images.length) {
+        if (this.mode === "rich") {
+          await insertUploads(this.view, images, this.csrf, (msg, err) => this.say(msg, err), pos);
+        } else {
+          await this.uploadToSource(images);
+        }
+      }
+      // 그림을 넣고 나면 놓은 자리가 밀리므로, 첨부는 그때 커서 자리에 넣는다.
+      await this.attachAll(attachments, images.length ? undefined : pos);
+      if (rejected.length) {
+        const names = rejected.map((f) => f.name).join(", ");
+        this.say(`넣을 수 없는 파일입니다: ${names} (그림은 jpg·png·gif·webp, 첨부는 ${ATTACH_EXTENSIONS.join("·")})`, true);
+      }
+    })();
+    return true;
+  }
+
+  /** 첨부 파일은 `파일명 (크기)` 글자의 링크로 넣는다. 공개 화면은 이 링크에 📎 표시를 붙인다. */
+  private insertAttachment(a: Attached, pos?: number) {
+    const label = attachLabel(a);
+    if (this.mode === "rich") {
+      const tr = this.view.state.tr;
+      if (pos !== undefined) {
+        // 올리는 동안 문서가 줄었을 수 있다.
+        tr.setSelection(Selection.near(tr.doc.resolve(Math.min(pos, tr.doc.content.size))));
+      } else if (!tr.selection.empty) {
+        tr.setSelection(Selection.near(tr.doc.resolve(tr.selection.to), 1));
+      }
+      // 앞에 글자·링크·그림이 붙어 있으면 한 칸 띄운다. 링크 둘이 붙으면 하나처럼 보인다.
+      const before = tr.selection.$from.nodeBefore;
+      if (before && !(before.isText && /\s$/.test(before.text ?? ""))) tr.insertText(" ");
+      tr.replaceSelectionWith(schema.text(label, [m.link.create({ href: a.url })]), false);
+      // 뒤에 글자가 바로 이어지면 그쪽도 한 칸. 띄어쓰기에는 링크를 걸지 않는다.
+      const after = tr.selection.$from.nodeAfter;
+      if (after && !(after.isText && /^\s/.test(after.text ?? ""))) tr.replaceSelectionWith(schema.text(" "), false);
+      this.view.dispatch(tr.removeStoredMark(m.link).scrollIntoView());
+      this.view.focus();
+    } else if (this.mode === "md") {
+      const text = label.replace(/[\\[\]]/g, "\\$&");
+      this.mdInsert(`[${text}](${a.url})`);
+    }
+  }
+
+  openVideo() {
+    this.openPop("동영상 주소 (유튜브·비메오)", "", "https://www.youtube.com/watch?v=…", (raw) => {
+      const url = raw.trim();
+      if (!videoEmbed(url)) return "유튜브(youtube.com·youtu.be)나 비메오(vimeo.com) 동영상 주소만 넣을 수 있습니다.";
+      this.insertBlock(schema.nodes.video.create({ url }), `::video[${url}]`);
+      return null;
+    });
+  }
+
+  openPlace() {
+    const clean = (v: string, bad: RegExp) => v.replace(bad, "").replace(/\s+/g, " ").trim();
+    this.openPop("장소 이름", "", "예: 강릉 안목해변", (rawName) => {
+      const name = clean(rawName, /[[\]]/g);
+      if (!name) return "장소 이름을 써 주세요.";
+      // 이 입력 칸이 닫힌 뒤 주소 칸을 연다.
+      setTimeout(() => {
+        this.openPop("주소 (지도 링크에 쓰입니다. 비워도 됩니다)", "", "예: 강원 강릉시 창해로14번길", (rawAddr) => {
+          const addr = clean(rawAddr, /[{}]/g);
+          this.insertBlock(schema.nodes.place.create({ name, addr }), `::place[${name}]${addr ? `{${addr}}` : ""}`);
+          return null;
+        });
+      }, 0);
+      return null;
+    });
+  }
+
+  private closePop() {
+    this.pop.hidden = true;
+    this.pop.replaceChildren();
+  }
+
+  openLink() {
+    if (this.mode !== "rich") return;
+    const href = currentLink(this.view.state);
+    this.openPop(
+      "링크 주소",
+      href,
+      "https://",
+      (raw) => {
+        const v = normalizeHref(raw);
+        if (v === null) return "http, https, mailto 주소나 / 로 시작하는 사이트 안 주소만 쓸 수 있습니다.";
+        setLink(v)(this.view.state, this.view.dispatch);
+        return null;
+      },
+      href ? () => setLink("")(this.view.state, this.view.dispatch) : undefined,
+    );
+  }
+
+  /** 선택지 단추를 늘어놓는 메뉴. 링크 입력 칸과 같은 자리를 쓴다. */
+  private openMenu(title: string, items: { label: string; cls?: string; current?: boolean; run: () => void }[]) {
+    this.chars.hidden = true;
+    const box = el("div", { class: "me-menu", role: "group", "aria-label": title });
+    for (const it of items) {
+      const b = el("button", { type: "button", class: `me-menu-item ${it.cls ?? ""}`, "aria-pressed": String(!!it.current) }, it.label);
+      b.addEventListener("mousedown", (e) => e.preventDefault());
+      b.addEventListener("click", () => {
+        it.run();
+        this.closePop();
+        if (this.mode === "rich") this.view.focus();
+      });
+      box.append(b);
+    }
+    const close = el("button", { type: "button", class: "secondary" }, "닫기");
+    close.addEventListener("click", () => {
+      this.closePop();
+      if (this.mode === "rich") this.view.focus();
+    });
+    this.pop.replaceChildren(el("span", { class: "me-menu-title" }, title), box, close);
+    this.popApply = () => null;
+    this.pop.hidden = false;
+    (box.querySelector("button") as HTMLButtonElement | null)?.focus();
+  }
+
+  openSpanMenu(kind: "color" | "mark" | "size") {
+    const spec = SPAN_MENU[kind];
+    const type = m[spec.mark];
+    const cur = this.mode === "rich" ? spanValue(this.view.state, type) : null;
+    const apply = (value: string | null) => {
+      if (this.mode === "rich") {
+        setSpan(type, value)(this.view.state, this.view.dispatch);
+      } else if (value) {
+        this.mdWrap(`:${kind}[`, `]{${value}}`, "글자");
+      }
+    };
+    this.openMenu(spec.title, [
+      ...spec.items.map(([value, label]) => ({ label, cls: `${spec.prefix}-${value}`, current: cur === value, run: () => apply(value) })),
+      ...(this.mode === "rich" ? [{ label: "없애기", run: () => apply(null) }] : []),
+    ]);
+  }
+
+  openBoxMenu(group: "callout" | "align") {
+    const spec = BOX_MENU[group];
+    const cur = this.mode === "rich" ? boxKind(this.view.state, group) : null;
+    const apply = (kind: string | null) => {
+      if (this.mode === "rich") setBox(group, kind)(this.view.state, this.view.dispatch);
+      else if (kind) this.mdBox(kind);
+    };
+    this.openMenu(spec.title, [
+      ...spec.items.map(([kind, label]) => ({ label, current: cur === kind, run: () => apply(kind) })),
+      ...(this.mode === "rich" ? [{ label: spec.none, run: () => apply(null) }] : []),
+    ]);
+  }
+
+  /** Markdown 모드: 고른 줄을 `:::종류` … `:::` 로 감싼다. 앞뒤에 빈 줄을 둔다(상자 문법의 조건). */
+  mdBox(kind: string) {
+    const ta = this.textarea;
+    const { selectionStart: s, selectionEnd: e, value } = ta;
+    const from = value.lastIndexOf("\n", s - 1) + 1;
+    const endNl = value.indexOf("\n", e === s ? e : e - 1);
+    const to = endNl === -1 ? value.length : endNl;
+    const inner = value.slice(from, to) || "내용";
+    const before = from > 0 && value.slice(0, from).trimEnd() !== "" && !value.slice(0, from).endsWith("\n\n") ? "\n" : "";
+    const text = `${before}:::${kind}\n${inner}\n:::`;
+    const start = from + before.length + kind.length + 4;
+    this.replaceSource(from, to, text, start, start + inner.length);
+  }
+
+  openTableMenu() {
+    if (!tableContext(this.view.state)) return;
+    const run = (c: Command) => () => c(this.view.state, this.view.dispatch);
+    const align = columnAlign(this.view.state);
+    this.openMenu("표 편집", [
+      { label: "위에 줄", run: run(addRow(false)) },
+      { label: "아래에 줄", run: run(addRow(true)) },
+      { label: "왼쪽에 칸", run: run(addColumn(false)) },
+      { label: "오른쪽에 칸", run: run(addColumn(true)) },
+      { label: "줄 지우기", run: run(deleteRow) },
+      { label: "칸 지우기", run: run(deleteColumn) },
+      { label: "왼쪽 정렬", current: align === null || align === "left", run: run(setColumnAlign(null)) },
+      { label: "가운데 정렬", current: align === "center", run: run(setColumnAlign("center")) },
+      { label: "오른쪽 정렬", current: align === "right", run: run(setColumnAlign("right")) },
+      { label: "표 지우기", run: run(deleteTable) },
+    ]);
+  }
+
+  openImageSize() {
+    const sel = selectedImage(this.view.state);
+    if (!sel) return;
+    const cur = (sel.node.attrs.width as number | null) ?? 100;
+    this.openMenu("사진 크기", [100, ...IMAGE_WIDTHS].map((w) => ({
+      label: `${w}%`,
+      current: cur === w,
+      run: () => setImageAttrs({ width: w === 100 ? null : w })(this.view.state, this.view.dispatch),
+    })));
+  }
+
+  openCaption() {
+    const sel = selectedImage(this.view.state);
+    if (!sel) return;
+    this.openPop(
+      "캡션 (사진 아래에 보이는 설명. 비우면 없앤다)",
+      (sel.node.attrs.title as string) ?? "",
+      "예: 강릉 안목해변, 2026년 여름",
+      (v) => {
+        setImageAttrs({ title: v.trim() || null })(this.view.state, this.view.dispatch);
+        return null;
+      },
+    );
+  }
+
+  openAlt() {
+    const sel = selectedImage(this.view.state);
+    if (!sel) return;
+    this.openPop(
+      "대체 텍스트 (그림을 볼 수 없는 사람에게 읽어 줄 설명)",
+      (sel.node.attrs.alt as string) ?? "",
+      "예: 노을 지는 바다",
+      (v) => {
+        setImageAlt(v.trim())(this.view.state, this.view.dispatch);
+        return null;
+      },
+    );
+  }
+
+  // ---- 임시 저장·이탈 경고 ----
+
+  private dirty(): boolean {
+    return this.markdown() !== this.initialMd || (this.title?.value ?? "") !== this.initialTitle;
+  }
+
+  private scheduleDraft() {
+    window.clearTimeout(this.draftTimer);
+    this.draftTimer = window.setTimeout(() => this.saveDraft(), 1000);
+  }
+
+  private saveDraft() {
+    try {
+      if (!this.dirty()) {
+        localStorage.removeItem(this.draftKey);
+        return;
+      }
+      const at = Date.now();
+      localStorage.setItem(this.draftKey, JSON.stringify({ md: this.markdown(), title: this.title?.value ?? "", at }));
+      const t = new Date(at).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+      this.saved.textContent = `${t} 임시 저장`;
+      this.saved.title = "이 브라우저에만 남아 있습니다. 서버에 남기려면 저장 버튼을 누르세요.";
+    } catch {
+      // 저장소가 가득 찼거나 막혀 있으면 임시 저장 없이 계속
+    }
+  }
+
+  private offerDraft() {
+    let draft: { md: string; title: string; at: number } | null = null;
+    try {
+      draft = JSON.parse(localStorage.getItem(this.draftKey) || "null");
+    } catch {
+      draft = null;
+    }
+    if (!draft || (draft.md === this.initialMd && draft.title === this.initialTitle)) return;
+    const when = new Date(draft.at).toLocaleString("ko-KR", { month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" });
+    const saved = draft;
+    this.showNotice(`${when}에 이 브라우저에 임시 저장한, 서버에 저장하지 않은 내용이 있습니다.`, [
+      [
+        "되살리기",
+        () => {
+          if (this.title && saved.title) this.title.value = saved.title;
+          this.textarea.value = saved.md;
+          const loaded = load(saved.md);
+          if (this.mode === "rich" && loaded.ok) {
+            this.view.updateState(this.createState(loaded.doc));
+          } else if (this.mode === "rich") {
+            this.mode = "md";
+            this.setMode("md");
+          }
+          this.hideNotice();
+          this.refresh();
+          this.say("임시 저장한 내용을 되살렸습니다. 저장 버튼을 눌러야 서버에 남습니다.");
+        },
+      ],
+      [
+        "버리기",
+        () => {
+          try {
+            localStorage.removeItem(this.draftKey);
+          } catch {
+            // 무시
+          }
+          this.hideNotice();
+        },
+      ],
+    ]);
+  }
+
+  private bindForm() {
+    this.title?.addEventListener("input", () => this.scheduleDraft());
+    this.form.addEventListener("submit", () => {
+      this.sync();
+      this.submitting = true;
+      try {
+        localStorage.removeItem(this.draftKey);
+      } catch {
+        // 무시
+      }
+    });
+    window.addEventListener("beforeunload", (e) => {
+      if (this.submitting || !this.dirty()) return;
+      e.preventDefault();
+      e.returnValue = "";
+    });
+  }
+}
+
+function start() {
+  const textarea = document.querySelector<HTMLTextAreaElement>("textarea[data-editor]");
+  const form = textarea?.closest("form");
+  const csrf = form?.querySelector<HTMLInputElement>('input[name="_csrf"]')?.value;
+  if (!textarea || !form || !csrf) return;
+  const title = form.querySelector<HTMLInputElement>('input[name="title"]');
+  const editor = new Editor(textarea, form, csrf, title);
+  // 브라우저 확인·자동 검사용. 기능에는 쓰지 않는다.
+  (window as unknown as { maruEditor: Editor }).maruEditor = editor;
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", start);
+} else {
+  start();
+}

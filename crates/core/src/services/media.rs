@@ -3,6 +3,7 @@
 //! 내용 스니핑과 확장자 화이트리스트를 둘 다 통과해야 하고, 원본은 그대로 두지 않고 다시 인코딩한다.
 //! 다시 인코딩하면 EXIF(촬영 위치 등)와 이미지 뒤에 덧붙인 데이터가 사라진다.
 
+use std::collections::HashMap;
 use std::io::Cursor;
 
 use image::codecs::jpeg::JpegEncoder;
@@ -16,6 +17,7 @@ use crate::actor::{Actor, Permission};
 use crate::audit::{self, Target};
 use crate::clock;
 use crate::error::{Code, Error, Result};
+use crate::markdown::{self, ImageInfo};
 use crate::model::{Listing, Media, MediaVariant, PageReq};
 use crate::store::{Ctx, Tx};
 use crate::urls;
@@ -154,6 +156,49 @@ pub async fn list(ctx: &Ctx, actor: &Actor, page: PageReq) -> Result<Listing<Med
         page: page.page,
         per_page: page.per_page,
     })
+}
+
+/// 한 글에서 크기·축소본을 찾아 보는 그림 수. 나머지는 정보 없이 그린다.
+const MAX_IMAGE_LOOKUPS: usize = 60;
+
+/// 본문에 쓰인 보관소 그림의 크기와 축소본. 공개 화면 렌더링용이라 권한을 보지 않는다
+/// (`/media/*` 파일은 누구나 받을 수 있고, 돌려주는 것도 크기와 주소뿐이다).
+pub async fn images_in(ctx: &Ctx, md: &str) -> Result<HashMap<String, ImageInfo>> {
+    let mut out = HashMap::new();
+    for url in markdown::image_urls(md).into_iter().take(MAX_IMAGE_LOOKUPS) {
+        if let Some(info) = image_info(ctx, &url).await? {
+            out.insert(url, info);
+        }
+    }
+    Ok(out)
+}
+
+/// 보관소 원본 주소 하나의 크기와 축소본. 보관소 파일이 아니거나 지워졌으면 None.
+pub async fn image_info(ctx: &Ctx, url: &str) -> Result<Option<ImageInfo>> {
+    let Some(id) = media_id(url) else {
+        return Ok(None);
+    };
+    Ok(ctx
+        .store
+        .media_by_id(id)
+        .await?
+        .filter(|m| m.url == url)
+        .map(|m| ImageInfo {
+            width: m.width,
+            height: m.height,
+            variants: m
+                .variants
+                .iter()
+                .map(|v| (v.width, v.url.clone()))
+                .collect(),
+        }))
+}
+
+/// `/media/2026/11/<id>.jpg` → `<id>`. 축소본(`<id>-640.jpg`)이나 다른 주소는 None.
+fn media_id(url: &str) -> Option<&str> {
+    let file = url.strip_prefix("/media/")?.rsplit('/').next()?;
+    let (stem, _) = file.split_once('.')?;
+    (!stem.is_empty() && stem.bytes().all(|b| b.is_ascii_alphanumeric())).then_some(stem)
 }
 
 pub async fn get(ctx: &Ctx, actor: &Actor, id: &str) -> Result<Media> {
@@ -333,6 +378,14 @@ fn encode(img: &DynamicImage, out: Out) -> Result<Encoded> {
 mod tests {
     use super::*;
     use image::{Rgb, RgbImage, Rgba, RgbaImage};
+
+    #[test]
+    fn media_id_takes_only_original_files() {
+        assert_eq!(media_id("/media/2026/11/01abcxyz.jpg"), Some("01abcxyz"));
+        assert_eq!(media_id("/media/2026/11/01abcxyz-640.jpg"), None);
+        assert_eq!(media_id("https://example.com/media/a.jpg"), None);
+        assert_eq!(media_id("/media/2026/11/.jpg"), None);
+    }
 
     fn jpeg(w: u32, h: u32) -> Vec<u8> {
         let img = DynamicImage::ImageRgb8(RgbImage::from_pixel(w, h, Rgb([200, 100, 50])));

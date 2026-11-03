@@ -13,8 +13,8 @@ use crate::audit::{AuditRecord, Target};
 use crate::blobs::Blobs;
 use crate::error::{Error, Result};
 use crate::model::{
-    Board, LoginTicket, Media, Member, MenuLink, Page, PageStatus, Post, PostStatus, Revision,
-    Role, Session, Token,
+    Attachment, Board, LoginTicket, Media, Member, MenuLink, Page, PageStatus, Post, PostStatus,
+    PostTemplate, Revision, Role, Session, Token,
 };
 
 /// 서비스 함수의 첫 인자.
@@ -88,6 +88,16 @@ pub trait Store: Send + Sync {
     /// 최근 것부터.
     async fn list_media(&self, limit: i64, offset: i64) -> Result<Vec<Media>>;
     async fn count_media(&self) -> Result<i64>;
+    /// 예약 시각이 지났고 아직 공개되지 않은 글 ID (오래된 예약부터).
+    async fn due_posts(&self, now: &str, limit: i64) -> Result<Vec<String>>;
+
+    async fn attachment_by_id(&self, id: &str) -> Result<Option<Attachment>>;
+    /// 최근 것부터.
+    async fn list_attachments(&self, limit: i64, offset: i64) -> Result<Vec<Attachment>>;
+    async fn count_attachments(&self) -> Result<i64>;
+
+    /// 사용자가 저장한 글 틀 (이름순).
+    async fn list_templates(&self) -> Result<Vec<PostTemplate>>;
 }
 
 #[async_trait]
@@ -148,6 +158,16 @@ pub trait WriteTx: Send {
     async fn insert_media(&mut self, m: &Media) -> Result<()>;
     async fn update_media(&mut self, m: &Media) -> Result<()>;
     async fn delete_media(&mut self, id: &str) -> Result<()>;
+
+    async fn attachment_by_id(&mut self, id: &str) -> Result<Option<Attachment>>;
+    async fn insert_attachment(&mut self, a: &Attachment) -> Result<()>;
+    async fn delete_attachment(&mut self, id: &str) -> Result<()>;
+
+    async fn template_by_id(&mut self, id: &str) -> Result<Option<PostTemplate>>;
+    async fn template_by_name(&mut self, name: &str) -> Result<Option<PostTemplate>>;
+    async fn insert_template(&mut self, t: &PostTemplate) -> Result<()>;
+    async fn update_template(&mut self, t: &PostTemplate) -> Result<()>;
+    async fn delete_template(&mut self, id: &str) -> Result<()>;
 }
 
 /// 쓰기 트랜잭션. 드롭하면 롤백된다.

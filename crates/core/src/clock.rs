@@ -39,6 +39,52 @@ pub fn display_date(s: &str, offset_minutes: i32) -> String {
     format!("{}. {}. {}.", t.year(), u8::from(t.month()), t.day())
 }
 
+const LOCAL_INPUT: &[BorrowedFormatItem<'static>] =
+    format_description!("[year]-[month]-[day]T[hour]:[minute]");
+
+fn site_offset(offset_minutes: i32) -> UtcOffset {
+    UtcOffset::from_whole_seconds(offset_minutes * 60).unwrap_or(UtcOffset::UTC)
+}
+
+/// 브라우저 `datetime-local` 값(`2026-11-05T09:00`, 초는 버린다)을 사이트 시간대 시각으로 읽어 RFC3339 로.
+/// 이미 RFC3339 면 그대로 받는다.
+pub fn from_local_input(s: &str, offset_minutes: i32) -> Option<String> {
+    let s = s.trim();
+    if let Some(t) = parse(s) {
+        return Some(format(t));
+    }
+    let head = s.get(..16)?;
+    let t = time::PrimitiveDateTime::parse(head, LOCAL_INPUT).ok()?;
+    Some(format(t.assume_offset(site_offset(offset_minutes))))
+}
+
+/// 저장된 시각을 `datetime-local` 입력 값으로 (사이트 시간대).
+pub fn to_local_input(s: &str, offset_minutes: i32) -> String {
+    parse(s)
+        .and_then(|t| {
+            t.to_offset(site_offset(offset_minutes))
+                .format(LOCAL_INPUT)
+                .ok()
+        })
+        .unwrap_or_default()
+}
+
+/// 화면용 날짜·시각 `2026. 11. 5. 09:00` (사이트 시간대).
+pub fn display_datetime(s: &str, offset_minutes: i32) -> String {
+    let Some(t) = parse(s) else {
+        return String::new();
+    };
+    let t = t.to_offset(site_offset(offset_minutes));
+    format!(
+        "{}. {}. {}. {:02}:{:02}",
+        t.year(),
+        u8::from(t.month()),
+        t.day(),
+        t.hour(),
+        t.minute()
+    )
+}
+
 /// RSS `pubDate` 용 RFC 2822 (UTC).
 pub fn rfc2822(s: &str) -> String {
     parse(s)
@@ -66,5 +112,23 @@ mod tests {
         assert_eq!(a.len(), 26);
         assert_eq!(a, a.to_ascii_lowercase());
         assert_ne!(a, new_id());
+    }
+
+    #[test]
+    fn local_input_round_trip() {
+        let utc = from_local_input("2026-11-05T09:00", 540).unwrap();
+        assert_eq!(utc, "2026-11-05T00:00:00.000000Z");
+        assert_eq!(to_local_input(&utc, 540), "2026-11-05T09:00");
+        assert_eq!(display_datetime(&utc, 540), "2026. 11. 5. 09:00");
+        assert_eq!(
+            from_local_input("2026-11-05T09:00:30", 0).unwrap(),
+            "2026-11-05T09:00:00.000000Z"
+        );
+        assert_eq!(
+            from_local_input("2026-11-05T09:00:00+09:00", 0).unwrap(),
+            utc
+        );
+        assert!(from_local_input("내일 아침", 540).is_none());
+        assert!(from_local_input("", 540).is_none());
     }
 }

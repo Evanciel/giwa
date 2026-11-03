@@ -48,6 +48,12 @@ enum Command {
     /// 이미지 (업로드, 대체 텍스트)
     #[command(subcommand)]
     Media(MediaCmd),
+    /// 첨부 파일 (PDF·문서·압축 등, 내려받기 전용)
+    #[command(subcommand)]
+    File(FileCmd),
+    /// 글 틀 (새 글 본문 뼈대)
+    #[command(subcommand)]
+    Template(TemplateCmd),
     /// 고정 페이지 (소개, 연락처 등)
     #[command(subcommand)]
     Page(PageCmd),
@@ -145,6 +151,13 @@ pub struct PostEditArgs {
     /// 빈 문자열이면 요약을 지운다
     #[arg(long)]
     pub excerpt: Option<String>,
+    /// 대표 이미지 주소 (`/media/...`). 빈 문자열이면 지운다 (본문 첫 사진을 쓴다)
+    #[arg(long)]
+    pub cover: Option<String>,
+    /// 예약 발행 시각. RFC3339(`2026-11-05T09:00:00+09:00`) 또는 사이트 시간대 `2026-11-05T09:00`.
+    /// 빈 문자열이면 예약을 취소한다. `maru serve` 가 돌고 있어야 그 시각에 발행된다
+    #[arg(long)]
+    pub schedule: Option<String>,
 }
 
 #[derive(Debug, Args)]
@@ -165,9 +178,15 @@ pub struct PostNewArgs {
     pub from: Option<PathBuf>,
     #[arg(long)]
     pub excerpt: Option<String>,
+    /// 대표 이미지 주소 (`/media/...`). 생략하면 본문 첫 사진
+    #[arg(long)]
+    pub cover: Option<String>,
     /// 만든 뒤 바로 발행
     #[arg(long)]
     pub publish: bool,
+    /// 만든 뒤 이 시각에 발행하도록 예약 (`post edit --schedule` 과 같은 형식)
+    #[arg(long, conflicts_with = "publish")]
+    pub schedule: Option<String>,
     /// 같은 슬러그의 글이 있으면 만들지 않고 그 글을 돌려준다 (`--slug` 필요)
     #[arg(long, requires = "slug")]
     pub if_not_exists: bool,
@@ -202,6 +221,43 @@ pub enum MediaCmd {
     /// 대체 텍스트를 바꾼다. 빈 문자열이면 지운다
     Alt { id: String, text: String },
     /// 기록과 파일을 지운다. 본문에서 쓰던 곳은 깨진다
+    Delete { id: String },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum TemplateCmd {
+    /// 틀 목록 (기본 틀 + 저장한 틀)
+    List,
+    /// 틀을 저장한다. 같은 이름이 있으면 덮어쓴다
+    Save {
+        #[arg(long)]
+        name: String,
+        /// Markdown 본문
+        #[arg(long, conflicts_with = "from")]
+        body: Option<String>,
+        /// 본문 파일 (UTF-8). `-` 이면 표준 입력
+        #[arg(long)]
+        from: Option<PathBuf>,
+    },
+    /// 저장한 틀을 지운다 (ID 또는 이름)
+    Delete { id: String },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum FileCmd {
+    /// 파일을 올린다 (pdf, hwp·hwpx, docx·xlsx·pptx, zip, txt·csv·md 등, 10MB 이하)
+    Upload {
+        /// 파일 경로. 파일 이름은 내려받을 때의 이름이 된다
+        file: PathBuf,
+    },
+    /// 첨부 파일 목록 (최근 것부터)
+    List {
+        #[arg(long, default_value_t = 1)]
+        page: u32,
+        #[arg(long, default_value_t = 20)]
+        per_page: u32,
+    },
+    /// 기록과 파일을 지운다. 본문의 링크는 깨진다
     Delete { id: String },
 }
 
