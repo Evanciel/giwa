@@ -1,0 +1,134 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, idem_key, to_addr, subject, body, status, attempts, last_error, created_at, sent_at\n         FROM mail_outbox WHERE (?1 IS NULL OR status = ?1)\n         ORDER BY created_at DESC, id DESC LIMIT ?2",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mail_outbox",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "idem_key",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mail_outbox",
+            "name": "idem_key"
+          }
+        }
+      },
+      {
+        "name": "to_addr",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mail_outbox",
+            "name": "to_addr"
+          }
+        }
+      },
+      {
+        "name": "subject",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mail_outbox",
+            "name": "subject"
+          }
+        }
+      },
+      {
+        "name": "body",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mail_outbox",
+            "name": "body"
+          }
+        }
+      },
+      {
+        "name": "status",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mail_outbox",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "name": "attempts",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mail_outbox",
+            "name": "attempts"
+          }
+        }
+      },
+      {
+        "name": "last_error",
+        "ordinal": 7,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mail_outbox",
+            "name": "last_error"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 8,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mail_outbox",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "name": "sent_at",
+        "ordinal": 9,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mail_outbox",
+            "name": "sent_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "cd21599ccfa3b0599630dd27d0927e3405a0a445602f115f6068689b1e0ea8e5"
+}

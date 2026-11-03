@@ -13,8 +13,9 @@ use crate::audit::{AuditRecord, Target};
 use crate::blobs::Blobs;
 use crate::error::{Error, Result};
 use crate::model::{
-    Attachment, Board, Category, Font, FontFile, LoginTicket, Media, Member, MenuLink, Page,
-    PageStatus, Post, PostStatus, PostTemplate, Revision, Role, Session, Tag, Token,
+    Attachment, Board, Category, Font, FontFile, LoginTicket, MailOut, MailStatus, Media, Member,
+    MenuLink, Page, PageStatus, Post, PostStatus, PostTemplate, Revision, Role, Session, Tag,
+    TicketPurpose, Token,
 };
 
 /// 서비스 함수의 첫 인자.
@@ -125,11 +126,21 @@ pub trait Store: Send + Sync {
 
     async fn member_by_id(&self, id: &str) -> Result<Option<Member>>;
     async fn member_by_email(&self, email: &str) -> Result<Option<Member>>;
+    /// 닉네임으로 (대소문자 무시)
+    async fn member_by_name(&self, name: &str) -> Result<Option<Member>>;
+    /// 가입 순 (오래된 것부터)
+    async fn list_members(&self, limit: i64, offset: i64) -> Result<Vec<Member>>;
+    async fn count_role_members(&self, role: &str) -> Result<i64>;
     async fn count_members(&self) -> Result<i64>;
     async fn first_member(&self) -> Result<Option<Member>>;
     async fn member_roles(&self, member_id: &str) -> Result<Vec<Role>>;
     async fn session_by_hash(&self, hash: &str) -> Result<Option<Session>>;
     async fn ticket_by_hash(&self, hash: &str) -> Result<Option<LoginTicket>>;
+    /// 새것부터. `status` 가 없으면 전부
+    async fn mails(&self, status: Option<MailStatus>, limit: i64) -> Result<Vec<MailOut>>;
+    async fn mail_by_id(&self, id: &str) -> Result<Option<MailOut>>;
+    /// 배달 결과 (상태·시도 수·오류·보낸 때). 감사 대상이 아닌 시스템 기록.
+    async fn update_mail(&self, m: &MailOut) -> Result<()>;
     /// 만료된 세션·로그인 링크를 지운다. 시스템 정리라 감사 대상이 아니다 (PHASE1_PLAN §5).
     async fn purge_expired(&self, now: &str) -> Result<u64>;
 
@@ -236,11 +247,21 @@ pub trait WriteTx: Send {
     async fn insert_member(&mut self, m: &Member) -> Result<()>;
     async fn update_member(&mut self, m: &Member) -> Result<()>;
     async fn add_member_role(&mut self, member_id: &str, role: &str) -> Result<()>;
+    async fn clear_member_roles(&mut self, member_id: &str) -> Result<()>;
+    async fn member_by_name(&mut self, name: &str) -> Result<Option<Member>>;
+    /// 쌓였으면 `true`. 같은 `idem_key` 가 이미 있으면 `false`
+    async fn queue_mail(&mut self, m: &MailOut) -> Result<bool>;
     async fn insert_ticket(&mut self, t: &LoginTicket) -> Result<()>;
     /// 회원의 아직 쓰지 않은 링크를 모두 지운다 (새 링크 발급 시).
-    async fn delete_open_tickets(&mut self, member_id: &str) -> Result<u64>;
+    async fn delete_open_tickets(&mut self, member_id: &str, purpose: TicketPurpose)
+    -> Result<u64>;
     /// 유효한 링크를 원자적으로 사용 처리한다. 동시에 두 번 불러도 한 번만 `Some`.
-    async fn use_ticket(&mut self, hash: &str, now: &str) -> Result<Option<LoginTicket>>;
+    async fn use_ticket(
+        &mut self,
+        hash: &str,
+        purpose: TicketPurpose,
+        now: &str,
+    ) -> Result<Option<LoginTicket>>;
     async fn insert_session(&mut self, s: &Session) -> Result<()>;
     async fn delete_session(&mut self, id: &str) -> Result<u64>;
     async fn delete_member_sessions(&mut self, member_id: &str) -> Result<u64>;

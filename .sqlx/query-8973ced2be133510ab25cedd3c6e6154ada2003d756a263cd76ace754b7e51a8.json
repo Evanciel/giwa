@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO mail_outbox (id, idem_key, to_addr, subject, body, status, attempts,\n                                  last_error, created_at, sent_at)\n         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)\n         ON CONFLICT (idem_key) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 10
+    },
+    "nullable": []
+  },
+  "hash": "8973ced2be133510ab25cedd3c6e6154ada2003d756a263cd76ace754b7e51a8"
+}

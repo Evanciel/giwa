@@ -46,6 +46,11 @@ impl DataDir {
         self.root.join("backups")
     }
 
+    /// 파일로 남긴 편지 (`FileMailer`). 1회용 링크가 들어 있다.
+    pub fn mail_dir(&self) -> PathBuf {
+        self.root.join("mail")
+    }
+
     /// DB 파일이 있으면 초기화된 디렉터리로 본다.
     pub fn is_initialized(&self) -> bool {
         self.db_path().is_file()

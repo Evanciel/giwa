@@ -77,6 +77,12 @@ enum Command {
     Font(FontCmd),
     /// 사이트 검색 (공개 화면 `/search` 와 같은 결과). `maru search reindex` 는 색인 다시 만들기
     Search(SearchArgs),
+    /// 회원 목록·상태·역할 (회원 관리 권한)
+    #[command(subcommand)]
+    Member(MemberCmd),
+    /// 보낼 편지함 (가입 인증·비밀번호 찾기 메일). 1회용 링크가 들어 있어 이 컴퓨터에서만 본다
+    #[command(subcommand)]
+    Mail(MailCmd),
     /// 관리 화면 로그인 링크를 만든다 (10분, 1회용)
     LoginLink(LoginLinkArgs),
     /// 설치 상태를 점검한다 (데이터, DB, 포트, 운영자, 테마)
@@ -103,6 +109,39 @@ pub struct InitArgs {
     /// 운영자 표시 이름
     #[arg(long, default_value = "운영자")]
     pub owner_name: String,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum MemberCmd {
+    /// 가입 순 목록
+    List {
+        #[arg(long, default_value_t = 1)]
+        page: u32,
+    },
+    /// 회원 하나 (ID 또는 이메일)
+    Show { who: String },
+    /// 로그인을 막고 세션을 모두 끊는다
+    Disable { who: String },
+    /// 다시 로그인할 수 있게 한다
+    Enable { who: String },
+    /// 역할을 하나로 정한다: member, editor, admin
+    Role { who: String, role: String },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum MailCmd {
+    /// 새것부터
+    List {
+        /// queued, sent, failed
+        #[arg(long)]
+        status: Option<String>,
+        #[arg(long, default_value_t = 20)]
+        limit: i64,
+    },
+    /// 편지 한 통 (본문 포함)
+    Show { id: String },
+    /// 쌓인 편지를 지금 배달한다 (서버가 5초마다 하는 일)
+    Send,
 }
 
 #[derive(Debug, Args)]
@@ -615,6 +654,12 @@ pub struct SiteSetArgs {
     /// 공개 화면 머리글에 검색 칸을 보일지 (true/false)
     #[arg(long)]
     pub show_search: Option<bool>,
+    /// 회원 가입: off(받지 않음), open(누구나)
+    #[arg(long)]
+    pub signup: Option<String>,
+    /// 가입한 사람이 메일 링크를 눌러야 로그인할지 (true/false)
+    #[arg(long)]
+    pub signup_verify: Option<bool>,
 }
 
 #[derive(Debug, Subcommand)]

@@ -2,6 +2,7 @@
 //!
 //! 모든 핸들러는 `maru_core::services` 만 부른다. 권한 판단은 서비스 레이어가 한다.
 
+mod account;
 mod admin;
 mod api;
 mod error;
@@ -22,6 +23,7 @@ use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use maru_core::Actor;
 use maru_core::model::Media;
+use maru_core::services::mail::{self, Mailer};
 use maru_core::services::views::{self, ViewCounter};
 use maru_core::services::{auth, fonts, media, posts};
 use maru_core::{Code, Ctx, Error, Result};
@@ -44,6 +46,8 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 const PURGE_EVERY: Duration = Duration::from_secs(10 * 60);
 /// 예약 발행 확인 주기. 예약 시각보다 최대 이만큼 늦게 발행된다.
 const SCHEDULE_EVERY: Duration = Duration::from_secs(20);
+/// 쌓인 편지를 배달하는 주기 (ADR-0051).
+const MAIL_EVERY: Duration = Duration::from_secs(5);
 /// 모은 조회수를 DB 에 더하는 주기 (ADR-0049). 조회마다 쓰지 않는다.
 const VIEWS_EVERY: Duration = Duration::from_secs(20);
 /// argon2 를 동시에 계산하는 최대 수.
@@ -61,6 +65,8 @@ pub struct AppState {
     pub upload_gate: Arc<Semaphore>,
     /// 조회수 계수기. 서버를 끌 때 남은 수를 반영한다.
     pub views: Arc<ViewCounter>,
+    /// 편지 전송 방식. 없으면 편지는 편지함에 쌓이기만 한다.
+    pub mailer: Option<Arc<dyn Mailer>>,
 }
 
 impl AppState {
@@ -73,7 +79,13 @@ impl AppState {
             login_gate: Arc::new(Semaphore::new(LOGIN_CONCURRENCY)),
             upload_gate: Arc::new(Semaphore::new(UPLOAD_CONCURRENCY)),
             views: Arc::new(ViewCounter::new()),
+            mailer: None,
         }
+    }
+
+    pub fn with_mailer(mut self, mailer: Arc<dyn Mailer>) -> Self {
+        self.mailer = Some(mailer);
+        self
     }
 }
 
@@ -81,6 +93,7 @@ pub fn router(state: AppState) -> Router {
     Router::new()
         .merge(public::routes())
         .merge(admin::routes())
+        .merge(account::routes())
         .nest("/api/v1", api::routes())
         .layer(middleware::from_fn_with_state(state.clone(), rate_limit))
         .with_state(state)
@@ -100,8 +113,16 @@ async fn rate_limit(State(state): State<AppState>, req: Request, next: Next) -> 
         .map(|c| c.0.ip())
         .unwrap_or(IpAddr::V4(Ipv4Addr::UNSPECIFIED));
     let path = req.uri().path();
+    // 비밀번호·링크를 받는 폼은 따로 더 좁게 센다 (가입·찾기 포함, ADR-0051).
     let login = req.method() == Method::POST
-        && (path == "/admin/login" || path.starts_with("/admin/link/"));
+        && (path == "/admin/login"
+            || path.starts_with("/admin/link/")
+            || matches!(
+                path,
+                "/login" | "/signup" | "/forgot" | "/me/password" | "/me/withdraw"
+            )
+            || path.starts_with("/reset/")
+            || path.starts_with("/verify/"));
     let allowed =
         state.limiter.check(ip, Bucket::All) && (!login || state.limiter.check(ip, Bucket::Login));
     if allowed {
@@ -150,6 +171,7 @@ pub async fn serve(
     let purge = tokio::spawn(purge_loop(state.clone()));
     let scheduled = tokio::spawn(schedule_loop(state.clone()));
     let counted = tokio::spawn(views_loop(state.clone()));
+    let mailed = tokio::spawn(mail_loop(state.clone()));
     let res = axum::serve(
         listener,
         router(state.clone()).into_make_service_with_connect_info::<SocketAddr>(),
@@ -160,8 +182,31 @@ pub async fn serve(
     purge.abort();
     scheduled.abort();
     counted.abort();
+    mailed.abort();
     flush_views(&state).await;
     res
+}
+
+/// 쌓인 편지를 주기마다 배달한다. 전송 방식이 없으면 아무것도 하지 않는다.
+async fn mail_loop(state: AppState) {
+    let Some(mailer) = state.mailer.clone() else {
+        return;
+    };
+    let mut tick = tokio::time::interval(MAIL_EVERY);
+    loop {
+        tick.tick().await;
+        match mail::deliver_pending(&state.ctx, mailer.as_ref()).await {
+            Ok(r) if r.sent + r.retry + r.failed == 0 => {}
+            Ok(r) => tracing::info!(
+                sent = r.sent,
+                retry = r.retry,
+                failed = r.failed,
+                kind = mailer.kind(),
+                "편지 배달"
+            ),
+            Err(e) => tracing::warn!(error = ?e, "편지 배달 확인 실패"),
+        }
+    }
 }
 
 /// 모은 조회수를 주기마다 DB 에 더한다.

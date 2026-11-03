@@ -70,6 +70,39 @@ pub fn lookup(key: &str) -> Option<&'static str> {
             "검색 `{name}` 값 `{value}` 는 쓸 수 없습니다. 가능한 값: {allowed}"
         }
         "hint.search_query" => "예: `제주 국밥`, `제주 OR 부산`, `\"올레 7코스\"`, `국밥 -부산`",
+        "error.signup_closed" => "이 사이트는 지금 회원 가입을 받지 않습니다.",
+        "error.name_invalid" => {
+            "닉네임은 {min}~{max}자로, 제어 문자와 @ < > \" \\ 없이 지어 주세요: {value}"
+        }
+        "error.name_reserved" => "`{value}` 는 쓸 수 없는 닉네임입니다.",
+        "error.name_taken" => "`{value}` 닉네임은 이미 쓰이고 있습니다.",
+        "error.email_unverified" => {
+            "메일 인증이 아직 끝나지 않았습니다. 인증 메일을 다시 보냈으니 메일함을 확인하세요."
+        }
+        "error.ticket_invalid" => "링크가 만료됐거나 이미 쓰였습니다. 다시 요청하세요.",
+        "error.password_wrong" => "지금 비밀번호가 맞지 않습니다.",
+        "error.owner_withdraw" => "운영자 계정은 탈퇴할 수 없습니다.",
+        "error.member_self" => "자기 계정의 상태·역할은 여기서 바꿀 수 없습니다.",
+        "error.member_owner" => "운영자 계정의 상태·역할은 바꿀 수 없습니다.",
+        "error.member_withdrawn" => "탈퇴한 회원입니다.",
+        "error.member_role" => "역할 `{value}` 은 줄 수 없습니다. 가능한 값: {allowed}",
+        "error.mail_not_found" => "`{id}` 편지를 찾을 수 없습니다.",
+        "error.mail_local_only" => {
+            "편지 본문에는 1회용 링크가 들어 있어 이 컴퓨터의 `maru mail` 로만 볼 수 있습니다."
+        }
+        "error.signup_option" => "가입 방식 `{value}` 는 쓸 수 없습니다. 가능한 값: {allowed}",
+        "mail.verify.subject" => "[{site}] 메일 주소를 확인해 주세요",
+        "mail.verify.body" => {
+            "{name} 님, {site}에 가입해 주셔서 고맙습니다.\n\n아래 링크를 누르면 가입이 끝납니다. 24시간 안에 한 번만 쓸 수 있습니다.\n\n{link}\n\n가입한 적이 없다면 이 메일은 지우셔도 됩니다.\n"
+        }
+        "mail.exists.subject" => "[{site}] 이미 가입된 메일 주소입니다",
+        "mail.exists.body" => {
+            "누군가 이 메일 주소로 {site}에 가입하려고 했습니다. 이 주소는 이미 가입돼 있습니다.\n\n비밀번호가 생각나지 않으면 아래 링크에서 다시 정하세요. 1시간 안에 한 번만 쓸 수 있습니다.\n\n{link}\n\n직접 하신 일이 아니라면 이 메일은 지우셔도 됩니다.\n"
+        }
+        "mail.reset.subject" => "[{site}] 비밀번호 다시 정하기",
+        "mail.reset.body" => {
+            "{name} 님, 비밀번호를 다시 정하려면 아래 링크를 누르세요. 1시간 안에 한 번만 쓸 수 있습니다.\n\n{link}\n\n요청한 적이 없다면 이 메일은 지우셔도 됩니다. 비밀번호는 그대로입니다.\n"
+        }
         "error.file_not_found" => "`{id}` 첨부 파일을 찾을 수 없습니다.",
         "error.file_type" => "첨부할 수 없는 파일입니다: {name} (가능한 형식: {allowed})",
         "error.file_content" => "파일 내용이 확장자({ext})와 맞지 않습니다: {name}",

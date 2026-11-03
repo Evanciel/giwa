@@ -3,6 +3,8 @@
 pub mod blobs;
 pub mod data_dir;
 pub mod db;
+mod mail;
+pub mod mailer;
 mod search;
 pub mod sqlite;
 

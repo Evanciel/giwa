@@ -4,9 +4,9 @@ use async_trait::async_trait;
 use maru_core::actor::{AuthorType, Permission, Scope};
 use maru_core::audit::AuditRecord;
 use maru_core::model::{
-    Attachment, Board, BoardPolicy, Category, Font, FontFile, LoginTicket, Media, MediaVariant,
-    Member, MemberStatus, Page, PageStatus, Post, PostKind, PostStatus, PostTemplate, Revision,
-    Role, Session, Tag, Token,
+    Attachment, Board, BoardPolicy, Category, Font, FontFile, LoginTicket, MailOut, MailStatus,
+    Media, MediaVariant, Member, MemberStatus, Page, PageStatus, Post, PostKind, PostStatus,
+    PostTemplate, Revision, Role, Session, Tag, TicketPurpose, Token,
 };
 use maru_core::store::{
     MenuRow, PostFilter, PublishedQuery, SearchQuery, SearchRef, Store, WriteTx,
@@ -676,6 +676,51 @@ impl Store for SqliteStore {
         member_by_email(&self.db.read, email).await
     }
 
+    async fn member_by_name(&self, name: &str) -> Result<Option<Member>> {
+        member_by_name(&self.db.read, name).await
+    }
+
+    async fn list_members(&self, limit: i64, offset: i64) -> Result<Vec<Member>> {
+        sqlx::query_as!(
+            MemberRow,
+            "SELECT id, email, display_name, password_hash, status, email_verified_at, withdrawn_at,
+                    created_at, updated_at
+             FROM members ORDER BY created_at, id LIMIT ? OFFSET ?",
+            limit,
+            offset
+        )
+        .fetch_all(&self.db.read)
+        .await
+        .map_err(db_error)?
+        .into_iter()
+        .map(Member::try_from)
+        .collect()
+    }
+
+    async fn count_role_members(&self, role: &str) -> Result<i64> {
+        sqlx::query_scalar!(
+            "SELECT count(*) FROM member_roles mr JOIN roles r ON r.id = mr.role_id
+             JOIN members m ON m.id = mr.member_id
+             WHERE r.name = ? AND m.status = 'active'",
+            role
+        )
+        .fetch_one(&self.db.read)
+        .await
+        .map_err(db_error)
+    }
+
+    async fn mails(&self, status: Option<MailStatus>, limit: i64) -> Result<Vec<MailOut>> {
+        crate::mail::list(&self.db.read, status, limit).await
+    }
+
+    async fn mail_by_id(&self, id: &str) -> Result<Option<MailOut>> {
+        crate::mail::by_id(&self.db.read, id).await
+    }
+
+    async fn update_mail(&self, m: &MailOut) -> Result<()> {
+        crate::mail::update(&self.db.write, m).await
+    }
+
     async fn count_members(&self) -> Result<i64> {
         sqlx::query_scalar!("SELECT count(*) FROM members")
             .fetch_one(&self.db.read)
@@ -686,7 +731,8 @@ impl Store for SqliteStore {
     async fn first_member(&self) -> Result<Option<Member>> {
         sqlx::query_as!(
             MemberRow,
-            "SELECT id, email, display_name, password_hash, status, created_at, updated_at
+            "SELECT id, email, display_name, password_hash, status, email_verified_at, withdrawn_at,
+                    created_at, updated_at
              FROM members ORDER BY created_at LIMIT 1"
         )
         .fetch_optional(&self.db.read)
@@ -741,21 +787,25 @@ impl Store for SqliteStore {
 
     async fn ticket_by_hash(&self, hash: &str) -> Result<Option<LoginTicket>> {
         let row = sqlx::query!(
-            "SELECT id, token_hash, member_id, created_at, expires_at, used_at
+            "SELECT id, token_hash, member_id, purpose, created_at, expires_at, used_at
              FROM login_tickets WHERE token_hash = ?",
             hash
         )
         .fetch_optional(&self.db.read)
         .await
         .map_err(db_error)?;
-        Ok(row.map(|r| LoginTicket {
-            id: r.id,
-            token_hash: r.token_hash,
-            member_id: r.member_id,
-            created_at: r.created_at,
-            expires_at: r.expires_at,
-            used_at: r.used_at,
-        }))
+        row.map(|r| {
+            Ok(LoginTicket {
+                purpose: purpose(&r.purpose)?,
+                id: r.id,
+                token_hash: r.token_hash,
+                member_id: r.member_id,
+                created_at: r.created_at,
+                expires_at: r.expires_at,
+                used_at: r.used_at,
+            })
+        })
+        .transpose()
     }
 
     async fn purge_expired(&self, now: &str) -> Result<u64> {
@@ -1547,13 +1597,16 @@ impl WriteTx for SqliteWriteTx {
     async fn insert_member(&mut self, m: &Member) -> Result<()> {
         let status = m.status.as_str();
         sqlx::query!(
-            "INSERT INTO members (id, email, display_name, password_hash, status, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO members (id, email, display_name, password_hash, status, email_verified_at,
+                                  withdrawn_at, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             m.id,
             m.email,
             m.display_name,
             m.password_hash,
             status,
+            m.email_verified_at,
+            m.withdrawn_at,
             m.created_at,
             m.updated_at
         )
@@ -1566,12 +1619,15 @@ impl WriteTx for SqliteWriteTx {
     async fn update_member(&mut self, m: &Member) -> Result<()> {
         let status = m.status.as_str();
         sqlx::query!(
-            "UPDATE members SET email = ?, display_name = ?, password_hash = ?, status = ?, updated_at = ?
+            "UPDATE members SET email = ?, display_name = ?, password_hash = ?, status = ?,
+                    email_verified_at = ?, withdrawn_at = ?, updated_at = ?
              WHERE id = ?",
             m.email,
             m.display_name,
             m.password_hash,
             status,
+            m.email_verified_at,
+            m.withdrawn_at,
             m.updated_at,
             m.id
         )
@@ -1579,6 +1635,22 @@ impl WriteTx for SqliteWriteTx {
         .await
         .map_err(db_error)?;
         Ok(())
+    }
+
+    async fn clear_member_roles(&mut self, member_id: &str) -> Result<()> {
+        sqlx::query!("DELETE FROM member_roles WHERE member_id = ?", member_id)
+            .execute(&mut *self.tx)
+            .await
+            .map_err(db_error)?;
+        Ok(())
+    }
+
+    async fn member_by_name(&mut self, name: &str) -> Result<Option<Member>> {
+        member_by_name(&mut *self.tx, name).await
+    }
+
+    async fn queue_mail(&mut self, m: &MailOut) -> Result<bool> {
+        crate::mail::queue(&mut self.tx, m).await
     }
 
     async fn add_member_role(&mut self, member_id: &str, role: &str) -> Result<()> {
@@ -1604,12 +1676,14 @@ impl WriteTx for SqliteWriteTx {
     }
 
     async fn insert_ticket(&mut self, t: &LoginTicket) -> Result<()> {
+        let purpose = t.purpose.as_str();
         sqlx::query!(
-            "INSERT INTO login_tickets (id, token_hash, member_id, created_at, expires_at, used_at)
-             VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO login_tickets (id, token_hash, member_id, purpose, created_at, expires_at, used_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?)",
             t.id,
             t.token_hash,
             t.member_id,
+            purpose,
             t.created_at,
             t.expires_at,
             t.used_at
@@ -1620,10 +1694,16 @@ impl WriteTx for SqliteWriteTx {
         Ok(())
     }
 
-    async fn delete_open_tickets(&mut self, member_id: &str) -> Result<u64> {
+    async fn delete_open_tickets(
+        &mut self,
+        member_id: &str,
+        purpose: TicketPurpose,
+    ) -> Result<u64> {
+        let purpose = purpose.as_str();
         Ok(sqlx::query!(
-            "DELETE FROM login_tickets WHERE member_id = ? AND used_at IS NULL",
-            member_id
+            "DELETE FROM login_tickets WHERE member_id = ? AND purpose = ? AND used_at IS NULL",
+            member_id,
+            purpose
         )
         .execute(&mut *self.tx)
         .await
@@ -1631,13 +1711,20 @@ impl WriteTx for SqliteWriteTx {
         .rows_affected())
     }
 
-    async fn use_ticket(&mut self, hash: &str, now: &str) -> Result<Option<LoginTicket>> {
+    async fn use_ticket(
+        &mut self,
+        hash: &str,
+        purpose: TicketPurpose,
+        now: &str,
+    ) -> Result<Option<LoginTicket>> {
+        let kind = purpose.as_str();
         let row = sqlx::query!(
             "UPDATE login_tickets SET used_at = ?
-             WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?
+             WHERE token_hash = ? AND purpose = ? AND used_at IS NULL AND expires_at > ?
              RETURNING id, token_hash, member_id, created_at, expires_at",
             now,
             hash,
+            kind,
             now
         )
         .fetch_optional(&mut *self.tx)
@@ -1647,6 +1734,7 @@ impl WriteTx for SqliteWriteTx {
             id: r.id,
             token_hash: r.token_hash,
             member_id: r.member_id,
+            purpose,
             created_at: r.created_at,
             expires_at: r.expires_at,
             used_at: Some(now.to_owned()),
@@ -2221,6 +2309,8 @@ struct MemberRow {
     display_name: String,
     password_hash: Option<String>,
     status: String,
+    email_verified_at: Option<String>,
+    withdrawn_at: Option<String>,
     created_at: String,
     updated_at: String,
 }
@@ -2236,18 +2326,40 @@ impl TryFrom<MemberRow> for Member {
             email: r.email,
             display_name: r.display_name,
             password_hash: r.password_hash,
+            email_verified_at: r.email_verified_at,
+            withdrawn_at: r.withdrawn_at,
             created_at: r.created_at,
             updated_at: r.updated_at,
         })
     }
 }
 
+fn purpose(s: &str) -> Result<TicketPurpose> {
+    TicketPurpose::parse(s).ok_or_else(|| Error::internal(format!("알 수 없는 링크 쓰임새: {s}")))
+}
+
 async fn member_by_id<'e>(e: impl SqliteExecutor<'e>, id: &str) -> Result<Option<Member>> {
     sqlx::query_as!(
         MemberRow,
-        "SELECT id, email, display_name, password_hash, status, created_at, updated_at
+        "SELECT id, email, display_name, password_hash, status, email_verified_at, withdrawn_at,
+                    created_at, updated_at
          FROM members WHERE id = ?",
         id
+    )
+    .fetch_optional(e)
+    .await
+    .map_err(db_error)?
+    .map(Member::try_from)
+    .transpose()
+}
+
+async fn member_by_name<'e>(e: impl SqliteExecutor<'e>, name: &str) -> Result<Option<Member>> {
+    sqlx::query_as!(
+        MemberRow,
+        "SELECT id, email, display_name, password_hash, status, email_verified_at, withdrawn_at,
+                created_at, updated_at
+         FROM members WHERE display_name = ? COLLATE NOCASE",
+        name
     )
     .fetch_optional(e)
     .await
@@ -2259,7 +2371,8 @@ async fn member_by_id<'e>(e: impl SqliteExecutor<'e>, id: &str) -> Result<Option
 async fn member_by_email<'e>(e: impl SqliteExecutor<'e>, email: &str) -> Result<Option<Member>> {
     sqlx::query_as!(
         MemberRow,
-        "SELECT id, email, display_name, password_hash, status, created_at, updated_at
+        "SELECT id, email, display_name, password_hash, status, email_verified_at, withdrawn_at,
+                    created_at, updated_at
          FROM members WHERE email = ?",
         email
     )

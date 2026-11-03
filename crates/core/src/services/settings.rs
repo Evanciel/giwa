@@ -8,7 +8,7 @@ use crate::actor::{Actor, Permission};
 use crate::audit::Target;
 use crate::clock;
 use crate::error::{Code, Error, Result};
-use crate::model::SiteSettings;
+use crate::model::{SignupMode, SiteSettings};
 use crate::services::required_text;
 use crate::store::{Ctx, Tx};
 
@@ -38,6 +38,12 @@ pub struct SettingsPatch {
     /// 공개 화면 머리글에 검색 칸을 보일지
     #[serde(default)]
     pub show_search: Option<bool>,
+    /// 회원 가입: off · open (회원 관리 권한 필요)
+    #[serde(default)]
+    pub signup: Option<String>,
+    /// 가입한 사람이 메일 링크를 눌러야 로그인할지 (회원 관리 권한 필요)
+    #[serde(default)]
+    pub signup_verify: Option<bool>,
 }
 
 /// 저장된 값 위에 기본값을 채운다. 모르는 키나 잘못된 값은 기본값으로 둔다.
@@ -106,6 +112,23 @@ pub async fn update(ctx: &Ctx, actor: &Actor, patch: SettingsPatch) -> Result<Si
     }
     if let Some(b) = patch.show_search {
         changes.push(("show_search", json!(b)));
+    }
+    if let Some(m) = &patch.signup {
+        actor.require(Permission::MemberManage)?;
+        let mode = SignupMode::parse(m.trim()).ok_or_else(|| {
+            Error::new(Code::Validation)
+                .with_message("error.signup_option")
+                .arg("value", m.chars().take(20).collect::<String>())
+                .arg(
+                    "allowed",
+                    SignupMode::ALL.map(SignupMode::as_str).join(", "),
+                )
+        })?;
+        changes.push(("signup", json!(mode)));
+    }
+    if let Some(b) = patch.signup_verify {
+        actor.require(Permission::MemberManage)?;
+        changes.push(("signup_verify", json!(b)));
     }
     for (key, v) in [
         ("naver_verification", &patch.naver_verification),

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO login_tickets (id, token_hash, member_id, purpose, created_at, expires_at, used_at)\n             VALUES (?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "f220a9002ba031e3974a51a9db6e1b825a7bf71f8e8bdd9fcc27f37d5f94e4c6"
+}

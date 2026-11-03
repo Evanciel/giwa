@@ -12,8 +12,8 @@ use axum::{Json, Router};
 use maru_core::model::{MenuItem, PageReq, PageStatus, PostStatus};
 use maru_core::output::Success;
 use maru_core::services::{
-    anonymous_actor, boards, categories, design, files, fonts, media, menus, pages, posts, search,
-    settings, tags, templates, tokens, views,
+    anonymous_actor, boards, categories, design, files, fonts, media, members, menus, pages, posts,
+    search, settings, tags, templates, tokens, views,
 };
 use maru_core::{Actor, Code, Error};
 use serde::Deserialize;
@@ -86,6 +86,8 @@ pub fn routes() -> Router<AppState> {
         .route("/slug-check", get(check_slug))
         .route("/search", get(site_search))
         .route("/search/reindex", post(reindex_search))
+        .route("/members", get(list_members))
+        .route("/members/{who}", get(get_member).patch(update_member))
         .fallback(|| async { ApiError(Error::new(Code::NotFound)) })
 }
 
@@ -820,6 +822,68 @@ async fn delete_file(
         StatusCode::OK,
         files::delete(&state.ctx, &actor, &id).await?,
     ))
+}
+
+#[derive(Debug, Deserialize)]
+struct MemberListQuery {
+    page: Option<u32>,
+    per_page: Option<u32>,
+}
+
+/// `GET /members` 가입 순 회원 목록 (회원 관리 권한).
+async fn list_members(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Query(q): Query<MemberListQuery>,
+) -> Result<Response, ApiError> {
+    let page = PageReq::new(q.page.unwrap_or(1), q.per_page.unwrap_or(50));
+    Ok(ok(
+        StatusCode::OK,
+        members::list(&state.ctx, &actor, page).await?,
+    ))
+}
+
+/// `GET /members/{id 또는 이메일}`
+async fn get_member(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(who): Path<String>,
+) -> Result<Response, ApiError> {
+    Ok(ok(
+        StatusCode::OK,
+        members::get(&state.ctx, &actor, &who).await?,
+    ))
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MemberPatch {
+    /// active, disabled
+    status: Option<maru_core::model::MemberStatus>,
+    /// member, editor, admin
+    role: Option<String>,
+}
+
+/// `PATCH /members/{id}` 상태·역할. 둘 다 오면 상태 먼저.
+async fn update_member(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(who): Path<String>,
+    body: Result<Json<MemberPatch>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let Json(patch) = body.map_err(bad_json)?;
+    let mut view = None;
+    if let Some(status) = patch.status {
+        view = Some(members::set_status(&state.ctx, &actor, &who, status).await?);
+    }
+    if let Some(role) = patch.role {
+        view = Some(members::set_role(&state.ctx, &actor, &who, &role).await?);
+    }
+    let view = match view {
+        Some(v) => v,
+        None => members::get(&state.ctx, &actor, &who).await?,
+    };
+    Ok(ok(StatusCode::OK, view))
 }
 
 /// 글 주소가 게시판에서 비어 있는지 (저장 전 확인, 바꾸는 것 없음).

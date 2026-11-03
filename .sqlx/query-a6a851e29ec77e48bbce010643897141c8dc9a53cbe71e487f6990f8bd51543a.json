@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, email, display_name, password_hash, status, created_at, updated_at\n         FROM members WHERE id = ?",
+  "query": "SELECT id, email, display_name, password_hash, status, email_verified_at, withdrawn_at,\n                    created_at, updated_at\n         FROM members WHERE id = ?",
   "describe": {
     "columns": [
       {
@@ -59,8 +59,30 @@
         }
       },
       {
-        "name": "created_at",
+        "name": "email_verified_at",
         "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "members",
+            "name": "email_verified_at"
+          }
+        }
+      },
+      {
+        "name": "withdrawn_at",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "members",
+            "name": "withdrawn_at"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 7,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -71,7 +93,7 @@
       },
       {
         "name": "updated_at",
-        "ordinal": 6,
+        "ordinal": 8,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -90,9 +112,11 @@
       false,
       true,
       false,
+      true,
+      true,
       false,
       false
     ]
   },
-  "hash": "921aa7c53a5e7274c251d0ca7b3cd6bb2b97d31ae606073ba926dae7e7262dcc"
+  "hash": "a6a851e29ec77e48bbce010643897141c8dc9a53cbe71e487f6990f8bd51543a"
 }

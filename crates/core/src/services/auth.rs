@@ -17,7 +17,7 @@ use crate::actor::{Actor, ActorKind, Permission};
 use crate::audit::Target;
 use crate::clock;
 use crate::error::{Code, Error, Result};
-use crate::model::{LoginTicket, Member, MemberStatus, Session};
+use crate::model::{LoginTicket, Member, MemberStatus, Session, TicketPurpose};
 use crate::services::boards::Created;
 use crate::services::{required_text, tokens};
 use crate::store::{Ctx, Tx};
@@ -93,6 +93,8 @@ pub async fn ensure_owner(
         display_name,
         password_hash: None,
         status: MemberStatus::Active,
+        email_verified_at: Some(now.clone()),
+        withdrawn_at: None,
         created_at: now.clone(),
         updated_at: now,
     };
@@ -134,18 +136,11 @@ pub async fn issue_login_link(ctx: &Ctx, actor: &Actor, email: Option<&str>) -> 
         return Err(Error::new(Code::Forbidden).with_message("error.member_disabled"));
     }
     let raw = new_secret()?;
-    let now = clock::now();
-    let ticket = LoginTicket {
-        id: clock::new_id(),
-        token_hash: tokens::hash(&raw),
-        member_id: member.id.clone(),
-        created_at: now,
-        expires_at: later(TICKET_MINUTES),
-        used_at: None,
-    };
     let mut tx = Tx::begin(ctx).await?;
-    tx.delete_open_tickets(&member.id).await?;
-    tx.insert_ticket(&ticket).await?;
+    tx.delete_open_tickets(&member.id, TicketPurpose::Login)
+        .await?;
+    let ticket =
+        insert_ticket(&mut tx, &member, TicketPurpose::Login, &raw, TICKET_MINUTES).await?;
     tx.audit(
         actor,
         "auth.login_link",
@@ -165,16 +160,48 @@ pub async fn issue_login_link(ctx: &Ctx, actor: &Actor, email: Option<&str>) -> 
 
 /// 확인 화면용. 링크를 쓰지 않고 유효한지만 본다.
 pub async fn peek_link(ctx: &Ctx, raw: &str) -> Result<Member> {
+    peek_ticket(ctx, raw, TicketPurpose::Login)
+        .await?
+        .ok_or_else(link_invalid)
+}
+
+/// 쓰임새가 맞고, 쓰지 않았고, 만료되지 않은 링크의 활성 회원.
+pub(crate) async fn peek_ticket(
+    ctx: &Ctx,
+    raw: &str,
+    purpose: TicketPurpose,
+) -> Result<Option<Member>> {
     let now = clock::now();
-    let ticket = ctx
+    let Some(ticket) = ctx
         .store
         .ticket_by_hash(&tokens::hash(raw))
         .await?
-        .filter(|t| t.used_at.is_none() && t.expires_at > now)
-        .ok_or_else(link_invalid)?;
-    active_member(ctx, &ticket.member_id)
-        .await?
-        .ok_or_else(link_invalid)
+        .filter(|t| t.purpose == purpose && t.used_at.is_none() && t.expires_at > now)
+    else {
+        return Ok(None);
+    };
+    active_member(ctx, &ticket.member_id).await
+}
+
+/// 1회용 링크를 저장한다. 원문은 부른 쪽이 편지·응답으로 한 번만 내보낸다.
+pub(crate) async fn insert_ticket(
+    tx: &mut Tx,
+    member: &Member,
+    purpose: TicketPurpose,
+    raw: &str,
+    minutes: i64,
+) -> Result<LoginTicket> {
+    let ticket = LoginTicket {
+        id: clock::new_id(),
+        token_hash: tokens::hash(raw),
+        member_id: member.id.clone(),
+        purpose,
+        created_at: clock::now(),
+        expires_at: later(minutes),
+        used_at: None,
+    };
+    tx.insert_ticket(&ticket).await?;
+    Ok(ticket)
 }
 
 /// 링크를 써서 로그인한다.
@@ -182,7 +209,7 @@ pub async fn consume_link(ctx: &Ctx, raw: &str) -> Result<NewSession> {
     let now = clock::now();
     let mut tx = Tx::begin(ctx).await?;
     let ticket = tx
-        .use_ticket(&tokens::hash(raw), &now)
+        .use_ticket(&tokens::hash(raw), TicketPurpose::Login, &now)
         .await?
         .ok_or_else(link_invalid)?;
     let member = tx
@@ -196,6 +223,7 @@ pub async fn consume_link(ctx: &Ctx, raw: &str) -> Result<NewSession> {
 }
 
 /// 비밀번호로 로그인한다. 실패 사유는 구분하지 않는다.
+/// 비밀번호가 맞아도 메일 인증 전이면(가입 인증이 켜졌을 때) 인증 편지를 다시 쌓고 `error.email_unverified`.
 pub async fn login_password(ctx: &Ctx, email: &str, password: &str) -> Result<NewSession> {
     let member = match check_email(email) {
         Ok(e) => ctx.store.member_by_email(&e).await?,
@@ -211,6 +239,22 @@ pub async fn login_password(ctx: &Ctx, email: &str, password: &str) -> Result<Ne
         _ => return Err(login_failed()),
     };
     let mut tx = Tx::begin(ctx).await?;
+    if member.email_verified_at.is_none() {
+        let site = crate::services::settings::site(ctx).await?;
+        if site.signup_verify {
+            if crate::services::members::queue_verify(ctx, &mut tx, &site.name, &member).await? {
+                tx.audit(
+                    &Actor::human(member.id.clone(), [], crate::actor::rank::GUEST),
+                    "member.verify_resend",
+                    Target::new("member", &member.id),
+                    json!({}),
+                )
+                .await?;
+                tx.commit().await?;
+            }
+            return Err(Error::new(Code::Forbidden).with_message("error.email_unverified"));
+        }
+    }
     let new = start_session(&mut tx, member, "password").await?;
     tx.commit().await?;
     Ok(new)
@@ -262,17 +306,7 @@ pub async fn logout(ctx: &Ctx, who: &SignedIn) -> Result<()> {
 
 /// 자기 비밀번호를 정한다. 그 회원의 다른 세션은 모두 끊기고 새 세션을 돌려준다.
 pub async fn set_password(ctx: &Ctx, who: &SignedIn, password: &str) -> Result<NewSession> {
-    let n = password.chars().count();
-    if !(MIN_PASSWORD_CHARS..=MAX_PASSWORD_CHARS).contains(&n) {
-        return Err(Error::new(Code::Validation)
-            .with_message("error.password_length")
-            .arg("min", MIN_PASSWORD_CHARS.to_string())
-            .arg("max", MAX_PASSWORD_CHARS.to_string()));
-    }
-    let hash = Argon2::default()
-        .hash_password(password.as_bytes())
-        .map_err(|e| Error::internal(e.to_string()))?
-        .to_string();
+    let hash = hash_password(password)?;
     let mut tx = Tx::begin(ctx).await?;
     let mut member = tx
         .member_by_id(&who.member.id)
@@ -309,7 +343,22 @@ pub fn same_secret(a: &str, b: &str) -> bool {
     a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
-async fn start_session(tx: &mut Tx, member: Member, method: &str) -> Result<NewSession> {
+/// 길이를 검사하고 argon2id 해시를 만든다.
+pub(crate) fn hash_password(password: &str) -> Result<String> {
+    let n = password.chars().count();
+    if !(MIN_PASSWORD_CHARS..=MAX_PASSWORD_CHARS).contains(&n) {
+        return Err(Error::new(Code::Validation)
+            .with_message("error.password_length")
+            .arg("min", MIN_PASSWORD_CHARS.to_string())
+            .arg("max", MAX_PASSWORD_CHARS.to_string()));
+    }
+    Ok(Argon2::default()
+        .hash_password(password.as_bytes())
+        .map_err(|e| Error::internal(e.to_string()))?
+        .to_string())
+}
+
+pub(crate) async fn start_session(tx: &mut Tx, member: Member, method: &str) -> Result<NewSession> {
     let raw = new_secret()?;
     let now = clock::now();
     let session = Session {
@@ -353,7 +402,7 @@ fn require_operator(actor: &Actor) -> Result<()> {
     Ok(())
 }
 
-fn check_email(email: &str) -> Result<String> {
+pub(crate) fn check_email(email: &str) -> Result<String> {
     let e = email.trim().to_lowercase();
     let ok = e.len() <= 254
         && e.split_once('@')
@@ -367,7 +416,7 @@ fn check_email(email: &str) -> Result<String> {
     Ok(e)
 }
 
-fn verify(password: &str, hash: &str) -> bool {
+pub(crate) fn verify(password: &str, hash: &str) -> bool {
     PasswordHash::new(hash).ok().is_some_and(|h| {
         Argon2::default()
             .verify_password(password.as_bytes(), &h)

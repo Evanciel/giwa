@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT count(*) FROM member_roles mr JOIN roles r ON r.id = mr.role_id\n             JOIN members m ON m.id = mr.member_id\n             WHERE r.name = ? AND m.status = 'active'",
+  "describe": {
+    "columns": [
+      {
+        "name": "count(*)",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "48da8455fb4f9b303db6e2e36efab00d64d8cfa5ab9c10494bc19a467b90a2eb"
+}

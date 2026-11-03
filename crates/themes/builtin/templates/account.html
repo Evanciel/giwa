@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{# 로그인·가입·비밀번호 찾기·재설정·메일 인증·안내 (account.view). 폼은 스크립트 없이 동작한다. #}
+{% block main_class %}wrap account-wrap{% endblock %}
+{% block main %}
+<section class="account" aria-labelledby="account-title">
+{% if account.view == "login" %}
+  <h1 id="account-title">로그인</h1>
+  {% if account.error %}<p class="form-error" role="alert">{{ account.error }}</p>{% endif %}
+  <form class="account-form" method="post" action="/login">
+    <input type="hidden" name="_csrf" value="{{ account.csrf }}">
+    <input type="hidden" name="next" value="{{ account.next }}">
+    <label for="email">이메일</label>
+    <input id="email" type="email" name="email" value="{{ account.email }}" autocomplete="email" required autofocus>
+    <label for="password">비밀번호</label>
+    <input id="password" type="password" name="password" autocomplete="current-password" required>
+    <button type="submit">로그인</button>
+  </form>
+  <p class="account-links"><a href="/forgot">비밀번호 찾기</a>{% if signup_open %}<span aria-hidden="true">·</span><a href="/signup">회원 가입</a>{% endif %}</p>
+
+{% elif account.view == "signup" %}
+  <h1 id="account-title">회원 가입</h1>
+  {% if account.error %}<p class="form-error" role="alert">{{ account.error }}</p>{% endif %}
+  <form class="account-form" method="post" action="/signup">
+    <input type="hidden" name="_csrf" value="{{ account.csrf }}">
+    <label for="email">이메일</label>
+    <input id="email" type="email" name="email" value="{{ account.email }}" autocomplete="email" required>
+    <label for="display_name">닉네임</label>
+    <input id="display_name" type="text" name="display_name" value="{{ account.display_name }}" minlength="{{ account.min_name }}" maxlength="{{ account.max_name }}" autocomplete="nickname" required aria-describedby="name-hint">
+    <p id="name-hint" class="hint">{{ account.min_name }}~{{ account.max_name }}자. 다른 회원과 겹치지 않게 지어 주세요.</p>
+    <label for="password">비밀번호</label>
+    <input id="password" type="password" name="password" minlength="{{ account.min_password }}" autocomplete="new-password" required aria-describedby="pw-hint">
+    <p id="pw-hint" class="hint">{{ account.min_password }}자 이상.</p>
+    <label for="password2">비밀번호 다시</label>
+    <input id="password2" type="password" name="password2" minlength="{{ account.min_password }}" autocomplete="new-password" required>
+    <button type="submit">가입하기</button>
+  </form>
+  <p class="account-links">이미 가입했나요? <a href="/login">로그인</a></p>
+
+{% elif account.view == "forgot" %}
+  <h1 id="account-title">비밀번호 찾기</h1>
+  <p class="account-lead">가입한 이메일을 적으면 비밀번호를 다시 정하는 링크를 보내 드립니다.</p>
+  <form class="account-form" method="post" action="/forgot">
+    <input type="hidden" name="_csrf" value="{{ account.csrf }}">
+    <label for="email">이메일</label>
+    <input id="email" type="email" name="email" autocomplete="email" required autofocus>
+    <button type="submit">링크 받기</button>
+  </form>
+  <p class="account-links"><a href="/login">로그인으로</a></p>
+
+{% elif account.view == "reset" %}
+  <h1 id="account-title">비밀번호 다시 정하기</h1>
+  {% if account.error %}<p class="form-error" role="alert">{{ account.error }}</p>{% endif %}
+  <form class="account-form" method="post" action="{{ account.action }}">
+    <input type="hidden" name="_csrf" value="{{ account.csrf }}">
+    <label for="password">새 비밀번호</label>
+    <input id="password" type="password" name="password" minlength="{{ account.min_password }}" autocomplete="new-password" required autofocus aria-describedby="pw-hint">
+    <p id="pw-hint" class="hint">{{ account.min_password }}자 이상. 바꾸면 다른 기기의 로그인은 모두 끊깁니다.</p>
+    <label for="password2">새 비밀번호 다시</label>
+    <input id="password2" type="password" name="password2" minlength="{{ account.min_password }}" autocomplete="new-password" required>
+    <button type="submit">바꾸기</button>
+  </form>
+
+{% elif account.view == "verify" %}
+  <h1 id="account-title">메일 인증</h1>
+  <p class="account-lead"><strong>{{ account.display_name }}</strong> 님, 아래 단추를 누르면 가입이 끝나고 로그인됩니다.</p>
+  <form class="account-form" method="post" action="{{ account.action }}">
+    <input type="hidden" name="_csrf" value="{{ account.csrf }}">
+    <button type="submit">인증하고 로그인</button>
+  </form>
+
+{% else %}
+  <h1 id="account-title">{{ account.heading }}</h1>
+  <p class="account-lead">{{ account.body }}</p>
+  {% if account.links %}<p class="account-links">{% for l in account.links %}{% if not loop.first %}<span aria-hidden="true">·</span>{% endif %}<a href="{{ l.href }}">{{ l.label }}</a>{% endfor %}</p>{% endif %}
+{% endif %}
+</section>
+{% endblock %}

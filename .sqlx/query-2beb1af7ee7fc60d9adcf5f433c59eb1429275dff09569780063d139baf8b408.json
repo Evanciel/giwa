@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM member_roles WHERE member_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "2beb1af7ee7fc60d9adcf5f433c59eb1429275dff09569780063d139baf8b408"
+}

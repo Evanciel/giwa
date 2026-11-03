@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{# 내 정보: 닉네임·비밀번호·내 글·로그아웃·탈퇴 (GAP M3). 폼마다 세션 CSRF 값. #}
+{% block main_class %}wrap account-wrap{% endblock %}
+{% block main %}
+<section class="account me" aria-labelledby="me-title">
+  <div class="me-head">
+    <h1 id="me-title">{{ me.display_name }}</h1>
+    <p class="hint">{{ me.email }} · {{ me.joined }} 가입{% if me.admin_url %} · <a href="{{ me.admin_url }}">관리 화면</a>{% endif %}</p>
+  </div>
+  {% if me.notice %}<p class="form-notice" role="status">{{ me.notice }}</p>{% endif %}
+
+  <section class="me-block" aria-labelledby="me-posts">
+    <h2 id="me-posts">내가 쓴 글</h2>
+    {% if me.posts %}
+    <ul class="me-posts">
+      {% for p in me.posts %}<li>
+        {% if p.url %}<a href="{{ p.url }}">{{ p.title }}</a>{% else %}<span>{{ p.title }}</span>{% endif %}
+        <span class="hint">{% if p.board %}{{ p.board }} · {% endif %}{{ p.status }} · {{ p.date }}</span>
+      </li>{% endfor %}
+    </ul>
+    {% else %}<p class="empty">아직 쓴 글이 없습니다.</p>{% endif %}
+  </section>
+
+  <section class="me-block" aria-labelledby="me-profile">
+    <h2 id="me-profile">닉네임</h2>
+    {% if me.error_in == "profile" %}<p class="form-error" role="alert">{{ me.error }}</p>{% endif %}
+    <form class="account-form inline" method="post" action="/me/profile">
+      <input type="hidden" name="_csrf" value="{{ me.csrf }}">
+      <label class="visually-hidden" for="display_name">닉네임</label>
+      <input id="display_name" type="text" name="display_name" value="{{ me.display_name }}" minlength="2" maxlength="20" autocomplete="nickname" required>
+      <button type="submit">바꾸기</button>
+    </form>
+  </section>
+
+  <section class="me-block" aria-labelledby="me-password">
+    <h2 id="me-password">비밀번호</h2>
+    {% if me.error_in == "password" %}<p class="form-error" role="alert">{{ me.error }}</p>{% endif %}
+    <form class="account-form" method="post" action="/me/password">
+      <input type="hidden" name="_csrf" value="{{ me.csrf }}">
+      <label for="current">지금 비밀번호</label>
+      <input id="current" type="password" name="current" autocomplete="current-password" required>
+      <label for="password">새 비밀번호</label>
+      <input id="password" type="password" name="password" minlength="{{ me.min_password }}" autocomplete="new-password" required>
+      <label for="password2">새 비밀번호 다시</label>
+      <input id="password2" type="password" name="password2" minlength="{{ me.min_password }}" autocomplete="new-password" required>
+      <button type="submit">비밀번호 바꾸기</button>
+    </form>
+  </section>
+
+  <section class="me-block" aria-labelledby="me-session">
+    <h2 id="me-session">로그아웃</h2>
+    <form method="post" action="/logout">
+      <input type="hidden" name="_csrf" value="{{ me.csrf }}">
+      <button type="submit" class="secondary">로그아웃</button>
+    </form>
+  </section>
+
+  {% if not me.is_owner %}
+  <details class="me-block me-danger"{% if me.error_in == "withdraw" %} open{% endif %}>
+    <summary>회원 탈퇴</summary>
+    <p class="hint">탈퇴하면 이메일·비밀번호가 지워지고 다시 되돌릴 수 없습니다. 쓴 글은 「탈퇴한 회원」 이름으로 남습니다.</p>
+    {% if me.error_in == "withdraw" %}<p class="form-error" role="alert">{{ me.error }}</p>{% endif %}
+    <form class="account-form" method="post" action="/me/withdraw">
+      <input type="hidden" name="_csrf" value="{{ me.csrf }}">
+      <label for="withdraw-pw">비밀번호</label>
+      <input id="withdraw-pw" type="password" name="password" autocomplete="current-password" required>
+      <label class="check"><input type="checkbox" name="agree" value="yes" required> 위 내용을 읽었고 탈퇴합니다</label>
+      <button type="submit" class="danger">탈퇴하기</button>
+    </form>
+  </details>
+  {% endif %}
+</section>
+{% endblock %}

@@ -90,6 +90,9 @@ async fn site_value(state: &AppState, s: &SiteSettings) -> Value {
         "rss_url": urls::path(&Target::Rss),
         "search_url": urls::path(&Target::Search),
         "show_search": s.show_search,
+        // 가입을 받는 사이트만 머리글에 「내 계정」. 공개 화면은 손님 기준이라 로그인 여부와 상관없이 같다(ADR-0051).
+        "show_account": s.signup != maru_core::model::SignupMode::Off,
+        "account_url": "/me",
         "naver_verification": s.naver_verification,
         "google_verification": s.google_verification,
         "menus": {
@@ -133,7 +136,7 @@ async fn load_site(state: &AppState) -> Result<Site> {
     Ok(Site { settings, json })
 }
 
-async fn render(state: &AppState, name: &str, ctx: Result<Value>) -> Response {
+pub(crate) async fn render(state: &AppState, name: &str, ctx: Result<Value>) -> Response {
     let rendered = match ctx {
         Ok(v) => state.theme.render(name, &v),
         Err(e) => Err(e),

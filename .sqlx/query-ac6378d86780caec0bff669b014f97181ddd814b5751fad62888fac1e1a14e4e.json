@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, email, display_name, password_hash, status, created_at, updated_at\n         FROM members WHERE email = ?",
+  "query": "SELECT id, email, display_name, password_hash, status, email_verified_at, withdrawn_at,\n                created_at, updated_at\n         FROM members WHERE display_name = ? COLLATE NOCASE",
   "describe": {
     "columns": [
       {
@@ -59,8 +59,30 @@
         }
       },
       {
-        "name": "created_at",
+        "name": "email_verified_at",
         "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "members",
+            "name": "email_verified_at"
+          }
+        }
+      },
+      {
+        "name": "withdrawn_at",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "members",
+            "name": "withdrawn_at"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 7,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -71,7 +93,7 @@
       },
       {
         "name": "updated_at",
-        "ordinal": 6,
+        "ordinal": 8,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -90,9 +112,11 @@
       false,
       true,
       false,
+      true,
+      true,
       false,
       false
     ]
   },
-  "hash": "8068ee03cb98d2ae1442d778601c0a28ec8fc670103e985a216e719fab0c4c0c"
+  "hash": "ac6378d86780caec0bff669b014f97181ddd814b5751fad62888fac1e1a14e4e"
 }

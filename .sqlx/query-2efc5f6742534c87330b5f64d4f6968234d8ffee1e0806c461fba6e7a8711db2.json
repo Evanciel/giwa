@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE mail_outbox SET status = ?, attempts = ?, last_error = ?, sent_at = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "2efc5f6742534c87330b5f64d4f6968234d8ffee1e0806c461fba6e7a8711db2"
+}

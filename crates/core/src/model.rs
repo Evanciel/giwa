@@ -478,6 +478,36 @@ pub struct SiteSettings {
     /// 공개 화면 머리글에 사이트 검색 칸을 보인다 (`/search` 는 꺼도 열린다)
     #[serde(default = "default_true")]
     pub show_search: bool,
+    /// 회원 가입: off(받지 않음) · open(누구나). 꺼도 이미 있는 회원은 로그인한다
+    #[serde(default)]
+    pub signup: SignupMode,
+    /// 가입한 사람이 메일 링크를 눌러야 로그인할 수 있다
+    #[serde(default = "default_true")]
+    pub signup_verify: bool,
+}
+
+/// 회원 가입 방식 (GAP M1, ADR-0051).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum SignupMode {
+    #[default]
+    Off,
+    Open,
+}
+
+impl SignupMode {
+    pub const ALL: [Self; 2] = [Self::Off, Self::Open];
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Off => "off",
+            Self::Open => "open",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|m| m.as_str() == s)
+    }
 }
 
 fn default_toc_min_headings() -> u32 {
@@ -501,6 +531,8 @@ impl Default for SiteSettings {
             toc_min_headings: default_toc_min_headings(),
             show_views: true,
             show_search: true,
+            signup: SignupMode::Off,
+            signup_verify: true,
         }
     }
 }
@@ -538,6 +570,10 @@ pub struct Member {
     #[serde(skip)]
     pub password_hash: Option<String>,
     pub status: MemberStatus,
+    /// 메일 인증을 마친 때. 비었으면 (가입 인증이 켜진 사이트에서) 아직 로그인하지 못한다
+    pub email_verified_at: Option<String>,
+    /// 탈퇴한 때. 탈퇴하면 이메일·비밀번호를 지우고 닉네임을 바꾼다
+    pub withdrawn_at: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -559,13 +595,81 @@ pub struct Session {
     pub expires_at: String,
 }
 
-/// 1회용 로그인 링크.
+/// 1회용 링크의 쓰임새. 쓰임새가 다른 링크로는 들어갈 수 없다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TicketPurpose {
+    /// 운영자 로그인 링크 (10분)
+    Login,
+    /// 가입 메일 인증 (24시간)
+    Verify,
+    /// 비밀번호 재설정 (1시간)
+    Reset,
+}
+
+impl TicketPurpose {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Login => "login",
+            Self::Verify => "verify",
+            Self::Reset => "reset",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        [Self::Login, Self::Verify, Self::Reset]
+            .into_iter()
+            .find(|p| p.as_str() == s)
+    }
+}
+
+/// 1회용 링크 (로그인·메일 인증·비밀번호 재설정).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoginTicket {
     pub id: Id,
     pub token_hash: String,
     pub member_id: Id,
+    pub purpose: TicketPurpose,
     pub created_at: String,
     pub expires_at: String,
     pub used_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum MailStatus {
+    Queued,
+    Sent,
+    Failed,
+}
+
+impl MailStatus {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Queued => "queued",
+            Self::Sent => "sent",
+            Self::Failed => "failed",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        [Self::Queued, Self::Sent, Self::Failed]
+            .into_iter()
+            .find(|p| p.as_str() == s)
+    }
+}
+
+/// 보낼 편지함의 편지 한 통 (`mail_outbox`). 본문에 1회용 링크가 들 수 있어 REST 로 내보내지 않는다.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+pub struct MailOut {
+    pub id: Id,
+    /// 같은 값은 한 번만 쌓인다 (예: `verify:<회원>:<10분 칸>`)
+    pub idem_key: String,
+    pub to_addr: String,
+    pub subject: String,
+    pub body: String,
+    pub status: MailStatus,
+    pub attempts: i64,
+    pub last_error: Option<String>,
+    pub created_at: String,
+    pub sent_at: Option<String>,
 }

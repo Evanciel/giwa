@@ -13,8 +13,8 @@ use maru_core::services::boards::{self, NewBoard};
 use maru_core::services::posts::{self, NewPost};
 use maru_core::services::tokens::{self, NewToken};
 use maru_core::services::{
-    anonymous_actor, auth, categories, design, files, fonts, media, menus, pages, presets, search,
-    settings, tags, templates, views,
+    anonymous_actor, auth, categories, design, files, fonts, mail, media, members, menus, pages,
+    presets, search, settings, tags, templates, views,
 };
 use maru_core::urls::{self, Target};
 use maru_core::{Actor, Code, Ctx, Error, Result};
@@ -24,8 +24,9 @@ use serde_json::{Value, json};
 use crate::output;
 use crate::{
     BoardCmd, CategoryCmd, Command, DesignCmd, FileCmd, FontCmd, Global, InitArgs, LoginLinkArgs,
-    MediaCmd, MenuCmd, MenuSetArgs, PageCmd, PostCmd, PostListArgs, PostNewArgs, SearchArgs,
-    SearchCmd, ServeArgs, SiteCmd, TagCmd, TemplateCmd, TokenCmd, TokenCreateArgs,
+    MailCmd, MediaCmd, MemberCmd, MenuCmd, MenuSetArgs, PageCmd, PostCmd, PostListArgs,
+    PostNewArgs, SearchArgs, SearchCmd, ServeArgs, SiteCmd, TagCmd, TemplateCmd, TokenCmd,
+    TokenCreateArgs,
 };
 
 pub async fn run(g: &Global, command: Command) -> ExitCode {
@@ -47,6 +48,8 @@ pub async fn run(g: &Global, command: Command) -> ExitCode {
         Command::Design(cmd) => design_cmd(g, cmd).await,
         Command::Font(cmd) => font_cmd(g, cmd).await,
         Command::Search(args) => search_cmd(g, args).await,
+        Command::Member(cmd) => member_cmd(g, cmd).await,
+        Command::Mail(cmd) => mail_cmd(g, cmd).await,
         Command::LoginLink(args) => login_link(g, args).await,
     };
     match res {
@@ -269,9 +272,19 @@ async fn serve_inner(g: &Global, args: ServeArgs) -> Result<()> {
 
     let theme_dir = dir.themes_dir().join("default");
     let theme = maru_themes::Theme::new(theme_dir.is_dir().then_some(theme_dir));
-    let state = maru_web::AppState::new(ctx, theme);
-    let started = json!({ "url": url, "bind": local.to_string(), "site_url": config.site_url });
-    let human = format!("서버를 시작했습니다: {url}\n멈추려면 Ctrl+C");
+    // 편지는 지금 파일로만 남긴다 (SMTP 는 ADR-0051 승인 뒤).
+    let mailer = maru_storage::mailer::FileMailer::new(dir.mail_dir(), &config.site_url);
+    let mail_dir = mailer.dir().display().to_string();
+    let state = maru_web::AppState::new(ctx, theme).with_mailer(Arc::new(mailer));
+    let started = json!({
+        "url": url,
+        "bind": local.to_string(),
+        "site_url": config.site_url,
+        "mail": { "transport": "file", "dir": mail_dir },
+    });
+    let human = format!(
+        "서버를 시작했습니다: {url}\n편지(가입 인증·비밀번호 찾기)는 파일로만 남습니다: {mail_dir}\n멈추려면 Ctrl+C"
+    );
     output::success(started, g.json, |_| human);
     if !g.quiet {
         tracing::info!(%url, "serving");
@@ -1024,6 +1037,8 @@ async fn site(g: &Global, cmd: SiteCmd) -> Out {
                 toc_min_headings: args.toc_min_headings,
                 show_views: args.show_views,
                 show_search: args.show_search,
+                signup: args.signup,
+                signup_verify: args.signup_verify,
             };
             settings::update(&ctx, &actor, patch).await
         }
@@ -1035,14 +1050,19 @@ async fn site(g: &Global, cmd: SiteCmd) -> Out {
         n => format!("제목 {n}개 이상"),
     };
     let human = format!(
-        "이름 {}\n설명 {}\n언어 {}  시간대 UTC{:+}분  페이지당 글 {}  목차 {toc}  조회수 {}  검색 칸 {}",
+        "이름 {}\n설명 {}\n언어 {}  시간대 UTC{:+}분  페이지당 글 {}  목차 {toc}  조회수 {}  검색 칸 {}\n회원 가입 {}  메일 인증 {}",
         s.name,
         s.description,
         s.lang,
         s.tz_offset_min,
         s.posts_per_page,
         if s.show_views { "보임" } else { "숨김" },
-        if s.show_search { "보임" } else { "숨김" }
+        if s.show_search { "보임" } else { "숨김" },
+        match s.signup {
+            maru_core::model::SignupMode::Off => "받지 않음",
+            maru_core::model::SignupMode::Open => "누구나",
+        },
+        if s.signup_verify { "필요" } else { "없음" }
     );
     Ok((to_value(&s)?, human))
 }
@@ -1560,6 +1580,125 @@ async fn search_cmd(g: &Global, args: SearchArgs) -> Out {
         human.push_str(&format!("\n- {}  [{place}]  {}\n  {text}", h.title, h.url));
     }
     Ok((to_value(&r)?, human))
+}
+
+async fn member_cmd(g: &Global, cmd: MemberCmd) -> Out {
+    let (ctx, _config, db) = open(g).await?;
+    let res = async {
+        let actor = actor(&ctx).await?;
+        match cmd {
+            MemberCmd::List { page } => {
+                let list = members::list(&ctx, &actor, PageReq::new(page, 50)).await?;
+                let mut human = format!("회원 {}명", list.total);
+                for v in &list.items {
+                    human.push_str(&format!(
+                        "\n{}  {}  {}  [{}]{}",
+                        v.member.id,
+                        v.member.display_name,
+                        v.member.email,
+                        v.roles.join(","),
+                        member_flags(&v.member)
+                    ));
+                }
+                Ok((to_value(&list)?, human))
+            }
+            MemberCmd::Show { who } => member_out(members::get(&ctx, &actor, &who).await?),
+            MemberCmd::Disable { who } => member_out(
+                members::set_status(&ctx, &actor, &who, maru_core::model::MemberStatus::Disabled)
+                    .await?,
+            ),
+            MemberCmd::Enable { who } => member_out(
+                members::set_status(&ctx, &actor, &who, maru_core::model::MemberStatus::Active)
+                    .await?,
+            ),
+            MemberCmd::Role { who, role } => {
+                member_out(members::set_role(&ctx, &actor, &who, &role).await?)
+            }
+        }
+    }
+    .await;
+    db.close().await;
+    res
+}
+
+fn member_flags(m: &maru_core::model::Member) -> String {
+    let mut f = String::new();
+    if m.withdrawn_at.is_some() {
+        f.push_str("  탈퇴");
+    } else if m.status == maru_core::model::MemberStatus::Disabled {
+        f.push_str("  비활성");
+    }
+    if m.email_verified_at.is_none() {
+        f.push_str("  메일 인증 전");
+    }
+    f
+}
+
+fn member_out(v: members::MemberView) -> Out {
+    let human = format!(
+        "{}  {}  {}  [{}]{}",
+        v.member.id,
+        v.member.display_name,
+        v.member.email,
+        v.roles.join(","),
+        member_flags(&v.member)
+    );
+    Ok((to_value(&v)?, human))
+}
+
+async fn mail_cmd(g: &Global, cmd: MailCmd) -> Out {
+    let dir = DataDir::new(&g.data);
+    let (ctx, config, db) = open(g).await?;
+    let res = async {
+        let actor = actor(&ctx).await?;
+        match cmd {
+            MailCmd::List { status, limit } => {
+                let status = match status.as_deref() {
+                    None => None,
+                    Some(s) => Some(maru_core::model::MailStatus::parse(s).ok_or_else(|| {
+                        Error::new(Code::Usage)
+                            .with_message("error.usage_detail")
+                            .arg("detail", format!("--status {s}: queued, sent, failed"))
+                            .next("maru mail list --status queued")
+                    })?),
+                };
+                let list = mail::list(&ctx, &actor, status, limit).await?;
+                let mut human = format!("편지 {}통", list.len());
+                for m in &list {
+                    human.push_str(&format!(
+                        "\n{}  {:?}  {}  {}",
+                        m.id, m.status, m.to_addr, m.subject
+                    ));
+                }
+                Ok((to_value(&list)?, human))
+            }
+            MailCmd::Show { id } => {
+                let m = mail::get(&ctx, &actor, &id).await?;
+                let human = format!(
+                    "받는 사람 {}\n제목 {}\n상태 {:?} (시도 {}번)\n\n{}",
+                    m.to_addr, m.subject, m.status, m.attempts, m.body
+                );
+                Ok((to_value(&m)?, human))
+            }
+            MailCmd::Send => {
+                mail::list(&ctx, &actor, None, 1).await?; // 로컬 운영자만
+                let mailer =
+                    maru_storage::mailer::FileMailer::new(dir.mail_dir(), &config.site_url);
+                let r = mail::deliver_pending(&ctx, &mailer).await?;
+                let human = format!(
+                    "보냄 {}통, 다시 시도 {}통, 실패 {}통 → {}",
+                    r.sent,
+                    r.retry,
+                    r.failed,
+                    mailer.dir().display()
+                );
+                Ok((to_value(&r)?, human))
+            }
+        }
+    }
+    .await;
+    db.close().await;
+    res
 }
 
 async fn tag_cmd(g: &Global, cmd: TagCmd) -> Out {

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM login_tickets WHERE member_id = ? AND purpose = ? AND used_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "de9130ad57d29ccd15f992d02a55b64b7e3fdefe2c6e7e8bdbddfe20f84fb66b"
+}

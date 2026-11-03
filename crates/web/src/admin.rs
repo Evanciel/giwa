@@ -30,7 +30,7 @@ use serde_json::{Value, json};
 use crate::AppState;
 use crate::error::ApiError;
 
-const SESSION_COOKIE: &str = "maru_session";
+pub(crate) const SESSION_COOKIE: &str = "maru_session";
 const CSRF_COOKIE: &str = "maru_csrf";
 
 pub fn routes() -> Router<AppState> {
@@ -84,7 +84,7 @@ async fn admin_headers(mut res: Response) -> Response {
 
 // ---- 쿠키·CSRF ----
 
-fn cookie(headers: &HeaderMap, name: &str) -> Option<String> {
+pub(crate) fn cookie(headers: &HeaderMap, name: &str) -> Option<String> {
     headers
         .get_all(header::COOKIE)
         .iter()
@@ -95,7 +95,12 @@ fn cookie(headers: &HeaderMap, name: &str) -> Option<String> {
         .map(|(_, v)| v.to_owned())
 }
 
-fn set_cookie(state: &AppState, name: &str, value: &str, max_age: Option<i64>) -> HeaderValue {
+pub(crate) fn set_cookie(
+    state: &AppState,
+    name: &str,
+    value: &str,
+    max_age: Option<i64>,
+) -> HeaderValue {
     let mut c = format!("{name}={value}; HttpOnly; SameSite=Lax; Path=/");
     if let Some(age) = max_age {
         c.push_str(&format!("; Max-Age={age}"));
@@ -106,12 +111,15 @@ fn set_cookie(state: &AppState, name: &str, value: &str, max_age: Option<i64>) -
     HeaderValue::from_str(&c).unwrap_or_else(|_| HeaderValue::from_static(""))
 }
 
-fn is_secret(v: &str) -> bool {
+pub(crate) fn is_secret(v: &str) -> bool {
     v.len() == 64 && v.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
 /// 로그인 전 폼의 CSRF 값. 쿠키가 없으면 새로 만들어 내보낸다.
-fn pre_csrf(state: &AppState, headers: &HeaderMap) -> Result<(String, Option<HeaderValue>), Error> {
+pub(crate) fn pre_csrf(
+    state: &AppState,
+    headers: &HeaderMap,
+) -> Result<(String, Option<HeaderValue>), Error> {
     match cookie(headers, CSRF_COOKIE) {
         Some(v) if is_secret(&v) => Ok((v, None)),
         _ => {
@@ -122,11 +130,11 @@ fn pre_csrf(state: &AppState, headers: &HeaderMap) -> Result<(String, Option<Hea
     }
 }
 
-fn pre_csrf_ok(headers: &HeaderMap, sent: &str) -> bool {
+pub(crate) fn pre_csrf_ok(headers: &HeaderMap, sent: &str) -> bool {
     cookie(headers, CSRF_COOKIE).is_some_and(|c| is_secret(&c) && auth::same_secret(&c, sent))
 }
 
-fn session_csrf_ok(who: &SignedIn, sent: &str) -> bool {
+pub(crate) fn session_csrf_ok(who: &SignedIn, sent: &str) -> bool {
     auth::same_secret(&who.session.csrf_token, sent)
 }
 
@@ -140,7 +148,7 @@ pub fn safe_next(next: &str) -> &str {
     if ok { next } else { "/admin" }
 }
 
-fn encode(s: &str) -> String {
+pub(crate) fn encode(s: &str) -> String {
     s.bytes()
         .map(|b| {
             if b.is_ascii_alphanumeric() || b"-_./~".contains(&b) {
@@ -163,7 +171,10 @@ pub(crate) async fn viewer(state: &AppState, headers: &HeaderMap) -> Option<Acto
     }
 }
 
-async fn current(state: &AppState, headers: &HeaderMap) -> Result<Option<SignedIn>, Error> {
+pub(crate) async fn current(
+    state: &AppState,
+    headers: &HeaderMap,
+) -> Result<Option<SignedIn>, Error> {
     match cookie(headers, SESSION_COOKIE) {
         Some(raw) => auth::signed_in(&state.ctx, &raw).await,
         None => Ok(None),
@@ -185,7 +196,7 @@ async fn require(
     }
 }
 
-fn with_session(state: &AppState, new: &NewSession, to: &str) -> Response {
+pub(crate) fn with_session(state: &AppState, new: &NewSession, to: &str) -> Response {
     let mut res = Redirect::to(to).into_response();
     let age = auth::SESSION_DAYS * 24 * 60 * 60;
     res.headers_mut().append(
@@ -561,7 +572,7 @@ fn notice(done: &str) -> Option<&'static str> {
     })
 }
 
-fn status_label(s: PostStatus) -> &'static str {
+pub(crate) fn status_label(s: PostStatus) -> &'static str {
     match s {
         PostStatus::Draft => "초안",
         PostStatus::Review => "검토 대기",
