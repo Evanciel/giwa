@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE posts SET view_count = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "daa7e048baba8ce93f51eb93e6f3c08772d2ef638b80abe4e69b7d5e0411b921"
+}

@@ -120,6 +120,7 @@ pub async fn create_draft(ctx: &Ctx, actor: &Actor, input: NewPost) -> Result<Po
         is_notice: input.notice,
         is_secret: input.secret,
         tags,
+        view_count: 0,
     };
     tx.insert_post(&post).await?;
     tx.insert_revision(&revision_of(&post, actor)).await?;
@@ -387,6 +388,46 @@ pub async fn public_tag(
     Ok((tag, list))
 }
 
+/// 글 아래의 이웃: 같은 게시판의 이전(더 오래된)·다음(더 새) 글과 관련 글.
+#[derive(Debug, Clone, Default, Serialize, JsonSchema)]
+pub struct Nearby {
+    pub prev: Option<Post>,
+    pub next: Option<Post>,
+    /// 겹치는 태그 수 → 같은 분류 → 같은 게시판 → 최신 순. 비밀글·공지는 없다
+    pub related: Vec<Post>,
+}
+
+const RELATED_LIMIT: i64 = 4;
+
+/// `public_post` 로 읽은 글의 이웃. 이전·다음 글이 볼 수 없는 비밀글이면 제목만 남긴다.
+pub async fn nearby(ctx: &Ctx, actor: &Actor, board: &Board, post: &Post) -> Result<Nearby> {
+    if !post.is_public()
+        || !actor.has(Permission::PostRead)
+        || actor
+            .require_rank(Permission::PostRead, &board.policy.read)
+            .is_err()
+    {
+        return Ok(Nearby::default());
+    }
+    let (prev, next) = ctx.store.neighbor_posts(post).await?;
+    let related = ctx
+        .store
+        .related_posts(post, actor.rank(), RELATED_LIMIT)
+        .await?;
+    let shown = |p: Post| {
+        if p.is_secret && !can_read_secret(actor, board, &p) {
+            masked(p)
+        } else {
+            p
+        }
+    };
+    Ok(Nearby {
+        prev: prev.map(shown),
+        next: next.map(shown),
+        related,
+    })
+}
+
 /// 비밀글 본문을 볼 수 있는가: 작성자 본인 또는 그 게시판을 관리할 수 있는 사람.
 pub fn can_read_secret(actor: &Actor, board: &Board, post: &Post) -> bool {
     is_own(actor, post)
@@ -418,19 +459,20 @@ async fn mask_secrets(
                     .iter()
                     .find(|b| b.id == p.board_id)
                     .is_some_and(|b| can_read_secret(actor, b, &p));
-            if readable {
-                p
-            } else {
-                Post {
-                    body_md: String::new(),
-                    excerpt: None,
-                    cover: None,
-                    tags: vec![],
-                    ..p
-                }
-            }
+            if readable { p } else { masked(p) }
         })
         .collect())
+}
+
+/// 비밀글의 제목만 남긴다.
+fn masked(p: Post) -> Post {
+    Post {
+        body_md: String::new(),
+        excerpt: None,
+        cover: None,
+        tags: vec![],
+        ..p
+    }
 }
 
 fn secret(post: &Post) -> Error {

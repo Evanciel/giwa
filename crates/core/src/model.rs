@@ -165,6 +165,9 @@ pub struct Post {
     /// 태그 이름 (글쓴이가 적은 순서).
     #[serde(default)]
     pub tags: Vec<String>,
+    /// 조회수. 서버가 모아 두었다가 주기마다 더하므로 몇십 초 늦을 수 있다 (ADR-0049).
+    #[serde(default)]
+    pub view_count: i64,
 }
 
 impl Post {
@@ -469,10 +472,17 @@ pub struct SiteSettings {
     /// 글·페이지에 h2~h4 제목이 이 개수 이상이면 본문 위에 목차를 보인다. 0 이면 끔
     #[serde(default = "default_toc_min_headings")]
     pub toc_min_headings: u32,
+    /// 공개 화면(글·게시판 목록)에 조회수를 보인다. 꺼도 세기는 계속한다
+    #[serde(default = "default_true")]
+    pub show_views: bool,
 }
 
 fn default_toc_min_headings() -> u32 {
     3
+}
+
+fn default_true() -> bool {
+    true
 }
 
 impl Default for SiteSettings {
@@ -486,6 +496,7 @@ impl Default for SiteSettings {
             naver_verification: String::new(),
             google_verification: String::new(),
             toc_min_headings: default_toc_min_headings(),
+            show_views: true,
         }
     }
 }

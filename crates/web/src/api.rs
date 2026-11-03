@@ -13,7 +13,7 @@ use maru_core::model::{MenuItem, PageReq, PageStatus, PostStatus};
 use maru_core::output::Success;
 use maru_core::services::{
     anonymous_actor, boards, categories, design, files, fonts, media, menus, pages, posts,
-    settings, tags, templates, tokens,
+    settings, tags, templates, tokens, views,
 };
 use maru_core::{Actor, Code, Error};
 use serde::Deserialize;
@@ -29,6 +29,7 @@ pub fn routes() -> Router<AppState> {
             get(get_board).patch(update_board).delete(delete_board),
         )
         .route("/boards/{slug}/posts", get(board_posts))
+        .route("/boards/{slug}/posts/{post}/nearby", get(post_nearby))
         .route(
             "/boards/{slug}/categories",
             get(list_categories).post(create_category),
@@ -41,6 +42,7 @@ pub fn routes() -> Router<AppState> {
         .route("/tags/{slug}", get(tag_posts))
         .route("/posts", get(list_posts).post(create_post))
         .route("/posts/{id}", get(get_post).patch(update_post))
+        .route("/posts/{id}/views", axum::routing::put(set_post_views))
         .route("/posts/{id}/{action}", post(post_action))
         .route("/pages", get(list_pages).post(create_page))
         .route("/pages/{slug}", get(get_page).patch(update_page))
@@ -168,8 +170,39 @@ async fn get_post(
     ApiActor(actor): ApiActor,
     Path(id): Path<String>,
 ) -> Result<Response, ApiError> {
-    let post = posts::get(&state.ctx, &actor, &id).await?;
+    let mut post = posts::get(&state.ctx, &actor, &id).await?;
+    // 아직 DB 에 더하지 않은 조회수까지 (글 화면과 같은 값).
+    post.view_count = state.views.shown(&post);
     Ok(ok(StatusCode::OK, post))
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ViewsBody {
+    view_count: i64,
+}
+
+/// `PUT /posts/{id}/views` — 조회수를 정한 값으로 (게시판 관리 권한, 감사 기록).
+async fn set_post_views(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(id): Path<String>,
+    body: Result<Json<ViewsBody>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let Json(body) = body.map_err(bad_json)?;
+    let post = views::set(&state.ctx, &actor, &id, body.view_count).await?;
+    Ok(ok(StatusCode::OK, post))
+}
+
+/// `GET /boards/{slug}/posts/{post}/nearby` — 이전·다음 글과 관련 글.
+async fn post_nearby(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path((board, slug)): Path<(String, String)>,
+) -> Result<Response, ApiError> {
+    let (board, post) = posts::public_post(&state.ctx, &actor, &board, &slug).await?;
+    let near = posts::nearby(&state.ctx, &actor, &board, &post).await?;
+    Ok(ok(StatusCode::OK, near))
 }
 
 /// `POST /posts/{id}/{publish|submit|hide|delete|restore}`

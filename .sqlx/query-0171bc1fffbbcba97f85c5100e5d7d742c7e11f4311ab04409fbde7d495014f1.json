@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,\n                actor_type, published_at, created_at, updated_at, scheduled_at, cover,\n                category_id, is_notice, is_secret,\n                (SELECT json_group_array(t.name ORDER BY pt.position)\n                   FROM post_tags pt JOIN tags t ON t.id = pt.tag_id\n                  WHERE pt.post_id = posts.id) AS \"tags!: String\"\n         FROM posts WHERE id = ?",
+  "query": "SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,\n                    actor_type, published_at, created_at, updated_at, scheduled_at, cover,\n                    category_id, is_notice, is_secret, view_count,\n                    (SELECT json_group_array(t.name ORDER BY pt.position)\n                       FROM post_tags pt JOIN tags t ON t.id = pt.tag_id\n                      WHERE pt.post_id = posts.id) AS \"tags!: String\"\n             FROM posts\n             WHERE kind = 'post' AND (?1 IS NULL OR board_id = ?1) AND (?2 IS NULL OR status = ?2)\n             ORDER BY updated_at DESC, id DESC\n             LIMIT ?3 OFFSET ?4",
   "describe": {
     "columns": [
       {
@@ -202,14 +202,25 @@
         }
       },
       {
-        "name": "tags!: String",
+        "name": "view_count",
         "ordinal": 18,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "view_count"
+          }
+        }
+      },
+      {
+        "name": "tags!: String",
+        "ordinal": 19,
         "type_info": "Text",
         "origin": "Expression"
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 4
     },
     "nullable": [
       false,
@@ -230,8 +241,9 @@
       true,
       false,
       false,
+      false,
       true
     ]
   },
-  "hash": "61b11f91b54e2880c8d3992b2585ba147d309bc9566458f3081e4fde3577635d"
+  "hash": "0171bc1fffbbcba97f85c5100e5d7d742c7e11f4311ab04409fbde7d495014f1"
 }

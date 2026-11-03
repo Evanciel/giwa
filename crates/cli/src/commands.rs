@@ -13,7 +13,8 @@ use maru_core::services::boards::{self, NewBoard};
 use maru_core::services::posts::{self, NewPost};
 use maru_core::services::tokens::{self, NewToken};
 use maru_core::services::{
-    auth, categories, design, files, fonts, media, menus, pages, presets, settings, tags, templates,
+    auth, categories, design, files, fonts, media, menus, pages, presets, settings, tags,
+    templates, views,
 };
 use maru_core::urls::{self, Target};
 use maru_core::{Actor, Code, Ctx, Error, Result};
@@ -281,6 +282,7 @@ async fn serve_inner(g: &Global, args: ServeArgs) -> Result<()> {
         shutdown_signal().await;
         let _ = stopping.send(());
     };
+    let leftover = state.clone();
     let serve = maru_web::serve(state, listener, shutdown);
     tokio::pin!(serve);
     let res = tokio::select! {
@@ -293,6 +295,7 @@ async fn serve_inner(g: &Global, args: ServeArgs) -> Result<()> {
             }
         } => {
             tracing::warn!("진행 중인 요청이 끝나지 않아 강제로 멈춥니다");
+            maru_web::flush_views(&leftover).await;
             Ok(())
         }
     };
@@ -392,8 +395,45 @@ async fn post(g: &Global, cmd: PostCmd) -> Out {
         PostCmd::List(args) => post_list(&ctx, &actor, args).await,
         PostCmd::Show { id } => {
             let p = posts::get(&ctx, &actor, &id).await?;
-            let human = format!("[{}] {}\n\n{}", p.status.as_str(), p.title, p.body_md);
+            let human = format!(
+                "[{}] {}  조회 {}\n\n{}",
+                p.status.as_str(),
+                p.title,
+                p.view_count,
+                p.body_md
+            );
             Ok((to_value(&p)?, human))
+        }
+        PostCmd::Nearby { board, slug } => {
+            let (board, p) = posts::public_post(&ctx, &actor, &board, &slug).await?;
+            let near = posts::nearby(&ctx, &actor, &board, &p).await?;
+            let line = |label: &str, q: &Option<maru_core::model::Post>| match q {
+                Some(q) => format!("{label}: {} ({})", q.title, q.slug),
+                None => format!("{label}: 없음"),
+            };
+            let mut human = format!(
+                "{}\n{}",
+                line("이전 글", &near.prev),
+                line("다음 글", &near.next)
+            );
+            if near.related.is_empty() {
+                human.push_str("\n관련 글: 없음");
+            } else {
+                human.push_str("\n관련 글:");
+                for r in &near.related {
+                    human.push_str(&format!("\n  - {} ({})", r.title, r.slug));
+                }
+            }
+            Ok((to_value(&near)?, human))
+        }
+        PostCmd::Views { id, set } => {
+            let p = views::set(&ctx, &actor, &id, set).await?;
+            post_out(
+                &ctx,
+                &p,
+                &format!("조회수를 {}(으)로 바꿨습니다", p.view_count),
+            )
+            .await
         }
         PostCmd::CheckSlug(args) => {
             let input = posts::SlugCheckInput {
@@ -980,6 +1020,7 @@ async fn site(g: &Global, cmd: SiteCmd) -> Out {
                 naver_verification: args.naver_verification,
                 google_verification: args.google_verification,
                 toc_min_headings: args.toc_min_headings,
+                show_views: args.show_views,
             };
             settings::update(&ctx, &actor, patch).await
         }
@@ -991,8 +1032,13 @@ async fn site(g: &Global, cmd: SiteCmd) -> Out {
         n => format!("제목 {n}개 이상"),
     };
     let human = format!(
-        "이름 {}\n설명 {}\n언어 {}  시간대 UTC{:+}분  페이지당 글 {}  목차 {toc}",
-        s.name, s.description, s.lang, s.tz_offset_min, s.posts_per_page
+        "이름 {}\n설명 {}\n언어 {}  시간대 UTC{:+}분  페이지당 글 {}  목차 {toc}  조회수 {}",
+        s.name,
+        s.description,
+        s.lang,
+        s.tz_offset_min,
+        s.posts_per_page,
+        if s.show_views { "보임" } else { "숨김" }
     );
     Ok((to_value(&s)?, human))
 }

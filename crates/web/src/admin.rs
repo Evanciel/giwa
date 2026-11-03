@@ -15,7 +15,7 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
 use axum::{Router, middleware};
-use maru_core::actor::Permission;
+use maru_core::actor::{Actor, Permission};
 use maru_core::clock;
 use maru_core::model::{PageReq, Post, PostStatus};
 use maru_core::output::Success;
@@ -150,6 +150,17 @@ fn encode(s: &str) -> String {
             }
         })
         .collect()
+}
+
+/// 공개 화면에서 로그인한 사람 (조회수에서 운영자를 빼는 데만 쓴다). 쿠키가 없거나 읽지 못하면 손님.
+pub(crate) async fn viewer(state: &AppState, headers: &HeaderMap) -> Option<Actor> {
+    match current(state, headers).await {
+        Ok(who) => who.map(|w| w.actor),
+        Err(e) => {
+            tracing::warn!(error = ?e, "세션 확인 실패, 손님으로 봅니다");
+            None
+        }
+    }
 }
 
 async fn current(state: &AppState, headers: &HeaderMap) -> Result<Option<SignedIn>, Error> {
@@ -615,12 +626,15 @@ async fn home(
         .iter()
         .map(|p| {
             let b = boards.iter().find(|b| b.id == p.board_id);
-            post_row(
+            let mut row = post_row(
                 p,
                 b.map(|b| b.slug.as_str()).unwrap_or_default(),
                 b.map(|b| b.name.as_str()).unwrap_or_default(),
                 tz,
-            )
+            );
+            // 아직 DB 에 더하지 않은 수까지 (공개 글 화면과 같은 값).
+            row["views"] = json!(state.views.shown(p));
+            row
         })
         .collect();
     let pages = (listing.total + i64::from(page.per_page) - 1) / i64::from(page.per_page);

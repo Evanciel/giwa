@@ -121,6 +121,26 @@ main { min-height: 50vh; }
 .crumb a { color: var(--muted); text-decoration: none; }
 .crumb a:hover { color: var(--primary); }
 
+/* 이전 글·다음 글: 넓으면 좌우 두 칸, 좁으면 위아래 */
+.post-nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: calc(var(--space) * 2); margin-top: calc(var(--space) * 10); padding-top: calc(var(--space) * 4); border-top: 1px solid var(--border); }
+.post-nav a { display: grid; gap: calc(var(--space) * .5); padding: calc(var(--space) * 2) calc(var(--space) * 2.5); border: 1px solid var(--border); border-radius: var(--radius-md); color: var(--fg); text-decoration: none; transition: border-color var(--motion) ease-out, color var(--motion) ease-out; }
+.post-nav a:hover { border-color: var(--primary); color: var(--primary); }
+.post-nav-next { grid-column: 2; text-align: right; }
+.post-nav-label { color: var(--muted); font-size: var(--fs-sm); }
+.post-nav-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 520px) { .post-nav { grid-template-columns: minmax(0, 1fr); } .post-nav-next { grid-column: 1; text-align: left; } }
+
+/* 관련 글 */
+.related { margin-top: calc(var(--space) * 8); }
+.related h2 { margin: 0 0 calc(var(--space) * 3); font-size: var(--fs-lg); }
+.related ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 11rem), 1fr)); gap: calc(var(--space) * 3); }
+.related a { display: grid; gap: calc(var(--space) * .75); color: var(--fg); text-decoration: none; }
+.related a:hover .related-title { color: var(--primary); }
+.related img, .related-blank { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--radius-md); background: var(--surface); }
+.related-blank { border: 1px solid var(--border); }
+.related-title { font-weight: 600; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; transition: color var(--motion) ease-out; }
+.related time { color: var(--muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+
 /* 목차 (제목 수가 사이트 설정 기준 이상일 때만 나온다) */
 .toc { margin-bottom: calc(var(--space) * 5); padding: calc(var(--space) * 2) calc(var(--space) * 2.5); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); font-size: var(--fs-sm); }
 .toc summary { cursor: pointer; font-weight: 650; color: var(--fg); }

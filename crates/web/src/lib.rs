@@ -22,6 +22,7 @@ use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use maru_core::Actor;
 use maru_core::model::Media;
+use maru_core::services::views::{self, ViewCounter};
 use maru_core::services::{auth, fonts, media, posts};
 use maru_core::{Code, Ctx, Error, Result};
 use maru_themes::{Admin, Theme};
@@ -43,6 +44,8 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 const PURGE_EVERY: Duration = Duration::from_secs(10 * 60);
 /// 예약 발행 확인 주기. 예약 시각보다 최대 이만큼 늦게 발행된다.
 const SCHEDULE_EVERY: Duration = Duration::from_secs(20);
+/// 모은 조회수를 DB 에 더하는 주기 (ADR-0049). 조회마다 쓰지 않는다.
+const VIEWS_EVERY: Duration = Duration::from_secs(20);
 /// argon2 를 동시에 계산하는 최대 수.
 const LOGIN_CONCURRENCY: usize = 2;
 /// 이미지 디코딩·인코딩을 동시에 하는 최대 수.
@@ -56,6 +59,8 @@ pub struct AppState {
     pub limiter: Arc<RateLimiter>,
     pub login_gate: Arc<Semaphore>,
     pub upload_gate: Arc<Semaphore>,
+    /// 조회수 계수기. 서버를 끌 때 남은 수를 반영한다.
+    pub views: Arc<ViewCounter>,
 }
 
 impl AppState {
@@ -67,6 +72,7 @@ impl AppState {
             limiter: Arc::new(RateLimiter::default()),
             login_gate: Arc::new(Semaphore::new(LOGIN_CONCURRENCY)),
             upload_gate: Arc::new(Semaphore::new(UPLOAD_CONCURRENCY)),
+            views: Arc::new(ViewCounter::new()),
         }
     }
 }
@@ -143,16 +149,38 @@ pub async fn serve(
 ) -> Result<()> {
     let purge = tokio::spawn(purge_loop(state.clone()));
     let scheduled = tokio::spawn(schedule_loop(state.clone()));
+    let counted = tokio::spawn(views_loop(state.clone()));
     let res = axum::serve(
         listener,
-        router(state).into_make_service_with_connect_info::<SocketAddr>(),
+        router(state.clone()).into_make_service_with_connect_info::<SocketAddr>(),
     )
     .with_graceful_shutdown(shutdown)
     .await
     .map_err(maru_core::Error::internal);
     purge.abort();
     scheduled.abort();
+    counted.abort();
+    flush_views(&state).await;
     res
+}
+
+/// 모은 조회수를 주기마다 DB 에 더한다.
+async fn views_loop(state: AppState) {
+    let mut tick = tokio::time::interval(VIEWS_EVERY);
+    tick.tick().await;
+    loop {
+        tick.tick().await;
+        flush_views(&state).await;
+    }
+}
+
+/// 남은 조회수를 지금 반영한다. 서버를 강제로 멈출 때도 부른다.
+pub async fn flush_views(state: &AppState) {
+    match views::flush(&state.ctx, &state.views).await {
+        Ok(0) => {}
+        Ok(n) => tracing::debug!(posts = n, "조회수 반영"),
+        Err(e) => tracing::warn!(error = ?e, "조회수 반영 실패, 다음 주기에 다시 시도"),
+    }
 }
 
 /// 예약 시각이 지난 글을 발행한다. 서버를 켤 때 한 번, 그 뒤로 주기마다.

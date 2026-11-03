@@ -139,6 +139,19 @@ pub enum PostCmd {
     Restore { id: String },
     /// 글 주소가 게시판에서 비어 있는지 확인한다 (바꾸는 것 없음)
     CheckSlug(PostCheckSlugArgs),
+    /// 공개 글의 이전·다음 글과 관련 글
+    Nearby {
+        /// 게시판 슬러그
+        board: String,
+        /// 글 주소(슬러그)
+        slug: String,
+    },
+    /// 조회수를 정한 값으로 바꾼다 (예: 시험 조회를 0 으로). 감사 기록에 남는다
+    Views {
+        id: String,
+        #[arg(long)]
+        set: i64,
+    },
     /// 저장하지 않고 본문을 공개 화면과 같은 HTML 로 그린다
     Preview {
         /// 본문 파일 (UTF-8). `-` 이면 표준 입력
@@ -565,6 +578,9 @@ pub struct SiteSetArgs {
     /// h2~h4 제목이 이 개수 이상인 글·페이지에 목차를 보인다 (0 = 끔, 최대 20)
     #[arg(long)]
     pub toc_min_headings: Option<u32>,
+    /// 공개 화면에 조회수를 보일지 (true/false). 꺼도 세기는 계속한다
+    #[arg(long)]
+    pub show_views: Option<bool>,
 }
 
 #[derive(Debug, Subcommand)]

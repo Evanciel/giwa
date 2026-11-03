@@ -16,6 +16,7 @@ pub mod settings;
 pub mod tags;
 pub mod templates;
 pub mod tokens;
+pub mod views;
 
 use crate::actor::Actor;
 use crate::error::{Code, Error, Result};

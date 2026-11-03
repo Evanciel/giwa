@@ -86,6 +86,7 @@ struct PostRow {
     is_secret: i64,
     /// `json_group_array` 결과 (태그가 없으면 `[]`).
     tags: String,
+    view_count: i64,
 }
 
 impl TryFrom<PostRow> for Post {
@@ -114,6 +115,7 @@ impl TryFrom<PostRow> for Post {
             is_notice: r.is_notice != 0,
             is_secret: r.is_secret != 0,
             tags: serde_json::from_str(&r.tags).map_err(Error::internal)?,
+            view_count: r.view_count,
         })
     }
 }
@@ -331,7 +333,7 @@ async fn post_by_id<'e>(e: impl SqliteExecutor<'e>, id: &str) -> Result<Option<P
         PostRow,
         r#"SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,
                 actor_type, published_at, created_at, updated_at, scheduled_at, cover,
-                category_id, is_notice, is_secret,
+                category_id, is_notice, is_secret, view_count,
                 (SELECT json_group_array(t.name ORDER BY pt.position)
                    FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
                   WHERE pt.post_id = posts.id) AS "tags!: String"
@@ -440,7 +442,7 @@ impl Store for SqliteStore {
             PostRow,
             r#"SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,
                     actor_type, published_at, created_at, updated_at, scheduled_at, cover,
-                    category_id, is_notice, is_secret,
+                    category_id, is_notice, is_secret, view_count,
                     (SELECT json_group_array(t.name ORDER BY pt.position)
                        FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
                       WHERE pt.post_id = posts.id) AS "tags!: String"
@@ -468,6 +470,7 @@ impl Store for SqliteStore {
                       p.created_at AS "created_at!", p.updated_at AS "updated_at!",
                       p.scheduled_at, p.cover,
                       p.category_id, p.is_notice AS "is_notice!", p.is_secret AS "is_secret!",
+                      p.view_count AS "view_count!",
                       (SELECT json_group_array(t.name ORDER BY pt.position)
                          FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
                         WHERE pt.post_id = p.id) AS "tags!: String"
@@ -530,7 +533,7 @@ impl Store for SqliteStore {
             PostRow,
             r#"SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,
                     actor_type, published_at, created_at, updated_at, scheduled_at, cover,
-                    category_id, is_notice, is_secret,
+                    category_id, is_notice, is_secret, view_count,
                     (SELECT json_group_array(t.name ORDER BY pt.position)
                        FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
                       WHERE pt.post_id = posts.id) AS "tags!: String"
@@ -845,6 +848,127 @@ impl Store for SqliteStore {
         .await
         .map_err(db_error)
     }
+
+    async fn add_views(&self, counts: &[(String, i64)]) -> Result<()> {
+        if counts.is_empty() {
+            return Ok(());
+        }
+        let mut tx = self
+            .db
+            .write
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .map_err(db_error)?;
+        for (id, n) in counts {
+            sqlx::query!(
+                "UPDATE posts SET view_count = view_count + ? WHERE id = ?",
+                n,
+                id
+            )
+            .execute(&mut *tx)
+            .await
+            .map_err(db_error)?;
+        }
+        tx.commit().await.map_err(db_error)
+    }
+
+    async fn neighbor_posts(&self, post: &Post) -> Result<(Option<Post>, Option<Post>)> {
+        let Some(at) = post.published_at.as_deref() else {
+            return Ok((None, None));
+        };
+        let prev = sqlx::query_as!(
+            PostRow,
+            r#"SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,
+                    actor_type, published_at, created_at, updated_at, scheduled_at, cover,
+                    category_id, is_notice, is_secret, view_count,
+                    (SELECT json_group_array(t.name ORDER BY pt.position)
+                       FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
+                      WHERE pt.post_id = posts.id) AS "tags!: String"
+             FROM posts
+             WHERE board_id = ?1 AND status = 'published' AND kind = 'post'
+               AND (published_at < ?2 OR (published_at = ?2 AND id < ?3))
+             ORDER BY published_at DESC, id DESC
+             LIMIT 1"#,
+            post.board_id,
+            at,
+            post.id
+        )
+        .fetch_optional(&self.db.read)
+        .await
+        .map_err(db_error)?
+        .map(Post::try_from)
+        .transpose()?;
+        let next = sqlx::query_as!(
+            PostRow,
+            r#"SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,
+                    actor_type, published_at, created_at, updated_at, scheduled_at, cover,
+                    category_id, is_notice, is_secret, view_count,
+                    (SELECT json_group_array(t.name ORDER BY pt.position)
+                       FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
+                      WHERE pt.post_id = posts.id) AS "tags!: String"
+             FROM posts
+             WHERE board_id = ?1 AND status = 'published' AND kind = 'post'
+               AND (published_at > ?2 OR (published_at = ?2 AND id > ?3))
+             ORDER BY published_at ASC, id ASC
+             LIMIT 1"#,
+            post.board_id,
+            at,
+            post.id
+        )
+        .fetch_optional(&self.db.read)
+        .await
+        .map_err(db_error)?
+        .map(Post::try_from)
+        .transpose()?;
+        Ok((prev, next))
+    }
+
+    // 공개 기준(게시판 read 서열)은 list_published 와 같은 조인이다.
+    async fn related_posts(
+        &self,
+        post: &Post,
+        max_read_rank: i64,
+        limit: i64,
+    ) -> Result<Vec<Post>> {
+        let rows = sqlx::query_as!(
+            PostRow,
+            r#"SELECT c.id AS "id!", c.board_id AS "board_id!", c.kind AS "kind!",
+                      c.status AS "status!", c.title AS "title!", c.slug AS "slug!",
+                      c.body_md AS "body_md!", c.excerpt, c.author_id,
+                      c.actor_type AS "actor_type!", c.published_at,
+                      c.created_at AS "created_at!", c.updated_at AS "updated_at!",
+                      c.scheduled_at, c.cover,
+                      c.category_id, c.is_notice AS "is_notice!", c.is_secret AS "is_secret!",
+                      c.view_count AS "view_count!",
+                      (SELECT json_group_array(t.name ORDER BY pt.position)
+                         FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
+                        WHERE pt.post_id = c.id) AS "tags!: String"
+               FROM (SELECT p.*,
+                            (SELECT count(*) FROM post_tags a
+                               JOIN post_tags o ON o.tag_id = a.tag_id AND o.post_id = ?1
+                              WHERE a.post_id = p.id) AS shared
+                       FROM posts p
+                       JOIN boards b ON b.id = p.board_id
+                       JOIN roles r ON r.name = json_extract(b.policy, '$.read')
+                      WHERE p.status = 'published' AND p.kind = 'post' AND r.rank <= ?2
+                        AND p.id != ?1 AND p.is_secret = 0 AND p.is_notice = 0) c
+               WHERE c.shared > 0 OR c.board_id = ?3
+               ORDER BY c.shared DESC,
+                        (?4 IS NOT NULL AND c.category_id IS ?4) DESC,
+                        (c.board_id = ?3) DESC,
+                        c.published_at DESC, c.id DESC
+               LIMIT ?5"#,
+            post.id,
+            max_read_rank,
+            post.board_id,
+            post.category_id,
+            limit
+        )
+        .fetch_all(&self.db.read)
+        .await
+        .map_err(db_error)?;
+        convert(rows)
+    }
 }
 
 // ---- 분류·태그 ----
@@ -1151,6 +1275,17 @@ impl WriteTx for SqliteWriteTx {
             return Err(Error::new(Code::NotFound).arg("id", p.id.clone()));
         }
         write_post_tags(&mut self.tx, &p.id, &p.tags).await
+    }
+
+    async fn set_view_count(&mut self, id: &str, n: i64) -> Result<()> {
+        let res = sqlx::query!("UPDATE posts SET view_count = ? WHERE id = ?", n, id)
+            .execute(&mut *self.tx)
+            .await
+            .map_err(db_error)?;
+        if res.rows_affected() != 1 {
+            return Err(Error::new(Code::NotFound).arg("id", id.to_owned()));
+        }
+        Ok(())
     }
 
     async fn insert_revision(&mut self, r: &Revision) -> Result<()> {

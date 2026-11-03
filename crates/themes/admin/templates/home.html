@@ -11,7 +11,7 @@
 {% if posts %}
 <table class="posts">
   <thead>
-    <tr><th scope="col">제목</th><th scope="col">상태</th><th scope="col">게시판</th><th scope="col">수정일</th></tr>
+    <tr><th scope="col">제목</th><th scope="col">상태</th><th scope="col">게시판</th><th scope="col" class="num">조회</th><th scope="col">수정일</th></tr>
   </thead>
   <tbody>
   {% for p in posts %}
@@ -19,6 +19,7 @@
       <td><a href="/admin/posts/{{ p.id }}">{{ p.title }}</a>{% if p.public_url %} <a class="aside" href="{{ p.public_url }}" target="_blank" rel="noopener">보기</a>{% endif %}</td>
       <td><span class="badge badge-{{ p.status }}">{{ p.status_label }}</span>{% if p.scheduled %}<br><small class="scheduled">⏰ {{ p.scheduled }}</small>{% endif %}</td>
       <td>{{ p.board }}</td>
+      <td class="num"><span class="cell-label">조회 </span>{{ p.views }}</td>
       <td><time datetime="{{ p.updated }}">{{ p.updated }}</time></td>
     </tr>
   {% endfor %}

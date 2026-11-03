@@ -1,8 +1,10 @@
 //! 공개 사이트. 비로그인 Actor 로 공개 조회 서비스(`posts::public_*`, `pages::public_*`)만 부른다.
 
+use std::net::SocketAddr;
+
 use axum::Router;
-use axum::extract::{Path, Query, State};
-use axum::http::{StatusCode, header};
+use axum::extract::{ConnectInfo, Path, Query, State};
+use axum::http::{Extensions, HeaderMap, Method, StatusCode, header};
 use axum::middleware;
 use axum::response::{Html, IntoResponse, Response};
 use axum::routing::get;
@@ -254,25 +256,73 @@ fn category_of(board_slug: &str, cats: &[Category], p: &Post) -> Value {
 async fn post(
     State(state): State<AppState>,
     Path((board_slug, post_slug)): Path<(String, String)>,
+    method: Method,
+    headers: HeaderMap,
+    extensions: Extensions,
 ) -> Response {
-    let v = post_inner(&state, &board_slug, &post_slug).await;
+    // 조회수: HEAD 는 세지 않는다. 연결 주소만 본다(전달 헤더는 믿지 않는다, rate_limit 과 같다).
+    let visit = (method == Method::GET).then(|| Visit {
+        ip: extensions
+            .get::<ConnectInfo<SocketAddr>>()
+            .map(|c| c.0.ip().to_string())
+            .unwrap_or_default(),
+        user_agent: headers
+            .get(header::USER_AGENT)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or_default()
+            .to_owned(),
+        headers,
+    });
+    let v = post_inner(&state, &board_slug, &post_slug, visit).await;
     render(&state, "post.html", v).await
 }
 
-async fn post_inner(state: &AppState, board_slug: &str, post_slug: &str) -> Result<Value> {
+/// 글 화면 한 번의 방문 (조회수용).
+struct Visit {
+    ip: String,
+    user_agent: String,
+    headers: HeaderMap,
+}
+
+async fn post_inner(
+    state: &AppState,
+    board_slug: &str,
+    post_slug: &str,
+    visit: Option<Visit>,
+) -> Result<Value> {
     let site = load_site(state).await?;
     let actor = anonymous_actor(&state.ctx).await?;
     let (board, post) = posts::public_post(&state.ctx, &actor, board_slug, post_slug).await?;
+    if let Some(v) = visit {
+        let viewer = crate::admin::viewer(state, &v.headers).await;
+        state
+            .views
+            .record(viewer.as_ref(), &post.id, &v.ip, &v.user_agent);
+    }
     let target = Target::Post {
         board: &board.slug,
         post: &post.slug,
     };
     let mut view = post_summary(&board.slug, &post, &site.settings);
+    if site.settings.show_views {
+        view["views"] = json!(state.views.shown(&post));
+    }
     if let Some(id) = &post.category_id
         && let Some(c) = state.ctx.store.category_by_id(id).await?
     {
         view["category"] = category_json(&board.slug, &c);
     }
+    let near = posts::nearby(&state.ctx, &actor, &board, &post).await?;
+    let neighbor = |p: &Option<Post>| {
+        p.as_ref().map_or(Value::Null, |p| {
+            post_summary(&board.slug, p, &site.settings)
+        })
+    };
+    let nearby = json!({
+        "prev": neighbor(&near.prev),
+        "next": neighbor(&near.next),
+        "related": summaries_any_board(state, &near.related, &site.settings).await?,
+    });
     let doc = body_document(state, &post.body_md, &site.settings).await?;
     view["body_html"] = Value::String(doc.html.into_string());
     view["toc"] = json!(doc.toc);
@@ -290,6 +340,7 @@ async fn post_inner(state: &AppState, board_slug: &str, post_slug: &str) -> Resu
         "canonical": urls::absolute(&state.ctx.site_url, &target),
         "board": board_json(&board),
         "post": view,
+        "nearby": nearby,
     }))
 }
 
@@ -636,6 +687,8 @@ fn post_summary(board_slug: &str, p: &Post, s: &SiteSettings) -> Value {
         "summary": summary,
         "is_notice": p.is_notice,
         "is_secret": p.is_secret,
+        // 사이트 설정으로 숨기면 null. 목록은 DB 값이라 몇십 초 늦을 수 있다.
+        "views": if s.show_views { json!(p.view_count) } else { Value::Null },
         // 비밀글은 서비스가 이미 태그를 비워서 준다.
         "tags": p.tags.iter().map(|name| json!({
             "name": name,

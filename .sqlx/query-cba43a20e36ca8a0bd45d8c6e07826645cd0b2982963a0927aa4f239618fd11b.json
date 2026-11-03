@@ -1,0 +1,249 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,\n                    actor_type, published_at, created_at, updated_at, scheduled_at, cover,\n                    category_id, is_notice, is_secret, view_count,\n                    (SELECT json_group_array(t.name ORDER BY pt.position)\n                       FROM post_tags pt JOIN tags t ON t.id = pt.tag_id\n                      WHERE pt.post_id = posts.id) AS \"tags!: String\"\n             FROM posts WHERE board_id = ? AND slug = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "board_id",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "board_id"
+          }
+        }
+      },
+      {
+        "name": "kind",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "name": "status",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "name": "title",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "name": "slug",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "slug"
+          }
+        }
+      },
+      {
+        "name": "body_md",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "body_md"
+          }
+        }
+      },
+      {
+        "name": "excerpt",
+        "ordinal": 7,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "excerpt"
+          }
+        }
+      },
+      {
+        "name": "author_id",
+        "ordinal": 8,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "author_id"
+          }
+        }
+      },
+      {
+        "name": "actor_type",
+        "ordinal": 9,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "actor_type"
+          }
+        }
+      },
+      {
+        "name": "published_at",
+        "ordinal": 10,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "published_at"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 11,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "name": "updated_at",
+        "ordinal": 12,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "updated_at"
+          }
+        }
+      },
+      {
+        "name": "scheduled_at",
+        "ordinal": 13,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "scheduled_at"
+          }
+        }
+      },
+      {
+        "name": "cover",
+        "ordinal": 14,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "cover"
+          }
+        }
+      },
+      {
+        "name": "category_id",
+        "ordinal": 15,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "category_id"
+          }
+        }
+      },
+      {
+        "name": "is_notice",
+        "ordinal": 16,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "is_notice"
+          }
+        }
+      },
+      {
+        "name": "is_secret",
+        "ordinal": 17,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "is_secret"
+          }
+        }
+      },
+      {
+        "name": "view_count",
+        "ordinal": 18,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "view_count"
+          }
+        }
+      },
+      {
+        "name": "tags!: String",
+        "ordinal": 19,
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "cba43a20e36ca8a0bd45d8c6e07826645cd0b2982963a0927aa4f239618fd11b"
+}

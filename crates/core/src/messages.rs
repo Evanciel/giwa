@@ -61,6 +61,7 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "error.tag_too_many" => "태그는 글마다 {max}개까지입니다.",
         "error.tag_not_found" => "`{slug}` 태그를 찾을 수 없습니다.",
         "error.post_secret" => "비밀글입니다. 작성자와 관리자만 읽을 수 있습니다.",
+        "error.post_views" => "조회수는 0 이상 {max} 이하의 정수여야 합니다.",
         "hint.post_secret" => "작성자라면 로그인한 뒤 다시 여세요.",
         "error.file_not_found" => "`{id}` 첨부 파일을 찾을 수 없습니다.",
         "error.file_type" => "첨부할 수 없는 파일입니다: {name} (가능한 형식: {allowed})",

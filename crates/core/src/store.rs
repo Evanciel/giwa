@@ -133,6 +133,16 @@ pub trait Store: Send + Sync {
     async fn font_by_slug(&self, slug: &str) -> Result<Option<Font>>;
     /// 본문에 `]{slug}` 꾸밈이 남은 글(지운 글 제외)·페이지 수.
     async fn count_font_uses(&self, slug: &str) -> Result<i64>;
+
+    /// 모아 둔 조회수를 한 트랜잭션으로 더한다. 통계라 감사 대상이 아니고 `updated_at` 도 그대로다 (ADR-0049).
+    /// 그 사이 지워진 글은 건너뛴다.
+    async fn add_views(&self, counts: &[(String, i64)]) -> Result<()>;
+    /// 같은 게시판의 바로 앞(더 오래된)·뒤(더 새) 공개 글. 순서는 `published_at`, 같으면 `id`.
+    async fn neighbor_posts(&self, post: &Post) -> Result<(Option<Post>, Option<Post>)>;
+    /// 관련 글: 겹치는 태그 수 → 같은 분류 → 같은 게시판 → 최신 순. 비밀글·공지·자기 자신은 뺀다.
+    /// 태그가 겹치지 않는 다른 게시판의 글은 넣지 않는다.
+    async fn related_posts(&self, post: &Post, max_read_rank: i64, limit: i64)
+    -> Result<Vec<Post>>;
 }
 
 #[async_trait]
@@ -159,6 +169,8 @@ pub trait WriteTx: Send {
     async fn insert_post(&mut self, post: &Post) -> Result<()>;
     /// 글과 함께 `post.tags` 를 통째로 바꾼다.
     async fn update_post(&mut self, post: &Post) -> Result<()>;
+    /// 조회수를 정한 값으로 바꾼다 (운영자 고치기). `updated_at` 은 그대로다.
+    async fn set_view_count(&mut self, id: &str, n: i64) -> Result<()>;
     async fn tag_by_slug(&mut self, slug: &str) -> Result<Option<Tag>>;
 
     async fn categories_of_board(&mut self, board_id: &str) -> Result<Vec<Category>>;
