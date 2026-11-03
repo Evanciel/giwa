@@ -134,6 +134,20 @@
 </form>
 
 {% if post %}
+<section class="post-tools write-danger" aria-label="리비전과 게시판">
+  <a class="button secondary" href="/admin/posts/{{ post.id }}/revisions">리비전 보기</a>
+  {% if post.status != "deleted" and boards | length > 1 %}
+  <form method="post" action="/admin/posts/{{ post.id }}/move" class="move-form">
+    <input type="hidden" name="_csrf" value="{{ csrf }}">
+    <label for="move-board">다른 게시판</label>
+    <select id="move-board" name="board">
+      {% for b in boards %}{% if b.slug != values.board %}<option value="{{ b.slug }}">{{ b.name }}</option>{% endif %}{% endfor %}
+    </select>
+    <button type="submit" name="how" value="move" class="secondary">옮기기</button>
+    <button type="submit" name="how" value="copy" class="secondary">초안으로 복사</button>
+  </form>
+  {% endif %}
+</section>
 <section class="danger write-danger" aria-label="상태 바꾸기">
   {% if post.status == "published" %}
   <form method="post" action="/admin/posts/{{ post.id }}/hide">

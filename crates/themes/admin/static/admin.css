@@ -288,3 +288,36 @@ form.inline { display: inline; margin: 0; }
 .comment-meta strong { color: var(--fg); }
 .comment-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .badge-pending { border-color: var(--warn); color: var(--warn); }
+
+/* ---- 일괄 관리 · 리비전 (ADR-0055) ---- */
+.bulk-bar { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin: 0 0 .75rem; }
+.bulk-bar select { width: auto; }
+.bulk-bar label { margin: 0; }
+.posts .pick { width: 2.25rem; padding-right: 0; }
+.posts .pick input { width: 1.05rem; height: 1.05rem; margin: .2rem 0 0; }
+.post-tools { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
+.move-form { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin: 0; }
+.move-form select { width: auto; }
+.move-form label { margin: 0; color: var(--muted); font-size: .875rem; }
+.revisions { display: grid; grid-template-columns: 16rem minmax(0, 1fr); gap: 1.5rem; align-items: start; }
+.revision-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.revision-list li + li { border-top: 1px solid var(--border); }
+.revision-list a { display: grid; gap: .1rem; padding: .55rem .75rem; color: inherit; text-decoration: none; }
+.revision-list a[aria-current] { background: var(--ok-bg); }
+.revision-list time { font-variant-numeric: tabular-nums; font-size: .9rem; }
+.revision-who { color: var(--muted); font-size: .8125rem; }
+.revision-list .badge { justify-self: start; }
+.revision-compare h2 { margin-top: 0; font-size: 1.1rem; }
+.revision-sum .add { color: var(--primary); font-weight: 600; } .revision-sum .del { color: var(--warn); font-weight: 600; }
+.revision-title del { color: var(--warn); } .revision-title ins { color: var(--primary); text-decoration: none; }
+pre.diff { margin: 0 0 1rem; padding: .5rem 0; max-height: 60vh; overflow: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); font-family: D2Coding, ui-monospace, Consolas, monospace; font-size: .875rem; line-height: 1.6; white-space: pre-wrap; word-break: break-all; }
+pre.diff > span { display: block; padding: 0 .75rem; }
+.diff-add { background: color-mix(in srgb, var(--primary) 14%, transparent); }
+.diff-del { background: color-mix(in srgb, var(--warn) 14%, transparent); }
+.diff-same { color: var(--muted); }
+@media (max-width: 640px) {
+  .revisions { grid-template-columns: minmax(0, 1fr); }
+  .posts td.pick { position: absolute; right: .25rem; width: auto; }
+  .posts tr { position: relative; }
+}
+

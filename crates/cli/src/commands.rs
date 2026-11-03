@@ -408,6 +408,97 @@ async fn post(g: &Global, cmd: PostCmd) -> Out {
             post_out(&ctx, &p, "고쳤습니다").await
         }
         PostCmd::List(args) => post_list(&ctx, &actor, args).await,
+        PostCmd::Revisions { id } => {
+            let mut list = posts::revisions(&ctx, &actor, &id).await?;
+            list.reverse();
+            let mut human = format!("리비전 {}개 (새것부터)", list.len());
+            for r in &list {
+                human.push_str(&format!(
+                    "\n{}  {}  {}",
+                    r.id,
+                    r.created_at,
+                    r.actor_type.as_str()
+                ));
+            }
+            Ok((to_value(&list)?, human))
+        }
+        PostCmd::Diff { id, revision } => {
+            let c = posts::compare(&ctx, &actor, &id, &revision).await?;
+            let mut human = format!(
+                "{} → 지금: +{} −{}{}",
+                c.revision.created_at,
+                c.body.added,
+                c.body.removed,
+                if c.title_changed {
+                    format!("\n제목: {} → {}", c.revision.title, c.current_title)
+                } else {
+                    String::new()
+                }
+            );
+            for l in &c.body.lines {
+                let mark = match l.op {
+                    maru_core::diff::Op::Same => ' ',
+                    maru_core::diff::Op::Add => '+',
+                    maru_core::diff::Op::Del => '-',
+                };
+                human.push_str(&format!("\n{mark} {}", l.text));
+            }
+            Ok((to_value(&c)?, human))
+        }
+        PostCmd::Revert { id, revision } => {
+            let p = posts::revert(&ctx, &actor, &id, &revision).await?;
+            post_out(&ctx, &p, "리비전으로 되돌렸습니다").await
+        }
+        PostCmd::Move {
+            id,
+            board,
+            category,
+        } => {
+            let p = posts::move_to(&ctx, &actor, &id, posts::MoveInput { board, category }).await?;
+            post_out(&ctx, &p, "옮겼습니다").await
+        }
+        PostCmd::Copy { id, board } => {
+            let p = posts::copy_to(&ctx, &actor, &id, posts::CopyInput { board }).await?;
+            post_out(&ctx, &p, "초안으로 복사했습니다").await
+        }
+        PostCmd::Bulk(args) => {
+            let action = match args.action.as_str() {
+                "publish" => posts::BulkAction::Publish,
+                "hide" => posts::BulkAction::Hide,
+                "delete" => posts::BulkAction::Delete,
+                "restore" => posts::BulkAction::Restore,
+                "move" => posts::BulkAction::Move {
+                    board: args.board.ok_or_else(|| {
+                        Error::new(Code::Validation)
+                            .with_message("error.bulk_board")
+                            .next("maru post bulk move --board <게시판> --id <글>")
+                    })?,
+                    category: args.category,
+                },
+                other => {
+                    return Err(Error::new(Code::Validation)
+                        .with_message("error.bulk_action")
+                        .arg("value", other.to_owned()));
+                }
+            };
+            let items = posts::bulk(
+                &ctx,
+                &actor,
+                posts::BulkInput {
+                    ids: args.ids,
+                    action,
+                },
+            )
+            .await?;
+            let ok = items.iter().filter(|i| i.ok).count();
+            let mut human = format!("{}개 중 {ok}개 처리", items.len());
+            for i in items.iter().filter(|i| !i.ok) {
+                if let Some(e) = &i.error {
+                    human.push_str(&format!("\n실패 {}: {}", i.id, e.message));
+                }
+            }
+            Ok((to_value(&items)?, human))
+        }
         PostCmd::Show { id } => {
             let p = posts::get(&ctx, &actor, &id).await?;
             let human = format!(

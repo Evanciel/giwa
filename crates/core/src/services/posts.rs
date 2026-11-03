@@ -812,6 +812,249 @@ pub async fn revisions(ctx: &Ctx, actor: &Actor, id: &str) -> Result<Vec<Revisio
     ctx.store.revisions_of_post(&post.id).await
 }
 
+// ---- 리비전 비교·되돌리기, 이동·복사, 일괄 (ADR-0055) ----
+
+/// 리비전 하나와 지금 글의 비교.
+#[derive(Debug, Clone, Serialize, JsonSchema)]
+pub struct RevisionCompare {
+    pub revision: Revision,
+    /// 그 리비전 → 지금 글로 무엇이 바뀌었나
+    pub title_changed: bool,
+    pub current_title: String,
+    pub body: crate::diff::Diff,
+}
+
+/// 글의 리비전 하나. 다른 글의 리비전이면 없는 것으로 본다.
+pub async fn revision(ctx: &Ctx, actor: &Actor, id: &str, rev: &str) -> Result<Revision> {
+    let post = get(ctx, actor, id).await?;
+    ctx.store
+        .revisions_of_post(&post.id)
+        .await?
+        .into_iter()
+        .find(|r| r.id == rev)
+        .ok_or_else(|| revision_not_found(&post.id, rev))
+}
+
+pub async fn compare(ctx: &Ctx, actor: &Actor, id: &str, rev: &str) -> Result<RevisionCompare> {
+    let post = get(ctx, actor, id).await?;
+    let revision = revision(ctx, actor, id, rev).await?;
+    Ok(RevisionCompare {
+        title_changed: revision.title != post.title,
+        current_title: post.title.clone(),
+        body: crate::diff::lines(&revision.body_md, &post.body_md),
+        revision,
+    })
+}
+
+/// 그 리비전의 제목·본문으로 되돌린다. 권한·상태 규칙은 `update` 와 같고 리비전이 하나 더 쌓인다.
+pub async fn revert(ctx: &Ctx, actor: &Actor, id: &str, rev: &str) -> Result<Post> {
+    let mut tx = Tx::begin(ctx).await?;
+    let (board, before) = load_for_write(&mut *tx, actor, id).await?;
+    authorize_post(actor, &board, &before, Permission::PostWrite)?;
+    if before.status == PostStatus::Deleted {
+        return Err(bad_transition(&before, before.status));
+    }
+    // 리비전은 쌓기만 하므로 읽기 풀에서 찾아도 된다.
+    let revision = ctx
+        .store
+        .revisions_of_post(&before.id)
+        .await?
+        .into_iter()
+        .find(|r| r.id == rev)
+        .ok_or_else(|| revision_not_found(&before.id, rev))?;
+    if revision.title == before.title && revision.body_md == before.body_md {
+        return Ok(before);
+    }
+    let mut after = before.clone();
+    after.title = revision.title.clone();
+    after.body_md = revision.body_md.clone();
+    after.updated_at = clock::now();
+    tx.update_post(&after).await?;
+    tx.insert_revision(&revision_of(&after, actor)).await?;
+    let mut diff = audit::diff(Some(&before), Some(&after));
+    if let Some(o) = diff.as_object_mut() {
+        o.insert("revision".into(), serde_json::json!(revision.id));
+    }
+    tx.audit(actor, "post.revert", Target::post(&after.id), diff)
+        .await?;
+    tx.commit().await?;
+    Ok(after)
+}
+
+fn revision_not_found(post: &str, rev: &str) -> Error {
+    Error::new(Code::NotFound)
+        .with_message("error.revision_not_found")
+        .arg("id", rev.to_owned())
+        .next(format!("maru post revisions {post}"))
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct MoveInput {
+    /// 옮겨 갈 게시판 슬러그
+    pub board: String,
+    /// 새 게시판의 분류 슬러그. 생략하면 분류를 비운다
+    #[serde(default)]
+    pub category: Option<String>,
+}
+
+/// 글을 다른 게시판으로 옮긴다. 댓글·조회수·리비전은 글을 따라간다.
+pub async fn move_to(ctx: &Ctx, actor: &Actor, id: &str, input: MoveInput) -> Result<Post> {
+    let mut tx = Tx::begin(ctx).await?;
+    let (from, before) = load_for_write(&mut *tx, actor, id).await?;
+    authorize_post(actor, &from, &before, Permission::PostWrite)?;
+    if before.status == PostStatus::Deleted {
+        return Err(bad_transition(&before, before.status));
+    }
+    let to = tx
+        .board_by_slug(&input.board)
+        .await?
+        .ok_or_else(|| boards::not_found(&input.board))?;
+    actor.require_board(Permission::PostWrite, &to.id)?;
+    actor.require_rank(Permission::PostWrite, &to.policy.write)?;
+    let mut after = before.clone();
+    after.board_id = to.id.clone();
+    after.category_id = match input.category.as_deref().filter(|c| !c.is_empty()) {
+        Some(c) => categories::resolve(&mut *tx, &to, c).await?.map(|c| c.id),
+        None => None,
+    };
+    if to.id != from.id {
+        after.slug = unique_slug(&mut *tx, &to.id, &before.slug, Some(&before.id)).await?;
+    }
+    if after == before {
+        return Ok(before);
+    }
+    after.updated_at = clock::now();
+    tx.update_post(&after).await?;
+    tx.audit(
+        actor,
+        "post.move",
+        Target::post(&after.id),
+        audit::diff(Some(&before), Some(&after)),
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(after)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct CopyInput {
+    /// 복사해 둘 게시판 슬러그 (같은 게시판도 된다)
+    pub board: String,
+}
+
+/// 다른 게시판에 **초안**으로 복사한다. 글쓴이는 복사한 사람, 댓글·조회수는 가져가지 않는다.
+pub async fn copy_to(ctx: &Ctx, actor: &Actor, id: &str, input: CopyInput) -> Result<Post> {
+    let source = get(ctx, actor, id).await?;
+    if source.status == PostStatus::Deleted {
+        return Err(bad_transition(&source, source.status));
+    }
+    create_draft(
+        ctx,
+        actor,
+        NewPost {
+            board: input.board,
+            title: source.title,
+            slug: None,
+            body_md: source.body_md,
+            excerpt: source.excerpt,
+            cover: source.cover,
+            category: None,
+            tags: source.tags,
+            notice: false,
+            secret: source.is_secret,
+        },
+    )
+    .await
+}
+
+/// 한 번에 고를 수 있는 글 수.
+pub const BULK_MAX: usize = 100;
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "action", rename_all = "snake_case", deny_unknown_fields)]
+pub enum BulkAction {
+    Publish,
+    Hide,
+    Delete,
+    Restore,
+    Move {
+        board: String,
+        #[serde(default)]
+        category: Option<String>,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct BulkInput {
+    pub ids: Vec<String>,
+    #[serde(flatten)]
+    pub action: BulkAction,
+}
+
+#[derive(Debug, Clone, Serialize, JsonSchema)]
+pub struct BulkItem {
+    pub id: String,
+    pub ok: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub post: Option<Post>,
+    /// 실패한 까닭 (오류 코드와 메시지)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<BulkError>,
+}
+
+#[derive(Debug, Clone, Serialize, JsonSchema)]
+pub struct BulkError {
+    pub code: String,
+    pub message: String,
+}
+
+/// 글마다 기존 서비스를 따로 부른다(각자 트랜잭션). 일부만 되는 것이 정상이다.
+pub async fn bulk(ctx: &Ctx, actor: &Actor, input: BulkInput) -> Result<Vec<BulkItem>> {
+    if input.ids.is_empty() || input.ids.len() > BULK_MAX {
+        return Err(Error::new(Code::Validation)
+            .with_message("error.bulk_size")
+            .arg("max", BULK_MAX.to_string()));
+    }
+    let mut seen = std::collections::HashSet::new();
+    let mut out = Vec::with_capacity(input.ids.len());
+    for id in input.ids.iter().filter(|id| seen.insert(id.as_str())) {
+        let res = match &input.action {
+            BulkAction::Publish => publish(ctx, actor, id).await,
+            BulkAction::Hide => hide(ctx, actor, id).await,
+            BulkAction::Delete => delete(ctx, actor, id).await,
+            BulkAction::Restore => restore(ctx, actor, id).await,
+            BulkAction::Move { board, category } => {
+                let input = MoveInput {
+                    board: board.clone(),
+                    category: category.clone(),
+                };
+                move_to(ctx, actor, id, input).await
+            }
+        };
+        out.push(match res {
+            Ok(post) => BulkItem {
+                id: id.clone(),
+                ok: true,
+                post: Some(post),
+                error: None,
+            },
+            Err(e) => BulkItem {
+                id: id.clone(),
+                ok: false,
+                post: None,
+                error: Some(BulkError {
+                    code: e.code().as_str().to_owned(),
+                    message: e.message(),
+                }),
+            },
+        });
+    }
+    Ok(out)
+}
+
 /// 본인 글이면 기본 권한, 남의 글이면 추가로 `post.moderate` (ADR-0029).
 pub(crate) fn authorize_post(
     actor: &Actor,

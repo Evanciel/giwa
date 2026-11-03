@@ -245,12 +245,58 @@ pub enum PostCmd {
         #[arg(long)]
         set: i64,
     },
+    /// 글의 리비전 목록 (새것부터)
+    Revisions { id: String },
+    /// 리비전과 지금 글을 줄 단위로 비교한다 (바꾸는 것 없음)
+    Diff {
+        id: String,
+        /// 리비전 id (`maru post revisions <글>`)
+        revision: String,
+    },
+    /// 그 리비전의 제목·본문으로 되돌린다 (새 리비전이 하나 더 쌓인다)
+    Revert {
+        id: String,
+        /// 리비전 id (`maru post revisions <글>`)
+        revision: String,
+    },
+    /// 글을 다른 게시판으로 옮긴다. 댓글·조회수는 따라간다
+    Move {
+        id: String,
+        #[arg(long)]
+        board: String,
+        /// 새 게시판의 분류 슬러그. 생략하면 분류를 비운다
+        #[arg(long)]
+        category: Option<String>,
+    },
+    /// 글을 다른 게시판에 초안으로 복사한다
+    Copy {
+        id: String,
+        #[arg(long)]
+        board: String,
+    },
+    /// 여러 글에 같은 동작 (최대 100개). 글마다 따로 처리하고 결과를 글마다 알려 준다
+    Bulk(PostBulkArgs),
     /// 저장하지 않고 본문을 공개 화면과 같은 HTML 로 그린다
     Preview {
         /// 본문 파일 (UTF-8). `-` 이면 표준 입력
         #[arg(long)]
         from: PathBuf,
     },
+}
+
+#[derive(Debug, Args)]
+pub struct PostBulkArgs {
+    /// publish, hide, delete, restore, move
+    pub action: String,
+    /// 글 id (여러 번)
+    #[arg(long = "id", required = true)]
+    pub ids: Vec<String>,
+    /// move 일 때 옮겨 갈 게시판
+    #[arg(long)]
+    pub board: Option<String>,
+    /// move 일 때 새 게시판의 분류
+    #[arg(long)]
+    pub category: Option<String>,
 }
 
 #[derive(Debug, Args)]

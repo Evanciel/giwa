@@ -43,6 +43,12 @@ pub fn routes() -> Router<AppState> {
         .route("/posts", get(list_posts).post(create_post))
         .route("/posts/{id}", get(get_post).patch(update_post))
         .route("/posts/{id}/views", axum::routing::put(set_post_views))
+        .route("/posts/bulk", post(bulk_posts))
+        .route("/posts/{id}/revisions", get(post_revisions))
+        .route("/posts/{id}/revisions/{rev}", get(post_revision))
+        .route("/posts/{id}/revisions/{rev}/revert", post(revert_post))
+        .route("/posts/{id}/move", post(move_post))
+        .route("/posts/{id}/copy", post(copy_post))
         .route("/posts/{id}/{action}", post(post_action))
         .route("/pages", get(list_pages).post(create_page))
         .route("/pages/{slug}", get(get_page).patch(update_page))
@@ -238,6 +244,67 @@ async fn post_action(
         _ => return Err(ApiError(Error::new(Code::NotFound))),
     };
     Ok(ok(StatusCode::OK, post))
+}
+
+async fn post_revisions(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(id): Path<String>,
+) -> Result<Response, ApiError> {
+    let list = posts::revisions(&state.ctx, &actor, &id).await?;
+    Ok(ok(StatusCode::OK, list))
+}
+
+/// 리비전과 지금 글의 비교.
+async fn post_revision(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path((id, rev)): Path<(String, String)>,
+) -> Result<Response, ApiError> {
+    let cmp = posts::compare(&state.ctx, &actor, &id, &rev).await?;
+    Ok(ok(StatusCode::OK, cmp))
+}
+
+async fn revert_post(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path((id, rev)): Path<(String, String)>,
+) -> Result<Response, ApiError> {
+    let post = posts::revert(&state.ctx, &actor, &id, &rev).await?;
+    Ok(ok(StatusCode::OK, post))
+}
+
+async fn move_post(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(id): Path<String>,
+    body: Result<Json<posts::MoveInput>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let Json(input) = body.map_err(bad_json)?;
+    let post = posts::move_to(&state.ctx, &actor, &id, input).await?;
+    Ok(ok(StatusCode::OK, post))
+}
+
+async fn copy_post(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(id): Path<String>,
+    body: Result<Json<posts::CopyInput>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let Json(input) = body.map_err(bad_json)?;
+    let post = posts::copy_to(&state.ctx, &actor, &id, input).await?;
+    Ok(ok(StatusCode::CREATED, post))
+}
+
+/// 글마다 결과를 돌려준다(일부 실패도 200).
+async fn bulk_posts(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    body: Result<Json<posts::BulkInput>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let Json(input) = body.map_err(bad_json)?;
+    let items = posts::bulk(&state.ctx, &actor, input).await?;
+    Ok(ok(StatusCode::OK, items))
 }
 
 async fn update_post(

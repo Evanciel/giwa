@@ -40,6 +40,12 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "error.board_exists" => "`{slug}` 게시판이 이미 있습니다.",
         "error.board_not_found" => "`{slug}` 게시판을 찾을 수 없습니다.",
         "error.post_not_found" => "글을 찾을 수 없습니다: {id}",
+        "error.revision_not_found" => "이 글의 리비전이 아닙니다: {id}",
+        "error.bulk_size" => "한 번에 1개에서 {max}개까지 고를 수 있습니다.",
+        "error.bulk_action" => {
+            "일괄 동작 `{value}` 는 지원하지 않습니다. 가능한 값: publish, hide, delete, restore, move"
+        }
+        "error.bulk_board" => "옮기려면 게시판을 정해야 합니다.",
         "error.post_transition" => "`{from}` 상태의 글은 `{to}` 상태로 바꿀 수 없습니다.",
         "error.body_too_large" => "본문이 너무 큽니다 (최대 {max}바이트).",
         "error.timestamp" => "시각은 RFC3339 형식이어야 합니다: {value}",

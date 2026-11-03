@@ -15,7 +15,7 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
 use axum::{Router, middleware};
-use maru_core::actor::{Actor, Permission};
+use maru_core::actor::{Actor, AuthorType, Permission};
 use maru_core::clock;
 use maru_core::model::{PageReq, Post, PostStatus};
 use maru_core::output::Success;
@@ -41,6 +41,10 @@ pub fn routes() -> Router<AppState> {
         .route("/admin/logout", post(logout))
         .route("/admin/password", get(password_form).post(password))
         .route("/admin/posts/new", get(new_form).post(create))
+        .route("/admin/posts/bulk", post(bulk))
+        .route("/admin/posts/{id}/revisions", get(revisions_page))
+        .route("/admin/posts/{id}/revisions/{rev}/revert", post(revert))
+        .route("/admin/posts/{id}/move", post(move_post))
         .route("/admin/posts/{id}", get(edit_form).post(save))
         .route("/admin/posts/{id}/{action}", post(action))
         .route("/admin/media", post(upload).layer(crate::upload_limit()))
@@ -729,6 +733,9 @@ fn notice(done: &str) -> Option<&'static str> {
         "hidden" => "숨겼습니다.",
         "deleted" => "삭제했습니다.",
         "restored" => "되살렸습니다.",
+        "reverted" => "리비전으로 되돌렸습니다.",
+        "moved" => "다른 게시판으로 옮겼습니다.",
+        "copied" => "복사해 초안으로 만들었습니다. 지금 보는 것이 복사본입니다.",
         _ => return None,
     })
 }
@@ -754,6 +761,11 @@ struct HomeQuery {
     /// 제목·내용·태그 검색 (초안·비밀글 포함, GAP C5)
     #[serde(default)]
     q: String,
+    /// 일괄 동작 결과 (`done=bulk`)
+    #[serde(default)]
+    ok: Option<usize>,
+    #[serde(default)]
+    failed: Option<usize>,
 }
 
 fn post_row(p: &Post, board_slug: &str, board_name: &str, tz: i32) -> Value {
@@ -844,8 +856,15 @@ async fn home(
     let ctx = merge(
         base(&state, Some(&who), "posts").await,
         json!({
-            "notice": notice(&q.done),
+            "notice": match (q.done.as_str(), q.ok, q.failed) {
+                ("bulk", Some(ok), failed) => Some(match failed.unwrap_or(0) {
+                    0 => format!("{ok}개를 처리했습니다."),
+                    f => format!("{ok}개를 처리했고 {f}개는 권한이나 상태 때문에 그대로 두었습니다."),
+                }),
+                _ => notice(&q.done).map(str::to_owned),
+            },
             "posts": rows,
+            "boards": boards.iter().map(|b| json!({ "slug": b.slug, "name": b.name })).collect::<Vec<_>>(),
             "total": listing.total,
             "page": page.page,
             "pages": pages.max(1),
@@ -1303,6 +1322,228 @@ async fn action(
         }
         Ok(p) => Redirect::to(&format!("/admin/posts/{}?done={done}", p.id)).into_response(),
         Err(e) => fail(&state, Some(&who), &e).await,
+    }
+}
+
+// ---- 리비전·이동·일괄 (ADR-0055) ----
+
+#[derive(Debug, Default, Deserialize)]
+struct RevisionQuery {
+    #[serde(default)]
+    rev: Option<String>,
+}
+
+async fn revisions_page(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Query(q): Query<RevisionQuery>,
+) -> Response {
+    let who = match require(&state, &headers, &format!("/admin/posts/{id}/revisions")).await {
+        Ok(w) => w,
+        Err(r) => return *r,
+    };
+    let ctx = &state.ctx;
+    let (post, mut list) = match async {
+        let post = posts::get(ctx, &who.actor, &id).await?;
+        let list = posts::revisions(ctx, &who.actor, &id).await?;
+        Ok::<_, Error>((post, list))
+    }
+    .await
+    {
+        Ok(v) => v,
+        Err(e) => return fail(&state, Some(&who), &e).await,
+    };
+    list.reverse();
+    let tz = site_tz(&state).await;
+    // 지금 글과 같은 가장 새 리비전이 「지금」. 고르지 않았으면 그 바로 앞 것을 비교한다.
+    let current = list
+        .iter()
+        .position(|r| r.title == post.title && r.body_md == post.body_md);
+    let selected = q
+        .rev
+        .filter(|r| list.iter().any(|x| &x.id == r))
+        .or_else(|| {
+            let next = current.map_or(0, |c| c + 1);
+            list.get(next).or(list.first()).map(|r| r.id.clone())
+        });
+    let mut names: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    let mut rows = Vec::with_capacity(list.len());
+    for (i, r) in list.iter().enumerate() {
+        let who_label = match (&r.actor_id, r.actor_type) {
+            (Some(mid), _) => {
+                if !names.contains_key(mid)
+                    && let Ok(Some(m)) = ctx.store.member_by_id(mid).await
+                {
+                    names.insert(mid.clone(), m.display_name);
+                }
+                names.get(mid).cloned().unwrap_or_else(|| "회원".into())
+            }
+            (None, t) => author_label(t).to_owned(),
+        };
+        rows.push(json!({
+            "id": r.id,
+            "created_at": r.created_at,
+            "date": clock::display_datetime(&r.created_at, tz),
+            "who": who_label,
+            "current": Some(i) == current,
+            "selected": selected.as_deref() == Some(r.id.as_str()),
+        }));
+    }
+    let compare = match &selected {
+        Some(rev) => match posts::compare(ctx, &who.actor, &id, rev).await {
+            Ok(c) => Some(json!({
+                "id": c.revision.id,
+                "date": clock::display_datetime(&c.revision.created_at, tz),
+                "title": c.revision.title,
+                "title_changed": c.title_changed,
+                "same": c.body.added == 0 && c.body.removed == 0 && !c.title_changed,
+                "added": c.body.added,
+                "removed": c.body.removed,
+                "coarse": c.body.coarse,
+                "lines": c.body.lines,
+            })),
+            Err(e) => return fail(&state, Some(&who), &e).await,
+        },
+        None => None,
+    };
+    let view = merge(
+        base(&state, Some(&who), "posts").await,
+        json!({
+            "post": { "id": post.id, "title": post.title },
+            "revisions": rows,
+            "compare": compare,
+        }),
+    );
+    render(&state, StatusCode::OK, "revisions.html", &view)
+}
+
+async fn revert(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path((id, rev)): Path<(String, String)>,
+    Form(f): Form<CsrfForm>,
+) -> Response {
+    let who = match require(&state, &headers, &format!("/admin/posts/{id}/revisions")).await {
+        Ok(w) => w,
+        Err(r) => return *r,
+    };
+    if !session_csrf_ok(&who, &f.csrf) {
+        return csrf_failed(&state, Some(&who)).await;
+    }
+    match posts::revert(&state.ctx, &who.actor, &id, &rev).await {
+        Ok(p) => Redirect::to(&format!("/admin/posts/{}?done=reverted", p.id)).into_response(),
+        Err(e) => fail(&state, Some(&who), &e).await,
+    }
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct MoveForm {
+    #[serde(default, rename = "_csrf")]
+    csrf: String,
+    #[serde(default)]
+    board: String,
+    /// `move` 또는 `copy`
+    #[serde(default)]
+    how: String,
+}
+
+async fn move_post(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Form(f): Form<MoveForm>,
+) -> Response {
+    let who = match require(&state, &headers, &format!("/admin/posts/{id}")).await {
+        Ok(w) => w,
+        Err(r) => return *r,
+    };
+    if !session_csrf_ok(&who, &f.csrf) {
+        return csrf_failed(&state, Some(&who)).await;
+    }
+    let res = if f.how == "copy" {
+        posts::copy_to(
+            &state.ctx,
+            &who.actor,
+            &id,
+            posts::CopyInput { board: f.board },
+        )
+        .await
+        .map(|p| (p, "copied"))
+    } else {
+        let input = posts::MoveInput {
+            board: f.board,
+            category: None,
+        };
+        posts::move_to(&state.ctx, &who.actor, &id, input)
+            .await
+            .map(|p| (p, "moved"))
+    };
+    match res {
+        Ok((p, done)) => {
+            Redirect::to(&format!("/admin/posts/{}?done={done}", p.id)).into_response()
+        }
+        Err(e) => fail(&state, Some(&who), &e).await,
+    }
+}
+
+/// 목록 일괄 동작. 고르기 칸은 `pick.<글 id>` 라 같은 이름이 여러 번 오지 않는다.
+async fn bulk(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Form(f): Form<std::collections::HashMap<String, String>>,
+) -> Response {
+    let who = match require(&state, &headers, "/admin").await {
+        Ok(w) => w,
+        Err(r) => return *r,
+    };
+    let field = |k: &str| f.get(k).map(String::as_str).unwrap_or_default();
+    if !session_csrf_ok(&who, field("_csrf")) {
+        return csrf_failed(&state, Some(&who)).await;
+    }
+    let ids: Vec<String> = f
+        .keys()
+        .filter_map(|k| k.strip_prefix("pick."))
+        .map(str::to_owned)
+        .collect();
+    let action = match field("action") {
+        "publish" => posts::BulkAction::Publish,
+        "hide" => posts::BulkAction::Hide,
+        "delete" => posts::BulkAction::Delete,
+        "restore" => posts::BulkAction::Restore,
+        "move" => posts::BulkAction::Move {
+            board: field("board").to_owned(),
+            category: None,
+        },
+        other => {
+            let e = Error::new(Code::Validation)
+                .with_message("error.bulk_action")
+                .arg("value", other.to_owned());
+            return fail(&state, Some(&who), &e).await;
+        }
+    };
+    match posts::bulk(&state.ctx, &who.actor, posts::BulkInput { ids, action }).await {
+        Ok(items) => {
+            let ok = items.iter().filter(|i| i.ok).count();
+            let failed = items.len() - ok;
+            Redirect::to(&format!("/admin?done=bulk&ok={ok}&failed={failed}")).into_response()
+        }
+        Err(e) => fail(&state, Some(&who), &e).await,
+    }
+}
+
+async fn site_tz(state: &AppState) -> i32 {
+    settings::site(&state.ctx)
+        .await
+        .map(|s| s.tz_offset_min)
+        .unwrap_or(540)
+}
+
+fn author_label(t: AuthorType) -> &'static str {
+    match t {
+        AuthorType::Human => "사람",
+        AuthorType::Agent => "에이전트",
+        AuthorType::Local => "이 컴퓨터(CLI)",
     }
 }
 

@@ -16,13 +16,31 @@
 </div>
 {% if search_error %}<p class="error" role="alert">{{ search_error }}</p>{% endif %}
 {% if posts %}
+{# 고르기 칸은 form 속성으로 이 폼에 붙는다. 이름이 글마다 달라(`pick.<id>`) 스크립트 없이 보낸다 (ADR-0055). #}
+<form id="bulk" class="bulk-bar" method="post" action="/admin/posts/bulk">
+  <input type="hidden" name="_csrf" value="{{ csrf }}">
+  <label for="bulk-action">고른 글을</label>
+  <select id="bulk-action" name="action">
+    <option value="publish">발행</option>
+    <option value="hide">숨기기</option>
+    <option value="delete">삭제</option>
+    <option value="restore">되살리기</option>
+    <option value="move">다른 게시판으로 옮기기</option>
+  </select>
+  <label for="bulk-board" class="hint">옮길 곳</label>
+  <select id="bulk-board" name="board">
+    {% for b in boards %}<option value="{{ b.slug }}">{{ b.name }}</option>{% endfor %}
+  </select>
+  <button type="submit" class="secondary">적용</button>
+</form>
 <table class="posts">
   <thead>
-    <tr><th scope="col">제목</th><th scope="col">상태</th><th scope="col">게시판</th><th scope="col" class="num">조회</th><th scope="col">수정일</th></tr>
+    <tr><th scope="col" class="pick"><span class="visually-hidden">고르기</span></th><th scope="col">제목</th><th scope="col">상태</th><th scope="col">게시판</th><th scope="col" class="num">조회</th><th scope="col">수정일</th></tr>
   </thead>
   <tbody>
   {% for p in posts %}
     <tr>
+      <td class="pick"><input type="checkbox" form="bulk" name="pick.{{ p.id }}" value="1" aria-label="「{{ p.title }}」 고르기"></td>
       <td><a href="/admin/posts/{{ p.id }}">{{ p.title }}</a>{% if p.public_url %} <a class="aside" href="{{ p.public_url }}" target="_blank" rel="noopener">보기</a>{% endif %}</td>
       <td><span class="badge badge-{{ p.status }}">{{ p.status_label }}</span>{% if p.scheduled %}<br><small class="scheduled">⏰ {{ p.scheduled }}</small>{% endif %}</td>
       <td>{{ p.board }}</td>

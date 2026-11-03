@@ -1,0 +1,38 @@
+{% extends "_base.html" %}
+{% block title %}리비전 · {{ post.title }}{% endblock %}
+{% block content %}
+<div class="heading-row">
+  <h1>리비전 <span class="count">{{ revisions | length }}</span></h1>
+  <a class="aside" href="/admin/posts/{{ post.id }}">← 글로 돌아가기</a>
+</div>
+<p class="hint">「{{ post.title }}」 을 저장할 때마다 제목·본문이 하나씩 쌓입니다. 고르면 지금 글과 비교하고, 되돌리면 그 내용으로 새 리비전을 하나 더 만듭니다.</p>
+<div class="revisions">
+  <ol class="revision-list">
+    {% for r in revisions %}
+    <li{% if r.current %} class="current"{% endif %}>
+      <a href="/admin/posts/{{ post.id }}/revisions?rev={{ r.id }}"{% if r.selected %} aria-current="true"{% endif %}>
+        <time datetime="{{ r.created_at }}">{{ r.date }}</time>
+        <span class="revision-who">{{ r.who }}</span>
+        {% if r.current %}<span class="badge">지금</span>{% endif %}
+      </a>
+    </li>
+    {% endfor %}
+  </ol>
+  {% if compare %}
+  <section class="revision-compare" aria-label="고른 리비전과 지금 글 비교">
+    <h2>{{ compare.date }} → 지금</h2>
+    {% if compare.title_changed %}<p class="revision-title"><del>{{ compare.title }}</del> → <ins>{{ post.title }}</ins></p>{% endif %}
+    {% if compare.same %}
+    <p class="empty">지금 글과 같습니다.</p>
+    {% else %}
+    <p class="revision-sum"><span class="add">+{{ compare.added }}</span> <span class="del">−{{ compare.removed }}</span>{% if compare.coarse %} · 글이 길어 줄마다 맞추지 않았습니다{% endif %}</p>
+    <pre class="diff" tabindex="0">{% for l in compare.lines %}<span class="diff-{{ l.op }}">{% if l.op == "add" %}<span class="visually-hidden">더함 </span>+{% elif l.op == "del" %}<span class="visually-hidden">뺌 </span>−{% else %} {% endif %} {{ l.text }}</span>{% endfor %}</pre>
+    <form method="post" action="/admin/posts/{{ post.id }}/revisions/{{ compare.id }}/revert">
+      <input type="hidden" name="_csrf" value="{{ csrf }}">
+      <button type="submit">이 리비전으로 되돌리기</button>
+    </form>
+    {% endif %}
+  </section>
+  {% endif %}
+</div>
+{% endblock %}
