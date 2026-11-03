@@ -13,6 +13,7 @@ mod feeds;
 mod field_form;
 mod public;
 mod ratelimit;
+mod widgets;
 
 use std::future::Future;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};

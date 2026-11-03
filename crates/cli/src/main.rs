@@ -66,6 +66,9 @@ enum Command {
     /// 헤더·푸터 메뉴
     #[command(subcommand)]
     Menu(MenuCmd),
+    /// 위젯 (최신 글·인기 글·글 상자 등을 영역에 놓기)
+    #[command(subcommand)]
+    Widget(WidgetCmd),
     /// 사이트 이름·설명·시간대 등
     #[command(subcommand)]
     Site(SiteCmd),
@@ -765,6 +768,68 @@ pub struct MenuSetArgs {
     /// 메뉴를 비운다
     #[arg(long)]
     pub clear: bool,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum WidgetCmd {
+    /// 놓을 수 있는 위젯 종류와 설정 모양 (`--json` 이면 JSON Schema)
+    Types,
+    /// 놓인 위젯 목록
+    List,
+    /// 위젯을 놓는다. 같은 설정의 위젯이 이미 있으면 그것을 돌려준다
+    Place(WidgetPlaceArgs),
+    /// 위젯을 고친다 (준 칸만)
+    Configure(WidgetConfigureArgs),
+    /// 위젯을 뺀다
+    Remove { id: String },
+}
+
+#[derive(Debug, Args)]
+pub struct WidgetPlaceArgs {
+    /// latest_posts, popular_posts, markdown_block, menu, notice_bar, search, image_banner, gallery_grid
+    pub kind: String,
+    /// header, hero, main, sidebar, footer
+    #[arg(long)]
+    pub region: String,
+    /// all, home, boards, board:<주소>, page:<주소>
+    #[arg(long, default_value = "all")]
+    pub scope: String,
+    #[arg(long, default_value = "")]
+    pub title: String,
+    /// 설정 JSON (예: '{"board":"notice","limit":5}')
+    #[arg(long, conflicts_with = "config_file")]
+    pub config: Option<String>,
+    /// 설정 JSON 파일. `-` 이면 표준 입력
+    #[arg(long)]
+    pub config_file: Option<PathBuf>,
+    /// 영역 안 순서. 비우면 맨 뒤
+    #[arg(long, allow_hyphen_values = true)]
+    pub position: Option<i64>,
+    /// 꺼 둔 채로 놓는다
+    #[arg(long)]
+    pub disabled: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct WidgetConfigureArgs {
+    pub id: String,
+    #[arg(long)]
+    pub region: Option<String>,
+    #[arg(long)]
+    pub scope: Option<String>,
+    #[arg(long)]
+    pub title: Option<String>,
+    /// 설정 JSON 전체를 바꾼다
+    #[arg(long, conflicts_with = "config_file")]
+    pub config: Option<String>,
+    #[arg(long)]
+    pub config_file: Option<PathBuf>,
+    #[arg(long, allow_hyphen_values = true)]
+    pub position: Option<i64>,
+    #[arg(long, conflicts_with = "disable")]
+    pub enable: bool,
+    #[arg(long)]
+    pub disable: bool,
 }
 
 #[derive(Debug, Subcommand)]

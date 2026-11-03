@@ -583,3 +583,18 @@
   - 경로: REST `POST /api/v1/posts/{id}/lock {locked}`·`POST /api/v1/posts/{id}/accept {comment_id|null}`, 게시판 JSON `list_order`. CLI `post lock <id> [--off]`, `post accept <id> --comment <댓글> | --clear`, `board create|update --order`, `board show` 에 순서. 관리 편집기에 「글 잠그기」·「잠금 풀기」. MCP 는 Phase 3.
 - **대안:** 목록을 읽을 때마다 댓글 최댓값으로 정렬 — 목록 쿼리가 무거워진다. 답변글(C9) 채택 — 커뮤니티 질문 게시판은 댓글 채택이 흔하다. 순서를 종류에만 묶기 — 자유게시판을 활동순으로 못 바꾼다. 잠금이 댓글만 막기 — 분쟁 글 정리에 모자란다.
 - **결과:** 저장소 테스트(`crates/storage/tests/forum.rs`)가 활동순 순서·새 글순 게시판과의 차이·순서 바꾸기와 거부·승인 대기 댓글은 활동이 아님·승인과 답변글이 활동·채택 권한(남·글쓴이·관리자)·바꾸기·빼기·감사·다른 글과 지운 댓글 거부·종류 거부·잠금 권한·잠긴 글의 댓글·고치기·지우기·글 고치기·지우기·채택 거부·운영자 허용·풀기를, e2e(`crates/cli/tests/e2e_forum.rs`)가 CLI 게시판 → 공개 글쓰기·댓글 → 목록 순서·DB 활동 시각, 글 화면 채택 단추 → 확인 화면(손님은 로그인으로, 남은 403, 다른 사이트 POST 403) → DB 채택·「채택된 답변」·목록 「해결」, CLI 잠금 → 화면 안내·폼 없음·회원 댓글 403·DB 댓글 수 그대로, 풀기 → 댓글 됨, CLI 채택 빼기 → DB 를 확인한다.
+
+## ADR-0059 위젯과 영역: 종류 8개, 화면 범위, 테마가 그리는 위젯
+
+- **배경:** 첫 화면의 최신 글 상자, 곁가지의 인기 글처럼 화면 조각을 놓는 방법이 없었다(GAP S1, SPEC §8.3·Phase 2). 커뮤니티 테마가 첫 화면·곁가지를 이것으로 짠다. 모듈 시스템(Phase 2a)은 아직 없다.
+- **결정:**
+  - 표 `widgets`(kind, region, scope, title, config JSON, sort_order, enabled). 위젯마다 `place`·`configure`·`remove`, 권한 `design.edit`, 감사 `widget.place`·`widget.configure`·`widget.remove`. 바뀐 것이 없으면 감사도 없다. `place` 는 같은 영역·범위·제목·설정의 위젯이 이미 있으면 그것을 돌려준다(원칙 3).
+  - 종류는 core 의 고정 목록: `latest_posts`, `popular_posts`, `markdown_block`, `menu`, `notice_bar`, `search`, `image_banner`, `gallery_grid`. 종류마다 설정 구조체(serde `deny_unknown_fields` + JsonSchema)가 모르는 칸·범위 밖 값을 거부하고 기본값을 채운 모양으로 저장한다. `widget types` 가 설정의 JSON Schema 를 준다. 모듈 시스템이 들어오면 이 목록이 레지스트리의 코어 몫이 된다.
+  - 영역 `header`(머리글 아래 띠)·`hero`·`main`(본문 위)·`sidebar`(있으면 두 단, 880px 아래는 한 단)·`footer`. 테마가 그리지 않는 영역의 위젯은 빠진다.
+  - 범위 `all`·`home`·`boards`(게시판·글 화면)·`board:<주소>`·`page:<주소>`. 한 화면에는 `all` 과 맞는 범위가 모두 붙고, 영역 → `sort_order` → 만든 순. 주소는 slug 규칙으로만 맞추고 게시판·페이지가 아직 없어도 된다. 글쓰기·계정·댓글 확인 화면에는 붙지 않는다.
+  - 렌더: core 는 켜진 배치만 돌려주고(`for_screen`, 권한 없음 — 공개 화면에 그대로 드러나는 값), web 이 종류마다 손님 기준 화면 값(글 목록·메뉴·그림 크기)을 만들고, 테마 `_widget.html` → `widgets/<kind>.html` 이 그린다. 위젯 하나가 실패하거나 손님이 못 읽는 게시판을 가리키면 그 위젯만 빠진다(경고 로그). 비밀글은 최신 글·사진 모음·인기 글 모두에서 뺀다.
+  - 인기 글: 최근 `days` 일(0 이면 전체) 안에 발행된 공개 글을 조회수 → 공개 댓글 수 → 최신 순. 날짜별 조회 기록은 두지 않는다.
+  - 링크는 메뉴와 같은 규칙(`menus::check_href`), 배너 그림은 글 대표 이미지 규칙(`/media/…`), 글 상자는 본문과 같은 Markdown 정화.
+  - 경로: REST `GET /api/v1/widget-types`, `GET|POST /api/v1/widgets`, `GET|PATCH|DELETE /api/v1/widgets/{id}`. CLI `widget types|list|place|configure|remove`. 관리 화면 `/admin/widgets`(영역별 목록, 위로·아래로·끄기·켜기·빼기, JSON 설정으로 놓기). MCP 는 Phase 3, changeset 도 Phase 3(ADR-0023).
+- **대안:** 모듈 레지스트리부터 — S1 이 모듈 시스템을 기다린다. core 가 HTML 을 만드는 트레이트(SPEC 초안) — 사용자 테마가 위젯 모양을 못 바꾼다. 메뉴처럼 영역 통째로 바꾸기 — 에이전트가 위젯 하나 고치기 번거롭다. 기간 조회수 표 — 조회수를 날마다 따로 쌓아야 한다.
+- **결과:** 저장소 테스트(`crates/storage/tests/widgets.rs`)가 정규화·같은 설정 다시 놓기·순서, 종류·영역·범위·설정 거부 14가지와 없는 게시판, `design.edit` 권한, 바뀐 것만 감사, 화면 범위 고르기·순서·꺼진 위젯, 인기 글 순서·게시판·기간·비밀글 제외를, e2e(`crates/cli/tests/e2e_widgets.rs`)가 CLI 종류·거부(다음 명령)·놓기·다시 놓기 → 첫 화면 두 단·최신 글·정화된 글 상자, 게시판·페이지 범위, 끄기 → 사라짐, 빼기 → DB 0·한 단을 확인한다.

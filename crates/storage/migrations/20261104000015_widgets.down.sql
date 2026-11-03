@@ -1,0 +1,2 @@
+DROP INDEX IF EXISTS widgets_region;
+DROP TABLE IF EXISTS widgets;

@@ -1,0 +1,5 @@
+<form class="widget-search" role="search" action="{{ w.data.action }}" method="get">
+  <label class="visually-hidden" for="w-q-{{ w.id }}">사이트 검색</label>
+  <input id="w-q-{{ w.id }}" type="search" name="q" maxlength="100" placeholder="{{ w.data.placeholder }}" autocomplete="off" enterkeyhint="search">
+  <button type="submit">검색</button>
+</form>

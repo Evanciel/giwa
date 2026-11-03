@@ -6,10 +6,11 @@ use maru_core::audit::AuditRecord;
 use maru_core::model::{
     Attachment, Board, BoardPolicy, Category, Comment, CommentStatus, Font, FontFile, LoginTicket,
     MailOut, MailStatus, Media, MediaVariant, Member, MemberStatus, Page, PageStatus, Post,
-    PostKind, PostStatus, PostTemplate, Revision, Role, Session, Tag, TicketPurpose, Token,
+    PostKind, PostStatus, PostTemplate, Revision, Role, Session, Tag, TicketPurpose, Token, Widget,
 };
 use maru_core::store::{
-    CommentQuery, MenuRow, PostFilter, PublishedQuery, SearchQuery, SearchRef, Store, WriteTx,
+    CommentQuery, MenuRow, PopularQuery, PostFilter, PublishedQuery, SearchQuery, SearchRef, Store,
+    WriteTx,
 };
 use maru_core::{Code, Error, Result, clock, slug, urls};
 use serde_json::Value;
@@ -324,6 +325,51 @@ async fn menu_rows<'e>(e: impl SqliteExecutor<'e>, location: &str) -> Result<Vec
             })
         })
         .collect()
+}
+
+struct WidgetRow {
+    id: String,
+    kind: String,
+    region: String,
+    scope: String,
+    title: String,
+    config: String,
+    sort_order: i64,
+    enabled: i64,
+    created_at: String,
+    updated_at: String,
+}
+
+impl TryFrom<WidgetRow> for Widget {
+    type Error = Error;
+    fn try_from(r: WidgetRow) -> Result<Self> {
+        Ok(Widget {
+            config: serde_json::from_str(&r.config).map_err(Error::internal)?,
+            id: r.id,
+            kind: r.kind,
+            region: r.region,
+            scope: r.scope,
+            title: r.title,
+            sort_order: r.sort_order,
+            enabled: r.enabled != 0,
+            created_at: r.created_at,
+            updated_at: r.updated_at,
+        })
+    }
+}
+
+async fn widget_by_id<'e>(e: impl SqliteExecutor<'e>, id: &str) -> Result<Option<Widget>> {
+    sqlx::query_as!(
+        WidgetRow,
+        "SELECT id, kind, region, scope, title, config, sort_order, enabled, created_at, updated_at
+         FROM widgets WHERE id = ?",
+        id
+    )
+    .fetch_optional(e)
+    .await
+    .map_err(db_error)?
+    .map(Widget::try_from)
+    .transpose()
 }
 
 async fn settings<'e>(e: impl SqliteExecutor<'e>) -> Result<Vec<(String, Value)>> {
@@ -707,6 +753,61 @@ impl Store for SqliteStore {
 
     async fn menu_rows(&self, location: &str) -> Result<Vec<MenuRow>> {
         menu_rows(&self.db.read, location).await
+    }
+
+    async fn list_widgets(&self) -> Result<Vec<Widget>> {
+        let rows = sqlx::query_as!(
+            WidgetRow,
+            "SELECT id, kind, region, scope, title, config, sort_order, enabled, created_at, updated_at
+             FROM widgets ORDER BY region, sort_order, created_at, id"
+        )
+        .fetch_all(&self.db.read)
+        .await
+        .map_err(db_error)?;
+        convert(rows)
+    }
+
+    async fn widget_by_id(&self, id: &str) -> Result<Option<Widget>> {
+        widget_by_id(&self.db.read, id).await
+    }
+
+    async fn list_popular(&self, q: &PopularQuery) -> Result<Vec<Post>> {
+        let rows = sqlx::query_as!(
+            PostRow,
+            r#"SELECT p.id AS "id!", p.board_id AS "board_id!", p.kind AS "kind!",
+                      p.status AS "status!", p.title AS "title!", p.slug AS "slug!",
+                      p.body_md AS "body_md!", p.excerpt, p.author_id,
+                      p.actor_type AS "actor_type!", p.published_at,
+                      p.created_at AS "created_at!", p.updated_at AS "updated_at!",
+                      p.scheduled_at, p.cover,
+                      p.category_id, p.is_notice AS "is_notice!", p.is_secret AS "is_secret!",
+                      p.view_count AS "view_count!", p.guest_name, p.guest_pw_hash,
+                      p.parent_id, p.thread_id, p.thread_path AS "thread_path!", p.thread_owner,
+                      p.meta AS "meta!", p.last_activity_at, p.accepted_comment_id,
+                      p.is_locked AS "is_locked!",
+                      (SELECT json_group_array(t.name ORDER BY pt.position)
+                         FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
+                        WHERE pt.post_id = p.id) AS "tags!: String"
+               FROM posts p
+               JOIN boards b ON b.id = p.board_id
+               JOIN roles r ON r.name = json_extract(b.policy, '$.read')
+               WHERE p.status = 'published' AND p.kind = 'post' AND p.is_secret = 0
+                 AND r.rank <= ?1 AND (?2 IS NULL OR p.board_id = ?2)
+                 AND (?3 IS NULL OR p.published_at >= ?3)
+               ORDER BY p.view_count DESC,
+                        (SELECT count(*) FROM comments c
+                          WHERE c.post_id = p.id AND c.status = 'published') DESC,
+                        p.published_at DESC, p.id DESC
+               LIMIT ?4"#,
+            q.max_read_rank,
+            q.board_id,
+            q.since,
+            q.limit
+        )
+        .fetch_all(&self.db.read)
+        .await
+        .map_err(db_error)?;
+        convert(rows)
     }
 
     async fn settings(&self) -> Result<Vec<(String, Value)>> {
@@ -1687,6 +1788,62 @@ impl WriteTx for SqliteWriteTx {
 
     async fn menu_rows(&mut self, location: &str) -> Result<Vec<MenuRow>> {
         menu_rows(&mut *self.tx, location).await
+    }
+
+    async fn widget_by_id(&mut self, id: &str) -> Result<Option<Widget>> {
+        widget_by_id(&mut *self.tx, id).await
+    }
+
+    async fn insert_widget(&mut self, w: &Widget) -> Result<()> {
+        let config = json(&w.config)?;
+        sqlx::query!(
+            "INSERT INTO widgets (id, kind, region, scope, title, config, sort_order, enabled,
+                                  created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            w.id,
+            w.kind,
+            w.region,
+            w.scope,
+            w.title,
+            config,
+            w.sort_order,
+            w.enabled,
+            w.created_at,
+            w.updated_at
+        )
+        .execute(&mut *self.tx)
+        .await
+        .map_err(db_error)?;
+        Ok(())
+    }
+
+    async fn update_widget(&mut self, w: &Widget) -> Result<()> {
+        let config = json(&w.config)?;
+        sqlx::query!(
+            "UPDATE widgets SET region = ?, scope = ?, title = ?, config = ?, sort_order = ?,
+                                enabled = ?, updated_at = ?
+             WHERE id = ?",
+            w.region,
+            w.scope,
+            w.title,
+            config,
+            w.sort_order,
+            w.enabled,
+            w.updated_at,
+            w.id
+        )
+        .execute(&mut *self.tx)
+        .await
+        .map_err(db_error)?;
+        Ok(())
+    }
+
+    async fn delete_widget(&mut self, id: &str) -> Result<()> {
+        sqlx::query!("DELETE FROM widgets WHERE id = ?", id)
+            .execute(&mut *self.tx)
+            .await
+            .map_err(db_error)?;
+        Ok(())
     }
 
     async fn replace_menu(&mut self, location: &str, rows: &[MenuRow]) -> Result<()> {

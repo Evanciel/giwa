@@ -15,7 +15,7 @@ use crate::error::{Error, Result};
 use crate::model::{
     Attachment, Board, Category, Comment, CommentStatus, Font, FontFile, LoginTicket, MailOut,
     MailStatus, Media, Member, MenuLink, Page, PageStatus, Post, PostStatus, PostTemplate,
-    Revision, Role, Session, Tag, TicketPurpose, Token,
+    Revision, Role, Session, Tag, TicketPurpose, Token, Widget,
 };
 
 /// 댓글 관리 목록 조건. 비어 있는 조건은 거르지 않는다.
@@ -35,6 +35,17 @@ pub struct Ctx {
     pub blobs: Arc<dyn Blobs>,
     /// 절대 URL 의 기준 (`config.toml`). 끝에 `/` 가 없다.
     pub site_url: String,
+}
+
+/// 인기글 조건 (ADR-0059). 비밀글은 언제나 뺀다.
+#[derive(Debug, Clone)]
+pub struct PopularQuery {
+    pub board_id: Option<String>,
+    /// 이 서열 이하의 `read` 정책을 가진 게시판만 포함한다.
+    pub max_read_rank: i64,
+    /// 이 시각 뒤에 발행된 글만. `None` 이면 전체 기간
+    pub since: Option<String>,
+    pub limit: i64,
 }
 
 /// 공개 글 목록 조건. 공개 범위 SQL 은 저장소 구현 한 곳에만 있다.
@@ -134,6 +145,11 @@ pub trait Store: Send + Sync {
     async fn page_by_id(&self, id: &str) -> Result<Option<Page>>;
     async fn list_pages(&self, status: Option<PageStatus>) -> Result<Vec<Page>>;
     async fn menu_rows(&self, location: &str) -> Result<Vec<MenuRow>>;
+    /// 모든 위젯. 영역 → 순서 → 만든 순.
+    async fn list_widgets(&self) -> Result<Vec<Widget>>;
+    async fn widget_by_id(&self, id: &str) -> Result<Option<Widget>>;
+    /// 조회수 → 공개 댓글 수 → 최신 순.
+    async fn list_popular(&self, q: &PopularQuery) -> Result<Vec<Post>>;
     async fn settings(&self) -> Result<Vec<(String, Value)>>;
 
     async fn member_by_id(&self, id: &str) -> Result<Option<Member>>;
@@ -282,6 +298,11 @@ pub trait WriteTx: Send {
     async fn menu_rows(&mut self, location: &str) -> Result<Vec<MenuRow>>;
     /// 위치의 메뉴를 통째로 바꾼다.
     async fn replace_menu(&mut self, location: &str, rows: &[MenuRow]) -> Result<()>;
+
+    async fn widget_by_id(&mut self, id: &str) -> Result<Option<Widget>>;
+    async fn insert_widget(&mut self, w: &Widget) -> Result<()>;
+    async fn update_widget(&mut self, w: &Widget) -> Result<()>;
+    async fn delete_widget(&mut self, id: &str) -> Result<()>;
 
     async fn settings(&mut self) -> Result<Vec<(String, Value)>>;
     async fn put_setting(&mut self, key: &str, value: &Value, at: &str) -> Result<()>;

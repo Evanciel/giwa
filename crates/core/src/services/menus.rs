@@ -102,19 +102,24 @@ fn check_link(link: MenuLink) -> Result<MenuLink> {
         MenuLink::Page { slug } => MenuLink::Page {
             slug: slug::normalize(&slug)?,
         },
-        MenuLink::Url { href } => {
-            let h = href.trim();
-            let ok = h.starts_with("https://")
-                || h.starts_with("http://")
-                || (h.starts_with('/') && !h.starts_with("//") && !h.starts_with("/\\"));
-            if !ok || h.chars().any(|c| c.is_whitespace() || c.is_control()) {
-                return Err(Error::new(Code::Validation)
-                    .with_message("error.menu_url")
-                    .arg("value", href));
-            }
-            MenuLink::Url { href: h.to_owned() }
-        }
+        MenuLink::Url { href } => MenuLink::Url {
+            href: check_href(&href)?,
+        },
     })
+}
+
+/// 링크 주소: `https://`, `http://` 또는 사이트 안 경로(`/…`). 위젯 링크도 같은 규칙 (ADR-0059).
+pub(crate) fn check_href(href: &str) -> Result<String> {
+    let h = href.trim();
+    let ok = h.starts_with("https://")
+        || h.starts_with("http://")
+        || (h.starts_with('/') && !h.starts_with("//") && !h.starts_with("/\\"));
+    if !ok || h.chars().any(|c| c.is_whitespace() || c.is_control()) {
+        return Err(Error::new(Code::Validation)
+            .with_message("error.menu_url")
+            .arg("value", href));
+    }
+    Ok(h.to_owned())
 }
 
 fn flatten(items: &[MenuItem], parent: Option<&str>, now: &str, out: &mut Vec<MenuRow>) {

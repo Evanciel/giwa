@@ -179,6 +179,14 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "error.menu_location" => "메뉴 위치 `{value}` 는 지원하지 않습니다. 가능한 값: {allowed}",
         "error.menu_depth" => "메뉴는 {max}단까지만 만들 수 있습니다.",
         "error.menu_too_many" => "메뉴 항목은 {max}개까지입니다.",
+        "error.widget_kind" => "알 수 없는 위젯 종류입니다: {value} (가능: {allowed})",
+        "error.widget_region" => "알 수 없는 영역입니다: {value} (가능: {allowed})",
+        "error.widget_scope" => {
+            "위젯 범위는 all, home, boards, board:<주소>, page:<주소> 중 하나입니다: {value}"
+        }
+        "error.widget_config" => "`{kind}` 위젯 설정이 올바르지 않습니다: {reason}",
+        "error.widget_not_found" => "위젯을 찾을 수 없습니다: {id}",
+        "error.widget_too_many" => "위젯은 {max}개까지 놓을 수 있습니다.",
         "error.menu_url" => "메뉴 주소는 https://, http:// 또는 / 로 시작해야 합니다: {value}",
         "error.menu_item" => "메뉴 항목 형식이 올바르지 않습니다: {value}",
         "error.token_value" => "디자인 토큰 `{field}` 값이 올바르지 않습니다: {value}",

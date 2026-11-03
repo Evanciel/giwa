@@ -14,7 +14,7 @@ use maru_core::services::posts::{self, NewPost};
 use maru_core::services::tokens::{self, NewToken};
 use maru_core::services::{
     anonymous_actor, auth, categories, comments, design, files, fonts, mail, media, members, menus,
-    pages, presets, search, settings, tags, templates, views,
+    pages, presets, search, settings, tags, templates, views, widgets,
 };
 use maru_core::urls::{self, Target};
 use maru_core::{Actor, Code, Ctx, Error, Result};
@@ -26,7 +26,7 @@ use crate::{
     BoardCmd, CategoryCmd, Command, CommentCmd, DesignCmd, FileCmd, FontCmd, Global, InitArgs,
     LoginLinkArgs, MailCmd, MediaCmd, MemberCmd, MenuCmd, MenuSetArgs, PageCmd, PostCmd,
     PostListArgs, PostNewArgs, SearchArgs, SearchCmd, ServeArgs, SiteCmd, TagCmd, TemplateCmd,
-    TokenCmd, TokenCreateArgs,
+    TokenCmd, TokenCreateArgs, WidgetCmd,
 };
 
 pub async fn run(g: &Global, command: Command) -> ExitCode {
@@ -44,6 +44,7 @@ pub async fn run(g: &Global, command: Command) -> ExitCode {
         Command::Tag(cmd) => tag_cmd(g, cmd).await,
         Command::Page(cmd) => page(g, cmd).await,
         Command::Menu(cmd) => menu(g, cmd).await,
+        Command::Widget(cmd) => widget_cmd(g, cmd).await,
         Command::Site(cmd) => site(g, cmd).await,
         Command::Design(cmd) => design_cmd(g, cmd).await,
         Command::Font(cmd) => font_cmd(g, cmd).await,
@@ -1258,6 +1259,122 @@ fn menu_human(location: &str, items: &[MenuItem]) -> String {
         }
     }
     s
+}
+
+// ---- widget ----
+
+async fn widget_cmd(g: &Global, cmd: WidgetCmd) -> Out {
+    // 종류 목록은 데이터 디렉터리 없이도 본다.
+    if let WidgetCmd::Types = cmd {
+        return widget_types();
+    }
+    let (ctx, _config, db) = open(g).await?;
+    let res = widget_run(&ctx, cmd).await;
+    db.close().await;
+    res
+}
+
+async fn widget_run(ctx: &Ctx, cmd: WidgetCmd) -> Out {
+    let actor = actor(ctx).await?;
+    match cmd {
+        WidgetCmd::Types => widget_types(),
+        WidgetCmd::List => {
+            let list = widgets::list(ctx, &actor).await?;
+            let human = if list.is_empty() {
+                "놓인 위젯이 없습니다.".to_owned()
+            } else {
+                list.iter().map(widget_line).collect::<Vec<_>>().join("\n")
+            };
+            Ok((to_value(&list)?, human))
+        }
+        WidgetCmd::Place(a) => {
+            let config = widget_config(a.config.as_deref(), a.config_file.as_deref())?;
+            let w = widgets::place(
+                ctx,
+                &actor,
+                widgets::NewWidget {
+                    kind: a.kind,
+                    region: a.region,
+                    scope: a.scope,
+                    title: a.title,
+                    config: config.unwrap_or(Value::Null),
+                    position: a.position,
+                    enabled: !a.disabled,
+                },
+            )
+            .await?;
+            let human = format!("위젯을 놓았습니다.\n{}", widget_line(&w));
+            Ok((to_value(&w)?, human))
+        }
+        WidgetCmd::Configure(a) => {
+            let config = widget_config(a.config.as_deref(), a.config_file.as_deref())?;
+            let enabled = match (a.enable, a.disable) {
+                (true, _) => Some(true),
+                (_, true) => Some(false),
+                _ => None,
+            };
+            let w = widgets::configure(
+                ctx,
+                &actor,
+                &a.id,
+                widgets::WidgetPatch {
+                    region: a.region,
+                    scope: a.scope,
+                    title: a.title,
+                    config,
+                    position: a.position,
+                    enabled,
+                },
+            )
+            .await?;
+            let human = format!("위젯을 고쳤습니다.\n{}", widget_line(&w));
+            Ok((to_value(&w)?, human))
+        }
+        WidgetCmd::Remove { id } => {
+            let w = widgets::remove(ctx, &actor, &id).await?;
+            let human = format!("위젯을 뺐습니다: {}", widget_line(&w));
+            Ok((to_value(&w)?, human))
+        }
+    }
+}
+
+fn widget_types() -> Out {
+    let types = widgets::types();
+    let human = types
+        .iter()
+        .map(|t| format!("{} — {}: {}", t.id, t.name, t.description))
+        .collect::<Vec<_>>()
+        .join("\n");
+    Ok((to_value(&types)?, human))
+}
+
+fn widget_config(inline: Option<&str>, file: Option<&Path>) -> Result<Option<Value>> {
+    let text = match (inline, file) {
+        (Some(t), _) => t.to_owned(),
+        (None, Some(p)) => read_body(p)?,
+        (None, None) => return Ok(None),
+    };
+    serde_json::from_str(&text).map(Some).map_err(|e| {
+        Error::new(Code::Validation)
+            .with_message("error.json_body")
+            .arg("detail", e.to_string())
+    })
+}
+
+fn widget_line(w: &maru_core::model::Widget) -> String {
+    format!(
+        "{} {} [{}·{}]{}{}",
+        w.id,
+        widgets::kind_name(&w.kind),
+        w.region,
+        w.scope,
+        if w.title.is_empty() {
+            String::new()
+        } else {
+            format!(" 「{}」", w.title)
+        },
+        if w.enabled { "" } else { " (꺼짐)" }
+    )
 }
 
 // ---- site ----

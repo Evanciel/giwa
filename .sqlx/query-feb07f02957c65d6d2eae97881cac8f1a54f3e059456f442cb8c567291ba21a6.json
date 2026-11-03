@@ -1,0 +1,369 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT p.id AS \"id!\", p.board_id AS \"board_id!\", p.kind AS \"kind!\",\n                      p.status AS \"status!\", p.title AS \"title!\", p.slug AS \"slug!\",\n                      p.body_md AS \"body_md!\", p.excerpt, p.author_id,\n                      p.actor_type AS \"actor_type!\", p.published_at,\n                      p.created_at AS \"created_at!\", p.updated_at AS \"updated_at!\",\n                      p.scheduled_at, p.cover,\n                      p.category_id, p.is_notice AS \"is_notice!\", p.is_secret AS \"is_secret!\",\n                      p.view_count AS \"view_count!\", p.guest_name, p.guest_pw_hash,\n                      p.parent_id, p.thread_id, p.thread_path AS \"thread_path!\", p.thread_owner,\n                      p.meta AS \"meta!\", p.last_activity_at, p.accepted_comment_id,\n                      p.is_locked AS \"is_locked!\",\n                      (SELECT json_group_array(t.name ORDER BY pt.position)\n                         FROM post_tags pt JOIN tags t ON t.id = pt.tag_id\n                        WHERE pt.post_id = p.id) AS \"tags!: String\"\n               FROM posts p\n               JOIN boards b ON b.id = p.board_id\n               JOIN roles r ON r.name = json_extract(b.policy, '$.read')\n               WHERE p.status = 'published' AND p.kind = 'post' AND p.is_secret = 0\n                 AND r.rank <= ?1 AND (?2 IS NULL OR p.board_id = ?2)\n                 AND (?3 IS NULL OR p.published_at >= ?3)\n               ORDER BY p.view_count DESC,\n                        (SELECT count(*) FROM comments c\n                          WHERE c.post_id = p.id AND c.status = 'published') DESC,\n                        p.published_at DESC, p.id DESC\n               LIMIT ?4",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "board_id!",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "board_id"
+          }
+        }
+      },
+      {
+        "name": "kind!",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "name": "status!",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "name": "title!",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "name": "slug!",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "slug"
+          }
+        }
+      },
+      {
+        "name": "body_md!",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "body_md"
+          }
+        }
+      },
+      {
+        "name": "excerpt",
+        "ordinal": 7,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "excerpt"
+          }
+        }
+      },
+      {
+        "name": "author_id",
+        "ordinal": 8,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "author_id"
+          }
+        }
+      },
+      {
+        "name": "actor_type!",
+        "ordinal": 9,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "actor_type"
+          }
+        }
+      },
+      {
+        "name": "published_at",
+        "ordinal": 10,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "published_at"
+          }
+        }
+      },
+      {
+        "name": "created_at!",
+        "ordinal": 11,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "name": "updated_at!",
+        "ordinal": 12,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "updated_at"
+          }
+        }
+      },
+      {
+        "name": "scheduled_at",
+        "ordinal": 13,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "scheduled_at"
+          }
+        }
+      },
+      {
+        "name": "cover",
+        "ordinal": 14,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "cover"
+          }
+        }
+      },
+      {
+        "name": "category_id",
+        "ordinal": 15,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "category_id"
+          }
+        }
+      },
+      {
+        "name": "is_notice!",
+        "ordinal": 16,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "is_notice"
+          }
+        }
+      },
+      {
+        "name": "is_secret!",
+        "ordinal": 17,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "is_secret"
+          }
+        }
+      },
+      {
+        "name": "view_count!",
+        "ordinal": 18,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "view_count"
+          }
+        }
+      },
+      {
+        "name": "guest_name",
+        "ordinal": 19,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "guest_name"
+          }
+        }
+      },
+      {
+        "name": "guest_pw_hash",
+        "ordinal": 20,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "guest_pw_hash"
+          }
+        }
+      },
+      {
+        "name": "parent_id",
+        "ordinal": 21,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "parent_id"
+          }
+        }
+      },
+      {
+        "name": "thread_id",
+        "ordinal": 22,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "thread_id"
+          }
+        }
+      },
+      {
+        "name": "thread_path!",
+        "ordinal": 23,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "thread_path"
+          }
+        }
+      },
+      {
+        "name": "thread_owner",
+        "ordinal": 24,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "thread_owner"
+          }
+        }
+      },
+      {
+        "name": "meta!",
+        "ordinal": 25,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "meta"
+          }
+        }
+      },
+      {
+        "name": "last_activity_at",
+        "ordinal": 26,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "last_activity_at"
+          }
+        }
+      },
+      {
+        "name": "accepted_comment_id",
+        "ordinal": 27,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "accepted_comment_id"
+          }
+        }
+      },
+      {
+        "name": "is_locked!",
+        "ordinal": 28,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "is_locked"
+          }
+        }
+      },
+      {
+        "name": "tags!: String",
+        "ordinal": 29,
+        "type_info": "Null",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      false,
+      true,
+      true,
+      false,
+      null
+    ]
+  },
+  "hash": "feb07f02957c65d6d2eae97881cac8f1a54f3e059456f442cb8c567291ba21a6"
+}

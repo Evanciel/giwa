@@ -1,0 +1,7 @@
+{% if w.data.posts %}
+<ul class="widget-gallery" style="--cols: {{ w.data.columns }}">
+  {% for post in w.data.posts %}
+  <li><a href="{{ post.url }}">{% if post.thumb %}<img src="{{ post.thumb.src }}" alt="" width="{{ post.thumb.width }}" height="{{ post.thumb.height }}" loading="lazy" decoding="async">{% else %}<span class="tile-fallback" aria-hidden="true">{{ post.initial }}</span>{% endif %}<span class="caption">{{ post.title }}</span></a></li>
+  {% endfor %}
+</ul>
+{% else %}<p class="widget-empty">아직 사진이 없습니다.</p>{% endif %}

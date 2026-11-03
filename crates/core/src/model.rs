@@ -585,6 +585,25 @@ pub struct MenuItem {
     pub children: Vec<MenuItem>,
 }
 
+/// 위젯을 놓는 영역 (SPEC §8.3, ADR-0059). 테마가 그리지 않는 영역의 위젯은 빠진다.
+pub const WIDGET_REGIONS: [&str; 5] = ["header", "hero", "main", "sidebar", "footer"];
+
+/// 영역에 놓인 위젯 하나. `config` 는 종류마다 정해진 모양으로 core 가 검사·정규화한 값이다.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct Widget {
+    pub id: Id,
+    pub kind: String,
+    pub region: String,
+    /// `all`, `home`, `boards`, `board:<주소>`, `page:<주소>`
+    pub scope: String,
+    pub title: String,
+    pub config: serde_json::Value,
+    pub sort_order: i64,
+    pub enabled: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
 /// 사이트 설정 (`site_settings`). 키 하나에 값 하나.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct SiteSettings {

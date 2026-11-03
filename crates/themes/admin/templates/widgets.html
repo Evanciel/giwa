@@ -1,0 +1,57 @@
+{% extends "_base.html" %}
+{% block title %}위젯{% endblock %}
+{% block content %}
+<div class="heading-row">
+  <h1>위젯 <span class="count">{{ total }}</span></h1>
+</div>
+<p class="hint">최신 글·인기 글·글 상자 같은 조각을 화면의 영역에 놓습니다. 범위로 어느 화면에 붙일지 고릅니다: <code>all</code>(모든 공개 화면), <code>home</code>(첫 화면), <code>boards</code>(게시판·글 화면), <code>board:주소</code>, <code>page:주소</code>. 자세한 설정은 <code>maru widget types --json</code> 으로 봅니다.</p>
+
+{% for r in regions %}
+<section class="widget-region" aria-labelledby="region-{{ r.id }}">
+  <h2 id="region-{{ r.id }}">{{ r.label }} <code>{{ r.id }}</code></h2>
+  {% if r.items %}
+  <ol class="widget-rows">
+  {% for w in r.items %}
+    <li class="widget-row{% if not w.enabled %} is-off{% endif %}">
+      <p class="widget-row-head"><strong>{{ w.kind_name }}</strong>{% if w.title %} 「{{ w.title }}」{% endif %} <span class="badge">{{ w.scope }}</span>{% if not w.enabled %} <span class="badge">꺼짐</span>{% endif %}</p>
+      <p class="widget-row-config"><code>{{ w.config }}</code></p>
+      {% set first = loop.first %}{% set last = loop.last %}
+      <div class="actions">
+        {% for a in [["up", "위로"], ["down", "아래로"], ["disable" if w.enabled else "enable", "끄기" if w.enabled else "켜기"], ["remove", "빼기"]] %}
+        {% if not (a[0] == "up" and first) and not (a[0] == "down" and last) %}
+        <form method="post" action="/admin/widgets/{{ w.id }}/{{ a[0] }}" class="inline">
+          <input type="hidden" name="_csrf" value="{{ csrf }}">
+          <button type="submit" class="{% if a[0] == 'remove' %}warn{% else %}secondary{% endif %}" aria-label="{{ w.title or w.kind_name }} {{ a[1] }}">{{ a[1] }}</button>
+        </form>
+        {% endif %}
+        {% endfor %}
+      </div>
+    </li>
+  {% endfor %}
+  </ol>
+  {% else %}<p class="empty">놓인 위젯이 없습니다.</p>{% endif %}
+</section>
+{% endfor %}
+
+<section class="widget-place" aria-labelledby="widget-place-title">
+  <h2 id="widget-place-title">위젯 놓기</h2>
+  <form method="post" action="/admin/widgets" class="stack">
+    <input type="hidden" name="_csrf" value="{{ csrf }}">
+    <label for="w-kind">종류</label>
+    <select id="w-kind" name="kind" required>
+      {% for t in types %}<option value="{{ t.id }}"{% if form.kind == t.id %} selected{% endif %}>{{ t.name }} — {{ t.description }}</option>{% endfor %}
+    </select>
+    <label for="w-region">영역</label>
+    <select id="w-region" name="region" required>
+      {% for r in region_choices %}<option value="{{ r.id }}"{% if form.region == r.id or (not form.region and r.id == "sidebar") %} selected{% endif %}>{{ r.label }} ({{ r.id }})</option>{% endfor %}
+    </select>
+    <label for="w-scope">범위</label>
+    <input id="w-scope" name="scope" value="{{ form.scope or 'all' }}" maxlength="80" autocomplete="off">
+    <label for="w-title">제목 <span class="hint">비우면 제목 없이</span></label>
+    <input id="w-title" name="title" value="{{ form.title }}" maxlength="60" autocomplete="off">
+    <label for="w-config">설정 JSON <span class="hint">비우면 기본값. 예: <code>{"board":"notice","limit":5}</code></span></label>
+    <textarea id="w-config" name="config" rows="4" spellcheck="false">{{ form.config }}</textarea>
+    <button type="submit">놓기</button>
+  </form>
+</section>
+{% endblock %}

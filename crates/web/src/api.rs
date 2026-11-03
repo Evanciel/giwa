@@ -13,7 +13,7 @@ use maru_core::model::{MenuItem, PageReq, PageStatus, PostStatus};
 use maru_core::output::Success;
 use maru_core::services::{
     anonymous_actor, boards, categories, comments, design, files, fonts, media, members, menus,
-    pages, posts, search, settings, tags, templates, tokens, views,
+    pages, posts, search, settings, tags, templates, tokens, views, widgets,
 };
 use maru_core::{Actor, Code, Error};
 use serde::Deserialize;
@@ -57,6 +57,14 @@ pub fn routes() -> Router<AppState> {
         .route("/pages/{slug}", get(get_page).patch(update_page))
         .route("/pages/{slug}/{action}", post(page_action))
         .route("/menus/{location}", get(get_menu).put(put_menu))
+        .route("/widget-types", get(widget_types))
+        .route("/widgets", get(list_widgets).post(place_widget))
+        .route(
+            "/widgets/{id}",
+            get(get_widget)
+                .patch(configure_widget)
+                .delete(remove_widget),
+        )
         .route("/settings", get(get_settings).patch(update_settings))
         .route("/design/tokens", get(get_tokens).patch(update_tokens))
         .route("/fonts", get(list_fonts).post(add_font))
@@ -492,6 +500,65 @@ async fn put_menu(
     Ok(ok(
         StatusCode::OK,
         menus::set(&state.ctx, &actor, &location, items).await?,
+    ))
+}
+
+/// 위젯 종류와 설정 모양 (ADR-0059). 정적인 설명이라 권한이 필요 없다.
+async fn widget_types() -> Result<Response, ApiError> {
+    Ok(ok(StatusCode::OK, widgets::types()))
+}
+
+async fn list_widgets(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+) -> Result<Response, ApiError> {
+    Ok(ok(StatusCode::OK, widgets::list(&state.ctx, &actor).await?))
+}
+
+async fn get_widget(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(id): Path<String>,
+) -> Result<Response, ApiError> {
+    Ok(ok(
+        StatusCode::OK,
+        widgets::get(&state.ctx, &actor, &id).await?,
+    ))
+}
+
+async fn place_widget(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    body: Result<Json<widgets::NewWidget>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let Json(input) = body.map_err(bad_json)?;
+    Ok(ok(
+        StatusCode::CREATED,
+        widgets::place(&state.ctx, &actor, input).await?,
+    ))
+}
+
+async fn configure_widget(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(id): Path<String>,
+    body: Result<Json<widgets::WidgetPatch>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let Json(patch) = body.map_err(bad_json)?;
+    Ok(ok(
+        StatusCode::OK,
+        widgets::configure(&state.ctx, &actor, &id, patch).await?,
+    ))
+}
+
+async fn remove_widget(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(id): Path<String>,
+) -> Result<Response, ApiError> {
+    Ok(ok(
+        StatusCode::OK,
+        widgets::remove(&state.ctx, &actor, &id).await?,
     ))
 }
 

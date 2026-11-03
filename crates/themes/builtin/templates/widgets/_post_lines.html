@@ -1,0 +1,12 @@
+{# 제목 줄 목록 (최신 글·인기 글). numbered 면 순위 번호. 좁은 곁가지에서도 한 줄: 제목이 말줄임으로 줄어든다. #}
+{% if w.data.posts %}
+<ol class="widget-lines{% if numbered %} numbered{% endif %}">
+  {% for post in w.data.posts %}
+  <li>
+    {% if numbered %}<span class="rank" aria-hidden="true">{{ loop.index }}</span>{% endif %}
+    <span class="subject"><a class="title" href="{{ post.url }}">{{ post.title }}</a>{% if post.comments %} <span class="comment-count" aria-label="댓글 {{ post.comments }}개">[{{ post.comments }}]</span>{% endif %}{% if post.is_new %} <span class="new-mark"><span aria-hidden="true">N</span><span class="visually-hidden">새 글</span></span>{% endif %}</span>
+    {% if show_date %}<time class="date" datetime="{{ post.published_at }}">{{ post.date }}</time>{% endif %}
+  </li>
+  {% endfor %}
+</ol>
+{% else %}<p class="widget-empty">아직 글이 없습니다.</p>{% endif %}

@@ -1,0 +1,214 @@
+//! 위젯 화면 값 (ADR-0059). core 가 돌려준 배치를 종류마다 템플릿 값으로 바꾼다.
+//!
+//! 공개 화면은 손님 기준이다. 위젯 하나가 실패하거나(게시판이 사라짐 등) 손님이 못 읽는
+//! 게시판을 가리키면 그 위젯만 빠지고 화면은 그대로 뜬다.
+
+use maru_core::model::{PageReq, SiteSettings, Widget};
+use maru_core::services::posts::PublicFilter;
+use maru_core::services::widgets::{
+    self, GalleryGridConfig, ImageBannerConfig, LatestPostsConfig, MarkdownBlockConfig, MenuConfig,
+    NoticeBarConfig, PopularPostsConfig, Screen, SearchConfig,
+};
+use maru_core::services::{anonymous_actor, boards, media, posts, settings};
+use maru_core::urls::{self, Target};
+use maru_core::{Actor, Result, markdown};
+use serde_json::{Map, Value, json};
+
+use crate::AppState;
+use crate::public::{menu_value, summaries_any_board};
+
+/// 화면에 붙일 위젯을 영역별로: `{ "sidebar": [..], "main": [..] }`. 없으면 빈 객체.
+pub(crate) async fn regions(state: &AppState, screen: Screen<'_>) -> Value {
+    let list = match widgets::for_screen(&state.ctx, screen).await {
+        Ok(l) => l,
+        Err(e) => {
+            tracing::warn!(error = ?e, "위젯 목록을 못 읽어 위젯 없이 그립니다");
+            return json!({});
+        }
+    };
+    if list.is_empty() {
+        return json!({});
+    }
+    let (actor, site) = match (
+        anonymous_actor(&state.ctx).await,
+        settings::site(&state.ctx).await,
+    ) {
+        (Ok(a), Ok(s)) => (a, s),
+        _ => return json!({}),
+    };
+    let mut out = Map::new();
+    for w in &list {
+        match view(state, &actor, &site, w).await {
+            Ok(Some(v)) => {
+                if let Some(arr) = out
+                    .entry(w.region.clone())
+                    .or_insert_with(|| json!([]))
+                    .as_array_mut()
+                {
+                    arr.push(v);
+                }
+            }
+            Ok(None) => {}
+            Err(e) => {
+                tracing::warn!(widget = %w.id, kind = %w.kind, error = ?e, "위젯을 빼고 그립니다")
+            }
+        }
+    }
+    Value::Object(out)
+}
+
+fn cfg<T: serde::de::DeserializeOwned>(w: &Widget) -> Result<T> {
+    serde_json::from_value(w.config.clone()).map_err(maru_core::Error::internal)
+}
+
+/// 위젯 하나의 템플릿 값. 그릴 것이 없으면 None.
+async fn view(
+    state: &AppState,
+    actor: &Actor,
+    site: &SiteSettings,
+    w: &Widget,
+) -> Result<Option<Value>> {
+    let ctx = &state.ctx;
+    let mut more_url = Value::Null;
+    let data = match w.kind.as_str() {
+        "latest_posts" => {
+            let c: LatestPostsConfig = cfg(w)?;
+            let Some(board) = readable(state, actor, &c.board).await? else {
+                return Ok(None);
+            };
+            if let Some(b) = &board {
+                more_url = json!(urls::path(&Target::Board { board: &b.slug }));
+            }
+            let filter = PublicFilter {
+                exclude_secret: true,
+                ..PublicFilter::default()
+            };
+            let list = posts::public_posts_where(
+                ctx,
+                actor,
+                board.as_ref(),
+                &filter,
+                PageReq::new(1, c.limit),
+            )
+            .await?;
+            let items = summaries_any_board(state, &list.items, site).await?;
+            json!({ "posts": items, "view": c.view, "show_date": c.show_date })
+        }
+        "popular_posts" => {
+            let c: PopularPostsConfig = cfg(w)?;
+            let Some(board) = readable(state, actor, &c.board).await? else {
+                return Ok(None);
+            };
+            let list = posts::public_popular(ctx, actor, board.as_ref(), c.days, c.limit).await?;
+            let items = summaries_any_board(state, &list, site).await?;
+            json!({ "posts": items, "days": c.days })
+        }
+        "markdown_block" => {
+            let c: MarkdownBlockConfig = cfg(w)?;
+            let images = media::images_in(ctx, &c.body).await?;
+            let html = markdown::render_with(&c.body, &|u| images.get(u).cloned());
+            json!({ "html": html.into_string() })
+        }
+        "menu" => {
+            let c: MenuConfig = cfg(w)?;
+            let items = menu_value(state, &c.location).await;
+            if items.as_array().is_none_or(Vec::is_empty) {
+                return Ok(None);
+            }
+            json!({ "items": items })
+        }
+        "notice_bar" => {
+            let c: NoticeBarConfig = cfg(w)?;
+            json!({ "text": c.text, "link": link_json(&c.link) })
+        }
+        "search" => {
+            let c: SearchConfig = cfg(w)?;
+            json!({
+                "action": urls::path(&Target::Search),
+                "placeholder": if c.placeholder.is_empty() { "검색" } else { c.placeholder.as_str() },
+            })
+        }
+        "image_banner" => {
+            let c: ImageBannerConfig = cfg(w)?;
+            let mut slides = Vec::new();
+            for s in &c.slides {
+                let Some(info) = media::image_info(ctx, &s.image).await? else {
+                    continue;
+                };
+                let srcset = info
+                    .variants
+                    .iter()
+                    .map(|(width, u)| format!("{u} {width}w"))
+                    .chain(std::iter::once(format!("{} {}w", s.image, info.width)))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                slides.push(json!({
+                    "src": s.image,
+                    "srcset": srcset,
+                    "width": info.width,
+                    "height": info.height,
+                    "alt": s.alt,
+                    "link": link_json(&s.link),
+                }));
+            }
+            if slides.is_empty() {
+                return Ok(None);
+            }
+            json!({ "slides": slides })
+        }
+        "gallery_grid" => {
+            let c: GalleryGridConfig = cfg(w)?;
+            let Some(Some(board)) = readable(state, actor, &c.board).await? else {
+                return Ok(None);
+            };
+            more_url = json!(urls::path(&Target::Board { board: &board.slug }));
+            let filter = PublicFilter {
+                exclude_secret: true,
+                ..PublicFilter::default()
+            };
+            let list = posts::public_posts_where(
+                ctx,
+                actor,
+                Some(&board),
+                &filter,
+                PageReq::new(1, c.limit),
+            )
+            .await?;
+            let items = summaries_any_board(state, &list.items, site).await?;
+            json!({ "posts": items, "columns": c.columns })
+        }
+        _ => return Ok(None),
+    };
+    Ok(Some(json!({
+        "id": w.id,
+        "kind": w.kind,
+        "region": w.region,
+        "title": w.title,
+        // 제목이 없을 때 영역 이름(aria-label)으로 쓴다
+        "label": if w.title.is_empty() { widgets::kind_name(&w.kind) } else { w.title.as_str() },
+        "more_url": more_url,
+        "data": data,
+    })))
+}
+
+/// 위젯이 가리키는 게시판. 빈 주소는 `Some(None)`(전체), 손님이 못 읽거나 없으면 `None`(위젯을 뺀다).
+async fn readable(
+    state: &AppState,
+    actor: &Actor,
+    slug: &str,
+) -> Result<Option<Option<maru_core::model::Board>>> {
+    if slug.is_empty() {
+        return Ok(Some(None));
+    }
+    Ok(boards::readable(&state.ctx, actor, slug)
+        .await
+        .ok()
+        .map(Some))
+}
+
+fn link_json(link: &str) -> Value {
+    if link.is_empty() {
+        return Value::Null;
+    }
+    json!({ "href": link, "external": !link.starts_with('/') })
+}

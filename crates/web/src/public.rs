@@ -14,6 +14,7 @@ use maru_core::model::{
 };
 use maru_core::search::Range;
 use maru_core::services::search::{self, SearchInput, Sort};
+use maru_core::services::widgets::Screen;
 use maru_core::services::{
     anonymous_actor, boards, comments, design, files, media, menus, pages, posts, settings, tags,
 };
@@ -73,7 +74,7 @@ pub async fn site_json(state: &AppState) -> Value {
     site_value(state, &s).await
 }
 
-async fn menu_value(state: &AppState, location: &str) -> Value {
+pub(crate) async fn menu_value(state: &AppState, location: &str) -> Value {
     menus::get(&state.ctx, location)
         .await
         .map(|items| menu_json(&items))
@@ -138,7 +139,22 @@ async fn load_site(state: &AppState) -> Result<Site> {
 
 pub(crate) async fn render(state: &AppState, name: &str, ctx: Result<Value>) -> Response {
     let rendered = match ctx {
-        Ok(v) => state.theme.render(name, &v),
+        Ok(mut v) => {
+            // 위젯 (ADR-0059): 화면 종류와 게시판·페이지 주소로 범위를 고른다.
+            let board = v["board"]["slug"].as_str().map(str::to_owned);
+            let page = v["page"]["slug"].as_str().map(str::to_owned);
+            let screen = match name {
+                "home.html" => Screen::Home,
+                "board.html" | "post.html" => board.as_deref().map_or(Screen::Other, Screen::Board),
+                "page.html" => page.as_deref().map_or(Screen::Other, Screen::Page),
+                _ => Screen::Other,
+            };
+            let regions = crate::widgets::regions(state, screen).await;
+            if let Some(o) = v.as_object_mut() {
+                o.insert("widgets".into(), regions);
+            }
+            state.theme.render(name, &v)
+        }
         Err(e) => Err(e),
     };
     match rendered {
@@ -168,7 +184,7 @@ async fn home_inner(state: &AppState, q: PageQuery) -> Result<Value> {
 }
 
 /// 여러 게시판에 걸친 목록(첫 화면·태그)의 항목. 글마다 게시판 주소를 찾아 붙인다.
-async fn summaries_any_board(
+pub(crate) async fn summaries_any_board(
     state: &AppState,
     list: &[Post],
     s: &SiteSettings,

@@ -39,10 +39,18 @@
     {% if site.show_account %}<a class="site-account" href="{{ site.account_url }}">내 계정</a>{% endif %}
   </div>
 </header>
+{# 위젯 영역 (ADR-0059): header·hero·main·sidebar·footer. 비어 있으면 아무것도 그리지 않는다. #}
+{% if widgets.header %}<div class="region region-header"><div class="wrap">{% for w in widgets.header %}{% include "_widget.html" %}{% endfor %}</div></div>{% endif %}
+{% if widgets.hero %}<div class="region region-hero"><div class="wrap">{% for w in widgets.hero %}{% include "_widget.html" %}{% endfor %}</div></div>{% endif %}
+<div class="{% if widgets.sidebar %}with-sidebar wrap wide{% else %}page-body{% endif %}">
 <main id="main" class="{% block main_class %}wrap{% endblock %}">
+{% if widgets.main %}<div class="region region-main">{% for w in widgets.main %}{% include "_widget.html" %}{% endfor %}</div>{% endif %}
 {% block main %}{% endblock %}
 </main>
+{% if widgets.sidebar %}<aside class="region region-sidebar" aria-label="곁가지">{% for w in widgets.sidebar %}{% include "_widget.html" %}{% endfor %}</aside>{% endif %}
+</div>
 <footer class="site-footer">
+  {% if widgets.footer %}<div class="region region-footer"><div class="wrap">{% for w in widgets.footer %}{% include "_widget.html" %}{% endfor %}</div></div>{% endif %}
   <div class="wrap">
     {% if site.menus and site.menus.footer %}<nav class="footer-nav" aria-label="하단 메뉴">{% with items = site.menus.footer %}{% include "_menu.html" %}{% endwith %}</nav>{% endif %}
     <p>{{ site.name }} · <a href="{{ site.rss_url }}">RSS</a></p>

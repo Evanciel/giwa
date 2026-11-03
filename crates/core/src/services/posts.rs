@@ -418,6 +418,27 @@ pub async fn public_posts(
     public_posts_where(ctx, actor, board, &PublicFilter::default(), page).await
 }
 
+/// 인기 글 (ADR-0059): 최근 `days` 일(0 이면 전체) 안에 발행된 공개 글을 조회수 → 댓글 수 → 최신 순.
+/// 비밀글은 뺀다.
+pub async fn public_popular(
+    ctx: &Ctx,
+    actor: &Actor,
+    board: Option<&Board>,
+    days: u32,
+    limit: u32,
+) -> Result<Vec<Post>> {
+    if !actor.has(Permission::PostRead) {
+        return Ok(vec![]);
+    }
+    let q = crate::store::PopularQuery {
+        board_id: board.map(|b| b.id.clone()),
+        max_read_rank: actor.rank(),
+        since: (days > 0).then(|| clock::hours_ago(i64::from(days) * 24)),
+        limit: i64::from(limit.clamp(1, 50)),
+    };
+    ctx.store.list_popular(&q).await
+}
+
 pub async fn public_posts_where(
     ctx: &Ctx,
     actor: &Actor,
@@ -1573,7 +1594,7 @@ pub fn cover_of(post: &Post) -> Option<String> {
 }
 
 /// 대표 이미지는 이 사이트에 올린 파일만. 빈 값은 없음(본문 첫 사진을 쓴다).
-fn check_cover(value: &str) -> Result<Option<String>> {
+pub(crate) fn check_cover(value: &str) -> Result<Option<String>> {
     let v = value.trim();
     if v.is_empty() {
         return Ok(None);
