@@ -70,6 +70,12 @@ const rich: Record<string, string> = {
   check("사진 크기 다시 쓰기", r.ok && serialize(r.doc) === "![바다](/media/a.jpg#w50 \"동해\")", r.ok ? serialize(r.doc) : "");
   const g = load(":::gallery\n![a](/a.png)\n:::");
   check("갤러리 상자", g.ok && g.doc.firstChild?.type.name === "box" && g.doc.firstChild.attrs.kind === "gallery");
+  // 접기: 새 노드 없이 상자 하나. 첫 문단(요약)이 첫 자식으로 남아야 서버와 같은 뜻이 된다.
+  const faq = ":::details\n환불은 **언제** 되나요?\n\n결제 후 7일 안에 됩니다.\n:::";
+  const d = load(faq);
+  check("접기 상자", d.ok && d.doc.firstChild?.type.name === "box" && d.doc.firstChild.attrs.kind === "details");
+  check("접기 요약은 첫 문단", d.ok && d.doc.firstChild?.firstChild?.type.name === "paragraph" && d.doc.firstChild.firstChild.textContent === "환불은 언제 되나요?");
+  check("접기 다시 쓰기", d.ok && serialize(d.doc) === faq, d.ok ? serialize(d.doc) : "");
 }
 
 // 동영상·장소는 노드로, 주소 판별은 서버와 같은 규칙으로.

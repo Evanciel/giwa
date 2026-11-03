@@ -77,6 +77,37 @@ pub fn render(md: &str) -> SafeHtml {
 
 /// [`render`] 와 같고, 보관소 그림에는 `images` 가 돌려준 크기·축소본을 붙인다.
 pub fn render_with(md: &str, images: &dyn Fn(&str) -> Option<ImageInfo>) -> SafeHtml {
+    render_inner(md, images, false).0
+}
+
+/// 목차 한 줄. `id` 는 본문 제목의 `id` 와 같다.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct TocItem {
+    /// 2~4 (h2~h4)
+    pub level: u8,
+    pub id: String,
+    pub text: String,
+}
+
+/// 공개 글·페이지 화면용 렌더 결과.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Document {
+    pub html: SafeHtml,
+    pub toc: Vec<TocItem>,
+}
+
+/// [`render_with`] 에 더해 h2~h4 옆에 「이 절 주소」 링크를 달고 목차를 함께 돌려준다.
+/// 제목 `id` 는 모든 렌더에 붙고(RSS·미리보기에서도 같은 주소), 링크 표시는 공개 화면에만 붙는다.
+pub fn render_document(md: &str, images: &dyn Fn(&str) -> Option<ImageInfo>) -> Document {
+    let (html, toc) = render_inner(md, images, true);
+    Document { html, toc }
+}
+
+fn render_inner(
+    md: &str,
+    images: &dyn Fn(&str) -> Option<ImageInfo>,
+    anchors: bool,
+) -> (SafeHtml, Vec<TocItem>) {
     let md = &*directives::expand(md, options());
     let mut raw = String::with_capacity(md.len() * 3 / 2);
     // 각주는 직접 그린다. pulldown-cmark 기본 출력은 라벨을 그대로 id 로 쓰는데(`id="메모"`),
@@ -109,6 +140,7 @@ pub fn render_with(md: &str, images: &dyn Fn(&str) -> Option<ImageInfo>) -> Safe
         }
     });
     let events = images_to_html(events.collect(), images);
+    let (events, toc) = heading_ids(events, anchors);
     html::push_html(&mut raw, events.into_iter());
     // 표 열 정렬: pulldown-cmark 는 style 속성으로 쓰는데 정화 단계는 style 을 모두 지운다. 클래스로 바꾼다.
     for a in TABLE_ALIGNS {
@@ -139,6 +171,11 @@ pub fn render_with(md: &str, images: &dyn Fn(&str) -> Option<ImageInfo>) -> Safe
         .add_tag_attributes("input", ["type", "checked", "disabled"])
         .add_tag_attributes("sup", ["id"])
         .add_tag_attributes("div", ["id"])
+        .add_tag_attributes("h2", ["id"])
+        .add_tag_attributes("h3", ["id"])
+        .add_tag_attributes("h4", ["id"])
+        .add_tag_attributes("a", ["aria-label"])
+        .add_allowed_classes("a", ["heading-anchor"])
         .add_tag_attributes("img", ["srcset", "sizes", "loading", "decoding"])
         .add_allowed_classes("img", IMAGE_WIDTHS.map(width_class))
         .add_allowed_classes("figure", ["figure"])
@@ -146,10 +183,13 @@ pub fn render_with(md: &str, images: &dyn Fn(&str) -> Option<ImageInfo>) -> Safe
         .add_allowed_classes("sup", ["fnref"])
         .add_allowed_classes("div", ["footnote"])
         .add_allowed_classes("a", ["fnback"])
-        // id 는 각주 번호(`fn-3`, `fnref-3`)만 남긴다. 사용자가 쓴 다른 id 는 DOM 을 어지럽힐 수 있다.
-        .attribute_filter(|_, attr, value| {
+        // id 는 각주 번호(`fn-3`, `fnref-3`)와 제목 앵커(`h-…`)만 남긴다.
+        // 사용자가 쓴 다른 id 는 DOM 을 어지럽힐 수 있다.
+        .attribute_filter(|element, attr, value| {
             let ok = match attr {
+                "id" if element.starts_with('h') => is_heading_id(value),
                 "id" => is_note_id(value),
+                "aria-label" => value == ANCHOR_LABEL,
                 // 축소본 목록은 이 모듈이 보관소 주소로만 만든다. 사용자가 쓴 srcset 은 지운다.
                 "srcset" => is_media_srcset(value),
                 "sizes" => value == IMAGE_SIZES,
@@ -161,7 +201,119 @@ pub fn render_with(md: &str, images: &dyn Fn(&str) -> Option<ImageInfo>) -> Safe
         })
         .clean(&raw)
         .to_string();
-    SafeHtml(directives::embed_videos(&clean))
+    (SafeHtml(directives::embed_videos(&clean)), toc)
+}
+
+/// 「이 절 주소」 링크의 접근성 이름. 정화 단계는 이 값만 통과시킨다.
+const ANCHOR_LABEL: &str = "이 절 주소";
+/// 앵커 슬러그 최대 글자 수.
+const HEADING_ID_CHARS: usize = 60;
+
+/// h2~h4 에 `id="h-<슬러그>"` 를 달고 목차를 모은다. `anchors` 면 제목 끝에 자기 주소 링크를 넣는다.
+fn heading_ids(events: Vec<Event<'_>>, anchors: bool) -> (Vec<Event<'_>>, Vec<TocItem>) {
+    let mut out = Vec::with_capacity(events.len());
+    let mut toc = Vec::new();
+    let mut used: HashMap<String, usize> = HashMap::new();
+    let mut i = 0;
+    while i < events.len() {
+        let level = match &events[i] {
+            Event::Start(Tag::Heading { level, .. }) => *level as u8,
+            _ => 0,
+        };
+        if !(2..=4).contains(&level) {
+            out.push(events[i].clone());
+            i += 1;
+            continue;
+        }
+        let end = events[i..]
+            .iter()
+            .position(|e| matches!(e, Event::End(TagEnd::Heading(_))))
+            .map_or(events.len(), |p| i + p);
+        let mut text = String::new();
+        for e in &events[i + 1..end] {
+            if let Event::Text(t) | Event::Code(t) = e {
+                text.push_str(t);
+            }
+        }
+        let text = text.split_whitespace().collect::<Vec<_>>().join(" ");
+        let id = unique_id(&slug(&text, toc.len() + 1), &mut used);
+        if let Event::Start(Tag::Heading {
+            level,
+            classes,
+            attrs,
+            ..
+        }) = &events[i]
+        {
+            out.push(Event::Start(Tag::Heading {
+                level: *level,
+                id: Some(id.clone().into()),
+                classes: classes.clone(),
+                attrs: attrs.clone(),
+            }));
+        }
+        out.extend(events[i + 1..end].iter().cloned());
+        if anchors {
+            out.push(Event::InlineHtml(
+                format!(
+                    " <a class=\"heading-anchor\" href=\"#{id}\" aria-label=\"{ANCHOR_LABEL}\">#</a>"
+                )
+                .into(),
+            ));
+        }
+        if let Some(e) = events.get(end) {
+            out.push(e.clone());
+        }
+        toc.push(TocItem { level, id, text });
+        i = end + 1;
+    }
+    (out, toc)
+}
+
+/// 한글·영문·숫자만 남기고 나머지 구분은 `-` 하나로. 영문은 소문자. 비면 순번.
+fn slug(text: &str, n: usize) -> String {
+    let mut s = String::new();
+    for c in text.chars().flat_map(char::to_lowercase) {
+        if c.is_alphanumeric() {
+            s.push(c);
+        } else if !s.is_empty() && !s.ends_with('-') {
+            s.push('-');
+        }
+        if s.chars().count() >= HEADING_ID_CHARS {
+            break;
+        }
+    }
+    let s = s.trim_end_matches('-');
+    if s.is_empty() {
+        format!("h-{n}")
+    } else {
+        format!("h-{s}")
+    }
+}
+
+/// 같은 슬러그가 또 나오면 `-2`, `-3` 을 붙인다. 붙인 결과가 이미 쓰였으면 다음 번호로.
+fn unique_id(base: &str, used: &mut HashMap<String, usize>) -> String {
+    let count = used.entry(base.to_owned()).or_insert(0);
+    *count += 1;
+    if *count == 1 {
+        return base.to_owned();
+    }
+    let mut k = *count;
+    loop {
+        let candidate = format!("{base}-{k}");
+        if !used.contains_key(&candidate) {
+            used.insert(candidate.clone(), 1);
+            return candidate;
+        }
+        k += 1;
+    }
+}
+
+fn is_heading_id(v: &str) -> bool {
+    v.strip_prefix("h-").is_some_and(|rest| {
+        !rest.is_empty()
+            && rest.chars().count() <= HEADING_ID_CHARS + 4
+            && rest.chars().all(|c| c.is_alphanumeric() || c == '-')
+    })
 }
 
 fn width_class(w: u32) -> &'static str {
@@ -396,6 +548,51 @@ mod tests {
                 assert!(!s.contains(bad), "{v} -> {s}");
             }
         }
+    }
+
+    #[test]
+    fn headings_get_hangul_safe_unique_ids_and_toc() {
+        let md = "# 글 제목\n\n## 여행 준비물\n\n### 여권 & 비자\n\n## 여행 준비물\n\n## !!!\n\n#### `cargo` 쓰기\n\n##### 깊은 제목\n\n```\n## 코드 안\n```\n";
+        let doc = render_document(md, &|_| None);
+        let s = doc.html.as_str();
+        assert!(s.contains("<h1>글 제목</h1>"), "{s}");
+        assert!(s.contains("<h2 id=\"h-여행-준비물\">여행 준비물 <a class=\"heading-anchor\" href=\"#h-여행-준비물\""), "{s}");
+        assert!(s.contains("id=\"h-여권-비자\""), "{s}");
+        assert!(s.contains("id=\"h-여행-준비물-2\""), "{s}");
+        assert!(s.contains("id=\"h-4\""), "빈 슬러그는 순번: {s}");
+        assert!(s.contains("id=\"h-cargo-쓰기\""), "{s}");
+        assert!(s.contains("<h5>깊은 제목</h5>"), "{s}");
+        assert!(s.contains("aria-label=\"이 절 주소\""), "{s}");
+        let toc: Vec<(u8, &str, &str)> = doc
+            .toc
+            .iter()
+            .map(|t| (t.level, t.id.as_str(), t.text.as_str()))
+            .collect();
+        assert_eq!(
+            toc,
+            [
+                (2, "h-여행-준비물", "여행 준비물"),
+                (3, "h-여권-비자", "여권 & 비자"),
+                (2, "h-여행-준비물-2", "여행 준비물"),
+                (2, "h-4", "!!!"),
+                (4, "h-cargo-쓰기", "cargo 쓰기"),
+            ]
+        );
+        // RSS·미리보기용 렌더는 id 만 있고 링크 표시는 없다.
+        let plain = render(md).into_string();
+        assert!(plain.contains("id=\"h-여행-준비물\""), "{plain}");
+        assert!(!plain.contains("heading-anchor"), "{plain}");
+    }
+
+    #[test]
+    fn user_written_heading_ids_and_labels_are_filtered() {
+        let s = render(
+            "<h2 id=\"login\">a</h2>\n\n<h3 id=\"h-ok\">b</h3>\n\n<a href=\"#x\" aria-label=\"클릭\" class=\"heading-anchor\">c</a>",
+        )
+        .into_string();
+        assert!(!s.contains("id=\"login\""), "{s}");
+        assert!(s.contains("id=\"h-ok\""), "{s}");
+        assert!(!s.contains("aria-label"), "{s}");
     }
 
     #[test]

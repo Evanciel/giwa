@@ -962,14 +962,19 @@ async fn site(g: &Global, cmd: SiteCmd) -> Out {
                 posts_per_page: args.posts_per_page,
                 naver_verification: args.naver_verification,
                 google_verification: args.google_verification,
+                toc_min_headings: args.toc_min_headings,
             };
             settings::update(&ctx, &actor, patch).await
         }
     };
     db.close().await;
     let s = res?;
+    let toc = match s.toc_min_headings {
+        0 => "끔".to_owned(),
+        n => format!("제목 {n}개 이상"),
+    };
     let human = format!(
-        "이름 {}\n설명 {}\n언어 {}  시간대 UTC{:+}분  페이지당 글 {}",
+        "이름 {}\n설명 {}\n언어 {}  시간대 UTC{:+}분  페이지당 글 {}  목차 {toc}",
         s.name, s.description, s.lang, s.tz_offset_min, s.posts_per_page
     );
     Ok((to_value(&s)?, human))

@@ -81,8 +81,8 @@ export function maruSyntax(md: MarkdownIt) {
 
 // ---- 확장 문법 (ADR-0034). 서버 렌더러(crates/core/src/markdown.rs)와 같은 규칙이어야 한다 ----
 
-/** 블록 상자: 강조 상자 4종, 정렬 2종, 사진 격자. */
-export const BOX_KINDS = ["info", "tip", "warn", "danger", "center", "right", "gallery"] as const;
+/** 블록 상자: 강조 상자 4종, 정렬 2종, 사진 격자, 접기(첫 문단이 요약, ADR-0041). */
+export const BOX_KINDS = ["info", "tip", "warn", "danger", "center", "right", "gallery", "details"] as const;
 /** 글자 꾸밈: 이름 → 쓸 수 있는 값. 테마 팔레트 안의 이름만 받는다. */
 export const SPAN_VALUES: Record<string, readonly string[]> = {
   color: ["red", "orange", "green", "blue", "purple", "gray"],

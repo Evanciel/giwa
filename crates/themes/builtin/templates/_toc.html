@@ -1,0 +1,12 @@
+{# 목차. toc 는 서버가 사이트 설정 기준을 넘은 글에만 채운다. 자바스크립트 없이 <details> 로 접는다. #}
+{% if toc %}
+<nav class="toc" aria-labelledby="toc-title">
+  <details open>
+    <summary id="toc-title">목차</summary>
+    <ol>
+      {% for t in toc %}<li class="toc-l{{ t.level }}"><a href="#{{ t.id }}">{{ t.text }}</a></li>
+      {% endfor %}
+    </ol>
+  </details>
+</nav>
+{% endif %}

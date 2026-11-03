@@ -479,6 +479,9 @@ pub struct SiteSetArgs {
     /// 구글 서치 콘솔 소유 확인 meta 의 content 값
     #[arg(long)]
     pub google_verification: Option<String>,
+    /// h2~h4 제목이 이 개수 이상인 글·페이지에 목차를 보인다 (0 = 끔, 최대 20)
+    #[arg(long)]
+    pub toc_min_headings: Option<u32>,
 }
 
 #[derive(Debug, Subcommand)]

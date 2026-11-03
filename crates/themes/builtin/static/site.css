@@ -93,6 +93,21 @@ main { min-height: 50vh; }
 .crumb a { color: var(--muted); text-decoration: none; }
 .crumb a:hover { color: var(--primary); }
 
+/* 목차 (제목 수가 사이트 설정 기준 이상일 때만 나온다) */
+.toc { margin-bottom: calc(var(--space) * 5); padding: calc(var(--space) * 2) calc(var(--space) * 2.5); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); font-size: var(--fs-sm); }
+.toc summary { cursor: pointer; font-weight: 650; color: var(--fg); }
+.toc ol { list-style: none; margin: calc(var(--space) * 1.25) 0 0; padding: 0; display: grid; gap: calc(var(--space) * .5); }
+.toc .toc-l3 { padding-left: 1.1em; }
+.toc .toc-l4 { padding-left: 2.2em; font-size: .95em; }
+.toc a { color: var(--muted); text-decoration: none; }
+.toc a:hover { color: var(--primary); text-decoration: underline; }
+
+/* 제목 앵커: 고정 헤더에 가리지 않게 띄우고, 「이 절 주소」 링크는 가리키거나 포커스할 때만 보인다 */
+.prose :is(h2, h3, h4)[id] { scroll-margin-top: calc(var(--space) * 12); }
+.heading-anchor { margin-left: .25em; color: var(--muted); text-decoration: none; font-weight: 400; opacity: 0; transition: opacity var(--motion) ease-out; }
+.prose :is(h2, h3, h4):hover .heading-anchor, .heading-anchor:focus-visible { opacity: 1; }
+@media (hover: none) { .heading-anchor { opacity: .45; } }
+
 .prose > * + * { margin-top: 1.25em; }
 .prose > :first-child { margin-top: 0; }
 .prose p, .prose ul, .prose ol, .prose blockquote, .prose pre, .prose table, .prose figure { margin-bottom: 0; }
@@ -198,6 +213,20 @@ main { min-height: 50vh; }
 .callout-warn::before { content: "주의"; }
 .callout-danger { --c: #d0342c; }
 .callout-danger::before { content: "경고"; }
+/* 접기 (ADR-0041). FAQ 는 이 상자를 여러 개 이어 쓴다. 이어진 접기는 한 덩어리처럼 붙인다 */
+.fold { border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
+.prose .fold + .fold { margin-top: calc(var(--space) * -.125); border-top-left-radius: 0; border-top-right-radius: 0; }
+.prose .fold:has(+ .fold) { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+/* summary 를 flex 로 두면 안의 <strong> 등이 따로 떨어진 항목이 되어 간격이 벌어진다 — 표시는 절대 위치로 */
+.fold > summary { position: relative; display: block; padding: .8em 1.1em .8em 2.7em; cursor: pointer; font-weight: 650; list-style: none; }
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary::before { content: "+"; position: absolute; left: 1.1em; top: .8em; width: 1em; color: var(--primary); font-weight: 400; text-align: center; transition: transform var(--motion) ease-out; }
+.fold[open] > summary::before { transform: rotate(45deg); }
+.fold > summary:hover { color: var(--primary); }
+.fold > :not(summary) { margin: 0; padding: 0 1.1em 0 2.7em; }
+.fold > :not(summary) + * { margin-top: .9em; }
+.fold > :last-child:not(summary) { padding-bottom: 1em; }
+@media (prefers-reduced-motion: reduce) { .fold > summary::before { transition: none; } }
 /* 사진 크기·캡션·갤러리 (ADR-0035) */
 .prose img.img-w75 { width: 75%; }
 .prose img.img-w50 { width: 50%; }

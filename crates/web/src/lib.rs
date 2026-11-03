@@ -5,6 +5,7 @@
 mod admin;
 mod api;
 mod error;
+mod etag;
 mod feeds;
 mod public;
 mod ratelimit;

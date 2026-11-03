@@ -6,6 +6,7 @@
     <h1>{{ post.title }}</h1>
     <p class="meta"><time datetime="{{ post.published_at }}">{{ post.date }}</time></p>
   </header>
+  {% with toc = post.toc %}{% include "_toc.html" %}{% endwith %}
   {# body_html 은 서버가 ammonia 로 정화한 값만 들어온다. |safe 는 여기에만 쓴다. #}
   <div class="prose">{{ post.body_html | safe }}</div>
 </article>
