@@ -1,5 +1,6 @@
 /* Maru 글 에디터. admin.css 의 색 변수를 쓴다. */
 .me {
+  position: relative;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
@@ -159,6 +160,42 @@
   color: var(--muted);
   font-size: .875rem;
 }
+
+/* 파일을 끌고 들어왔을 때: 놓을 수 있는 영역, 들어갈 자리, 무엇이 되는지 */
+.me.me-dropping { border-color: var(--primary); }
+.me.me-dropping .me-rich, .me.me-dropping textarea.me-source {
+  outline: 2px dashed var(--primary);
+  outline-offset: -6px;
+  background: color-mix(in srgb, var(--primary) 6%, transparent);
+}
+.me-dropline {
+  position: absolute;
+  z-index: 1;
+  width: 3px;
+  margin-left: -1px;
+  border-radius: 2px;
+  background: var(--primary);
+  pointer-events: none;
+}
+.me-dropline.me-dropline-row { height: 3px; margin: 0; }
+.me-dropline[hidden] { display: none; }
+.me-droptip {
+  position: absolute;
+  left: 50%;
+  bottom: 3rem;
+  z-index: 3;
+  transform: translateX(-50%);
+  max-width: calc(100% - 2rem);
+  padding: .375rem .875rem;
+  border-radius: 999px;
+  background: var(--primary);
+  color: var(--primary-fg);
+  font-size: .875rem;
+  text-align: center;
+  box-shadow: 0 2px 8px rgb(0 0 0 / .15);
+  pointer-events: none;
+}
+.me:not(.me-dropping) .me-droptip { display: none; }
 
 .me-foot {
   display: flex;

@@ -136,7 +136,7 @@ export function attachLabel(a: Attached): string {
 // ---- 업로드 중 자리 표시 ----
 // 업로드하는 동안 문서가 바뀌어도 자리를 따라가도록 장식(decoration)으로 표시하고, 끝나면 그 자리에 그림을 넣는다.
 
-type Action = { add: { id: object; pos: number } } | { remove: { id: object } };
+type Action = { add: { id: object; pos: number; label?: string } } | { remove: { id: object } };
 
 export const placeholderKey = new PluginKey<DecorationSet>("maru-upload");
 
@@ -150,7 +150,7 @@ export const placeholderPlugin = new Plugin<DecorationSet>({
       if (action && "add" in action) {
         const el = document.createElement("span");
         el.className = "me-uploading";
-        el.textContent = "이미지 올리는 중…";
+        el.textContent = action.add.label ?? "이미지 올리는 중…";
         el.setAttribute("role", "status");
         const deco = Decoration.widget(action.add.pos, el, { id: action.add.id });
         set = set.add(tr.doc, [deco]);
@@ -167,7 +167,7 @@ export const placeholderPlugin = new Plugin<DecorationSet>({
   },
 });
 
-function findPlaceholder(state: EditorState, id: object): number | null {
+export function findPlaceholder(state: EditorState, id: object): number | null {
   const set = placeholderKey.getState(state);
   const found = set?.find(undefined, undefined, (spec) => spec.id === id);
   return found && found.length ? found[0].from : null;

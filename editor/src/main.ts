@@ -56,8 +56,10 @@ import {
   ATTACH_EXTENSIONS,
   attachFile,
   attachLabel,
+  findPlaceholder,
   imageFiles,
   insertUploads,
+  placeholderKey,
   placeholderPlugin,
   sortFiles,
   uploadFile,
@@ -179,6 +181,7 @@ class Editor {
   private pm: HTMLElement;
   private preview: HTMLElement;
   private notice: HTMLElement;
+  private dropLine: HTMLElement;
   private status: HTMLElement;
   private count: HTMLElement;
   private saved: HTMLElement;
@@ -196,6 +199,8 @@ class Editor {
   private syncTimer = 0;
   private draftTimer = 0;
   private submitting = false;
+  /** 올리는 중인 사진·파일 묶음 수. 0 이 아니면 저장을 막는다 (빠진 채로 저장되지 않게). */
+  private uploading = 0;
   private initialMd: string;
   private initialTitle: string;
   private draftKey: string;
@@ -259,8 +264,10 @@ class Editor {
     foot.append(this.status, right);
 
     textarea.before(this.root);
-    this.root.append(bar, this.pop, this.chars, this.notice, this.pm, textarea, this.preview, foot, this.file, this.attach);
-    this.pm.append(this.bubble);
+    this.dropLine = el("div", { class: "me-dropline", hidden: "", "aria-hidden": "true" });
+    const dropTip = el("div", { class: "me-droptip", "aria-hidden": "true" }, "놓으면 사진은 본문에, 문서(PDF·한글·오피스 등)는 첨부 링크로 들어갑니다");
+    this.root.append(bar, this.pop, this.chars, this.notice, this.pm, textarea, this.preview, foot, this.file, this.attach, dropTip);
+    this.pm.append(this.bubble, this.dropLine);
     textarea.classList.add("me-source");
 
     const label = document.querySelector<HTMLLabelElement>(`label[for="${textarea.id}"]`);
@@ -390,6 +397,7 @@ class Editor {
     this.bindSource();
     this.bindFile();
     this.bindAttach();
+    this.bindDropHint();
     this.bindForm();
     this.bindPopover();
     this.bindChars();
@@ -693,9 +701,9 @@ class Editor {
       this.file.value = "";
       if (!files.length) return;
       if (this.mode === "rich") {
-        void insertUploads(this.view, files, this.csrf, (msg, err) => this.say(msg, err));
+        this.busy(insertUploads(this.view, files, this.csrf, (msg, err) => this.say(msg, err)));
       } else {
-        void this.uploadToSource(files);
+        this.busy(this.uploadToSource(files));
       }
     });
   }
@@ -928,19 +936,110 @@ class Editor {
     this.attach.addEventListener("change", () => {
       const files = Array.from(this.attach.files ?? []);
       this.attach.value = "";
-      void this.attachAll(files);
+      this.busy(this.attachAll(files));
     });
+  }
+
+  private busy(task: Promise<unknown>) {
+    this.uploading++;
+    void task.finally(() => this.uploading--);
+  }
+
+  /**
+   * 파일을 끌고 들어오면 편집 영역을 점선으로 감싸고 무엇이 되는지 알린다.
+   * 서식 모드에서는 놓을 자리에 세로 막대를 그린다. 안쪽 요소를 지날 때마다 enter·leave 가 오므로 깊이를 센다.
+   */
+  private bindDropHint() {
+    let depth = 0;
+    const hasFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes("Files");
+    const end = () => {
+      depth = 0;
+      this.root.classList.remove("me-dropping");
+      this.dropLine.hidden = true;
+    };
+    for (const area of [this.pm, this.textarea]) {
+      area.addEventListener("dragenter", (e) => {
+        if (!hasFiles(e)) return;
+        depth++;
+        this.root.classList.add("me-dropping");
+      });
+      area.addEventListener("dragleave", (e) => {
+        if (hasFiles(e) && --depth <= 0) end();
+      });
+      area.addEventListener("drop", end);
+    }
+    this.pm.addEventListener("dragover", (e) => {
+      if (!hasFiles(e)) return;
+      const items = Array.from(e.dataTransfer?.items ?? []);
+      const photosOnly = items.length > 0 && items.every((i) => i.kind === "file" && i.type.startsWith("image/"));
+      this.showDropLine(e.clientX, e.clientY, photosOnly);
+    });
+    // 편집 칸 밖(제목 칸, 도구 막대 등)에 놓으면 브라우저가 그 파일을 열어 쓰던 화면을 떠난다. 막고 알린다.
+    const inArea = (t: EventTarget | null) => t instanceof Node && (this.pm.contains(t) || t === this.textarea);
+    document.addEventListener("dragover", (e) => {
+      if (!hasFiles(e) || inArea(e.target)) return;
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "none";
+    });
+    document.addEventListener("drop", (e) => {
+      end();
+      if (!hasFiles(e) || e.defaultPrevented) return;
+      e.preventDefault();
+      this.say("파일은 본문 편집 칸 안에 놓아 주세요.", true);
+    });
+    document.addEventListener("dragend", end);
+  }
+
+  /** 사진은 글자가 있는 문단에 놓으면 그 아래 새 줄로 들어가므로(insertUploads) 문단 아래 가로선을 그린다. */
+  private showDropLine(x: number, y: number, photosOnly: boolean) {
+    const hit = this.view.posAtCoords({ left: x, top: y });
+    if (!hit) {
+      this.dropLine.hidden = true;
+      return;
+    }
+    const box = this.pm.getBoundingClientRect();
+    const dx = this.pm.scrollLeft - box.left;
+    const dy = this.pm.scrollTop - box.top;
+    const s = this.dropLine.style;
+    const $at = this.view.state.doc.resolve(hit.pos);
+    const below = photosOnly && $at.depth > 0 && $at.parent.type === schema.nodes.paragraph && $at.parent.content.size > 0;
+    const block = below ? this.view.nodeDOM($at.before()) : null;
+    if (block instanceof HTMLElement) {
+      const r = block.getBoundingClientRect();
+      this.dropLine.classList.add("me-dropline-row");
+      Object.assign(s, { left: `${r.left + dx}px`, top: `${r.bottom + dy + 4}px`, width: `${r.width}px`, height: "" });
+    } else {
+      const at = this.view.coordsAtPos(hit.pos);
+      this.dropLine.classList.remove("me-dropline-row");
+      Object.assign(s, { left: `${at.left + dx}px`, top: `${at.top + dy}px`, width: "", height: `${Math.max(at.bottom - at.top, 18)}px` });
+    }
+    this.dropLine.hidden = false;
   }
 
   /** `pos` 는 끌어다 놓은 자리(서식 모드). 둘째 파일부터는 앞 링크 뒤에 붙는다. */
   private async attachAll(files: File[], pos?: number) {
     for (const f of files) {
       this.say(`${f.name} 첨부하는 중입니다…`);
+      // 서식 모드에서는 사진처럼 본문 안에 「첨부하는 중」 자리를 보이고, 끝나면 그 자리에 넣는다.
+      const id = {};
+      const rich = this.mode === "rich";
+      if (rich) {
+        const at = pos ?? this.view.state.selection.from;
+        this.view.dispatch(this.view.state.tr.setMeta(placeholderKey, { add: { id, pos: at, label: `${f.name} 첨부하는 중…` } }));
+      }
+      const where = () => {
+        if (!rich) return pos;
+        const found = findPlaceholder(this.view.state, id);
+        this.view.dispatch(this.view.state.tr.setMeta(placeholderKey, { remove: { id } }));
+        return found ?? pos;
+      };
       try {
-        this.insertAttachment(await attachFile(f, this.csrf), pos);
+        const a = await attachFile(f, this.csrf);
+        this.insertAttachment(a, where());
         pos = undefined;
         this.say("파일을 첨부했습니다. 읽는 사람은 링크를 눌러 내려받습니다.");
       } catch (e) {
+        where();
         this.say((e as Error).message, true);
       }
     }
@@ -953,7 +1052,7 @@ class Editor {
   private takeFiles(list: FileList | null | undefined, pos?: number): boolean {
     const { images, attachments, rejected } = sortFiles(list);
     if (!images.length && !attachments.length && !rejected.length) return false;
-    void (async () => {
+    this.busy((async () => {
       if (images.length) {
         if (this.mode === "rich") {
           await insertUploads(this.view, images, this.csrf, (msg, err) => this.say(msg, err), pos);
@@ -967,7 +1066,7 @@ class Editor {
         const names = rejected.map((f) => f.name).join(", ");
         this.say(`넣을 수 없는 파일입니다: ${names} (그림은 jpg·png·gif·webp, 첨부는 ${ATTACH_EXTENSIONS.join("·")})`, true);
       }
-    })();
+    })());
     return true;
   }
 
@@ -1242,13 +1341,38 @@ class Editor {
 
   private bindForm() {
     this.title?.addEventListener("input", () => this.scheduleDraft());
-    this.form.addEventListener("submit", () => {
+    const buttons = () => Array.from(this.form.querySelectorAll<HTMLButtonElement>("button[type=submit]"));
+    this.form.addEventListener("submit", (e) => {
+      if (this.uploading > 0) {
+        e.preventDefault();
+        this.say("사진·파일을 올리는 중입니다. 다 올라간 뒤에 저장해 주세요.", true);
+        return;
+      }
       this.sync();
       this.submitting = true;
       try {
         localStorage.removeItem(this.draftKey);
       } catch {
         // 무시
+      }
+      // 누른 버튼에 진행을 보이고, 두 번 눌러 글이 두 개 생기지 않게 잠근다.
+      // 지금 잠그면 누른 버튼의 intent 값이 빠지므로 제출이 시작된 다음에 잠근다.
+      const by = e.submitter;
+      if (by instanceof HTMLButtonElement) {
+        by.dataset.label = by.textContent ?? "";
+        by.textContent = "저장하는 중…";
+        by.setAttribute("aria-busy", "true");
+      }
+      setTimeout(() => buttons().forEach((b) => (b.disabled = true)));
+    });
+    // 뒤로 가기로 이 화면에 돌아오면(bfcache) 잠긴 버튼을 푼다.
+    window.addEventListener("pageshow", (e) => {
+      if (!e.persisted) return;
+      this.submitting = false;
+      for (const b of buttons()) {
+        b.disabled = false;
+        b.removeAttribute("aria-busy");
+        if (b.dataset.label) b.textContent = b.dataset.label;
       }
     });
     window.addEventListener("beforeunload", (e) => {
