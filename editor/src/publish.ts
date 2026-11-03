@@ -184,6 +184,18 @@ export function bindPublish(form: HTMLFormElement, csrf: string, markdown: () =>
   };
   boardSelect?.addEventListener("change", syncCategories);
   syncCategories();
+
+  // ---- 여분 칸 (ADR-0057): 고른 게시판의 묶음만 보이고 보낸다(꺼진 fieldset 은 폼에 실리지 않는다) ----
+  const syncFields = () => {
+    const b = board();
+    for (const g of Array.from(form.querySelectorAll<HTMLFieldSetElement>("[data-fields-board]"))) {
+      const mine = g.dataset.fieldsBoard === b;
+      g.hidden = !mine;
+      g.disabled = !mine;
+    }
+  };
+  boardSelect?.addEventListener("change", syncFields);
+  syncFields();
   const addCategory = $<HTMLButtonElement>("[data-category-add]");
   if (addCategory && category) {
     addCategory.hidden = false;

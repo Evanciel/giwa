@@ -9,6 +9,7 @@ pub mod design;
 pub mod diff;
 pub mod directives;
 pub mod error;
+pub mod fields;
 pub mod markdown;
 pub mod messages;
 pub mod model;

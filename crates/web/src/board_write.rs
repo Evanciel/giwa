@@ -24,6 +24,7 @@ use serde_json::{Value, json};
 use crate::AppState;
 use crate::admin::{pre_csrf, pre_csrf_ok, session_csrf_ok};
 use crate::comments::{no_store, same_origin, viewer};
+use crate::field_form;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -62,6 +63,12 @@ struct WriteForm {
     /// 답변글이면 위 글 id (ADR-0056)
     #[serde(default)]
     reply_to: String,
+    /// 여분 칸 `field.<키>` (ADR-0057)
+    #[serde(flatten)]
+    extra: std::collections::HashMap<String, String>,
+    /// 고치기 화면을 처음 열 때 채울 저장된 값
+    #[serde(skip)]
+    stored: serde_json::Map<String, Value>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -80,6 +87,11 @@ impl WriteForm {
             .collect()
     }
 
+    /// 여분 칸 값. 칸을 그리지 않은 폼이면 `None`.
+    fn meta(&self, board: &Board) -> Option<serde_json::Map<String, Value>> {
+        field_form::collect(&board.field_schema, &self.extra, &field_form::prefix(None))
+    }
+
     fn reply_to(&self) -> Option<String> {
         Some(self.reply_to.trim().to_owned()).filter(|r| !r.is_empty())
     }
@@ -95,6 +107,7 @@ impl WriteForm {
             category: self.category(),
             tags: self.tags(),
             secret: self.secret.is_some(),
+            meta: Default::default(),
         }
     }
 
@@ -240,6 +253,7 @@ async fn create(
             answer: f.captcha_answer.clone(),
         }),
         reply_to: f.reply_to(),
+        meta: f.meta(&board).unwrap_or_default(),
     };
     match board_posts::write(&state.ctx, &actor, input).await {
         Ok(p) if p.status == PostStatus::Published => {
@@ -337,7 +351,8 @@ async fn edit_form(
         Ok(e) => e,
         Err(r) => return *r,
     };
-    let f = WriteForm::of(&e.post, category_slug(&state, &e.post).await);
+    let mut f = WriteForm::of(&e.post, category_slug(&state, &e.post).await);
+    f.stored = e.post.meta.clone();
     form_for(&state, &headers, who.as_ref(), &e, StatusCode::OK, &f, None).await
 }
 
@@ -359,7 +374,9 @@ async fn edit(
         Err(r) => return *r,
     };
     let pw = Some(f.password.as_str()).filter(|p| !p.is_empty());
-    match board_posts::edit(&state.ctx, &actor, &e.post.id, f.edit(), pw).await {
+    let mut input = f.edit();
+    input.meta = f.meta(&e.board).unwrap_or_else(|| e.post.meta.clone());
+    match board_posts::edit(&state.ctx, &actor, &e.post.id, input, pw).await {
         Ok(p) => Redirect::to(&post_url(&e.board, &p)).into_response(),
         Err(err)
             if matches!(
@@ -552,6 +569,9 @@ async fn render_form(
         Some(id) if fv.mode == Mode::New => state.ctx.store.post_by_id(&id).await.ok().flatten(),
         _ => None,
     };
+    let prefix = field_form::prefix(None);
+    let field_values = f.meta(board).unwrap_or_else(|| f.stored.clone());
+    let fields = field_form::view(&board.field_schema, &field_values, &prefix);
     let cats = categories::list(&state.ctx, &actor, &board.slug)
         .await
         .unwrap_or_default()
@@ -569,6 +589,8 @@ async fn render_form(
         "can_secret": who.is_some() && !fv.guest_post,
         "review": if who.is_none() { rules.guest_review } else { rules.member_review },
         "categories": if parent.is_some() { Vec::new() } else { cats },
+        "fields": fields,
+        "fields_shown": field_form::shown_name(&prefix),
         "reply": parent.as_ref().map(|p| json!({ "id": p.id, "title": p.title, "secret": p.is_secret })),
         "title": f.title,
         "body": f.body,

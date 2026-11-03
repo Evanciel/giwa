@@ -46,6 +46,7 @@ struct BoardRow {
     layout: String,
     policy: String,
     sort_order: i64,
+    field_schema: String,
     created_at: String,
     updated_at: String,
 }
@@ -63,6 +64,7 @@ impl TryFrom<BoardRow> for Board {
             layout: r.layout,
             policy,
             sort_order: r.sort_order,
+            field_schema: serde_json::from_str(&r.field_schema).map_err(Error::internal)?,
             created_at: r.created_at,
             updated_at: r.updated_at,
         })
@@ -97,6 +99,7 @@ struct PostRow {
     thread_id: Option<String>,
     thread_path: String,
     thread_owner: Option<String>,
+    meta: String,
 }
 
 impl TryFrom<PostRow> for Post {
@@ -132,6 +135,7 @@ impl TryFrom<PostRow> for Post {
             thread_id: r.thread_id,
             thread_path: r.thread_path,
             thread_owner: r.thread_owner,
+            meta: serde_json::from_str(&r.meta).map_err(Error::internal)?,
         })
     }
 }
@@ -334,7 +338,7 @@ async fn settings<'e>(e: impl SqliteExecutor<'e>) -> Result<Vec<(String, Value)>
 async fn board_by_id<'e>(e: impl SqliteExecutor<'e>, id: &str) -> Result<Option<Board>> {
     sqlx::query_as!(
         BoardRow,
-        "SELECT id, slug, name, kind, layout, policy, sort_order, created_at, updated_at
+        "SELECT id, slug, name, kind, layout, policy, sort_order, field_schema, created_at, updated_at
          FROM boards WHERE id = ?",
         id
     )
@@ -348,7 +352,7 @@ async fn board_by_id<'e>(e: impl SqliteExecutor<'e>, id: &str) -> Result<Option<
 async fn board_by_slug<'e>(e: impl SqliteExecutor<'e>, slug: &str) -> Result<Option<Board>> {
     sqlx::query_as!(
         BoardRow,
-        "SELECT id, slug, name, kind, layout, policy, sort_order, created_at, updated_at
+        "SELECT id, slug, name, kind, layout, policy, sort_order, field_schema, created_at, updated_at
          FROM boards WHERE slug = ?",
         slug
     )
@@ -365,7 +369,7 @@ async fn post_by_id<'e>(e: impl SqliteExecutor<'e>, id: &str) -> Result<Option<P
         r#"SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,
                 actor_type, published_at, created_at, updated_at, scheduled_at, cover,
                 category_id, is_notice, is_secret, view_count, guest_name, guest_pw_hash,
-                    parent_id, thread_id, thread_path, thread_owner,
+                    parent_id, thread_id, thread_path, thread_owner, meta,
                 (SELECT json_group_array(t.name ORDER BY pt.position)
                    FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
                   WHERE pt.post_id = posts.id) AS "tags!: String"
@@ -456,7 +460,7 @@ impl Store for SqliteStore {
     async fn list_boards(&self) -> Result<Vec<Board>> {
         let rows = sqlx::query_as!(
             BoardRow,
-            "SELECT id, slug, name, kind, layout, policy, sort_order, created_at, updated_at
+            "SELECT id, slug, name, kind, layout, policy, sort_order, field_schema, created_at, updated_at
              FROM boards ORDER BY sort_order, slug"
         )
         .fetch_all(&self.db.read)
@@ -475,7 +479,7 @@ impl Store for SqliteStore {
             r#"SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,
                     actor_type, published_at, created_at, updated_at, scheduled_at, cover,
                     category_id, is_notice, is_secret, view_count, guest_name, guest_pw_hash,
-                    parent_id, thread_id, thread_path, thread_owner,
+                    parent_id, thread_id, thread_path, thread_owner, meta,
                     (SELECT json_group_array(t.name ORDER BY pt.position)
                        FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
                       WHERE pt.post_id = posts.id) AS "tags!: String"
@@ -505,6 +509,7 @@ impl Store for SqliteStore {
                       p.category_id, p.is_notice AS "is_notice!", p.is_secret AS "is_secret!",
                       p.view_count AS "view_count!", p.guest_name, p.guest_pw_hash,
                       p.parent_id, p.thread_id, p.thread_path AS "thread_path!", p.thread_owner,
+                      p.meta AS "meta!",
                       (SELECT json_group_array(t.name ORDER BY pt.position)
                          FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
                         WHERE pt.post_id = p.id) AS "tags!: String"
@@ -572,7 +577,7 @@ impl Store for SqliteStore {
                 r#"SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,
                         actor_type, published_at, created_at, updated_at, scheduled_at, cover,
                         category_id, is_notice, is_secret, view_count, guest_name, guest_pw_hash,
-                    parent_id, thread_id, thread_path, thread_owner,
+                    parent_id, thread_id, thread_path, thread_owner, meta,
                         (SELECT json_group_array(t.name ORDER BY pt.position)
                            FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
                           WHERE pt.post_id = posts.id) AS "tags!: String"
@@ -598,7 +603,7 @@ impl Store for SqliteStore {
             r#"SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,
                     actor_type, published_at, created_at, updated_at, scheduled_at, cover,
                     category_id, is_notice, is_secret, view_count, guest_name, guest_pw_hash,
-                    parent_id, thread_id, thread_path, thread_owner,
+                    parent_id, thread_id, thread_path, thread_owner, meta,
                     (SELECT json_group_array(t.name ORDER BY pt.position)
                        FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
                       WHERE pt.post_id = posts.id) AS "tags!: String"
@@ -1057,7 +1062,7 @@ impl Store for SqliteStore {
             r#"SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,
                     actor_type, published_at, created_at, updated_at, scheduled_at, cover,
                     category_id, is_notice, is_secret, view_count, guest_name, guest_pw_hash,
-                    parent_id, thread_id, thread_path, thread_owner,
+                    parent_id, thread_id, thread_path, thread_owner, meta,
                     (SELECT json_group_array(t.name ORDER BY pt.position)
                        FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
                       WHERE pt.post_id = posts.id) AS "tags!: String"
@@ -1080,7 +1085,7 @@ impl Store for SqliteStore {
             r#"SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,
                     actor_type, published_at, created_at, updated_at, scheduled_at, cover,
                     category_id, is_notice, is_secret, view_count, guest_name, guest_pw_hash,
-                    parent_id, thread_id, thread_path, thread_owner,
+                    parent_id, thread_id, thread_path, thread_owner, meta,
                     (SELECT json_group_array(t.name ORDER BY pt.position)
                        FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
                       WHERE pt.post_id = posts.id) AS "tags!: String"
@@ -1119,6 +1124,7 @@ impl Store for SqliteStore {
                       c.category_id, c.is_notice AS "is_notice!", c.is_secret AS "is_secret!",
                       c.view_count AS "view_count!", c.guest_name, c.guest_pw_hash,
                       c.parent_id, c.thread_id, c.thread_path AS "thread_path!", c.thread_owner,
+                      c.meta AS "meta!",
                       (SELECT json_group_array(t.name ORDER BY pt.position)
                          FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
                         WHERE pt.post_id = c.id) AS "tags!: String"
@@ -1318,9 +1324,11 @@ impl WriteTx for SqliteWriteTx {
 
     async fn insert_board(&mut self, b: &Board) -> Result<()> {
         let policy = json(&b.policy)?;
+        let fields = json(&b.field_schema)?;
         sqlx::query!(
-            "INSERT INTO boards (id, slug, name, kind, layout, policy, sort_order, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO boards (id, slug, name, kind, layout, policy, sort_order, field_schema,
+                                 created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             b.id,
             b.slug,
             b.name,
@@ -1328,6 +1336,7 @@ impl WriteTx for SqliteWriteTx {
             b.layout,
             policy,
             b.sort_order,
+            fields,
             b.created_at,
             b.updated_at
         )
@@ -1339,14 +1348,17 @@ impl WriteTx for SqliteWriteTx {
 
     async fn update_board(&mut self, b: &Board) -> Result<()> {
         let policy = json(&b.policy)?;
+        let fields = json(&b.field_schema)?;
         sqlx::query!(
-            "UPDATE boards SET name = ?, kind = ?, layout = ?, policy = ?, sort_order = ?, updated_at = ?
+            "UPDATE boards SET name = ?, kind = ?, layout = ?, policy = ?, sort_order = ?,
+                              field_schema = ?, updated_at = ?
              WHERE id = ?",
             b.name,
             b.kind,
             b.layout,
             policy,
             b.sort_order,
+            fields,
             b.updated_at,
             b.id
         )
@@ -1410,13 +1422,14 @@ impl WriteTx for SqliteWriteTx {
     async fn insert_post(&mut self, p: &Post) -> Result<()> {
         let (kind, status, actor_type) =
             (p.kind.as_str(), p.status.as_str(), p.actor_type.as_str());
+        let meta = json(&p.meta)?;
         sqlx::query!(
             "INSERT INTO posts (id, board_id, kind, status, title, slug, body_md, excerpt,
                                 author_id, actor_type, published_at, created_at, updated_at,
                                 scheduled_at, cover, category_id, is_notice, is_secret,
                                 guest_name, guest_pw_hash, parent_id, thread_id, thread_path,
-                                thread_owner)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                thread_owner, meta)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             p.id,
             p.board_id,
             kind,
@@ -1440,7 +1453,8 @@ impl WriteTx for SqliteWriteTx {
             p.parent_id,
             p.thread_id,
             p.thread_path,
-            p.thread_owner
+            p.thread_owner,
+            meta
         )
         .execute(&mut *self.tx)
         .await
@@ -1451,11 +1465,12 @@ impl WriteTx for SqliteWriteTx {
 
     async fn update_post(&mut self, p: &Post) -> Result<()> {
         let status = p.status.as_str();
+        let meta = json(&p.meta)?;
         let res = sqlx::query!(
             "UPDATE posts SET board_id = ?, status = ?, title = ?, slug = ?, body_md = ?,
                               excerpt = ?, published_at = ?, updated_at = ?,
                               scheduled_at = ?, cover = ?, category_id = ?,
-                              is_notice = ?, is_secret = ?
+                              is_notice = ?, is_secret = ?, meta = ?
              WHERE id = ?",
             p.board_id,
             status,
@@ -1470,6 +1485,7 @@ impl WriteTx for SqliteWriteTx {
             p.category_id,
             p.is_notice,
             p.is_secret,
+            meta,
             p.id
         )
         .execute(&mut *self.tx)

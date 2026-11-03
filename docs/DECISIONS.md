@@ -557,3 +557,16 @@
   - 경로: REST `POST /posts/{id}/reply`, CLI `post reply <id> --title --body|--from [--publish]`·`board update --reply`, 공개 화면 글 화면 「답변」 단추(정책이 `guest`·`member` 이고 공개 글쓰기 게시판일 때) → `/write/{board}?reply=<글 id>`(제목 `RE: …`, 분류 칸 없음), 관리 편집기 「답변 쓰기」 → 답변 초안을 만들고 그 편집 화면으로.
 - **대안:** 정렬 문자열 하나 — SPEC 이 버렸다. 중첩 집합 — 쓰기가 비싸다. `NewPost` 에 `parent` 칸 — 기존 리터럴이 많이 바뀌고 답변이 아닌 글에도 칸이 생긴다. 답변 권한을 쓰기 권한과 같게 — 공지·갤러리에도 답변이 열린다.
 - **결과:** MCP 툴은 Phase 3. 원글이 지워진 답변에 따로 표시는 없다. 저장소 테스트(`crates/storage/tests/replies.rs`)가 qna 기본 정책·스레드 순서·순서 경로·분류 상속, 닫힌 게시판·초안·깊이 한도·회원 거부, 감사 기록, 비밀 질문의 답변을 질문자만 읽기, 공개 화면 회원 답변 → DB·닫으면 폼 거부·알 수 없는 역할 거부를, e2e(`crates/cli/tests/e2e_replies.rs`)가 CLI 답변 → DB 순서 경로·닫힌 게시판 거부와 다음 명령·정책 변경·목록 들여쓰기·답변 화면 위 글 링크·답변 단추·손님은 로그인으로를 확인한다.
+
+## ADR-0057 여분 필드는 게시판 `field_schema` + 글 `meta` JSON, 검증은 core `fields::validate` 하나
+
+- **배경:** 게시판마다 가격·지역·행사일·연락처 같은 칸을 글에 붙일 방법이 없었다(GAP C10). ADR-0018 이 필드 타입 체계를, ADR-0019 가 컬렉션 일반화(`field_schema`·`meta`)를 정했지만 구현은 없었다.
+- **결정:**
+  - `boards.field_schema`(JSON 배열, 기본 `[]`)·`posts.meta`(JSON 객체, 기본 `{}`). 칸 정의는 `{key, label, type, required, options, help}`. key 는 `^[a-z][a-z0-9_]{0,31}$`, 게시판당 30개, 겹침·빈 이름 거부.
+  - 이번에 받는 타입: `text`·`textarea`·`number`·`boolean`·`date`·`datetime`·`select`·`multiselect`·`url`·`email`·`phone`. `markdown`·`media`·`ref`·`group`·`list` 는 `error.field_type`(쓸 수 있는 형식을 함께 보인다) — 참조 무결성·미디어 정리 설계가 따로 필요하다.
+  - core `fields::validate(schema, meta, strict)` 하나를 관리·공개·REST·CLI 가 같이 쓴다. 폼·CLI 는 문자열로 보내므로 타입별로 바꾼다(숫자의 쉼표, 체크 칸 `on`, `datetime-local` 의 초 버림, 여러 개 고르기는 배열 또는 쉼표). 빈 값은 지우고, 꺼진 참거짓은 저장하지 않는다. `strict` 면 정의에 없는 키·필수 빈 칸·맞지 않는 값을 거부한다. 다른 게시판으로 옮기기·복사·답변은 `strict` 가 아니어서 새 게시판에 맞는 값만 남기고 필수는 묻지 않는다.
+  - 정의를 바꿔도 이미 쓴 글의 `meta` 는 건드리지 않는다. 표시(`fields::display`)는 지금 정의에 있는 키만 정의 순서대로, 다음 저장 때 지금 정의로 다시 검사한다.
+  - 비밀글은 목록에서 `meta` 도 비운다(제목만). 리비전은 제목·본문만 남기고, `meta` 바뀜은 감사 기록 diff 에 남는다.
+  - 경로: REST 는 기존 게시판·글 JSON 의 `field_schema`·`meta`. CLI `board create|update --fields <JSON 파일|->`, `board show` 에 칸 목록, `post new|edit --field 키=값`(여러 번, 고치기는 준 칸만 덧씌우고 빈 값은 지운다). 공개 글 화면은 본문 위 `dl` 표(선택지는 이름으로, url·email·phone 은 링크 `rel="nofollow ugc"`), 공개 글쓰기·고치기 폼은 `field.<키>` 칸. 관리 편집기는 게시판마다 `field.<게시판>.<키>` 묶음을 그리고, 편집기 스크립트가 고른 게시판 묶음만 켠다(꺼진 fieldset 은 폼에 실리지 않는다). 칸 묶음을 그렸다는 표시 `<앞머리>_shown` 이 없으면 값을 건드리지 않는다.
+- **대안:** 필드별 행(EAV) — 읽기마다 조인, SPEC 이 버렸다. 임의 JSON Schema — 렌더 계약이 없다(ADR-0018). 화면마다 검증 — 경로마다 결과가 달라진다. 정의 변경 시 일괄 변환 — 되돌리기 어렵다.
+- **결과:** `index: true` 정렬·필터, 뷰·퍼머링크(ADR-0019)와 나머지 타입은 Phase 2(b). MCP 툴은 Phase 3. core 단위 테스트(`fields::tests`)·웹 단위 테스트(`field_form::tests`)·저장소 테스트(`crates/storage/tests/fields.rs`)가 키 규칙·타입 변환·표시·필수·모르는 키·선택지·정의 저장과 거부·고치기 통째 바꾸기와 그대로 두기·감사·복사·이동·정의 변경 뒤 표시·공개 쓰기·비밀글 가림을, e2e(`crates/cli/tests/e2e_fields.rs`)가 CLI 정의 → CLI `--field` → DB `posts.meta`·잘못된 정의와 값 거부·고치기 덧씌우기·공개 글 화면 표·공개 폼 칸·손님 글 필수 칸 거부와 다시 채우기·손님 글 → DB 를 확인한다.

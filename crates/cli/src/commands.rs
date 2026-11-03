@@ -403,6 +403,12 @@ async fn post(g: &Global, cmd: PostCmd) -> Out {
                 },
                 notice: args.notice,
                 secret: args.secret,
+                meta: if args.fields.is_empty() {
+                    None
+                } else {
+                    let now = posts::get(&ctx, &actor, &args.id).await?.meta;
+                    Some(field_args(&args.fields, now)?)
+                },
             };
             let p = posts::update(&ctx, &actor, &args.id, patch).await?;
             post_out(&ctx, &p, "고쳤습니다").await
@@ -469,6 +475,7 @@ async fn post(g: &Global, cmd: PostCmd) -> Out {
                 slug: args.slug,
                 tags: args.tags,
                 secret: args.secret,
+                meta: Default::default(),
             };
             let mut p = posts::reply(&ctx, &actor, &args.id, input).await?;
             if args.publish {
@@ -642,6 +649,7 @@ async fn post_new(ctx: &Ctx, actor: &Actor, args: PostNewArgs) -> Out {
         tags: args.tags,
         notice: args.notice,
         secret: args.secret,
+        meta: field_args(&args.fields, serde_json::Map::new())?,
     };
     let schedule = schedule_arg(ctx, args.schedule).await?;
     let (mut p, created) = if args.if_not_exists {
@@ -704,6 +712,39 @@ async fn post_list(ctx: &Ctx, actor: &Actor, args: PostListArgs) -> Out {
 }
 
 /// 본문 파일을 UTF-8 로 읽는다. BOM 은 지우고, 잘못된 인코딩은 원인과 함께 거부한다.
+/// `--field 키=값` 들을 지금 값 위에 덧씌운다. 값이 비면 그 칸을 지운다. 변환·검사는 서비스가 한다.
+fn field_args(
+    args: &[String],
+    mut now: serde_json::Map<String, Value>,
+) -> Result<serde_json::Map<String, Value>> {
+    for a in args {
+        let (k, v) = a.split_once('=').ok_or_else(|| {
+            Error::new(Code::Validation)
+                .with_message("error.field_arg")
+                .arg("value", a.clone())
+                .next("maru post edit <글> --field price=12000")
+        })?;
+        let k = k.trim().to_owned();
+        if v.trim().is_empty() {
+            now.remove(&k);
+        } else {
+            now.insert(k, Value::String(v.to_owned()));
+        }
+    }
+    Ok(now)
+}
+
+/// 여분 칸 정의 JSON 배열 파일.
+fn read_fields(path: &Path) -> Result<Vec<maru_core::fields::FieldDef>> {
+    let text = read_body(path)?;
+    serde_json::from_str(&text).map_err(|e| {
+        Error::new(Code::Validation)
+            .with_message("error.field_json")
+            .arg("detail", e.to_string())
+            .next("maru board show <게시판> --json")
+    })
+}
+
 fn read_body(path: &Path) -> Result<String> {
     let mut bytes = Vec::new();
     if path.as_os_str() == "-" {
@@ -764,6 +805,7 @@ async fn board(g: &Global, cmd: BoardCmd) -> Out {
                 policy: None,
                 sort_order: args.sort_order,
                 layout: args.layout,
+                field_schema: args.fields.as_deref().map(read_fields).transpose()?,
             };
             let (b, created) = if args.if_not_exists {
                 let res = boards::ensure(&ctx, &actor, input).await?;
@@ -795,6 +837,25 @@ async fn board(g: &Global, cmd: BoardCmd) -> Out {
                 b.policy.comment_approval.as_str(),
                 b.policy.reply
             );
+            let human = if b.field_schema.is_empty() {
+                human
+            } else {
+                let list = b
+                    .field_schema
+                    .iter()
+                    .map(|f| {
+                        format!(
+                            "{}({}, {}{})",
+                            f.label,
+                            f.key,
+                            f.kind,
+                            if f.required { ", 필수" } else { "" }
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join("  ");
+                format!("{human}\n여분 칸: {list}")
+            };
             Ok((to_value(&b)?, human))
         }
         BoardCmd::Update(args) => {
@@ -837,6 +898,7 @@ async fn board(g: &Global, cmd: BoardCmd) -> Out {
                 policy,
                 sort_order: args.sort_order,
                 layout: args.layout,
+                field_schema: args.fields.as_deref().map(read_fields).transpose()?,
             };
             let b = boards::update(&ctx, &actor, &args.slug, patch).await?;
             Ok((to_value(&b)?, format!("게시판을 고쳤습니다: {}", b.slug)))

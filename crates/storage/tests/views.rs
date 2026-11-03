@@ -42,6 +42,7 @@ async fn env() -> Env {
                 policy: None,
                 sort_order: 0,
                 layout: None,
+                field_schema: None,
             },
         )
         .await
@@ -62,6 +63,7 @@ fn new_post(board: &str, title: &str, tags: &[&str]) -> NewPost {
         tags: tags.iter().map(|s| (*s).to_owned()).collect(),
         notice: false,
         secret: false,
+        meta: Default::default(),
     }
 }
 

@@ -10,6 +10,7 @@ mod comments;
 mod error;
 mod etag;
 mod feeds;
+mod field_form;
 mod public;
 mod ratelimit;
 

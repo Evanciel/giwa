@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT p.id AS \"id!\", p.board_id AS \"board_id!\", p.kind AS \"kind!\",\n                      p.status AS \"status!\", p.title AS \"title!\", p.slug AS \"slug!\",\n                      p.body_md AS \"body_md!\", p.excerpt, p.author_id,\n                      p.actor_type AS \"actor_type!\", p.published_at,\n                      p.created_at AS \"created_at!\", p.updated_at AS \"updated_at!\",\n                      p.scheduled_at, p.cover,\n                      p.category_id, p.is_notice AS \"is_notice!\", p.is_secret AS \"is_secret!\",\n                      p.view_count AS \"view_count!\", p.guest_name, p.guest_pw_hash,\n                      p.parent_id, p.thread_id, p.thread_path AS \"thread_path!\", p.thread_owner,\n                      (SELECT json_group_array(t.name ORDER BY pt.position)\n                         FROM post_tags pt JOIN tags t ON t.id = pt.tag_id\n                        WHERE pt.post_id = p.id) AS \"tags!: String\"\n               FROM posts p\n               JOIN boards b ON b.id = p.board_id\n               JOIN roles r ON r.name = json_extract(b.policy, '$.read')\n               WHERE p.status = 'published' AND p.kind = 'post'\n                 AND r.rank <= ?1 AND (?2 IS NULL OR p.board_id = ?2)\n                 AND (?5 IS NULL OR p.category_id = ?5)\n                 AND (?6 IS NULL OR p.is_notice = ?6)\n                 AND (?7 IS NULL OR EXISTS (SELECT 1 FROM post_tags x\n                                             WHERE x.post_id = p.id AND x.tag_id = ?7))\n                 AND (?8 = 0 OR p.is_secret = 0)\n               ORDER BY COALESCE((SELECT t.published_at FROM posts t WHERE t.id = p.thread_id),\n                                 p.published_at) DESC,\n                        COALESCE(p.thread_id, p.id) DESC, p.thread_path\n               LIMIT ?3 OFFSET ?4",
+  "query": "SELECT c.id AS \"id!\", c.board_id AS \"board_id!\", c.kind AS \"kind!\",\n                      c.status AS \"status!\", c.title AS \"title!\", c.slug AS \"slug!\",\n                      c.body_md AS \"body_md!\", c.excerpt, c.author_id,\n                      c.actor_type AS \"actor_type!\", c.published_at,\n                      c.created_at AS \"created_at!\", c.updated_at AS \"updated_at!\",\n                      c.scheduled_at, c.cover,\n                      c.category_id, c.is_notice AS \"is_notice!\", c.is_secret AS \"is_secret!\",\n                      c.view_count AS \"view_count!\", c.guest_name, c.guest_pw_hash,\n                      c.parent_id, c.thread_id, c.thread_path AS \"thread_path!\", c.thread_owner,\n                      c.meta AS \"meta!\",\n                      (SELECT json_group_array(t.name ORDER BY pt.position)\n                         FROM post_tags pt JOIN tags t ON t.id = pt.tag_id\n                        WHERE pt.post_id = c.id) AS \"tags!: String\"\n               FROM (SELECT p.*,\n                            (SELECT count(*) FROM post_tags a\n                               JOIN post_tags o ON o.tag_id = a.tag_id AND o.post_id = ?1\n                              WHERE a.post_id = p.id) AS shared\n                       FROM posts p\n                       JOIN boards b ON b.id = p.board_id\n                       JOIN roles r ON r.name = json_extract(b.policy, '$.read')\n                      WHERE p.status = 'published' AND p.kind = 'post' AND r.rank <= ?2\n                        AND p.id != ?1 AND p.is_secret = 0 AND p.is_notice = 0) c\n               WHERE c.shared > 0 OR c.board_id = ?3\n               ORDER BY c.shared DESC,\n                        (?4 IS NOT NULL AND c.category_id IS ?4) DESC,\n                        (c.board_id = ?3) DESC,\n                        c.published_at DESC, c.id DESC\n               LIMIT ?5",
   "describe": {
     "columns": [
       {
@@ -279,14 +279,25 @@
         }
       },
       {
-        "name": "tags!: String",
+        "name": "meta!",
         "ordinal": 25,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "meta"
+          }
+        }
+      },
+      {
+        "name": "tags!: String",
+        "ordinal": 26,
         "type_info": "Null",
         "origin": "Expression"
       }
     ],
     "parameters": {
-      "Right": 8
+      "Right": 5
     },
     "nullable": [
       false,
@@ -314,8 +325,9 @@
       true,
       false,
       true,
+      false,
       null
     ]
   },
-  "hash": "fb4dae09d970a13c2894a5f785f94aef3d5cf55e7edc105b12a9503ecd7fd3a6"
+  "hash": "b4d8a1d9335067ccb03337bfd7971c73d0d74964efb3bedb965e29b78bacf668"
 }

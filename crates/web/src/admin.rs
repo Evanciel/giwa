@@ -17,7 +17,7 @@ use axum::routing::{get, post};
 use axum::{Router, middleware};
 use maru_core::actor::{Actor, AuthorType, Permission};
 use maru_core::clock;
-use maru_core::model::{PageReq, Post, PostStatus};
+use maru_core::model::{Board, PageReq, Post, PostStatus};
 use maru_core::output::Success;
 use maru_core::services::auth::{self, NewSession, SignedIn};
 use maru_core::services::posts::{self, NewPost, PostPatch};
@@ -29,6 +29,7 @@ use serde_json::{Value, json};
 
 use crate::AppState;
 use crate::error::ApiError;
+use crate::field_form;
 
 pub(crate) const SESSION_COOKIE: &str = "maru_session";
 const CSRF_COOKIE: &str = "maru_csrf";
@@ -917,9 +918,21 @@ struct PostForm {
     /// `public`, `secret`, `private`(= 숨김)
     #[serde(default)]
     visibility: String,
+    /// 여분 칸 `field.<게시판>.<키>` (ADR-0057)
+    #[serde(flatten)]
+    extra: std::collections::HashMap<String, String>,
 }
 
 impl PostForm {
+    /// 이 게시판의 여분 칸 값. 칸 묶음이 오지 않았으면 `None`(건드리지 않음).
+    fn meta(&self, board: &Board) -> Option<serde_json::Map<String, Value>> {
+        field_form::collect(
+            &board.field_schema,
+            &self.extra,
+            &field_form::prefix(Some(&board.slug)),
+        )
+    }
+
     fn tag_list(&self) -> Option<Vec<String>> {
         self.tags.as_deref().map(|t| {
             t.split(',')
@@ -993,6 +1006,26 @@ async fn edit_page(
             cats.push((b.slug.clone(), c));
         }
     }
+    // 여분 칸 묶음: 분류와 같이 고치는 글은 그 게시판 것만, 새 글은 전부(스크립트가 고른 게시판 것만 남긴다).
+    let field_groups = boards
+        .iter()
+        .filter(|b| board_slug.as_deref().is_none_or(|s| s == b.slug))
+        .filter(|b| !b.field_schema.is_empty())
+        .map(|b| {
+            let prefix = field_form::prefix(Some(&b.slug));
+            let values = match (form, post) {
+                (Some(f), _) => f.meta(b).unwrap_or_default(),
+                (None, Some(p)) => p.meta.clone(),
+                (None, None) => serde_json::Map::new(),
+            };
+            json!({
+                "board": b.slug,
+                "name": b.name,
+                "shown": field_form::shown_name(&prefix),
+                "fields": field_form::view(&b.field_schema, &values, &prefix),
+            })
+        })
+        .collect::<Vec<_>>();
     let category_slug = |id: Option<&str>| {
         id.and_then(|id| cats.iter().find(|(_, c)| c.id == id))
             .map(|(_, c)| c.slug.clone())
@@ -1032,6 +1065,7 @@ async fn edit_page(
         .await,
         json!({
             "boards": boards.iter().map(|b| json!({ "slug": b.slug, "name": b.name, "reply": b.policy.reply != "none" })).collect::<Vec<_>>(),
+            "field_groups": field_groups,
             "post": post.map(|p| json!({
                 "id": p.id,
                 "status": p.status,
@@ -1083,6 +1117,10 @@ async fn create(
     if !session_csrf_ok(&who, &f.csrf) {
         return csrf_failed(&state, Some(&who)).await;
     }
+    let meta = match boards::show(&state.ctx, &who.actor, &f.board).await {
+        Ok(b) => f.meta(&b).unwrap_or_default(),
+        Err(_) => serde_json::Map::new(),
+    };
     let input = NewPost {
         board: f.board.clone(),
         title: f.title.clone(),
@@ -1094,6 +1132,7 @@ async fn create(
         tags: f.tag_list().unwrap_or_default(),
         notice: f.notice_value().unwrap_or(false),
         secret: f.secret_value().unwrap_or(false),
+        meta,
     };
     let post = match posts::create_draft(&state.ctx, &who.actor, input).await {
         Ok(p) => p,
@@ -1254,6 +1293,13 @@ async fn save(
     if !session_csrf_ok(&who, &f.csrf) {
         return csrf_failed(&state, Some(&who)).await;
     }
+    let meta = match posts::get(&state.ctx, &who.actor, &id).await {
+        Ok(p) => match state.ctx.store.board_by_id(&p.board_id).await {
+            Ok(Some(b)) => f.meta(&b),
+            _ => None,
+        },
+        Err(_) => None,
+    };
     let patch = PostPatch {
         title: Some(f.title.clone()),
         slug: opt(&f.slug),
@@ -1265,6 +1311,7 @@ async fn save(
         tags: f.tag_list(),
         notice: f.notice_value(),
         secret: f.secret_value(),
+        meta,
     };
     match posts::update(&state.ctx, &who.actor, &id, patch).await {
         Ok(p) => finish_save(&state, &who, p, &f).await,
@@ -1519,6 +1566,7 @@ async fn reply_post(
         slug: None,
         tags: Vec::new(),
         secret: false,
+        meta: Default::default(),
     };
     match posts::reply(&state.ctx, &who.actor, &id, input).await {
         Ok(p) => Redirect::to(&format!("/admin/posts/{}?done=replied", p.id)).into_response(),

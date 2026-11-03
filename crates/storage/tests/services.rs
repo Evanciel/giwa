@@ -53,6 +53,7 @@ async fn blog(ctx: &Ctx) {
             policy: None,
             sort_order: 0,
             layout: None,
+            field_schema: None,
         },
     )
     .await
@@ -71,6 +72,7 @@ fn draft(title: &str) -> NewPost {
         tags: vec![],
         notice: false,
         secret: false,
+        meta: Default::default(),
     }
 }
 
@@ -201,6 +203,7 @@ async fn denials_carry_the_right_code() {
             policy: None,
             sort_order: 0,
             layout: None,
+            field_schema: None,
         },
     )
     .await
@@ -435,6 +438,7 @@ async fn private_board_hides_posts_from_guests() {
             }),
             sort_order: 0,
             layout: None,
+            field_schema: None,
         },
     )
     .await
@@ -771,6 +775,7 @@ async fn board_layout_defaults_and_validation() {
             policy: None,
             sort_order: 0,
             layout: None,
+            field_schema: None,
         },
     )
     .await
@@ -797,6 +802,7 @@ async fn boards_crud_and_non_empty_delete() {
         policy: None,
         sort_order: 1,
         layout: None,
+        field_schema: None,
     };
     let first = boards::ensure(&e.ctx, &local, input.clone()).await.unwrap();
     assert!(first.created);
@@ -1706,6 +1712,7 @@ async fn secret_post_body_is_only_for_author_and_moderators() {
 
     let input = NewPost {
         secret: true,
+        meta: Default::default(),
         tags: vec!["비밀태그".into()],
         excerpt: Some("요약도 비밀".into()),
         body_md: "비밀 본문입니다.".into(),

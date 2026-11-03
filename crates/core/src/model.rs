@@ -118,6 +118,9 @@ pub struct Board {
     pub layout: String,
     pub policy: BoardPolicy,
     pub sort_order: i64,
+    /// 글에 붙일 여분 칸 정의 (ADR-0057)
+    #[serde(default)]
+    pub field_schema: Vec<crate::fields::FieldDef>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -261,6 +264,9 @@ pub struct Post {
     /// 맨 위 글을 쓴 회원. 비밀 답변을 질문한 사람도 읽게 한다
     #[serde(default)]
     pub thread_owner: Option<Id>,
+    /// 여분 칸 값 (게시판 `field_schema` 의 키 → 값, ADR-0057)
+    #[serde(default)]
+    pub meta: serde_json::Map<String, serde_json::Value>,
 }
 
 impl Post {

@@ -2,11 +2,13 @@
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
 
 use crate::actor::{Actor, Permission};
 use crate::audit::{self, Target};
 use crate::clock;
 use crate::error::{Code, Error, Result};
+use crate::fields;
 use crate::model::{Board, Category, Listing, PageReq, Post, PostKind, PostStatus, Revision, Tag};
 use crate::services::{boards, categories, required_text, tags};
 use crate::slug;
@@ -48,10 +50,13 @@ pub struct NewPost {
     /// 비밀글: 목록에는 제목만 보이고 본문은 작성자와 관리자만 읽는다
     #[serde(default)]
     pub secret: bool,
+    /// 여분 칸 값 (`maru board show <게시판>` 의 `field_schema`, ADR-0057)
+    #[serde(default)]
+    pub meta: Map<String, Value>,
 }
 
 pub async fn create_draft(ctx: &Ctx, actor: &Actor, input: NewPost) -> Result<Post> {
-    create_inner(ctx, actor, input, None).await
+    create_inner(ctx, actor, input, None, true).await
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -68,6 +73,9 @@ pub struct ReplyInput {
     /// 위 글이 비밀글이면 답변도 늘 비밀글이다
     #[serde(default)]
     pub secret: bool,
+    /// 여분 칸 값 (ADR-0057)
+    #[serde(default)]
+    pub meta: Map<String, Value>,
 }
 
 /// 답변글 초안을 만든다 (ADR-0056). 게시판·분류는 위 글을 따르고, 발행은 `publish` 로.
@@ -89,8 +97,10 @@ pub async fn reply(ctx: &Ctx, actor: &Actor, parent_id: &str, input: ReplyInput)
         tags: input.tags,
         notice: false,
         secret: input.secret,
+        meta: input.meta,
     };
-    create_inner(ctx, actor, new, Some(&parent.id)).await
+    // 답변은 필수 칸을 묻지 않는다(질문의 항목을 다시 채울 일이 없다). 모르는 칸은 버린다.
+    create_inner(ctx, actor, new, Some(&parent.id), false).await
 }
 
 /// 답변 깊이 한도.
@@ -161,11 +171,13 @@ pub(crate) async fn reply_spot(
     })
 }
 
+/// `strict_fields` 가 거짓이면(다른 게시판으로 복사) 새 게시판에 없는 여분 칸은 버린다.
 async fn create_inner(
     ctx: &Ctx,
     actor: &Actor,
     input: NewPost,
     reply_to: Option<&str>,
+    strict_fields: bool,
 ) -> Result<Post> {
     let author_type = actor
         .author_type()
@@ -213,6 +225,7 @@ async fn create_inner(
         Some(id) => Some(reply_spot(&mut *tx, actor, &board, id).await?),
         None => None,
     };
+    let meta = fields::validate(&board.field_schema, &input.meta, strict_fields)?;
     if input.notice {
         actor.require(Permission::PostPublish)?;
         actor.require_board(Permission::PostPublish, &board.id)?;
@@ -247,6 +260,7 @@ async fn create_inner(
         thread_id: None,
         thread_path: String::new(),
         thread_owner: None,
+        meta,
     };
     if let Some(spot) = spot {
         spot.apply(&mut post);
@@ -602,6 +616,7 @@ fn masked(p: Post) -> Post {
         excerpt: None,
         cover: None,
         tags: vec![],
+        meta: Map::new(),
         ..p
     }
 }
@@ -644,6 +659,9 @@ pub struct PostPatch {
     /// 비밀글 여부
     #[serde(default)]
     pub secret: Option<bool>,
+    /// 여분 칸 값을 통째로 바꾼다. 빈 객체면 모두 지운다 (ADR-0057)
+    #[serde(default)]
+    pub meta: Option<Map<String, Value>>,
 }
 
 /// 글을 고친다. 제목이나 본문이 바뀌면 리비전을 남긴다.
@@ -667,6 +685,9 @@ pub async fn update(ctx: &Ctx, actor: &Actor, id: &str, patch: PostPatch) -> Res
     }
     if let Some(c) = &patch.cover {
         after.cover = check_cover(c)?;
+    }
+    if let Some(m) = &patch.meta {
+        after.meta = fields::validate(&board.field_schema, m, true)?;
     }
     if let Some(at) = &patch.scheduled_at {
         after.scheduled_at = check_schedule(at)?;
@@ -1043,6 +1064,8 @@ pub async fn move_to(ctx: &Ctx, actor: &Actor, id: &str, input: MoveInput) -> Re
     actor.require_rank(Permission::PostWrite, &to.policy.write)?;
     let mut after = before.clone();
     after.board_id = to.id.clone();
+    // 새 게시판에 없는 칸·맞지 않는 값은 버린다.
+    after.meta = fields::validate(&to.field_schema, &before.meta, false)?;
     after.category_id = match input.category.as_deref().filter(|c| !c.is_empty()) {
         Some(c) => categories::resolve(&mut *tx, &to, c).await?.map(|c| c.id),
         None => None,
@@ -1079,7 +1102,7 @@ pub async fn copy_to(ctx: &Ctx, actor: &Actor, id: &str, input: CopyInput) -> Re
     if source.status == PostStatus::Deleted {
         return Err(bad_transition(&source, source.status));
     }
-    create_draft(
+    create_inner(
         ctx,
         actor,
         NewPost {
@@ -1093,7 +1116,10 @@ pub async fn copy_to(ctx: &Ctx, actor: &Actor, id: &str, input: CopyInput) -> Re
             tags: source.tags,
             notice: false,
             secret: source.is_secret,
+            meta: source.meta,
         },
+        None,
+        false,
     )
     .await
 }

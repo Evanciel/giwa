@@ -8,6 +8,11 @@
   </header>
   {% with toc = post.toc %}{% include "_toc.html" %}{% endwith %}
   {# body_html 은 서버가 ammonia 로 정화한 값만 들어온다. |safe 는 여기에만 쓴다. #}
+  {% if post.fields %}
+  <dl class="post-fields">
+    {% for f in post.fields %}<div class="post-field post-field-{{ f.type }}"><dt>{{ f.label }}</dt><dd>{% if f.href %}<a href="{{ f.href }}" rel="nofollow ugc">{{ f.text }}</a>{% else %}{{ f.text }}{% endif %}</dd></div>{% endfor %}
+  </dl>
+  {% endif %}
   <div class="prose">{{ post.body_html | safe }}</div>
   {% if post.tags %}
   <ul class="tags" aria-label="태그">

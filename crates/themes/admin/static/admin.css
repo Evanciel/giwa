@@ -327,3 +327,12 @@ pre.diff > span { display: block; padding: 0 .75rem; }
 .reply-form summary { cursor: pointer; font-weight: 600; }
 .reply-form form { display: grid; gap: 0.4rem; margin-block-start: 0.6rem; max-inline-size: 40rem; }
 .reply-form button { justify-self: start; }
+
+/* 여분 칸 (ADR-0057) */
+.post-fields-input { display: grid; gap: .35rem; margin: 0; padding: .75rem; border: 1px solid var(--border); border-radius: var(--radius-sm, 6px); }
+.post-fields-input legend { padding: 0 .35rem; font-weight: 600; }
+.post-fields-input .hint { margin: 0 0 .25rem; color: var(--muted); font-size: .85em; }
+.post-fields-input .check { display: flex; gap: .4rem; align-items: center; }
+.field-choices { display: flex; flex-wrap: wrap; gap: .35rem 1rem; margin: 0; padding: 0; border: 0; }
+.field-choices legend { inline-size: 100%; }
+.req { color: var(--primary); }

@@ -378,6 +378,9 @@ pub struct PostEditArgs {
     /// 비밀글 (true/false). 본문은 작성자와 관리자만 읽는다
     #[arg(long)]
     pub secret: Option<bool>,
+    /// 여분 칸 값 `키=값` (여러 번. `maru board show <게시판>` 의 칸 정의를 따른다. 값을 비우면 지운다)
+    #[arg(long = "field", value_name = "KEY=VALUE")]
+    pub fields: Vec<String>,
 }
 
 #[derive(Debug, Args)]
@@ -422,6 +425,9 @@ pub struct PostNewArgs {
     /// 비밀글: 목록에는 제목만, 본문은 작성자와 관리자만
     #[arg(long)]
     pub secret: bool,
+    /// 여분 칸 값 `키=값` (여러 번. `maru board show <게시판>` 의 칸 정의를 따른다. 값을 비우면 지운다)
+    #[arg(long = "field", value_name = "KEY=VALUE")]
+    pub fields: Vec<String>,
 }
 
 #[derive(Debug, Subcommand)]
@@ -582,6 +588,9 @@ pub struct BoardCreateArgs {
     /// 같은 슬러그가 있으면 그대로 둔다
     #[arg(long)]
     pub if_not_exists: bool,
+    /// 여분 칸 정의 JSON 배열 파일 (`-` 이면 표준 입력). 예: `[{"key":"price","label":"가격","type":"number","required":true}]`
+    #[arg(long)]
+    pub fields: Option<PathBuf>,
 }
 
 #[derive(Debug, Args)]
@@ -614,6 +623,9 @@ pub struct BoardUpdateArgs {
     /// 답변글 최소 역할 (none 이면 받지 않음. 문의 게시판 기본은 editor)
     #[arg(long)]
     pub reply: Option<String>,
+    /// 여분 칸 정의를 통째로 바꾼다. JSON 배열 파일 (`-` 이면 표준 입력). 예: `[{"key":"price","label":"가격","type":"number","required":true}]`
+    #[arg(long)]
+    pub fields: Option<PathBuf>,
 }
 
 #[derive(Debug, Subcommand)]

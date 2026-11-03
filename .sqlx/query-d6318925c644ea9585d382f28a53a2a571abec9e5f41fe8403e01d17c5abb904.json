@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,\n                    actor_type, published_at, created_at, updated_at, scheduled_at, cover,\n                    category_id, is_notice, is_secret, view_count, guest_name, guest_pw_hash,\n                    parent_id, thread_id, thread_path, thread_owner,\n                    (SELECT json_group_array(t.name ORDER BY pt.position)\n                       FROM post_tags pt JOIN tags t ON t.id = pt.tag_id\n                      WHERE pt.post_id = posts.id) AS \"tags!: String\"\n             FROM posts\n             WHERE kind = 'post' AND (?1 IS NULL OR board_id = ?1) AND (?2 IS NULL OR status = ?2)\n             ORDER BY updated_at DESC, id DESC\n             LIMIT ?3 OFFSET ?4",
+  "query": "SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,\n                    actor_type, published_at, created_at, updated_at, scheduled_at, cover,\n                    category_id, is_notice, is_secret, view_count, guest_name, guest_pw_hash,\n                    parent_id, thread_id, thread_path, thread_owner, meta,\n                    (SELECT json_group_array(t.name ORDER BY pt.position)\n                       FROM post_tags pt JOIN tags t ON t.id = pt.tag_id\n                      WHERE pt.post_id = posts.id) AS \"tags!: String\"\n             FROM posts\n             WHERE kind = 'post' AND (?1 IS NULL OR board_id = ?1) AND (?2 IS NULL OR status = ?2)\n             ORDER BY updated_at DESC, id DESC\n             LIMIT ?3 OFFSET ?4",
   "describe": {
     "columns": [
       {
@@ -279,8 +279,19 @@
         }
       },
       {
-        "name": "tags!: String",
+        "name": "meta",
         "ordinal": 25,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "meta"
+          }
+        }
+      },
+      {
+        "name": "tags!: String",
+        "ordinal": 26,
         "type_info": "Text",
         "origin": "Expression"
       }
@@ -314,8 +325,9 @@
       true,
       false,
       true,
+      false,
       true
     ]
   },
-  "hash": "52b84ea06cb274504dd0e2be79365c3108651f0b147b48f622fe58ade6332807"
+  "hash": "d6318925c644ea9585d382f28a53a2a571abec9e5f41fe8403e01d17c5abb904"
 }

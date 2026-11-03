@@ -43,10 +43,16 @@ pub struct BoardWrite {
     /// 답변글이면 위 글 id (ADR-0056)
     #[serde(default)]
     pub reply_to: Option<String>,
+    /// 여분 칸 값 (ADR-0057)
+    #[serde(default)]
+    pub meta: serde_json::Map<String, serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, JsonSchema)]
 pub struct BoardEdit {
+    /// 여분 칸 값. 폼은 모든 칸을 보내므로 통째로 바꾼다 (ADR-0057)
+    #[serde(default)]
+    pub meta: serde_json::Map<String, serde_json::Value>,
     pub title: String,
     #[serde(default)]
     pub body_md: String,
@@ -185,6 +191,8 @@ pub async fn write(ctx: &Ctx, actor: &Actor, input: BoardWrite) -> Result<Post> 
         Some(id) => Some(posts::reply_spot(&mut *tx, actor, &board, id).await?),
         None => None,
     };
+    // 답변은 필수 칸을 묻지 않는다 (posts::reply 와 같다).
+    let meta = crate::fields::validate(&board.field_schema, &input.meta, spot.is_none())?;
     let now = clock::now();
     let mut post = Post {
         id: clock::new_id(),
@@ -217,6 +225,7 @@ pub async fn write(ctx: &Ctx, actor: &Actor, input: BoardWrite) -> Result<Post> 
         thread_id: None,
         thread_path: String::new(),
         thread_owner: None,
+        meta,
     };
     if let Some(spot) = spot {
         spot.apply(&mut post);
@@ -305,6 +314,7 @@ pub async fn edit(
     };
     after.tags = tags::normalize(&mut *tx, &input.tags).await?;
     after.is_secret = input.secret;
+    after.meta = crate::fields::validate(&e.board.field_schema, &input.meta, true)?;
     if after == before {
         return Ok(before);
     }

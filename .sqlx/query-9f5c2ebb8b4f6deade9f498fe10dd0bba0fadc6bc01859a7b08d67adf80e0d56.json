@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, slug, name, kind, layout, policy, sort_order, created_at, updated_at\n         FROM boards WHERE id = ?",
+  "query": "SELECT id, slug, name, kind, layout, policy, sort_order, field_schema, created_at, updated_at\n             FROM boards ORDER BY sort_order, slug",
   "describe": {
     "columns": [
       {
@@ -81,8 +81,19 @@
         }
       },
       {
-        "name": "created_at",
+        "name": "field_schema",
         "ordinal": 7,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "boards",
+            "name": "field_schema"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 8,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -93,7 +104,7 @@
       },
       {
         "name": "updated_at",
-        "ordinal": 8,
+        "ordinal": 9,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -104,9 +115,10 @@
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 0
     },
     "nullable": [
+      false,
       false,
       false,
       false,
@@ -118,5 +130,5 @@
       false
     ]
   },
-  "hash": "512ba2d572067013cf61c9184591231e069546caf23d0b9633ef28afd897b55a"
+  "hash": "9f5c2ebb8b4f6deade9f498fe10dd0bba0fadc6bc01859a7b08d67adf80e0d56"
 }

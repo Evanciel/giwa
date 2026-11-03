@@ -28,7 +28,7 @@ pub struct Preset {
 pub enum Op {
     /// 게시판이 없으면 만든다.
     #[serde(rename = "board.ensure")]
-    BoardEnsure(boards::NewBoard),
+    BoardEnsure(Box<boards::NewBoard>),
     /// 페이지가 없으면 만든다. `publish` 면 새로 만들 때만 공개한다.
     #[serde(rename = "page.ensure")]
     PageEnsure {
@@ -73,7 +73,7 @@ async fn apply_op(ctx: &Ctx, actor: &Actor, op: &Op) -> Result<OpResult> {
     };
     Ok(match op {
         Op::BoardEnsure(input) => {
-            let res = boards::ensure(ctx, actor, input.clone()).await?;
+            let res = boards::ensure(ctx, actor, (**input).clone()).await?;
             result("board.ensure", &res.item.slug, res.created)
         }
         Op::PageEnsure {

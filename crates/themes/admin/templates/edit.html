@@ -63,6 +63,13 @@
       <p class="publish-hint" data-tags-info>최대 20개, 하나에 30자까지. 태그 화면에서 같은 태그의 글을 모아 봅니다.</p>
     </div>
 
+    {% for g in field_groups %}
+    <fieldset class="publish-field post-fields-input" data-fields-board="{{ g.board }}">
+      <legend>{{ g.name }} 항목</legend>
+      {% with fields = g.fields, shown = g.shown %}{% include "_field_inputs.html" %}{% endwith %}
+    </fieldset>
+    {% endfor %}
+
     {% set vis = values.visibility or "public" %}
     <fieldset class="publish-field publish-visibility">
       <legend>공개 범위</legend>

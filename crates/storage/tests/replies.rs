@@ -43,6 +43,7 @@ async fn env() -> Env {
                 policy: None,
                 sort_order: 0,
                 layout: None,
+                field_schema: None,
             },
         )
         .await
@@ -100,6 +101,7 @@ fn root(board: &str, title: &str) -> NewPost {
         tags: Vec::new(),
         notice: false,
         secret: false,
+        meta: Default::default(),
     }
 }
 
@@ -110,6 +112,7 @@ fn answer(title: &str) -> ReplyInput {
         slug: None,
         tags: Vec::new(),
         secret: false,
+        meta: Default::default(),
     }
 }
 

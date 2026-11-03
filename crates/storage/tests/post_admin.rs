@@ -53,6 +53,7 @@ async fn env() -> Env {
                 }),
                 sort_order: 0,
                 layout: None,
+                field_schema: None,
             },
         )
         .await
@@ -110,6 +111,7 @@ fn new(board: &str, title: &str, slug: &str) -> NewPost {
         tags: vec!["태그".into()],
         notice: false,
         secret: false,
+        meta: Default::default(),
     }
 }
 

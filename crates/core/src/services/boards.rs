@@ -7,6 +7,7 @@ use crate::actor::{Actor, Permission};
 use crate::audit::{self, Target};
 use crate::clock;
 use crate::error::{Code, Error, Result};
+use crate::fields::{self, FieldDef};
 use crate::model::{BOARD_KINDS, BOARD_LAYOUTS, Board, BoardPolicy};
 use crate::services::required_text;
 use crate::slug;
@@ -26,6 +27,9 @@ pub struct NewBoard {
     /// 목록 형태. 비우면 종류의 기본값 (ADR-0054)
     #[serde(default)]
     pub layout: Option<String>,
+    /// 글에 붙일 여분 칸 정의 (ADR-0057)
+    #[serde(default)]
+    pub field_schema: Option<Vec<FieldDef>>,
 }
 
 fn default_kind() -> String {
@@ -62,6 +66,7 @@ async fn create_inner(
     check_kind(&input.kind)?;
     let layout = input.layout.unwrap_or_default();
     check_layout(&layout)?;
+    let field_schema = fields::check_schema(input.field_schema.unwrap_or_default())?;
     let policy = input.policy.unwrap_or_else(|| match input.kind.as_str() {
         "blog" => BoardPolicy::blog(),
         // 문의 게시판은 운영자가 답변글을 단다 (ADR-0056).
@@ -95,6 +100,7 @@ async fn create_inner(
         layout,
         policy,
         sort_order: input.sort_order,
+        field_schema,
         created_at: now.clone(),
         updated_at: now,
     };
@@ -127,6 +133,9 @@ pub struct BoardPatch {
     /// 빈 문자열이면 종류의 기본값으로 되돌린다
     #[serde(default)]
     pub layout: Option<String>,
+    /// 여분 칸 정의를 통째로 바꾼다. 빈 배열이면 모두 뺀다. 이미 쓴 글의 값은 그대로 둔다 (ADR-0057)
+    #[serde(default)]
+    pub field_schema: Option<Vec<FieldDef>>,
 }
 
 pub async fn update(ctx: &Ctx, actor: &Actor, slug: &str, patch: BoardPatch) -> Result<Board> {
@@ -154,6 +163,9 @@ pub async fn update(ctx: &Ctx, actor: &Actor, slug: &str, patch: BoardPatch) -> 
     if let Some(l) = patch.layout {
         check_layout(&l)?;
         after.layout = l;
+    }
+    if let Some(f) = patch.field_schema {
+        after.field_schema = fields::check_schema(f)?;
     }
     if after == before {
         return Ok(before);

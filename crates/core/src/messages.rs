@@ -40,6 +40,23 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "error.board_exists" => "`{slug}` 게시판이 이미 있습니다.",
         "error.board_not_found" => "`{slug}` 게시판을 찾을 수 없습니다.",
         "error.post_not_found" => "글을 찾을 수 없습니다: {id}",
+        "error.field_count" => "여분 칸은 {max}개까지 만들 수 있습니다.",
+        "error.field_key" => {
+            "칸 키 \"{value}\" 는 쓸 수 없습니다. 영문 소문자로 시작하고 영문 소문자·숫자·_ 로 32자까지입니다."
+        }
+        "error.field_dup" => "같은 키({key})의 칸이 두 번 있습니다.",
+        "error.field_type" => {
+            "{key} 칸의 형식 {value} 은(는) 쓸 수 없습니다. 쓸 수 있는 형식: {allowed}"
+        }
+        "error.field_label" => "{key} 칸에 {max}자 안쪽의 이름을 붙여 주세요.",
+        "error.field_options" => {
+            "{key} 칸의 선택지를 확인해 주세요. 1~50개, 값은 비우지 않고 겹치지 않게 100자까지입니다."
+        }
+        "error.field_unknown" => "이 게시판에 없는 칸입니다: {key}",
+        "error.field_required" => "{label} 칸을 채워 주세요.",
+        "error.field_value" => "{label} 칸 값이 올바르지 않습니다 ({hint}).",
+        "error.field_arg" => "--field 는 키=값 형식입니다: {value}",
+        "error.field_json" => "여분 칸 정의 JSON 을 읽지 못했습니다: {detail}",
         "error.reply_closed" => "이 게시판은 답변글을 받지 않습니다.",
         "error.reply_depth" => "답변은 {max}단계까지만 달 수 있습니다.",
         "error.revision_not_found" => "이 글의 리비전이 아닙니다: {id}",

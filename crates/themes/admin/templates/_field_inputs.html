@@ -1,0 +1,25 @@
+{# 여분 칸 입력 (ADR-0057). fields: field_form::view 결과, shown: 칸을 그렸다는 표시 이름. #}
+<input type="hidden" name="{{ shown }}" value="1">
+{% for f in fields %}
+{% if f.type == "boolean" %}
+<label class="check"><input type="checkbox" id="{{ f.id }}" name="{{ f.name }}"{% if f.checked %} checked{% endif %}{% if f.required %} required{% endif %}> {{ f.label }}{% if f.required %} <span class="req" aria-hidden="true">*</span>{% endif %}</label>
+{% elif f.type == "multiselect" %}
+<fieldset class="field-choices">
+  <legend>{{ f.label }}{% if f.required %} <span class="req" aria-hidden="true">*</span>{% endif %}</legend>
+  {% for o in f.options %}<label class="check"><input type="checkbox" name="{{ o.name }}"{% if o.checked %} checked{% endif %}> {{ o.label }}</label>{% endfor %}
+</fieldset>
+{% else %}
+<label for="{{ f.id }}">{{ f.label }}{% if f.required %} <span class="req" aria-hidden="true">*</span>{% endif %}</label>
+{% if f.type == "select" %}
+<select id="{{ f.id }}" name="{{ f.name }}"{% if f.required %} required{% endif %}>
+  <option value="">고르세요</option>
+  {% for o in f.options %}<option value="{{ o.value }}"{% if o.checked %} selected{% endif %}>{{ o.label }}</option>{% endfor %}
+</select>
+{% elif f.type == "textarea" %}
+<textarea id="{{ f.id }}" name="{{ f.name }}" rows="4" maxlength="5000"{% if f.required %} required{% endif %}>{{ f.value }}</textarea>
+{% else %}
+<input id="{{ f.id }}" type="{{ f.input }}" name="{{ f.name }}" value="{{ f.value }}"{% if f.type == "number" %} inputmode="decimal"{% endif %}{% if f.type == "text" %} maxlength="200"{% endif %}{% if f.required %} required{% endif %}{% if f.help %} aria-describedby="{{ f.id }}-hint"{% endif %}>
+{% endif %}
+{% endif %}
+{% if f.help %}<p id="{{ f.id }}-hint" class="hint">{{ f.help }}</p>{% endif %}
+{% endfor %}

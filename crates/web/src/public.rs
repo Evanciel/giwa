@@ -562,6 +562,8 @@ async fn post_inner(
         view["edit_url"] = json!(format!("{base}/edit"));
         view["delete_url"] = json!(format!("{base}/delete"));
     }
+    // 여분 칸 (ADR-0057). 지금 정의에 있는 키만, 정의 순서대로.
+    view["fields"] = json!(maru_core::fields::display(&board.field_schema, &post.meta));
     // 답변 단추: 회원(이하)에게 답변을 여는 게시판만 (ADR-0056). 운영자 답변은 관리 화면에서.
     if public_write(&board)
         && matches!(board.policy.reply.as_str(), "guest" | "member")

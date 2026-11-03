@@ -25,6 +25,12 @@
     <label for="body">내용</label>
     <textarea id="body" name="body" rows="14" required aria-describedby="body-hint">{{ write.body }}</textarea>
     <p id="body-hint" class="hint">빈 줄로 문단을 나눕니다. <code>**굵게**</code>, <code>- 목록</code>, 주소는 그대로 붙여 넣으면 됩니다.</p>
+    {% if write.fields %}
+    <fieldset class="post-fields-input">
+      <legend>{{ write.board.name }} 항목</legend>
+      {% with fields = write.fields, shown = write.fields_shown %}{% include "_field_inputs.html" %}{% endwith %}
+    </fieldset>
+    {% endif %}
     <label for="tags">태그</label>
     <input id="tags" type="text" name="tags" value="{{ write.tags }}" maxlength="400" aria-describedby="tags-hint">
     <p id="tags-hint" class="hint">쉼표로 나눠 적습니다. 예: 국밥, 부산</p>

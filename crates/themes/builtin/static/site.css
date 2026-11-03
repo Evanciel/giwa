@@ -168,7 +168,7 @@ main { min-height: 50vh; }
 .account-form label { font-size: var(--fs-sm); font-weight: 600; margin-top: calc(var(--space) * 1); }
 .account-form label.check { display: flex; gap: calc(var(--space) * 1); align-items: center; font-weight: 400; }
 .account-form .hint { margin: 0; }
-.account-form input[type="email"], .account-form input[type="text"], .account-form input[type="password"], .account-form textarea {
+.account-form input[type="email"], .account-form input[type="text"], .account-form input[type="password"], .account-form input[type="tel"], .account-form input[type="url"], .account-form input[type="date"], .account-form input[type="datetime-local"], .account-form textarea {
   font: inherit; color: var(--fg); background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius-sm); padding: calc(var(--space) * 1.25) calc(var(--space) * 1.5); min-width: 0;
 }
@@ -525,3 +525,16 @@ main { min-height: 50vh; }
 .post-grid .reply-mark { margin-inline-start: 0; }
 .post-parent { margin-block: 1.5rem 0; color: var(--muted); font-size: 0.95em; }
 .reply-to { margin: 0 0 0.5rem; padding: 0.6rem 0.8rem; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); }
+
+/* 여분 칸 (ADR-0057) */
+.post-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 0; margin: 0 0 calc(var(--space) * 4); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
+.post-field { display: flex; gap: calc(var(--space) * 2); padding: calc(var(--space) * 1.5) calc(var(--space) * 2); border-block-end: 1px solid var(--border); min-inline-size: 0; }
+.post-field dt { flex: none; min-inline-size: 4.5em; color: var(--muted); font-size: var(--fs-sm); }
+.post-field dd { margin: 0; min-inline-size: 0; overflow-wrap: break-word; word-break: keep-all; }
+.post-field-textarea { grid-column: 1 / -1; }
+.post-field-textarea dd { white-space: pre-line; }
+.post-fields-input { display: grid; gap: calc(var(--space) * 1); margin: 0; padding: calc(var(--space) * 2); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.post-fields-input legend { padding: 0 calc(var(--space) * 1); font-weight: 600; }
+.field-choices { display: flex; flex-wrap: wrap; gap: calc(var(--space) * 1) calc(var(--space) * 2); margin: 0; padding: 0; border: 0; }
+.field-choices legend { inline-size: 100%; margin-block-end: calc(var(--space) * 0.5); }
+.req { color: var(--primary); }

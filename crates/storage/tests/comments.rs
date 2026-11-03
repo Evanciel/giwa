@@ -58,6 +58,7 @@ async fn env(policy: BoardPolicy) -> Env {
             policy: Some(policy),
             sort_order: 0,
             layout: None,
+            field_schema: None,
         },
     )
     .await
@@ -76,6 +77,7 @@ async fn env(policy: BoardPolicy) -> Env {
             tags: vec![],
             notice: false,
             secret: false,
+            meta: Default::default(),
         },
     )
     .await
@@ -240,6 +242,7 @@ async fn comments_can_be_closed() {
             }),
             sort_order: None,
             layout: None,
+            field_schema: None,
         },
     )
     .await

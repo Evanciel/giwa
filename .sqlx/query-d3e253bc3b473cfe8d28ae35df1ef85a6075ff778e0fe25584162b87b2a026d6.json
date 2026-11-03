@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,\n                    actor_type, published_at, created_at, updated_at, scheduled_at, cover,\n                    category_id, is_notice, is_secret, view_count, guest_name, guest_pw_hash,\n                    parent_id, thread_id, thread_path, thread_owner,\n                    (SELECT json_group_array(t.name ORDER BY pt.position)\n                       FROM post_tags pt JOIN tags t ON t.id = pt.tag_id\n                      WHERE pt.post_id = posts.id) AS \"tags!: String\"\n             FROM posts\n             WHERE board_id = ?1 AND status = 'published' AND kind = 'post'\n               AND (published_at > ?2 OR (published_at = ?2 AND id > ?3))\n             ORDER BY published_at ASC, id ASC\n             LIMIT 1",
+  "query": "SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,\n                    actor_type, published_at, created_at, updated_at, scheduled_at, cover,\n                    category_id, is_notice, is_secret, view_count, guest_name, guest_pw_hash,\n                    parent_id, thread_id, thread_path, thread_owner, meta,\n                    (SELECT json_group_array(t.name ORDER BY pt.position)\n                       FROM post_tags pt JOIN tags t ON t.id = pt.tag_id\n                      WHERE pt.post_id = posts.id) AS \"tags!: String\"\n             FROM posts WHERE board_id = ? AND slug = ?",
   "describe": {
     "columns": [
       {
@@ -279,14 +279,25 @@
         }
       },
       {
-        "name": "tags!: String",
+        "name": "meta",
         "ordinal": 25,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "meta"
+          }
+        }
+      },
+      {
+        "name": "tags!: String",
+        "ordinal": 26,
         "type_info": "Text",
         "origin": "Expression"
       }
     ],
     "parameters": {
-      "Right": 3
+      "Right": 2
     },
     "nullable": [
       false,
@@ -314,8 +325,9 @@
       true,
       false,
       true,
+      false,
       true
     ]
   },
-  "hash": "05a589930cb8331bb2a79c4d9f57946298eb49536a08cecd7eb530aea3be6138"
+  "hash": "d3e253bc3b473cfe8d28ae35df1ef85a6075ff778e0fe25584162b87b2a026d6"
 }
