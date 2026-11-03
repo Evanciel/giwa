@@ -56,6 +56,7 @@ pub fn routes() -> Router<AppState> {
         .route("/templates", get(list_templates).post(save_template))
         .route("/templates/{id}", axum::routing::delete(delete_template))
         .route("/preview", post(preview))
+        .route("/slug-check", get(check_slug))
         .fallback(|| async { ApiError(Error::new(Code::NotFound)) })
 }
 
@@ -511,6 +512,18 @@ async fn delete_file(
     Ok(ok(
         StatusCode::OK,
         files::delete(&state.ctx, &actor, &id).await?,
+    ))
+}
+
+/// 글 주소가 게시판에서 비어 있는지 (저장 전 확인, 바꾸는 것 없음).
+async fn check_slug(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Query(input): Query<posts::SlugCheckInput>,
+) -> Result<Response, ApiError> {
+    Ok(ok(
+        StatusCode::OK,
+        posts::check_slug(&state.ctx, &actor, input).await?,
     ))
 }
 

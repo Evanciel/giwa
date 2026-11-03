@@ -382,6 +382,24 @@ async fn post(g: &Global, cmd: PostCmd) -> Out {
             let human = format!("[{}] {}\n\n{}", p.status.as_str(), p.title, p.body_md);
             Ok((to_value(&p)?, human))
         }
+        PostCmd::CheckSlug(args) => {
+            let input = posts::SlugCheckInput {
+                board: args.board,
+                slug: args.slug,
+                title: args.title,
+                post_id: args.post,
+            };
+            let out = posts::check_slug(&ctx, &actor, input).await?;
+            let human = match (&out.available, &out.suggestion) {
+                (true, _) => format!("쓸 수 있습니다: {}", out.path),
+                (false, Some(next)) => format!(
+                    "이미 쓰는 주소입니다: {} (비어 있는 주소: {next})",
+                    out.slug
+                ),
+                (false, None) => format!("이미 쓰는 주소입니다: {}", out.slug),
+            };
+            Ok((to_value(&out)?, human))
+        }
         PostCmd::Preview { from } => {
             let input = posts::PreviewInput {
                 body_md: read_body(&from)?,

@@ -1,53 +1,108 @@
 {% extends "_base.html" %}
 {% block title %}{% if post %}글 고치기{% else %}새 글{% endif %}{% endblock %}
+{% block body_class %}writing{% endblock %}
+{% block main_class %}write-main{% endblock %}
 {% block content %}
-<div class="heading-row">
-  <h1>{% if post %}글 고치기{% else %}새 글{% endif %}</h1>
-  {% if post %}<span class="badge badge-{{ post.status }}">{{ post.status_label }}</span>{% endif %}
-  {% if public_url %}<a class="aside" href="{{ public_url }}" target="_blank" rel="noopener">공개 페이지 보기</a>{% endif %}
-</div>
-<form method="post" action="{% if post %}/admin/posts/{{ post.id }}{% else %}/admin/posts/new{% endif %}" class="stack editor">
+{% set published = post and post.status == "published" %}
+<form method="post" action="{% if post %}/admin/posts/{{ post.id }}{% else %}/admin/posts/new{% endif %}" class="write editor"
+      data-site-url="{{ site.url }}" data-site-name="{{ site.name }}"{% if post %} data-post-id="{{ post.id }}"{% endif %}{% if board_slug %} data-board="{{ board_slug }}"{% endif %}>
   <input type="hidden" name="_csrf" value="{{ csrf }}">
-  {% if not post %}
-  <label for="board">게시판</label>
-  <select id="board" name="board">
-    {% for b in boards %}<option value="{{ b.slug }}"{% if b.slug == values.board %} selected{% endif %}>{{ b.name }}</option>{% endfor %}
-  </select>
-  {% endif %}
-  <label for="title">제목</label>
-  <input id="title" name="title" required maxlength="200" value="{{ values.title }}">
-  <label for="body_md">본문 <span class="hint">Markdown</span></label>
-  <textarea id="body_md" name="body_md" rows="18" data-editor>{{ values.body_md }}</textarea>
-  <details{% if values.slug or values.excerpt or values.cover %} open{% endif %}>
-    <summary>주소·요약·대표 이미지</summary>
-    <label for="slug">주소 <span class="hint">비우면 제목에서 만듭니다</span></label>
-    <input id="slug" name="slug" maxlength="120" value="{{ values.slug }}">
-    <label for="excerpt">요약 <span class="hint">목록·검색 결과에 보입니다. 비우면 본문 앞부분을 씁니다</span></label>
-    <textarea id="excerpt" name="excerpt" rows="3">{{ values.excerpt }}</textarea>
-    <label for="cover">대표 이미지 <span class="hint">올린 사진 주소(/media/…). 비우면 본문 첫 사진을 씁니다</span></label>
-    <input id="cover" name="cover" maxlength="300" value="{{ values.cover }}" placeholder="/media/2026/11/…">
-  </details>
-  {% if not post or post.status != "published" %}
-  <fieldset class="schedule">
-    <legend>예약 발행</legend>
-    {% if post and post.scheduled %}<p class="scheduled">⏰ <strong>{{ post.scheduled }}</strong> 에 발행됩니다.</p>{% endif %}
-    <label for="scheduled_at">발행할 날짜와 시각 <span class="hint">사이트 시간대 기준. 서버가 켜져 있어야 그 시각에 발행됩니다</span></label>
-    <input id="scheduled_at" name="scheduled_at" type="datetime-local" value="{{ values.scheduled_at }}">
-    <div class="actions">
-      <button type="submit" name="intent" value="schedule" class="secondary">저장하고 예약</button>
-      {% if post and post.scheduled %}<button type="submit" name="intent" value="unschedule" class="secondary">예약 취소</button>{% endif %}
+
+  {# 위에 붙는 막대: 돌아가기 · 상태 · 임시 저장 시각 · 저장 · 발행. 에디터가 도구 막대를 그 아래에 붙인다. #}
+  <div class="write-head">
+    <div class="write-top">
+      <a class="write-back" href="/admin">← 글 목록</a>
+      {% if post %}<span class="badge badge-{{ post.status }}">{{ post.status_label }}</span>{% endif %}
+      {% if post and post.scheduled %}<span class="write-scheduled">⏰ {{ post.scheduled }} 발행 예약</span>{% endif %}
+      {% if public_url %}<a class="write-view" href="{{ public_url }}" target="_blank" rel="noopener">공개 페이지</a>{% endif %}
+      <span class="write-saved" data-editor-saved></span>
+      <button type="submit" name="intent" value="draft" class="secondary">{% if published %}저장{% else %}임시저장{% endif %}</button>
+      <a class="button" href="#publish" data-publish-open>{% if published %}발행 설정{% else %}발행{% endif %}</a>
     </div>
-  </fieldset>
-  {% endif %}
-  <div class="actions">
-    <button type="submit" name="intent" value="draft" class="secondary">저장</button>
-    {% if not post or post.status != "published" %}
-    <button type="submit" name="intent" value="publish">저장하고 지금 발행</button>
-    {% endif %}
+    <div class="write-tools" data-editor-toolbar></div>
   </div>
+
+  <div class="paper">
+    {% if not post %}
+    <label class="write-board">
+      <span class="sr-only">게시판</span>
+      <select id="board" name="board">
+        {% for b in boards %}<option value="{{ b.slug }}"{% if b.slug == values.board %} selected{% endif %}>{{ b.name }}</option>{% endfor %}
+      </select>
+    </label>
+    {% endif %}
+    <label for="title" class="sr-only">제목</label>
+    <input id="title" name="title" class="write-title" required maxlength="200" value="{{ values.title }}" placeholder="제목을 입력하세요" autocomplete="off">
+    <label for="body_md" class="sr-only">본문 <span class="hint">Markdown</span></label>
+    <textarea id="body_md" name="body_md" rows="18" data-editor>{{ values.body_md }}</textarea>
+  </div>
+
+  <div class="write-foot" data-editor-foot></div>
+
+  {# 발행 설정. 스크립트가 있으면 「발행」을 누를 때 오른쪽에서 나오고, 없으면 본문 아래에 그대로 보인다. #}
+  <section id="publish" class="publish" aria-labelledby="publish-title">
+    <div class="publish-head">
+      <h2 id="publish-title">발행 설정</h2>
+      <button type="button" class="link publish-close" data-publish-close aria-label="발행 설정 닫기">닫기</button>
+    </div>
+
+    <div class="publish-field">
+      <label for="slug">주소</label>
+      <input id="slug" name="slug" maxlength="120" value="{{ values.slug }}" placeholder="비우면 제목에서 만듭니다" autocomplete="off" spellcheck="false">
+      <p class="publish-hint" data-slug-info>비우면 제목에서 만듭니다.</p>
+    </div>
+
+    <div class="publish-field">
+      <label for="excerpt">요약</label>
+      <textarea id="excerpt" name="excerpt" rows="3" placeholder="비우면 본문 앞부분을 씁니다">{{ values.excerpt }}</textarea>
+      <p class="publish-hint" data-excerpt-info>목록·검색 결과·공유 미리보기에 보입니다.</p>
+    </div>
+
+    <div class="publish-field">
+      <label for="cover">대표 이미지</label>
+      <div class="cover-pick" data-cover-pick hidden></div>
+      <input id="cover" name="cover" maxlength="300" value="{{ values.cover }}" placeholder="/media/2026/11/… (비우면 본문 첫 사진)" spellcheck="false">
+    </div>
+
+    <div class="publish-field" data-share hidden>
+      <span class="publish-label">공유 미리보기</span>
+      <div class="share-card" aria-live="polite">
+        <div class="share-img" data-share-img></div>
+        <div class="share-text">
+          <strong data-share-title></strong>
+          <span data-share-desc></span>
+          <small data-share-url></small>
+        </div>
+      </div>
+    </div>
+
+    {% if not published %}
+    <fieldset class="publish-field publish-when">
+      <legend>발행 시점</legend>
+      <label class="choice"><input type="radio" name="when" value="now" checked data-when> 지금</label>
+      <label class="choice"><input type="radio" name="when" value="schedule" data-when{% if values.scheduled_at %} checked{% endif %}> 예약</label>
+      <div class="when-at" data-when-at>
+        <label for="scheduled_at" class="sr-only">발행할 날짜와 시각</label>
+        <input id="scheduled_at" name="scheduled_at" type="datetime-local" value="{{ values.scheduled_at }}">
+        <p class="publish-hint">사이트 시간대 기준입니다. 서버가 켜져 있어야 그 시각에 발행됩니다.</p>
+      </div>
+    </fieldset>
+    {% endif %}
+
+    <div class="publish-actions">
+      {% if published %}
+      <button type="submit" name="intent" value="draft">저장</button>
+      {% else %}
+      <button type="submit" name="intent" value="publish" data-when-now>지금 발행</button>
+      <button type="submit" name="intent" value="schedule" data-when-later>예약 발행</button>
+      {% if post and post.scheduled %}<button type="submit" name="intent" value="unschedule" class="secondary">예약 취소</button>{% endif %}
+      {% endif %}
+    </div>
+  </section>
 </form>
+
 {% if post %}
-<section class="danger" aria-label="상태 바꾸기">
+<section class="danger write-danger" aria-label="상태 바꾸기">
   {% if post.status == "published" %}
   <form method="post" action="/admin/posts/{{ post.id }}/hide">
     <input type="hidden" name="_csrf" value="{{ csrf }}">

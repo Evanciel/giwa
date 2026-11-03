@@ -301,8 +301,14 @@ mod tests {
                 &json!({"site": {"name": "s"}, "values": {"title": "t", "excerpt": null, "slug": null}}),
             )
             .unwrap();
+        // 요약 칸(textarea) 여는 태그 바로 뒤가 닫는 태그여야 한다 (속성이 늘어도 내용만 본다).
+        let excerpt = html
+            .split(r#"name="excerpt""#)
+            .nth(1)
+            .and_then(|rest| rest.split_once('>'))
+            .map(|(_, after)| after);
         assert!(
-            html.contains(r#"name="excerpt" rows="3"></textarea>"#),
+            excerpt.is_some_and(|a| a.starts_with("</textarea>")),
             "{html}"
         );
         assert!(!html.to_ascii_lowercase().contains(">none<"), "{html}");

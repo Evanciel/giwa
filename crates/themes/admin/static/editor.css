@@ -225,8 +225,8 @@
 }
 .me-meta { display: inline-flex; gap: .75rem; white-space: nowrap; }
 
-/* 보기 단추(맞춤법·전체 화면)는 도구 막대 오른쪽 끝 */
-.me-view { display: flex; gap: .125rem; margin-left: auto; }
+/* 보기 단추(편집 방식·미리보기·맞춤법)는 아래 막대 */
+.me-view { display: flex; flex-wrap: wrap; gap: .25rem; align-items: center; margin-left: auto; }
 
 /* 할 일 목록 */
 .me-doc li.me-task { list-style: none; display: flex; gap: .5rem; align-items: flex-start; margin-left: -1.25em; }
@@ -321,23 +321,6 @@
 .me button.me-char:hover, .me button.me-char:focus-visible { background: var(--bg); }
 .me-chars-close { margin-top: .375rem; font-size: .85rem; }
 
-/* 전체 화면으로 쓰기 */
-.me.me-full {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  display: flex;
-  flex-direction: column;
-  border-radius: 0;
-}
-.me.me-full .me-bar { border-radius: 0; }
-.me.me-full .me-rich, .me.me-full .me-preview, .me.me-full textarea.me-source { flex: 1; max-height: none; }
-.me.me-full .me-doc, .me.me-full .me-preview, .me.me-full textarea.me-source {
-  max-width: 46rem;
-  margin: 0 auto;
-  width: 100%;
-}
-html.me-full-lock, html.me-full-lock body { overflow: hidden; }
 
 /* ---- Maru 확장 문법 (ADR-0034): 강조 상자·정렬·글자 꾸밈 ----
    색은 본문 글자색(--fg)과 섞어 밝은·어두운 화면 모두에서 대비를 유지한다. */
@@ -452,3 +435,72 @@ html.me-full-lock, html.me-full-lock body { overflow: hidden; }
 .me-preview .place { margin: 0 0 1em; padding: .75rem 1rem; border: 1px solid var(--border); border-radius: 6px; }
 .me-preview .place-addr { display: block; color: var(--muted); font-size: .9em; }
 .me-preview .place-links a { margin-right: .75em; font-size: .9em; }
+
+/* ---- 도구 막대 두 줄: 넣기(아이콘 + 이름) · 꾸미기(아이콘) ---- */
+.me-tools { display: flex; flex-direction: column; gap: .125rem; align-items: stretch; }
+.me-tools[hidden] { display: none; }
+.me-row { display: flex; flex-wrap: wrap; gap: .125rem; align-items: center; justify-content: center; }
+.me-row-insert { padding-bottom: .25rem; border-bottom: 1px solid var(--border); }
+.me-icon { display: block; flex: none; }
+.me button.me-tool { display: inline-flex; align-items: center; justify-content: center; gap: .25rem; }
+.me button.me-tool-insert { flex-direction: column; gap: .125rem; min-width: 3.25rem; padding: .25rem .375rem; }
+.me button.me-tool-insert .me-tool-text { font-size: .75rem; color: var(--muted); }
+.me button.me-tool-insert:hover:not(:disabled) .me-tool-text { color: var(--fg); }
+.me button.me-tool-para { min-width: 5.5rem; justify-content: space-between; padding-inline: .625rem .375rem; border-color: var(--border); }
+.me button.me-tool-para .me-icon { width: 16px; height: 16px; }
+.me button.me-mode-icon { display: inline-flex; align-items: center; gap: .3rem; }
+.me button.me-mode-icon .me-icon { width: 18px; height: 18px; }
+.me button.me-menu-item.me-menu-h2 { font-size: 1.15rem; font-weight: 700; }
+.me button.me-menu-item.me-menu-h3 { font-size: 1rem; font-weight: 700; }
+
+/* 말풍선 단추 (링크·사진·표) */
+.me-bubble { flex-wrap: wrap; gap: .25rem; max-width: min(40rem, 100%); }
+.me-chips { display: inline-flex; gap: 0; }
+.me-chips > .me-chip { border-radius: 0; margin-left: -1px; }
+.me-chips > .me-chip:first-child { border-radius: 999px 0 0 999px; margin-left: 0; }
+.me-chips > .me-chip:last-child { border-radius: 0 999px 999px 0; }
+.me button.me-chip {
+  padding: .2rem .625rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  font-size: .8rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.me button.me-chip:hover { background: var(--bg); }
+.me button.me-chip[aria-pressed="true"] { position: relative; border-color: var(--primary); background: var(--ok-bg); font-weight: 600; }
+.me-bubble .me-bubble-url { max-width: 16rem; margin-right: .25rem; }
+
+/* ---- 글쓰기 화면(edit.html)에 놓였을 때: 위·아래 막대에 붙고 편집 칸은 종이처럼 ---- */
+.write .me { border: 0; border-radius: 0; background: transparent; }
+.write .me:focus-within { border-color: transparent; }
+.write .me-rich, .write .me-preview, .write .me textarea.me-source { min-height: 60vh; max-height: none; overflow: visible; }
+.write .me-doc { min-height: 60vh; padding: 1.25rem 0 3rem; font-size: 1.0625rem; }
+.write .me textarea.me-source { padding: 1.25rem 0 3rem; font-family: D2Coding, ui-monospace, Consolas, monospace; font-size: .95rem; }
+.write .me-preview { padding: 1.25rem 0 3rem; }
+.write .me-droptip { position: fixed; bottom: 4.5rem; }
+.write .me-notice { margin-top: 1rem; border: 1px solid var(--border); border-radius: var(--radius); }
+.write .me.me-dropping .me-rich, .write .me.me-dropping textarea.me-source { outline-offset: 4px; border-radius: 6px; }
+.write-tools .me-pop, .write-tools .me-chars { border-top: 1px solid var(--border); border-bottom: 0; }
+.write-tools .me-chars { max-width: 52rem; margin: 0 auto; }
+/* 자리(data-editor-*)에도 .me 가 붙는다. .me 의 position: relative 가 아래 막대의 sticky 를 덮지 않게 한다. */
+.me.write-foot { position: sticky; display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: center; }
+.write-foot .me-status { flex: 1 1 12rem; min-width: 0; }
+.write-foot .me-view { margin-left: 0; }
+.write-foot .me-modes { padding-right: .5rem; border-right: 1px solid var(--border); }
+.write-foot .me-count { color: var(--muted); }
+
+@media (max-width: 640px) {
+  .me-row { flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; scrollbar-width: thin; }
+  .me-row > * { flex: none; }
+  .write .me-doc, .write .me textarea.me-source, .write .me-preview { padding-inline: 0; }
+  .write-foot .me-count { display: none; }
+  /* 아래 막대를 한 줄로: 미리보기·맞춤법은 아이콘만 (이름은 화면 읽기 프로그램에 남는다) */
+  .write-foot .me-mode-icon span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .me.write-foot { flex-wrap: nowrap; }
+  .write-foot .me-status { flex: 1 1 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .write-foot .me-view { flex-wrap: nowrap; margin-left: auto; }
+}

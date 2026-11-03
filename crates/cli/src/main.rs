@@ -128,12 +128,29 @@ pub enum PostCmd {
     Delete { id: String },
     /// 삭제·숨김을 되돌린다
     Restore { id: String },
+    /// 글 주소가 게시판에서 비어 있는지 확인한다 (바꾸는 것 없음)
+    CheckSlug(PostCheckSlugArgs),
     /// 저장하지 않고 본문을 공개 화면과 같은 HTML 로 그린다
     Preview {
         /// 본문 파일 (UTF-8). `-` 이면 표준 입력
         #[arg(long)]
         from: PathBuf,
     },
+}
+
+#[derive(Debug, Args)]
+pub struct PostCheckSlugArgs {
+    /// 게시판 슬러그
+    #[arg(long)]
+    pub board: String,
+    /// 확인할 주소. 생략하면 --title 에서 만들 주소를 알려 준다
+    #[arg(long)]
+    pub slug: Option<String>,
+    #[arg(long)]
+    pub title: Option<String>,
+    /// 고치는 글의 ID (그 글 자신의 주소는 겹친 것으로 보지 않는다)
+    #[arg(long)]
+    pub post: Option<String>,
 }
 
 #[derive(Debug, Args)]

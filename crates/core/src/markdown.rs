@@ -321,6 +321,9 @@ fn is_note_id(v: &str) -> bool {
     !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit())
 }
 
+/// 요약을 비워 둔 글의 목록·메타 설명·공유 미리보기 글자 수.
+pub const SUMMARY_CHARS: usize = 160;
+
 /// 목록·메타 설명용 평문 요약. `max_chars` 를 넘으면 `…` 로 자른다.
 pub fn plain_text(md: &str, max_chars: usize) -> String {
     let md = &*directives::expand(md, options());

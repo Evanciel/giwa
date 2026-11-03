@@ -383,6 +383,75 @@ fn media_upload_serve_and_preview_through_all_paths() {
         "<p><strong>굵게</strong></p>"
     );
 
+    // 발행 설정이 쓰는 값: 자동 요약과 본문 사진(대표 이미지 후보).
+    let res = http(
+        &bind,
+        "POST",
+        "/admin/preview",
+        &[
+            ("Cookie", &cookie),
+            ("X-CSRF-Token", &csrf),
+            ("Content-Type", "application/json"),
+        ],
+        format!(r#"{{"body_md":"첫 문단\n\n![a]({url})"}}"#).as_bytes(),
+    );
+    assert_eq!(res.json()["data"]["summary"], "첫 문단", "{}", res.text());
+    assert_eq!(
+        res.json()["data"]["images"],
+        serde_json::json!([url.as_str()])
+    );
+
+    // 주소 겹침 확인: CLI·REST·관리 화면이 같은 답을 낸다. 아무것도 바꾸지 않는다.
+    let made = maru(
+        &data,
+        &["post", "new", "--title", "주소 확인", "--body", "본문"],
+    );
+    assert_eq!(made["data"]["slug"], "주소-확인", "{made}");
+    let cli = maru(
+        &data,
+        &[
+            "post",
+            "check-slug",
+            "--board",
+            "blog",
+            "--slug",
+            "주소-확인",
+        ],
+    );
+    assert_eq!(cli["data"]["available"], false, "{cli}");
+    assert_eq!(cli["data"]["suggestion"], "주소-확인-2");
+    let q = "/slug-check?board=blog&slug=%EC%A3%BC%EC%86%8C-%ED%99%95%EC%9D%B8";
+    let rest = http(
+        &bind,
+        "GET",
+        &format!("/api/v1{q}"),
+        &[("Authorization", &bearer)],
+        b"",
+    );
+    assert_eq!(rest.json()["data"], cli["data"], "{}", rest.text());
+    let res = http(
+        &bind,
+        "GET",
+        &format!("/admin{q}"),
+        &[("Cookie", &cookie)],
+        b"",
+    );
+    assert_eq!(res.status, 403, "CSRF 헤더 없이는 안 된다: {}", res.text());
+    let res = http(
+        &bind,
+        "GET",
+        &format!("/admin{q}&post_id={}", made["data"]["id"].as_str().unwrap()),
+        &[("Cookie", &cookie), ("X-CSRF-Token", &csrf)],
+        b"",
+    );
+    assert_eq!(res.json()["data"]["available"], true, "{}", res.text());
+    let guest = http(&bind, "GET", &format!("/api/v1{q}"), &[], b"");
+    assert!(
+        guest.status == 401 || guest.status == 403,
+        "{}",
+        guest.text()
+    );
+
     // 세 경로가 모두 같은 표에 남는다.
     let all = maru(&data, &["media", "list"]);
     assert_eq!(all["data"]["total"], 3);

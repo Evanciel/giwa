@@ -16,8 +16,6 @@ use serde_json::{Value, json};
 
 use crate::{AppState, error};
 
-const SUMMARY_CHARS: usize = 160;
-
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/", get(home))
@@ -233,7 +231,7 @@ async fn page_inner(state: &AppState, slug: &str) -> Result<Value> {
     Ok(json!({
         "meta": json!({
             "title": format!("{} · {}", p.title, site.settings.name),
-            "description": markdown::plain_text(&p.body_md, SUMMARY_CHARS),
+            "description": markdown::plain_text(&p.body_md, markdown::SUMMARY_CHARS),
         }),
         "site": site.json,
         "canonical": urls::absolute(&state.ctx.site_url, &target),
@@ -420,7 +418,7 @@ fn page_json(p: &Page, body_html: String) -> Value {
         "slug": p.slug,
         "layout": p.layout,
         "url": urls::path(&Target::Page { page: &p.slug }),
-        "summary": markdown::plain_text(&p.body_md, SUMMARY_CHARS),
+        "summary": markdown::plain_text(&p.body_md, markdown::SUMMARY_CHARS),
         "body_html": body_html,
     })
 }
@@ -431,7 +429,7 @@ fn post_summary(board_slug: &str, p: &Post, s: &SiteSettings) -> Value {
         .excerpt
         .clone()
         .filter(|e| !e.trim().is_empty())
-        .unwrap_or_else(|| markdown::plain_text(&p.body_md, SUMMARY_CHARS));
+        .unwrap_or_else(|| markdown::plain_text(&p.body_md, markdown::SUMMARY_CHARS));
     json!({
         "id": p.id,
         "title": p.title,

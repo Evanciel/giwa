@@ -328,6 +328,91 @@ async fn slugs_are_unique_per_board() {
 }
 
 #[tokio::test]
+async fn check_slug_reports_taken_and_derived_addresses() {
+    let e = env().await;
+    blog(&e.ctx).await;
+    let local = Actor::local();
+    let a = posts::create_draft(&e.ctx, &local, draft("같은 제목"))
+        .await
+        .unwrap();
+    let audits = scalar(&e.db, "SELECT count(*) FROM audit_log").await;
+    let check =
+        |slug: Option<&str>, title: Option<&str>, post: Option<&str>| posts::SlugCheckInput {
+            board: "blog".into(),
+            slug: slug.map(Into::into),
+            title: title.map(Into::into),
+            post_id: post.map(Into::into),
+        };
+
+    // 다른 글이 쓰는 주소: 겹침 + 다음 후보 (저장하면 실제로 막히는 경우와 같다)
+    let c = posts::check_slug(&e.ctx, &local, check(Some(" 같은-제목 "), None, None))
+        .await
+        .unwrap();
+    assert_eq!((c.slug.as_str(), c.available), ("같은-제목", false));
+    assert_eq!(c.suggestion.as_deref(), Some("같은-제목-2"));
+    assert_eq!(c.path, "/b/blog/%EA%B0%99%EC%9D%80-%EC%A0%9C%EB%AA%A9");
+    // 고치는 글 자신의 주소는 겹침이 아니다
+    let c = posts::check_slug(&e.ctx, &local, check(Some("같은-제목"), None, Some(&a.id)))
+        .await
+        .unwrap();
+    assert!(c.available && c.suggestion.is_none());
+    // 주소를 비우면 저장할 때와 같은 규칙으로 제목에서 만든다
+    let c = posts::check_slug(&e.ctx, &local, check(None, Some("같은 제목"), None))
+        .await
+        .unwrap();
+    assert_eq!(
+        (c.slug.as_str(), c.available, c.derived),
+        ("같은-제목-2", true, true)
+    );
+    let b = posts::create_draft(&e.ctx, &local, draft("같은 제목"))
+        .await
+        .unwrap();
+    assert_eq!(b.slug, c.slug);
+    // 정규화: 대문자·공백
+    let c = posts::check_slug(&e.ctx, &local, check(Some("New Post"), None, None))
+        .await
+        .unwrap();
+    assert_eq!((c.slug.as_str(), c.available), ("new-post", true));
+    // 없는 게시판, 쓰기 권한 없는 손님
+    let mut missing = check(Some("x"), None, None);
+    missing.board = "nope".into();
+    let err = posts::check_slug(&e.ctx, &local, missing)
+        .await
+        .unwrap_err();
+    assert_eq!(err.code(), Code::NotFound);
+    let guest = anonymous_actor(&e.ctx).await.unwrap();
+    assert!(
+        posts::check_slug(&e.ctx, &guest, check(Some("x"), None, None))
+            .await
+            .is_err()
+    );
+    // 확인만 하므로 감사 기록이 늘지 않는다 (create_draft 한 번만 늘었다)
+    assert_eq!(
+        scalar(&e.db, "SELECT count(*) FROM audit_log").await,
+        audits + 1
+    );
+    e.db.close().await;
+}
+
+#[tokio::test]
+async fn preview_returns_summary_and_site_photos() {
+    let e = env().await;
+    let local = Actor::local();
+    let out = posts::preview(
+        &e.ctx,
+        &local,
+        posts::PreviewInput {
+            body_md: "## 제목\n\n첫 **문단** ![밖](https://example.test/a.jpg)\n\n![가](/media/2026/11/a.jpg) ![나](/media/2026/11/b.png)".into(),
+        },
+    )
+    .unwrap();
+    assert!(out.html.contains("<h2"), "{}", out.html);
+    assert!(out.summary.starts_with("제목 첫 문단"), "{}", out.summary);
+    assert_eq!(out.images, ["/media/2026/11/a.jpg", "/media/2026/11/b.png"]);
+    e.db.close().await;
+}
+
+#[tokio::test]
 async fn private_board_hides_posts_from_guests() {
     let e = env().await;
     let local = Actor::local();

@@ -52,6 +52,7 @@ pub fn routes() -> Router<AppState> {
         )
         .route("/admin/templates", get(list_templates).post(save_template))
         .route("/admin/preview", post(preview))
+        .route("/admin/slug-check", get(check_slug))
         .route("/admin/assets/{*path}", get(asset))
         .layer(middleware::map_response(admin_headers))
 }
@@ -726,6 +727,7 @@ async fn edit_page(
                 "scheduled": p.scheduled_at.as_deref().map(|s| clock::display_datetime(s, tz)),
             })),
             "values": values,
+            "board_slug": board_slug,
             "public_url": public_url,
             "notice": notice_text,
             "error": error,
@@ -1091,6 +1093,17 @@ async fn upload_file(
     };
     let f = files::upload(&state.ctx, &who.actor, input).await?;
     Ok((StatusCode::CREATED, Json(Success::new(f))).into_response())
+}
+
+/// 발행 설정의 주소 칸: 입력하는 동안 겹치는지 알려 준다.
+async fn check_slug(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(input): Query<posts::SlugCheckInput>,
+) -> Result<Response, ApiError> {
+    let who = json_session(&state, &headers).await?;
+    let out = posts::check_slug(&state.ctx, &who.actor, input).await?;
+    Ok(Json(Success::new(out)).into_response())
 }
 
 async fn preview(

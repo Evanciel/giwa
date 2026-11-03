@@ -581,6 +581,30 @@ async fn unique_slug(
     Ok(format!("{base}-{}", clock::new_id()))
 }
 
+/// 읽기 전용 확인용 (check_slug). 저장은 트랜잭션 안의 slug_taken 으로 다시 확인한다.
+async fn slug_used(ctx: &Ctx, board_id: &str, slug: &str, except: Option<&str>) -> Result<bool> {
+    Ok(ctx
+        .store
+        .post_by_slug(board_id, slug)
+        .await?
+        .is_some_and(|p| Some(p.id.as_str()) != except))
+}
+
+async fn next_free_slug(
+    ctx: &Ctx,
+    board_id: &str,
+    base: &str,
+    except: Option<&str>,
+) -> Result<String> {
+    for n in 2..1000 {
+        let candidate = format!("{base}-{n}");
+        if !slug_used(ctx, board_id, &candidate, except).await? {
+            return Ok(candidate);
+        }
+    }
+    Ok(format!("{base}-{}", clock::new_id()))
+}
+
 fn revision_of(post: &Post, actor: &Actor) -> Revision {
     let (_, actor_id) = actor.audit_identity();
     Revision {
@@ -605,14 +629,103 @@ pub struct PreviewInput {
 pub struct Preview {
     /// 공개 화면과 같은 렌더러·정화를 거친 HTML
     pub html: String,
+    /// 요약을 비워 두면 목록·검색·공유 미리보기에 쓰이는 본문 앞부분
+    pub summary: String,
+    /// 본문에 나오는 이 사이트의 사진 (`/media/...`, 나오는 차례). 대표 이미지 후보
+    pub images: Vec<String>,
 }
 
 /// 저장하지 않고 본문을 공개 화면과 같은 방식으로 그린다. 글을 쓸 수 있는 사람만.
 pub fn preview(_ctx: &Ctx, actor: &Actor, input: PreviewInput) -> Result<Preview> {
     actor.require(Permission::PostWrite)?;
     let body = check_body(input.body_md)?;
+    let mut images = crate::markdown::image_urls(&body);
+    images.retain(|u| u.starts_with("/media/"));
+    images.dedup();
     Ok(Preview {
         html: crate::markdown::render(&body).into_string(),
+        summary: crate::markdown::plain_text(&body, crate::markdown::SUMMARY_CHARS),
+        images,
+    })
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SlugCheckInput {
+    /// 게시판 슬러그
+    pub board: String,
+    /// 확인할 주소. 비우면 제목에서 만들 주소를 알려 준다
+    #[serde(default)]
+    pub slug: Option<String>,
+    /// 주소를 비웠을 때 주소를 만들 제목
+    #[serde(default)]
+    pub title: Option<String>,
+    /// 고치는 글의 ID. 그 글 자신의 주소는 겹친 것으로 보지 않는다
+    #[serde(default)]
+    pub post_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, JsonSchema)]
+pub struct SlugCheck {
+    /// 저장될 주소 (정규화한 값)
+    pub slug: String,
+    /// 이 게시판에서 쓸 수 있으면 true
+    pub available: bool,
+    /// 겹치면 비어 있는 다음 후보
+    pub suggestion: Option<String>,
+    /// 주소를 비워 제목에서 만든 값이면 true
+    pub derived: bool,
+    /// 공개 주소의 경로 (`/b/게시판/주소`)
+    pub path: String,
+}
+
+/// 글 주소가 이 게시판에서 비어 있는지 저장하기 전에 확인한다. 아무것도 바꾸지 않는다.
+/// 주소를 비우면 저장할 때와 같은 규칙으로 제목에서 만든 주소를 돌려준다.
+pub async fn check_slug(ctx: &Ctx, actor: &Actor, input: SlugCheckInput) -> Result<SlugCheck> {
+    actor.require(Permission::PostWrite)?;
+    let board = ctx
+        .store
+        .board_by_slug(&input.board)
+        .await?
+        .ok_or_else(|| boards::not_found(&input.board))?;
+    actor.require_board(Permission::PostWrite, &board.id)?;
+    let except = input.post_id.as_deref();
+    let given = input
+        .slug
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let (slug, available, suggestion, derived) = match given {
+        Some(s) => {
+            let s = slug::normalize(s)?;
+            if slug_used(ctx, &board.id, &s, except).await? {
+                let next = next_free_slug(ctx, &board.id, &s, except).await?;
+                (s, false, Some(next), false)
+            } else {
+                (s, true, None, false)
+            }
+        }
+        None => {
+            // 저장할 때(create_draft·unique_slug)와 같은 규칙
+            let base = slug::from_title(input.title.as_deref().unwrap_or("").trim(), "post");
+            let s = if slug_used(ctx, &board.id, &base, except).await? {
+                next_free_slug(ctx, &board.id, &base, except).await?
+            } else {
+                base
+            };
+            (s, true, None, true)
+        }
+    };
+    let path = crate::urls::path(&crate::urls::Target::Post {
+        board: &board.slug,
+        post: &slug,
+    });
+    Ok(SlugCheck {
+        slug,
+        available,
+        suggestion,
+        derived,
+        path,
     })
 }
 

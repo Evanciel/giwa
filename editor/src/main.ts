@@ -42,7 +42,6 @@ import {
   taskActive,
   toggleChecked,
   toggleCodeBlock,
-  toggleHeading,
   toggleList,
   toggleQuote,
   toggleTask,
@@ -65,6 +64,8 @@ import {
   uploadFile,
 } from "./upload";
 import type { Attached } from "./upload";
+import { icon } from "./icons";
+import { bindPublish } from "./publish";
 import { fetchTemplates, saveTemplate } from "./templates";
 import type { Template } from "./templates";
 
@@ -73,6 +74,12 @@ type Mode = "rich" | "md" | "preview";
 interface Tool {
   label: string;
   name: string;
+  /** 넣기 줄(아이콘 + 이름)인지 꾸미기 줄(아이콘만)인지 */
+  row: "insert" | "format";
+  /** icons.ts 의 이름. 없으면 label 글자를 그대로 보인다(B·I·S). */
+  icon?: string;
+  /** 단추 글자를 상태에 따라 바꾼다 (단락: 본문·제목·소제목). */
+  labelOf?: (s: EditorState, mode: Mode) => string;
   keys?: string;
   run: (ed: Editor) => void;
   /** Markdown 모드에서 할 일. 없으면 그 모드에서 버튼을 끈다. */
@@ -108,45 +115,49 @@ function can(c: Command) {
 const n = schema.nodes;
 const m = schema.marks;
 
+/** 지금 문단의 종류 이름 (단락 단추 글자). */
+function paraLabel(s: EditorState, mode: Mode): string {
+  if (mode !== "rich") return "단락";
+  if (blockActive(s, n.heading, { level: 2 })) return "제목";
+  if (blockActive(s, n.heading, { level: 3 })) return "소제목";
+  if (blockActive(s, n.code_block)) return "코드";
+  return "본문";
+}
+
+// 두 줄: 위는 본문에 무언가를 넣는 단추(아이콘 + 이름), 아래는 글자·문단을 꾸미는 단추(아이콘만).
+// 사진 크기·캡션·대체 텍스트, 표 편집처럼 고른 것이 있어야 쓰는 단추는 그것을 고르면 옆에 뜨는 말풍선에 있다.
 const TOOLS: (Tool | "|")[] = [
-  { label: "제목", name: "큰 제목", keys: `${MOD}+Alt+2`, run: cmd(toggleHeading(2)), md: (ed) => ed.mdLines("## "), active: (s) => blockActive(s, n.heading, { level: 2 }), enabled: can(setBlockType(n.heading, { level: 2 })) },
-  { label: "소제목", name: "작은 제목", keys: `${MOD}+Alt+3`, run: cmd(toggleHeading(3)), md: (ed) => ed.mdLines("### "), active: (s) => blockActive(s, n.heading, { level: 3 }), enabled: can(setBlockType(n.heading, { level: 3 })) },
+  { row: "insert", icon: "photo", label: "사진", name: "사진 올리기 (끌어다 놓거나 붙여 넣어도 됩니다)", run: (ed) => ed.pickFiles(), md: (ed) => ed.pickFiles() },
+  { row: "insert", icon: "file", label: "파일", name: "파일 첨부 (PDF·한글·오피스·zip 등, 10MB 이하)", run: (ed) => ed.pickAttachments(), md: (ed) => ed.pickAttachments() },
+  { row: "insert", icon: "video", label: "동영상", name: "유튜브·비메오 동영상 넣기", run: (ed) => ed.openVideo(), md: (ed) => ed.openVideo() },
+  { row: "insert", icon: "place", label: "장소", name: "장소(이름·주소·지도 링크) 넣기", run: (ed) => ed.openPlace(), md: (ed) => ed.openPlace() },
+  { row: "insert", icon: "table", label: "표", name: "표 넣기 (칸 사이는 Tab 으로 이동)", run: cmd(insertTable()), md: (ed) => ed.mdInsert("\n\n| 제목 | 제목 |\n| --- | --- |\n| 내용 | 내용 |\n\n"), enabled: can(insertTable()) },
+  { row: "insert", icon: "quote", label: "인용구", name: "인용", run: cmd(toggleQuote), md: (ed) => ed.mdLines("> "), active: (s) => wrappedIn(s, n.blockquote), enabled: can(toggleQuote) },
+  { row: "insert", icon: "rule", label: "구분선", name: "구분선", run: cmd(insertRule), md: (ed) => ed.mdInsert("\n\n---\n\n") },
+  { row: "insert", icon: "box", label: "상자", name: "강조 상자 (알림·도움말·주의·경고)", run: (ed) => ed.openBoxMenu("callout"), md: (ed) => ed.openBoxMenu("callout"), active: (s) => !!boxKind(s, "callout") },
+  { row: "insert", icon: "template", label: "틀", name: "글 틀 불러오기·저장 (여행기·리뷰·공지·레시피 등)", run: (ed) => void ed.openTemplates(), md: (ed) => void ed.openTemplates() },
+  { row: "insert", icon: "emoji", label: "특수문자", name: "이모지·특수문자", run: (ed) => ed.toggleChars(), md: (ed) => ed.toggleChars() },
+
+  { row: "format", icon: "caret", label: "본문", labelOf: paraLabel, name: "문단 종류 (본문·제목·소제목)", run: (ed) => ed.openParaMenu(), md: (ed) => ed.openParaMenu() },
   "|",
-  { label: "B", name: "굵게", keys: `${MOD}+B`, run: cmd(toggleMark(m.strong)), md: (ed) => ed.mdWrap("**", "**", "굵은 글"), active: (s) => markActive(s, m.strong), enabled: can(toggleMark(m.strong)) },
-  { label: "I", name: "기울임", keys: `${MOD}+I`, run: cmd(toggleMark(m.em)), md: (ed) => ed.mdWrap("*", "*", "기울인 글"), active: (s) => markActive(s, m.em), enabled: can(toggleMark(m.em)) },
-  { label: "S", name: "취소선", keys: `${MOD}+Shift+X`, run: cmd(toggleMark(m.strike)), md: (ed) => ed.mdWrap("~~", "~~", "지운 글"), active: (s) => markActive(s, m.strike), enabled: can(toggleMark(m.strike)) },
-  { label: "</>", name: "코드", keys: `${MOD}+E`, run: cmd(toggleMark(m.code)), md: (ed) => ed.mdWrap("`", "`", "코드"), active: (s) => markActive(s, m.code), enabled: can(toggleMark(m.code)) },
-  { label: "링크", name: "링크", keys: `${MOD}+K`, run: (ed) => ed.openLink(), md: (ed) => ed.mdLink(), active: (s) => markActive(s, m.link) },
-  { label: "글자색", name: "글자 색", run: (ed) => ed.openSpanMenu("color"), md: (ed) => ed.openSpanMenu("color"), active: (s) => !!spanValue(s, m.color) },
-  { label: "형광펜", name: "형광펜", run: (ed) => ed.openSpanMenu("mark"), md: (ed) => ed.openSpanMenu("mark"), active: (s) => !!spanValue(s, m.highlight) },
-  { label: "크기", name: "글자 크기", run: (ed) => ed.openSpanMenu("size"), md: (ed) => ed.openSpanMenu("size"), active: (s) => !!spanValue(s, m.size) },
+  { row: "format", label: "B", name: "굵게", keys: `${MOD}+B`, run: cmd(toggleMark(m.strong)), md: (ed) => ed.mdWrap("**", "**", "굵은 글"), active: (s) => markActive(s, m.strong), enabled: can(toggleMark(m.strong)) },
+  { row: "format", label: "I", name: "기울임", keys: `${MOD}+I`, run: cmd(toggleMark(m.em)), md: (ed) => ed.mdWrap("*", "*", "기울인 글"), active: (s) => markActive(s, m.em), enabled: can(toggleMark(m.em)) },
+  { row: "format", label: "S", name: "취소선", keys: `${MOD}+Shift+X`, run: cmd(toggleMark(m.strike)), md: (ed) => ed.mdWrap("~~", "~~", "지운 글"), active: (s) => markActive(s, m.strike), enabled: can(toggleMark(m.strike)) },
+  { row: "format", icon: "color", label: "글자색", name: "글자 색", run: (ed) => ed.openSpanMenu("color"), md: (ed) => ed.openSpanMenu("color"), active: (s) => !!spanValue(s, m.color) },
+  { row: "format", icon: "highlight", label: "형광펜", name: "형광펜", run: (ed) => ed.openSpanMenu("mark"), md: (ed) => ed.openSpanMenu("mark"), active: (s) => !!spanValue(s, m.highlight) },
+  { row: "format", icon: "size", label: "크기", name: "글자 크기", run: (ed) => ed.openSpanMenu("size"), md: (ed) => ed.openSpanMenu("size"), active: (s) => !!spanValue(s, m.size) },
   "|",
-  { label: "상자", name: "강조 상자", run: (ed) => ed.openBoxMenu("callout"), md: (ed) => ed.openBoxMenu("callout"), active: (s) => !!boxKind(s, "callout") },
-  { label: "정렬", name: "문단 정렬", run: (ed) => ed.openBoxMenu("align"), md: (ed) => ed.openBoxMenu("align"), active: (s) => !!boxKind(s, "align") },
+  { row: "format", icon: "link", label: "링크", name: "링크", keys: `${MOD}+K`, run: (ed) => ed.openLink(), md: (ed) => ed.mdLink(), active: (s) => markActive(s, m.link) },
+  { row: "format", icon: "code", label: "코드", name: "코드", keys: `${MOD}+E`, run: cmd(toggleMark(m.code)), md: (ed) => ed.mdWrap("`", "`", "코드"), active: (s) => markActive(s, m.code), enabled: can(toggleMark(m.code)) },
   "|",
-  { label: "인용", name: "인용", run: cmd(toggleQuote), md: (ed) => ed.mdLines("> "), active: (s) => wrappedIn(s, n.blockquote), enabled: can(toggleQuote) },
-  { label: "• 목록", name: "글머리 목록", run: cmd(toggleList(n.bullet_list)), md: (ed) => ed.mdLines("- "), active: (s) => wrappedIn(s, n.bullet_list), enabled: can(toggleList(n.bullet_list)) },
-  { label: "1. 목록", name: "번호 목록", run: cmd(toggleList(n.ordered_list)), md: (ed) => ed.mdLines((i) => `${i + 1}. `), active: (s) => wrappedIn(s, n.ordered_list), enabled: can(toggleList(n.ordered_list)) },
-  { label: "☑ 할 일", name: "할 일 목록", keys: `${MOD}+Shift+9`, run: cmd(toggleTask), md: (ed) => ed.mdLines("- [ ] "), active: taskActive, enabled: can(toggleTask) },
-  { label: "코드 블록", name: "코드 블록", run: cmd(toggleCodeBlock), md: (ed) => ed.mdFence(), active: (s) => blockActive(s, n.code_block), enabled: can(toggleCodeBlock) },
-  { label: "구분선", name: "구분선", run: cmd(insertRule), md: (ed) => ed.mdInsert("\n\n---\n\n") },
-  { label: "표", name: "표 넣기 (칸 사이는 Tab 으로 이동)", run: cmd(insertTable()), md: (ed) => ed.mdInsert("\n\n| 제목 | 제목 |\n| --- | --- |\n| 내용 | 내용 |\n\n"), enabled: can(insertTable()) },
-  { label: "표 편집", name: "줄·칸 더하기·지우기, 정렬", run: (ed) => ed.openTableMenu(), enabled: (s) => !!tableContext(s) },
-  { label: "각주", name: "각주 달기", run: cmd(insertFootnote), md: (ed) => ed.mdFootnote() },
-  { label: "☺", name: "이모지·특수문자", run: (ed) => ed.toggleChars(), md: (ed) => ed.toggleChars() },
+  { row: "format", icon: "align", label: "정렬", name: "문단 정렬", run: (ed) => ed.openBoxMenu("align"), md: (ed) => ed.openBoxMenu("align"), active: (s) => !!boxKind(s, "align") },
+  { row: "format", icon: "bullet", label: "목록", name: "글머리 목록", run: cmd(toggleList(n.bullet_list)), md: (ed) => ed.mdLines("- "), active: (s) => wrappedIn(s, n.bullet_list), enabled: can(toggleList(n.bullet_list)) },
+  { row: "format", icon: "ordered", label: "번호", name: "번호 목록", run: cmd(toggleList(n.ordered_list)), md: (ed) => ed.mdLines((i) => `${i + 1}. `), active: (s) => wrappedIn(s, n.ordered_list), enabled: can(toggleList(n.ordered_list)) },
+  { row: "format", icon: "task", label: "할 일", name: "할 일 목록", keys: `${MOD}+Shift+9`, run: cmd(toggleTask), md: (ed) => ed.mdLines("- [ ] "), active: taskActive, enabled: can(toggleTask) },
+  { row: "format", icon: "more", label: "더보기", name: "더보기 (코드 블록·각주·갤러리)", run: (ed) => ed.openMore(), md: (ed) => ed.openMore() },
   "|",
-  { label: "이미지", name: "이미지 올리기", run: (ed) => ed.pickFiles(), md: (ed) => ed.pickFiles() },
-  { label: "대체 텍스트", name: "선택한 그림의 대체 텍스트", run: (ed) => ed.openAlt(), enabled: (s) => !!selectedImage(s) },
-  { label: "사진 크기", name: "선택한 그림의 크기", run: (ed) => ed.openImageSize(), enabled: (s) => !!selectedImage(s) },
-  { label: "캡션", name: "선택한 그림의 캡션", run: (ed) => ed.openCaption(), enabled: (s) => !!selectedImage(s) },
-  { label: "틀", name: "글 틀 불러오기·저장 (여행기·리뷰·공지·레시피 등)", run: (ed) => void ed.openTemplates(), md: (ed) => void ed.openTemplates() },
-  { label: "파일", name: "파일 첨부 (PDF·한글·오피스·zip 등, 10MB 이하)", run: (ed) => ed.pickAttachments(), md: (ed) => ed.pickAttachments() },
-  { label: "동영상", name: "유튜브·비메오 동영상 넣기", run: (ed) => ed.openVideo(), md: (ed) => ed.openVideo() },
-  { label: "장소", name: "장소(이름·주소·지도 링크) 넣기", run: (ed) => ed.openPlace(), md: (ed) => ed.openPlace() },
-  { label: "갤러리", name: "사진 여러 장을 격자로 묶기", run: cmd(setBox("gallery", "gallery")), md: (ed) => ed.mdBox("gallery"), active: (s) => !!boxKind(s, "gallery") },
-  "|",
-  { label: "↶", name: "실행 취소", keys: `${MOD}+Z`, run: cmd(undo), md: (ed) => ed.mdHistory("undo"), enabled: can(undo) },
-  { label: "↷", name: "다시 실행", keys: `${MOD}+Shift+Z`, run: cmd(redo), md: (ed) => ed.mdHistory("redo"), enabled: can(redo) },
+  { row: "format", icon: "undo", label: "되돌리기", name: "실행 취소", keys: `${MOD}+Z`, run: cmd(undo), md: (ed) => ed.mdHistory("undo"), enabled: can(undo) },
+  { row: "format", icon: "redo", label: "다시", name: "다시 실행", keys: `${MOD}+Shift+Z`, run: cmd(redo), md: (ed) => ed.mdHistory("redo"), enabled: can(redo) },
 ];
 
 /** 링크 주소를 고친다. 도메인만 쓰면 https 를 붙이고, 스크립트 주소는 거부한다. */
@@ -194,7 +205,8 @@ class Editor {
   private chars: HTMLElement;
   private bubble: HTMLElement;
   private spellButton: HTMLButtonElement;
-  private fullButton: HTMLButtonElement;
+  /** 미리보기를 끄면 돌아갈 편집 방식 */
+  private lastEdit: Mode = "rich";
   private spell = false;
   private syncTimer = 0;
   private draftTimer = 0;
@@ -216,36 +228,54 @@ class Editor {
     this.draftKey = `maru:draft:${form.getAttribute("action") ?? location.pathname}`;
 
     this.root = el("div", { class: "me" });
-    const bar = el("div", { class: "me-bar" });
+    // 도구 막대: 넣기 줄과 꾸미기 줄
+    this.tools = el("div", { class: "me-tools", role: "toolbar", "aria-label": "글쓰기 도구" });
+    const rows = { insert: el("div", { class: "me-row me-row-insert" }), format: el("div", { class: "me-row me-row-format" }) };
+    let lastRow: "insert" | "format" = "insert";
+    for (const t of TOOLS) {
+      if (t === "|") {
+        rows[lastRow].append(el("span", { class: "me-sep", "aria-hidden": "true" }));
+        continue;
+      }
+      lastRow = t.row;
+      const title = t.keys ? `${t.name} (${t.keys})` : t.name;
+      const b = el("button", { type: "button", class: `me-tool me-tool-${t.row}`, title, "aria-label": t.name });
+      const pic = t.icon ? icon(t.icon) : null;
+      if (t.labelOf) {
+        // 단락: 글자 + ▾
+        b.classList.add("me-tool-para");
+        b.append(el("span", { class: "me-tool-text" }, t.label));
+        if (pic) b.append(pic);
+      } else if (pic) {
+        b.append(pic);
+        if (t.row === "insert") b.append(el("span", { class: "me-tool-text" }, t.label));
+      } else {
+        b.textContent = t.label;
+      }
+      if (t.active) b.setAttribute("aria-pressed", "false");
+      // 버튼을 눌러도 편집 영역의 선택이 풀리지 않게 한다.
+      b.addEventListener("mousedown", (e) => e.preventDefault());
+      b.addEventListener("click", () => (this.mode === "rich" ? t.run(this) : t.md?.(this)));
+      rows[t.row].append(b);
+      this.buttons.push({ tool: t, button: b });
+    }
+    this.tools.append(rows.insert, rows.format);
+
+    // 편집 방식(서식·Markdown)과 미리보기, 맞춤법은 아래 막대에 둔다.
     const modes = el("div", { class: "me-modes", role: "group", "aria-label": "편집 방식" });
-    for (const [mode, label] of [["rich", "서식"], ["md", "Markdown"], ["preview", "미리보기"]] as [Mode, string][]) {
+    for (const [mode, label] of [["rich", "서식"], ["md", "Markdown"]] as [Mode, string][]) {
       const b = el("button", { type: "button", class: "me-mode", "aria-pressed": "false" }, label);
       b.addEventListener("click", () => this.setMode(mode));
       modes.append(b);
       this.modeButtons.set(mode, b);
     }
-    this.tools = el("div", { class: "me-tools", role: "toolbar", "aria-label": "서식" });
-    for (const t of TOOLS) {
-      if (t === "|") {
-        this.tools.append(el("span", { class: "me-sep", "aria-hidden": "true" }));
-        continue;
-      }
-      const title = t.keys ? `${t.name} (${t.keys})` : t.name;
-      const b = el("button", { type: "button", class: "me-tool", title, "aria-label": t.name }, t.label);
-      if (t.active) b.setAttribute("aria-pressed", "false");
-      // 버튼을 눌러도 편집 영역의 선택이 풀리지 않게 한다.
-      b.addEventListener("mousedown", (e) => e.preventDefault());
-      b.addEventListener("click", () => (this.mode === "rich" ? t.run(this) : t.md?.(this)));
-      this.tools.append(b);
-      this.buttons.push({ tool: t, button: b });
-    }
-    const view = el("div", { class: "me-view", role: "group", "aria-label": "보기" });
-    this.spellButton = el("button", { type: "button", class: "me-mode", "aria-pressed": "false", title: "브라우저 맞춤법 검사 표시" }, "맞춤법");
+    const previewButton = el("button", { type: "button", class: "me-mode me-mode-icon", "aria-pressed": "false", title: "공개 화면과 같은 모양으로 미리 보기" });
+    previewButton.append(icon("eye") ?? "", el("span", {}, "미리보기"));
+    previewButton.addEventListener("click", () => this.setMode(this.mode === "preview" ? this.lastEdit : "preview"));
+    this.modeButtons.set("preview", previewButton);
+    this.spellButton = el("button", { type: "button", class: "me-mode me-mode-icon", "aria-pressed": "false", title: "브라우저 맞춤법 검사 표시" });
+    this.spellButton.append(icon("spell") ?? "", el("span", {}, "맞춤법"));
     this.spellButton.addEventListener("click", () => this.setSpell(!this.spell));
-    this.fullButton = el("button", { type: "button", class: "me-mode", "aria-pressed": "false", title: "전체 화면으로 쓰기 (Esc 로 나가기)" }, "전체 화면");
-    this.fullButton.addEventListener("click", () => this.setFull(!this.root.classList.contains("me-full")));
-    view.append(this.spellButton, this.fullButton);
-    bar.append(modes, this.tools, view);
 
     this.chars = el("div", { class: "me-chars", hidden: "", role: "dialog", "aria-label": "이모지·특수문자" });
     this.bubble = el("div", { class: "me-bubble", hidden: "", role: "toolbar", "aria-label": "링크" });
@@ -255,19 +285,40 @@ class Editor {
     this.preview = el("div", { class: "me-preview prose", hidden: "", tabindex: "0", "aria-label": "미리보기" });
     this.file = el("input", { type: "file", accept: "image/jpeg,image/png,image/gif,image/webp", multiple: "", hidden: "" });
     this.attach = el("input", { type: "file", accept: ATTACH_ACCEPT, multiple: "", hidden: "" });
-    const foot = el("div", { class: "me-foot" });
     this.status = el("span", { class: "me-status", role: "status", "aria-live": "polite" });
     this.count = el("span", { class: "me-count" });
     this.saved = el("span", { class: "me-saved" });
-    const right = el("span", { class: "me-meta" });
-    right.append(this.saved, this.count);
-    foot.append(this.status, right);
+
+    // 화면이 자리를 마련해 두었으면(data-editor-*) 거기에, 없으면 편집 칸 위·아래에 붙인다.
+    const slot = (name: string) => {
+      const s = form.querySelector<HTMLElement>(`[data-editor-${name}]`);
+      s?.classList.add("me");
+      return s;
+    };
+    const head = slot("toolbar") ?? el("div", { class: "me-head" });
+    const foot = slot("foot") ?? el("div", { class: "me-foot" });
+    const savedSlot = form.querySelector<HTMLElement>("[data-editor-saved]");
+    head.append(this.tools, this.pop, this.chars);
+    const view = el("div", { class: "me-view" });
+    view.append(modes, previewButton, this.spellButton);
+    foot.append(this.status, view, this.count);
+    if (savedSlot) savedSlot.append(this.saved);
+    else foot.append(this.saved);
 
     textarea.before(this.root);
     this.dropLine = el("div", { class: "me-dropline", hidden: "", "aria-hidden": "true" });
     const dropTip = el("div", { class: "me-droptip", "aria-hidden": "true" }, "놓으면 사진은 본문에, 문서(PDF·한글·오피스 등)는 첨부 링크로 들어갑니다");
-    this.root.append(bar, this.pop, this.chars, this.notice, this.pm, textarea, this.preview, foot, this.file, this.attach, dropTip);
+    if (!head.isConnected) this.root.append(head);
+    this.root.append(this.notice, this.pm, textarea, this.preview, this.file, this.attach, dropTip);
+    if (!foot.isConnected) this.root.append(foot);
     this.pm.append(this.bubble, this.dropLine);
+    // 말풍선의 빈 곳을 눌러도 편집 칸이 포커스를 잃지 않게 한다 (잃으면 이어서 친 글자가 사라진다).
+    this.bubble.addEventListener("mousedown", (e) => {
+      if (!(e.target instanceof Element && e.target.closest("a"))) e.preventDefault();
+    });
+    // 사진이 늦게 뜨거나 창 크기가 바뀌면 아래 내용이 밀리므로 말풍선 자리를 다시 잡는다.
+    this.pm.addEventListener("load", () => this.updateBubble(), true);
+    window.addEventListener("resize", () => this.updateBubble());
     textarea.classList.add("me-source");
 
     const label = document.querySelector<HTMLLabelElement>(`label[for="${textarea.id}"]`);
@@ -406,9 +457,6 @@ class Editor {
     } catch {
       this.setSpell(false);
     }
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && this.root.classList.contains("me-full") && this.pop.hidden && this.chars.hidden) this.setFull(false);
-    });
 
     if (loaded.ok) {
       this.setMode(localStorage.getItem("maru:editor-mode") === "md" ? "md" : "rich", false);
@@ -460,13 +508,15 @@ class Editor {
     this.mode = mode;
     this.root.dataset.mode = mode;
     if (mode !== "preview") {
+      this.lastEdit = mode;
       try {
         localStorage.setItem("maru:editor-mode", mode);
       } catch {
         // 저장소를 못 쓰면 다음에도 기본값
       }
     }
-    for (const [k, b] of this.modeButtons) b.setAttribute("aria-pressed", String(k === mode));
+    for (const [k, b] of this.modeButtons) b.setAttribute("aria-pressed", String(k === mode || (k === this.lastEdit && mode === "preview")));
+    this.modeButtons.get("preview")?.setAttribute("aria-pressed", String(mode === "preview"));
     this.pm.hidden = mode !== "rich";
     this.textarea.hidden = mode !== "md";
     this.preview.hidden = mode !== "preview";
@@ -508,6 +558,11 @@ class Editor {
     for (const { tool, button } of this.buttons) {
       button.disabled = rich ? !!tool.enabled && !tool.enabled(s) : !tool.md;
       if (tool.active) button.setAttribute("aria-pressed", String(rich && tool.active(s)));
+      if (tool.labelOf) {
+        const text = button.querySelector(".me-tool-text");
+        const label = tool.labelOf(s, this.mode);
+        if (text && text.textContent !== label) text.textContent = label;
+      }
     }
     const text = rich ? s.doc.textContent : this.textarea.value;
     // 공백을 뺀 글자 수로 읽는 시간을 어림한다(한국어 묵독 약 분당 500자).
@@ -517,30 +572,105 @@ class Editor {
     this.updateBubble();
   }
 
-  // ---- 링크 말풍선: 커서가 링크 안에 있으면 열기·고치기·지우기 ----
+  // ---- 말풍선: 링크 안에 커서가 있거나, 사진을 골랐거나, 표 안에 있으면 그것에 쓰는 단추를 옆에 띄운다 ----
+
+  /** 같은 대상이면 다시 그리지 않는다 (누르는 사이에 단추가 바뀌지 않게). */
+  private bubbleKey = "";
 
   private updateBubble() {
-    const range = this.mode === "rich" && this.view.hasFocus() ? linkRange(this.view.state) : null;
-    if (!range) {
+    const s = this.view.state;
+    const on = this.mode === "rich" && (this.view.hasFocus() || this.bubble.contains(document.activeElement));
+    const range = on ? linkRange(s) : null;
+    const image = on && !range ? selectedImage(s) : null;
+    const table = on && !range && !image ? tableContext(s) : null;
+    if (!range && !image && !table) {
       this.bubble.hidden = true;
+      this.bubbleKey = "";
       return;
     }
-    const a = el("a", { href: range.href, target: "_blank", rel: "noopener noreferrer", class: "me-bubble-url", title: range.href }, range.href);
-    const edit = el("button", { type: "button", class: "me-link" }, "고치기");
-    edit.addEventListener("mousedown", (e) => e.preventDefault());
-    edit.addEventListener("click", () => this.openLink());
-    const del = el("button", { type: "button", class: "me-link" }, "링크 빼기");
-    del.addEventListener("mousedown", (e) => e.preventDefault());
-    del.addEventListener("click", () => {
-      removeLink(this.view.state, this.view.dispatch);
-      this.view.focus();
-    });
-    this.bubble.replaceChildren(a, edit, del);
-    const at = this.view.coordsAtPos(range.from);
+    const btn = (label: string, run: () => void, current = false) => {
+      const b = el("button", { type: "button", class: "me-chip", "aria-pressed": String(current) }, label);
+      b.addEventListener("mousedown", (e) => e.preventDefault());
+      b.addEventListener("click", () => {
+        run();
+        this.refresh();
+      });
+      return b;
+    };
     const box = this.pm.getBoundingClientRect();
-    this.bubble.style.left = `${Math.max(0, Math.min(at.left - box.left, box.width - 280))}px`;
-    this.bubble.style.top = `${at.bottom - box.top + this.pm.scrollTop + 6}px`;
+    let anchor: { left: number; top: number; bottom: number };
+    /** 사진은 크면 아래가 화면 밖이라 사진 위쪽 안에 띄운다. */
+    let inside = false;
+    let key: string;
+    if (range) {
+      key = `link:${range.from}:${range.href}`;
+      if (key !== this.bubbleKey) {
+        const a = el("a", { href: range.href, target: "_blank", rel: "noopener noreferrer", class: "me-bubble-url", title: range.href }, range.href);
+        const del = btn("링크 빼기", () => {
+          removeLink(this.view.state, this.view.dispatch);
+          this.view.focus();
+        });
+        this.bubble.replaceChildren(a, btn("고치기", () => this.openLink()), del);
+        this.bubble.setAttribute("aria-label", "링크");
+      }
+      anchor = this.view.coordsAtPos(range.from);
+    } else if (image) {
+      const { width, title, alt } = image.node.attrs as { width: number | null; title: string | null; alt: string | null };
+      key = `img:${image.from}:${width}:${title}:${alt}:${boxKind(s, "gallery")}`;
+      if (key !== this.bubbleKey) {
+        const sizes = el("span", { class: "me-chips", role: "group", "aria-label": "사진 크기" });
+        for (const w of [100, ...IMAGE_WIDTHS]) {
+          sizes.append(btn(`${w}%`, () => setImageAttrs({ width: w === 100 ? null : w })(this.view.state, this.view.dispatch), (width ?? 100) === w));
+        }
+        this.bubble.replaceChildren(
+          sizes,
+          btn(title ? "캡션 고치기" : "캡션", () => this.openCaption()),
+          btn(alt ? "대체 텍스트 ✓" : "대체 텍스트", () => this.openAlt()),
+          btn("갤러리로 묶기", () => setBox("gallery", "gallery")(this.view.state, this.view.dispatch), !!boxKind(s, "gallery")),
+        );
+        this.bubble.setAttribute("aria-label", "사진");
+      }
+      const dom = this.view.nodeDOM(image.from);
+      const r = dom instanceof HTMLElement ? dom.getBoundingClientRect() : null;
+      anchor = r ? { left: r.left + 8, top: r.top, bottom: r.bottom } : this.view.coordsAtPos(image.from);
+      inside = !!r;
+    } else {
+      const t = table as NonNullable<typeof table>;
+      const align = columnAlign(s);
+      key = `table:${t.pos}:${t.row}:${t.col}:${align}`;
+      if (key !== this.bubbleKey) {
+        const run = (c: Command) => () => {
+          c(this.view.state, this.view.dispatch);
+          this.view.focus();
+        };
+        const aligns = el("span", { class: "me-chips", role: "group", "aria-label": "이 칸 줄 정렬" });
+        aligns.append(
+          btn("왼쪽", run(setColumnAlign(null)), align === null || align === "left"),
+          btn("가운데", run(setColumnAlign("center")), align === "center"),
+          btn("오른쪽", run(setColumnAlign("right")), align === "right"),
+        );
+        this.bubble.replaceChildren(
+          btn("+ 위 줄", run(addRow(false))),
+          btn("+ 아래 줄", run(addRow(true))),
+          btn("+ 왼쪽 칸", run(addColumn(false))),
+          btn("+ 오른쪽 칸", run(addColumn(true))),
+          btn("줄 지우기", run(deleteRow)),
+          btn("칸 지우기", run(deleteColumn)),
+          aligns,
+          btn("표 지우기", run(deleteTable)),
+        );
+        this.bubble.setAttribute("aria-label", "표 편집");
+      }
+      // 표 아래에 띄운다. 칸을 옮겨 다녀도 말풍선이 따라 움직이지 않는다.
+      const dom = this.view.nodeDOM(t.pos);
+      const r = dom instanceof HTMLElement ? dom.getBoundingClientRect() : null;
+      anchor = r ? { left: r.left, top: r.top, bottom: r.bottom } : this.view.coordsAtPos(t.pos + 1);
+    }
+    this.bubbleKey = key;
     this.bubble.hidden = false;
+    const width = this.bubble.offsetWidth;
+    this.bubble.style.left = `${Math.max(0, Math.min(anchor.left - box.left, box.width - width))}px`;
+    this.bubble.style.top = `${(inside ? anchor.top + 8 : anchor.bottom + 6) - box.top + this.pm.scrollTop}px`;
   }
 
   // ---- 이모지·특수문자 ----
@@ -617,7 +747,7 @@ class Editor {
     }
   }
 
-  // ---- 맞춤법·전체 화면 ----
+  // ---- 맞춤법 ----
 
   private setSpell(on: boolean) {
     this.spell = on;
@@ -629,14 +759,6 @@ class Editor {
     } catch {
       // 무시
     }
-  }
-
-  private setFull(on: boolean) {
-    this.root.classList.toggle("me-full", on);
-    document.documentElement.classList.toggle("me-full-lock", on);
-    this.fullButton.setAttribute("aria-pressed", String(on));
-    this.fullButton.textContent = on ? "전체 화면 나가기" : "전체 화면";
-    if (this.mode === "rich") this.view.focus();
   }
 
   say(message: string, error = false) {
@@ -755,7 +877,11 @@ class Editor {
     const pre = (i: number) => (typeof prefix === "string" ? prefix : prefix(i));
     const strip = /^(#{1,6} |> |[-*+] |\d+\. )/;
     const all = lines.every((l, i) => l.startsWith(pre(i)));
-    const out = lines.map((l, i) => (all ? l.slice(pre(i).length) : pre(i) + l.replace(strip, ""))).join("\n");
+    // 빈 접두어는 「본문으로」: 제목 표시(#)만 뗀다.
+    const out =
+      prefix === ""
+        ? lines.map((l) => l.replace(/^#{1,6} /, "")).join("\n")
+        : lines.map((l, i) => (all ? l.slice(pre(i).length) : pre(i) + l.replace(strip, ""))).join("\n");
     this.replaceSource(from, to, out, from, from + out.length);
   }
 
@@ -1213,33 +1339,34 @@ class Editor {
     this.replaceSource(from, to, text, start, start + inner.length);
   }
 
-  openTableMenu() {
-    if (!tableContext(this.view.state)) return;
-    const run = (c: Command) => () => c(this.view.state, this.view.dispatch);
-    const align = columnAlign(this.view.state);
-    this.openMenu("표 편집", [
-      { label: "위에 줄", run: run(addRow(false)) },
-      { label: "아래에 줄", run: run(addRow(true)) },
-      { label: "왼쪽에 칸", run: run(addColumn(false)) },
-      { label: "오른쪽에 칸", run: run(addColumn(true)) },
-      { label: "줄 지우기", run: run(deleteRow) },
-      { label: "칸 지우기", run: run(deleteColumn) },
-      { label: "왼쪽 정렬", current: align === null || align === "left", run: run(setColumnAlign(null)) },
-      { label: "가운데 정렬", current: align === "center", run: run(setColumnAlign("center")) },
-      { label: "오른쪽 정렬", current: align === "right", run: run(setColumnAlign("right")) },
-      { label: "표 지우기", run: run(deleteTable) },
+  /** 단락 단추: 본문·제목·소제목. Markdown 모드에서는 고른 줄 앞에 # 을 붙이거나 뗀다. */
+  openParaMenu() {
+    if (this.mode === "rich") {
+      const s = this.view.state;
+      const to = (type: typeof n.paragraph, attrs?: Record<string, unknown>) => () => setBlockType(type, attrs)(this.view.state, this.view.dispatch);
+      this.openMenu("문단 종류", [
+        { label: "본문", current: blockActive(s, n.paragraph), run: to(n.paragraph) },
+        { label: "제목", cls: "me-menu-h2", current: blockActive(s, n.heading, { level: 2 }), run: to(n.heading, { level: 2 }) },
+        { label: "소제목", cls: "me-menu-h3", current: blockActive(s, n.heading, { level: 3 }), run: to(n.heading, { level: 3 }) },
+      ]);
+      return;
+    }
+    this.openMenu("문단 종류", [
+      { label: "본문", run: () => this.mdLines("") },
+      { label: "제목", cls: "me-menu-h2", run: () => this.mdLines("## ") },
+      { label: "소제목", cls: "me-menu-h3", run: () => this.mdLines("### ") },
     ]);
   }
 
-  openImageSize() {
-    const sel = selectedImage(this.view.state);
-    if (!sel) return;
-    const cur = (sel.node.attrs.width as number | null) ?? 100;
-    this.openMenu("사진 크기", [100, ...IMAGE_WIDTHS].map((w) => ({
-      label: `${w}%`,
-      current: cur === w,
-      run: () => setImageAttrs({ width: w === 100 ? null : w })(this.view.state, this.view.dispatch),
-    })));
+  /** 자주 쓰지 않는 블록 */
+  openMore() {
+    const rich = this.mode === "rich";
+    const s = this.view.state;
+    this.openMenu("더보기", [
+      { label: "코드 블록", current: rich && blockActive(s, n.code_block), run: () => (rich ? toggleCodeBlock(this.view.state, this.view.dispatch) : this.mdFence()) },
+      { label: "각주", run: () => (rich ? insertFootnote(this.view.state, this.view.dispatch) : this.mdFootnote()) },
+      { label: "갤러리 (사진 여러 장을 격자로)", current: rich && !!boxKind(s, "gallery"), run: () => (rich ? setBox("gallery", "gallery")(this.view.state, this.view.dispatch) : this.mdBox("gallery")) },
+    ]);
   }
 
   openCaption() {
@@ -1390,6 +1517,7 @@ function start() {
   if (!textarea || !form || !csrf) return;
   const title = form.querySelector<HTMLInputElement>('input[name="title"]');
   const editor = new Editor(textarea, form, csrf, title);
+  bindPublish(form, csrf, () => editor.markdown());
   // 브라우저 확인·자동 검사용. 기능에는 쓰지 않는다.
   (window as unknown as { maruEditor: Editor }).maruEditor = editor;
 }
