@@ -225,7 +225,13 @@ async fn board_inner(state: &AppState, slug: &str, q: PageQuery) -> Result<Value
             .collect::<Vec<_>>()
     };
     let notices = summarize(&found.notices);
-    let items = summarize(&found.posts.items);
+    let mut items = summarize(&found.posts.items);
+    // 목록 번호: 전체에서 거꾸로 센다(공지 제외).
+    let first = found.posts.total
+        - i64::from(found.posts.page.saturating_sub(1)) * i64::from(found.posts.per_page);
+    for (i, view) in items.iter_mut().enumerate() {
+        view["number"] = json!(first - i as i64);
+    }
     let items = with_thumbs(state, items, &found.posts.items).await?;
     let current = found.category.as_ref().map(|c| c.id.as_str());
     let categories = cats
@@ -880,6 +886,8 @@ fn board_json(board: &Board) -> Value {
         "slug": board.slug,
         "name": board.name,
         "kind": board.kind,
+        // 목록 형태 (ADR-0054): list·webzine·card·gallery
+        "layout": board.effective_layout(),
         "url": urls::path(&Target::Board { board: &board.slug }),
         // 회원·손님이 공개 화면에서 쓰는 게시판이면 글쓰기 단추 (ADR-0053). 권한은 누를 때 본다.
         "write_url": public_write(board).then(|| format!("/write/{}", board.slug)),
@@ -994,6 +1002,9 @@ fn page_json(p: &Page, doc: markdown::Document) -> Value {
     })
 }
 
+/// 「새 글」 표시 기간.
+const NEW_HOURS: i64 = 24;
+
 fn post_summary(board_slug: &str, p: &Post, s: &SiteSettings) -> Value {
     let published = p.published_at.clone().unwrap_or_default();
     let summary = p
@@ -1011,6 +1022,10 @@ fn post_summary(board_slug: &str, p: &Post, s: &SiteSettings) -> Value {
         "summary": summary,
         "is_notice": p.is_notice,
         "is_secret": p.is_secret,
+        // 발행 24시간 안 (ADR-0054). 본문 해시 ETag 라 시간이 지나면 응답이 저절로 바뀐다.
+        "is_new": !published.is_empty() && published > clock::hours_ago(NEW_HOURS),
+        // 그림 없는 카드·갤러리 칸에 쓰는 글자
+        "initial": p.title.chars().next().map(String::from).unwrap_or_default(),
         // 사이트 설정으로 숨기면 null. 목록은 DB 값이라 몇십 초 늦을 수 있다.
         "views": if s.show_views { json!(p.view_count) } else { Value::Null },
         // 비밀글은 서비스가 이미 태그를 비워서 준다.

@@ -1,4 +1,6 @@
 {% extends "base.html" %}
+{# 웹진 말고는 넓게: 표 목록·격자 (ADR-0054) #}
+{% block main_class %}wrap{% if board.layout != "webzine" and not search.searched %} wide{% endif %}{% endblock %}
 {% block main %}
 <div class="board-head">
   <h1 class="page-title">{{ board.name }}{% if category %} <span class="page-sub">· {{ category.name }}</span>{% endif %}{% if search.searched %} <span class="page-sub">· 검색</span>{% endif %}</h1>

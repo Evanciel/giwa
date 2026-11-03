@@ -41,6 +41,7 @@ async fn env() -> Env {
                 kind: "blog".into(),
                 policy: None,
                 sort_order: 0,
+                layout: None,
             },
         )
         .await

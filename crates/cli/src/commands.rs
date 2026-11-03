@@ -648,6 +648,7 @@ async fn board(g: &Global, cmd: BoardCmd) -> Out {
                 kind: args.kind,
                 policy: None,
                 sort_order: args.sort_order,
+                layout: args.layout,
             };
             let (b, created) = if args.if_not_exists {
                 let res = boards::ensure(&ctx, &actor, input).await?;
@@ -667,10 +668,11 @@ async fn board(g: &Global, cmd: BoardCmd) -> Out {
         BoardCmd::Show { slug } => {
             let b = boards::show(&ctx, &actor, &slug).await?;
             let human = format!(
-                "{} ({})  종류 {}  읽기 {}  쓰기 {} (승인 {})  댓글 {} (승인 {})",
+                "{} ({})  종류 {}  형태 {}  읽기 {}  쓰기 {} (승인 {})  댓글 {} (승인 {})",
                 b.name,
                 b.slug,
                 b.kind,
+                b.effective_layout(),
                 b.policy.read,
                 b.policy.write,
                 b.policy.write_approval.as_str(),
@@ -716,6 +718,7 @@ async fn board(g: &Global, cmd: BoardCmd) -> Out {
                 kind: args.kind,
                 policy,
                 sort_order: args.sort_order,
+                layout: args.layout,
             };
             let b = boards::update(&ctx, &actor, &args.slug, patch).await?;
             Ok((to_value(&b)?, format!("게시판을 고쳤습니다: {}", b.slug)))

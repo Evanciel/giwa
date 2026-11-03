@@ -86,6 +86,7 @@ async fn env(policy: BoardPolicy, captcha_mode: &str) -> Env {
             kind: "free".into(),
             policy: Some(policy),
             sort_order: 0,
+            layout: None,
         },
     )
     .await

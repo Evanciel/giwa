@@ -44,6 +44,7 @@ async fn env() -> Env {
                     ..Default::default()
                 }),
                 sort_order: 0,
+                layout: None,
             },
         )
         .await

@@ -9,6 +9,9 @@ use crate::clock::Id;
 /// 게시판 종류 (SPEC §4). DB 에 CHECK 를 두지 않고 여기서 검증한다 (ADR-0016).
 pub const BOARD_KINDS: [&str; 6] = ["blog", "notice", "gallery", "free", "qna", "faq"];
 
+/// 게시판 목록 형태 (ADR-0054). 테마가 이름마다 모양을 그린다.
+pub const BOARD_LAYOUTS: [&str; 4] = ["list", "webzine", "card", "gallery"];
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct BoardPolicy {
     /// 목록을 볼 수 있는 최소 역할
@@ -103,10 +106,27 @@ pub struct Board {
     pub slug: String,
     pub name: String,
     pub kind: String,
+    /// 목록 형태(`BOARD_LAYOUTS`). 빈 값이면 종류의 기본값 (ADR-0054)
+    #[serde(default)]
+    pub layout: String,
     pub policy: BoardPolicy,
     pub sort_order: i64,
     pub created_at: String,
     pub updated_at: String,
+}
+
+impl Board {
+    /// 실제로 쓸 목록 형태. 따로 정하지 않았으면 종류로 고른다.
+    pub fn effective_layout(&self) -> &str {
+        if !self.layout.is_empty() {
+            return &self.layout;
+        }
+        match self.kind.as_str() {
+            "blog" => "webzine",
+            "gallery" => "gallery",
+            _ => "list",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

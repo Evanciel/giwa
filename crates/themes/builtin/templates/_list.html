@@ -1,10 +1,44 @@
+{# 글 목록. 게시판이면 형태(board.layout: list·webzine·card·gallery)대로, 첫 화면·태그는 webzine (ADR-0054). #}
+{% set layout = board.layout if board is defined else "webzine" %}
 {% if posts %}
+{% if layout == "list" %}
+<div class="post-table">
+  <div class="post-row post-row-head" aria-hidden="true"><span class="num">번호</span><span class="subject">제목</span>{% if board.write_url %}<span class="writer">글쓴이</span>{% endif %}<span class="date">날짜</span><span class="hits">조회</span></div>
+  <ul>
+  {% for post in posts %}
+  <li class="post-row">
+    <span class="num">{{ post.number }}</span>
+    <span class="subject">{% if post.category %}<a class="cat" href="{{ post.category.url }}">{{ post.category.name }}</a> {% endif %}<a class="title" href="{{ post.url }}">{% if post.is_secret %}{% include "_lock.html" %}{% endif %}{{ post.title }}</a>{% include "_title_marks.html" %}</span>
+    {% if board.write_url %}<span class="writer">{% if post.author %}{{ post.author.name }}{% if post.author.guest %} <span class="comment-badge">비회원</span>{% endif %}{% endif %}</span>{% endif %}
+    <time class="date" datetime="{{ post.published_at }}">{{ post.date }}</time>
+    <span class="hits">{% if post.views is not none %}<span class="hits-label">조회 </span>{{ post.views }}{% endif %}</span>
+  </li>
+  {% endfor %}
+  </ul>
+</div>
+{% elif layout == "card" or layout == "gallery" %}
+<ul class="post-grid post-grid-{{ layout }}">
+  {% for post in posts %}
+  <li>
+    <article>
+      <a class="tile" href="{{ post.url }}" tabindex="-1" aria-hidden="true">{% if post.thumb and not post.is_secret %}<img src="{{ post.thumb.src }}" alt="" width="{{ post.thumb.width }}" height="{{ post.thumb.height }}" loading="lazy" decoding="async">{% else %}<span class="tile-fallback">{% if post.is_secret %}{% include "_lock.html" %}{% elif post.category %}{{ post.category.name }}{% else %}{{ post.initial }}{% endif %}</span>{% endif %}</a>
+      <h2><a href="{{ post.url }}">{% if post.is_secret %}{% include "_lock.html" %}{% endif %}{{ post.title }}</a>{% include "_title_marks.html" %}</h2>
+      {% if layout == "card" %}
+      {% if post.is_secret %}<p class="summary secret">작성자와 관리자만 읽을 수 있는 글입니다.</p>
+      {% elif post.summary %}<p class="summary">{{ post.summary }}</p>{% endif %}
+      {% endif %}
+      <p class="meta">{% if post.author and board.write_url %}<span class="author">{{ post.author.name }}</span> · {% endif %}<time datetime="{{ post.published_at }}">{{ post.date }}</time>{% if post.views is not none %} · <span class="views">조회 {{ post.views }}</span>{% endif %}</p>
+    </article>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
 <ul class="post-list">
   {% for post in posts %}
   <li>
     <article{% if post.thumb %} class="has-thumb"{% endif %}>
       {% if post.thumb %}<a class="thumb" href="{{ post.url }}" tabindex="-1" aria-hidden="true"><img src="{{ post.thumb.src }}" alt="" width="{{ post.thumb.width }}" height="{{ post.thumb.height }}" loading="lazy" decoding="async"></a>{% endif %}
-      <h2><a href="{{ post.url }}">{% if post.is_secret %}{% include "_lock.html" %}{% endif %}{{ post.title }}</a>{% if post.comments %} <span class="comment-count" aria-label="댓글 {{ post.comments }}개">[{{ post.comments }}]</span>{% endif %}</h2>
+      <h2><a href="{{ post.url }}">{% if post.is_secret %}{% include "_lock.html" %}{% endif %}{{ post.title }}</a>{% include "_title_marks.html" %}</h2>
       <p class="meta">{% if post.author and board.write_url %}<span class="author">{{ post.author.name }}</span>{% if post.author.guest %} <span class="comment-badge">비회원</span>{% endif %} · {% endif %}{% if post.category %}<a class="cat" href="{{ post.category.url }}">{{ post.category.name }}</a> · {% endif %}<time datetime="{{ post.published_at }}">{{ post.date }}</time>{% if post.views is not none %} · <span class="views">조회 {{ post.views }}</span>{% endif %}</p>
       {% if post.is_secret %}<p class="summary secret">작성자와 관리자만 읽을 수 있는 글입니다.</p>
       {% elif post.summary %}<p class="summary">{{ post.summary }}</p>{% endif %}
@@ -12,6 +46,7 @@
   </li>
   {% endfor %}
 </ul>
+{% endif %}
 {% include "_pagination.html" %}
 {% else %}
 <p class="empty">아직 글이 없습니다.</p>

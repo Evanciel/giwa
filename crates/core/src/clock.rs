@@ -24,6 +24,11 @@ pub fn format(t: OffsetDateTime) -> String {
         .unwrap_or_default()
 }
 
+/// 지금부터 `hours` 시간 전. 저장 형식이라 문자열 비교로 「그 뒤인지」 알 수 있다.
+pub fn hours_ago(hours: i64) -> String {
+    format(OffsetDateTime::now_utc() - time::Duration::hours(hours))
+}
+
 /// 저장된 시각이나 사용자가 준 RFC3339 시각을 읽는다.
 pub fn parse(s: &str) -> Option<OffsetDateTime> {
     OffsetDateTime::parse(s, &Rfc3339).ok()

@@ -503,6 +503,9 @@ pub struct BoardCreateArgs {
     pub kind: String,
     #[arg(long, default_value_t = 0)]
     pub sort_order: i64,
+    /// 목록 형태: list(번호 목록), webzine(그림 + 요약), card(카드 격자), gallery(그림 격자). 생략하면 종류의 기본값
+    #[arg(long)]
+    pub layout: Option<String>,
     /// 같은 슬러그가 있으면 그대로 둔다
     #[arg(long)]
     pub if_not_exists: bool,
@@ -517,6 +520,9 @@ pub struct BoardUpdateArgs {
     pub kind: Option<String>,
     #[arg(long)]
     pub sort_order: Option<i64>,
+    /// 목록 형태: list(번호 목록), webzine(그림 + 요약), card(카드 격자), gallery(그림 격자). 빈 값("")이면 종류의 기본값으로
+    #[arg(long)]
+    pub layout: Option<String>,
     /// 읽기 최소 역할 (guest, member, editor, admin, owner)
     #[arg(long)]
     pub read: Option<String>,

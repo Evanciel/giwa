@@ -33,6 +33,9 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "error.slug_invalid" => "슬러그에는 글자, 숫자, `-` 만 쓸 수 있습니다 (최대 80자): {value}",
         "error.slug_taken" => "{board} 게시판에 이미 `{slug}` 슬러그가 있습니다.",
         "error.board_kind" => "게시판 종류 `{value}` 는 지원하지 않습니다. 가능한 값: {allowed}",
+        "error.board_layout" => {
+            "게시판 형태 `{value}` 는 지원하지 않습니다. 가능한 값: {allowed} (비우면 종류의 기본값)"
+        }
         "error.board_policy_role" => "게시판 정책의 역할 `{value}` 를 알 수 없습니다.",
         "error.board_exists" => "`{slug}` 게시판이 이미 있습니다.",
         "error.board_not_found" => "`{slug}` 게시판을 찾을 수 없습니다.",

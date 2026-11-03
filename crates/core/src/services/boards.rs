@@ -7,7 +7,7 @@ use crate::actor::{Actor, Permission};
 use crate::audit::{self, Target};
 use crate::clock;
 use crate::error::{Code, Error, Result};
-use crate::model::{BOARD_KINDS, Board, BoardPolicy};
+use crate::model::{BOARD_KINDS, BOARD_LAYOUTS, Board, BoardPolicy};
 use crate::services::required_text;
 use crate::slug;
 use crate::store::{Ctx, Tx};
@@ -23,6 +23,9 @@ pub struct NewBoard {
     pub policy: Option<BoardPolicy>,
     #[serde(default)]
     pub sort_order: i64,
+    /// 목록 형태. 비우면 종류의 기본값 (ADR-0054)
+    #[serde(default)]
+    pub layout: Option<String>,
 }
 
 fn default_kind() -> String {
@@ -57,6 +60,8 @@ async fn create_inner(
     let slug = slug::normalize(&input.slug)?;
     let name = required_text("name", &input.name, 100)?;
     check_kind(&input.kind)?;
+    let layout = input.layout.unwrap_or_default();
+    check_layout(&layout)?;
     let policy = input.policy.unwrap_or_else(|| {
         if input.kind == "blog" {
             BoardPolicy::blog()
@@ -85,6 +90,7 @@ async fn create_inner(
         slug,
         name,
         kind: input.kind,
+        layout,
         policy,
         sort_order: input.sort_order,
         created_at: now.clone(),
@@ -116,6 +122,9 @@ pub struct BoardPatch {
     pub policy: Option<BoardPolicy>,
     #[serde(default)]
     pub sort_order: Option<i64>,
+    /// 빈 문자열이면 종류의 기본값으로 되돌린다
+    #[serde(default)]
+    pub layout: Option<String>,
 }
 
 pub async fn update(ctx: &Ctx, actor: &Actor, slug: &str, patch: BoardPatch) -> Result<Board> {
@@ -139,6 +148,10 @@ pub async fn update(ctx: &Ctx, actor: &Actor, slug: &str, patch: BoardPatch) -> 
     }
     if let Some(o) = patch.sort_order {
         after.sort_order = o;
+    }
+    if let Some(l) = patch.layout {
+        check_layout(&l)?;
+        after.layout = l;
     }
     if after == before {
         return Ok(before);
@@ -205,6 +218,16 @@ fn check_kind(kind: &str) -> Result<()> {
         .with_message("error.board_kind")
         .arg("value", kind)
         .arg("allowed", BOARD_KINDS.join(", ")))
+}
+
+fn check_layout(layout: &str) -> Result<()> {
+    if layout.is_empty() || BOARD_LAYOUTS.contains(&layout) {
+        return Ok(());
+    }
+    Err(Error::new(Code::Validation)
+        .with_message("error.board_layout")
+        .arg("value", layout)
+        .arg("allowed", BOARD_LAYOUTS.join(", ")))
 }
 
 fn check_policy(policy: &BoardPolicy) -> Result<()> {

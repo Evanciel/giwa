@@ -52,6 +52,7 @@ async fn blog(ctx: &Ctx) {
             kind: "blog".into(),
             policy: None,
             sort_order: 0,
+            layout: None,
         },
     )
     .await
@@ -199,6 +200,7 @@ async fn denials_carry_the_right_code() {
             kind: "free".into(),
             policy: None,
             sort_order: 0,
+            layout: None,
         },
     )
     .await
@@ -432,6 +434,7 @@ async fn private_board_hides_posts_from_guests() {
                 ..Default::default()
             }),
             sort_order: 0,
+            layout: None,
         },
     )
     .await
@@ -729,6 +732,60 @@ async fn own_and_other_permissions() {
 }
 
 #[tokio::test]
+async fn board_layout_defaults_and_validation() {
+    let e = env().await;
+    let local = Actor::local();
+    blog(&e.ctx).await;
+    let b = boards::show(&e.ctx, &local, "blog").await.unwrap();
+    assert_eq!(b.layout, "");
+    assert_eq!(b.effective_layout(), "webzine");
+    let set = |l: &str| boards::BoardPatch {
+        layout: Some(l.into()),
+        ..Default::default()
+    };
+    let card = boards::update(&e.ctx, &local, "blog", set("card"))
+        .await
+        .unwrap();
+    assert_eq!(card.effective_layout(), "card");
+    // 다시 읽어도 남아 있다 (DB 열).
+    assert_eq!(
+        boards::show(&e.ctx, &local, "blog").await.unwrap().layout,
+        "card"
+    );
+    let err = boards::update(&e.ctx, &local, "blog", set("masonry"))
+        .await
+        .unwrap_err();
+    assert_eq!(err.code(), Code::Validation);
+    // 빈 값은 종류 기본값으로 되돌린다.
+    let reset = boards::update(&e.ctx, &local, "blog", set(""))
+        .await
+        .unwrap();
+    assert_eq!(reset.effective_layout(), "webzine");
+    let free = boards::create(
+        &e.ctx,
+        &local,
+        NewBoard {
+            slug: "free".into(),
+            name: "자유".into(),
+            kind: "free".into(),
+            policy: None,
+            sort_order: 0,
+            layout: None,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(free.effective_layout(), "list");
+    let changes = scalar(
+        &e.db,
+        "SELECT count(*) FROM audit_log WHERE action = 'board.update'",
+    )
+    .await;
+    assert_eq!(changes, 2, "바꾼 두 번만 기록 (거부는 없음)");
+    e.db.close().await;
+}
+
+#[tokio::test]
 async fn boards_crud_and_non_empty_delete() {
     let e = env().await;
     let local = Actor::local();
@@ -739,6 +796,7 @@ async fn boards_crud_and_non_empty_delete() {
         kind: "notice".into(),
         policy: None,
         sort_order: 1,
+        layout: None,
     };
     let first = boards::ensure(&e.ctx, &local, input.clone()).await.unwrap();
     assert!(first.created);

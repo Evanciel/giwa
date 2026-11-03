@@ -57,6 +57,7 @@ async fn env(policy: BoardPolicy) -> Env {
             kind: "free".into(),
             policy: Some(policy),
             sort_order: 0,
+            layout: None,
         },
     )
     .await
@@ -238,6 +239,7 @@ async fn comments_can_be_closed() {
                 ..Default::default()
             }),
             sort_order: None,
+            layout: None,
         },
     )
     .await

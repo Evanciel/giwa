@@ -41,4 +41,6 @@
   </ul>
 </section>
 {% endif %}
+{# 긴 글에서 손이 닿는 곳에: 맨 위·목록. 스크립트 없이 화면에 붙어 있다 (ADR-0054). #}
+<nav class="float-nav" aria-label="빠른 이동"><a href="#main">맨 위</a><a href="{{ board.url }}">목록</a></nav>
 {% endblock %}
