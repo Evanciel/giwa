@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,\n                    actor_type, published_at, created_at, updated_at, scheduled_at, cover,\n                    category_id, is_notice, is_secret, view_count,\n                    (SELECT json_group_array(t.name ORDER BY pt.position)\n                       FROM post_tags pt JOIN tags t ON t.id = pt.tag_id\n                      WHERE pt.post_id = posts.id) AS \"tags!: String\"\n             FROM posts\n             WHERE kind = 'post' AND (?1 IS NULL OR board_id = ?1) AND (?2 IS NULL OR status = ?2)\n             ORDER BY updated_at DESC, id DESC\n             LIMIT ?3 OFFSET ?4",
+  "query": "SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,\n                    actor_type, published_at, created_at, updated_at, scheduled_at, cover,\n                    category_id, is_notice, is_secret, view_count, guest_name, guest_pw_hash,\n                    (SELECT json_group_array(t.name ORDER BY pt.position)\n                       FROM post_tags pt JOIN tags t ON t.id = pt.tag_id\n                      WHERE pt.post_id = posts.id) AS \"tags!: String\"\n             FROM posts\n             WHERE board_id = ?1 AND status = 'published' AND kind = 'post'\n               AND (published_at < ?2 OR (published_at = ?2 AND id < ?3))\n             ORDER BY published_at DESC, id DESC\n             LIMIT 1",
   "describe": {
     "columns": [
       {
@@ -213,14 +213,36 @@
         }
       },
       {
-        "name": "tags!: String",
+        "name": "guest_name",
         "ordinal": 19,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "guest_name"
+          }
+        }
+      },
+      {
+        "name": "guest_pw_hash",
+        "ordinal": 20,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "guest_pw_hash"
+          }
+        }
+      },
+      {
+        "name": "tags!: String",
+        "ordinal": 21,
         "type_info": "Text",
         "origin": "Expression"
       }
     ],
     "parameters": {
-      "Right": 4
+      "Right": 3
     },
     "nullable": [
       false,
@@ -242,8 +264,10 @@
       false,
       false,
       false,
+      true,
+      true,
       true
     ]
   },
-  "hash": "0171bc1fffbbcba97f85c5100e5d7d742c7e11f4311ab04409fbde7d495014f1"
+  "hash": "feb05804f82c5e260ae1e2e2f5cf22925b227635c35ed8e0d4545744a2eb6a3a"
 }

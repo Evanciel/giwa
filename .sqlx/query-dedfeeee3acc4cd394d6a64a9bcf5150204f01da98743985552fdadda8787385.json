@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,\n                actor_type, published_at, created_at, updated_at, scheduled_at, cover,\n                category_id, is_notice, is_secret, view_count,\n                (SELECT json_group_array(t.name ORDER BY pt.position)\n                   FROM post_tags pt JOIN tags t ON t.id = pt.tag_id\n                  WHERE pt.post_id = posts.id) AS \"tags!: String\"\n         FROM posts WHERE id = ?",
+  "query": "SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,\n                    actor_type, published_at, created_at, updated_at, scheduled_at, cover,\n                    category_id, is_notice, is_secret, view_count, guest_name, guest_pw_hash,\n                    (SELECT json_group_array(t.name ORDER BY pt.position)\n                       FROM post_tags pt JOIN tags t ON t.id = pt.tag_id\n                      WHERE pt.post_id = posts.id) AS \"tags!: String\"\n             FROM posts WHERE board_id = ? AND slug = ?",
   "describe": {
     "columns": [
       {
@@ -213,14 +213,36 @@
         }
       },
       {
-        "name": "tags!: String",
+        "name": "guest_name",
         "ordinal": 19,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "guest_name"
+          }
+        }
+      },
+      {
+        "name": "guest_pw_hash",
+        "ordinal": 20,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "guest_pw_hash"
+          }
+        }
+      },
+      {
+        "name": "tags!: String",
+        "ordinal": 21,
         "type_info": "Text",
         "origin": "Expression"
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 2
     },
     "nullable": [
       false,
@@ -242,8 +264,10 @@
       false,
       false,
       false,
+      true,
+      true,
       true
     ]
   },
-  "hash": "a305b396a711a99dd56673c3dad75b2205505a1e4110e5b94a49ebea6ca72b4a"
+  "hash": "dedfeeee3acc4cd394d6a64a9bcf5150204f01da98743985552fdadda8787385"
 }

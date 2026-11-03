@@ -34,6 +34,11 @@ pub struct Answer {
 }
 
 pub async fn issue(ctx: &Ctx) -> Result<Challenge> {
+    issue_for(ctx, TTL_MINUTES).await
+}
+
+/// 오래 걸리는 폼(글쓰기)은 유효 시간을 길게.
+pub async fn issue_for(ctx: &Ctx, minutes: i64) -> Result<Challenge> {
     let raw = crate::services::auth::new_secret()?;
     let bytes = hex::decode(&raw[..4]).map_err(|e| Error::internal(e.to_string()))?;
     let a = usize::from(bytes[0] % 10);
@@ -57,7 +62,7 @@ pub async fn issue(ctx: &Ctx) -> Result<Challenge> {
             &tokens::hash(&raw),
             &answer.to_string(),
             &clock::format(now),
-            &clock::format(now + Duration::minutes(TTL_MINUTES)),
+            &clock::format(now + Duration::minutes(minutes)),
         )
         .await?;
     Ok(Challenge {

@@ -12,7 +12,7 @@ use crate::services::{boards, categories, required_text, tags};
 use crate::slug;
 use crate::store::{Ctx, PostFilter, PublishedQuery, Tx, WriteTx};
 
-const MAX_TITLE: usize = 200;
+pub(crate) const MAX_TITLE: usize = 200;
 const MAX_BODY_BYTES: usize = 1024 * 1024;
 /// 한 번에 발행하는 예약 글 수. 남은 것은 다음 주기에.
 const DUE_BATCH: i64 = 50;
@@ -121,6 +121,8 @@ pub async fn create_draft(ctx: &Ctx, actor: &Actor, input: NewPost) -> Result<Po
         is_secret: input.secret,
         tags,
         view_count: 0,
+        guest_name: None,
+        guest_pw_hash: None,
     };
     tx.insert_post(&post).await?;
     tx.insert_revision(&revision_of(&post, actor)).await?;
@@ -163,7 +165,7 @@ async fn publish_as(ctx: &Ctx, actor: &Actor, id: &str, action: &'static str) ->
     }
     if !matches!(
         before.status,
-        PostStatus::Draft | PostStatus::Review | PostStatus::Hidden
+        PostStatus::Draft | PostStatus::Review | PostStatus::Hidden | PostStatus::Pending
     ) {
         return Err(bad_transition(&before, PostStatus::Published));
     }
@@ -828,7 +830,11 @@ pub(crate) fn authorize_post(
 }
 
 /// 회원은 `author_id` 로, 에이전트는 에이전트가 쓴 글을 본인 글로 본다. 로컬은 운영자다.
+/// 비회원 글은 누구의 글도 아니다 — 비밀번호(`board_posts`)나 관리 권한으로만 고친다.
 fn is_own(actor: &Actor, post: &Post) -> bool {
+    if post.guest_name.is_some() {
+        return false;
+    }
     match (actor.member_id(), actor.author_type()) {
         (Some(id), _) => post.author_id.as_deref() == Some(id.as_str()),
         (None, Some(t)) => post.author_id.is_none() && post.actor_type == t,
@@ -849,7 +855,7 @@ async fn load_for_write(tx: &mut dyn WriteTx, actor: &Actor, id: &str) -> Result
     Ok((board, post))
 }
 
-async fn unique_slug(
+pub(crate) async fn unique_slug(
     tx: &mut dyn WriteTx,
     board_id: &str,
     base: &str,
@@ -891,7 +897,7 @@ async fn next_free_slug(
     Ok(format!("{base}-{}", clock::new_id()))
 }
 
-fn revision_of(post: &Post, actor: &Actor) -> Revision {
+pub(crate) fn revision_of(post: &Post, actor: &Actor) -> Revision {
     let (_, actor_id) = actor.audit_identity();
     Revision {
         id: clock::new_id(),
@@ -1015,7 +1021,7 @@ pub async fn check_slug(ctx: &Ctx, actor: &Actor, input: SlugCheckInput) -> Resu
     })
 }
 
-fn check_body(body: String) -> Result<String> {
+pub(crate) fn check_body(body: String) -> Result<String> {
     super::body_text(body, MAX_BODY_BYTES)
 }
 

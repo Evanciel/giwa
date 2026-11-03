@@ -546,6 +546,16 @@ async fn post_inner(
     view["toc"] = json!(doc.toc);
     let image = cover_image(state, &post).await?;
     let comments = comments_json(state, &actor, &board, &post, &site.settings, q).await?;
+    view["author"] = authors(state, std::slice::from_ref(&post))
+        .await?
+        .pop()
+        .unwrap_or(Value::Null);
+    // 회원·손님이 쓴 글만 공개 화면에서 고친다. 누가 고칠 수 있는지는 누를 때 본다.
+    if public_write(&board) && (post.author_id.is_some() || post.guest_name.is_some()) {
+        let base = urls::path(&target);
+        view["edit_url"] = json!(format!("{base}/edit"));
+        view["delete_url"] = json!(format!("{base}/delete"));
+    }
     Ok(json!({
         "meta": json!({
             "title": format!("{} · {}", post.title, site.settings.name),
@@ -871,7 +881,38 @@ fn board_json(board: &Board) -> Value {
         "name": board.name,
         "kind": board.kind,
         "url": urls::path(&Target::Board { board: &board.slug }),
+        // 회원·손님이 공개 화면에서 쓰는 게시판이면 글쓰기 단추 (ADR-0053). 권한은 누를 때 본다.
+        "write_url": public_write(board).then(|| format!("/write/{}", board.slug)),
     })
+}
+
+/// 게시판 정책이 회원(이하)에게 글쓰기를 연다.
+pub(crate) fn public_write(board: &Board) -> bool {
+    matches!(board.policy.write.as_str(), "guest" | "member")
+}
+
+/// 글쓴이 표시: 회원 닉네임 또는 손님 이름. 운영자·에이전트가 관리 경로로 쓴 글은 없다(블로그처럼).
+async fn authors(state: &AppState, posts: &[Post]) -> Result<Vec<Value>> {
+    let mut names: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    let mut out = Vec::with_capacity(posts.len());
+    for p in posts {
+        let v = match (&p.guest_name, &p.author_id) {
+            (Some(name), _) => json!({ "name": name, "guest": true }),
+            (None, Some(id)) => {
+                if !names.contains_key(id)
+                    && let Some(m) = state.ctx.store.member_by_id(id).await?
+                {
+                    names.insert(id.clone(), m.display_name);
+                }
+                names
+                    .get(id)
+                    .map_or(Value::Null, |n| json!({ "name": n, "guest": false }))
+            }
+            (None, None) => Value::Null,
+        };
+        out.push(v);
+    }
+    Ok(out)
 }
 
 /// 목록 썸네일: 대표 이미지의 가장 작은 축소본(없으면 원본)과 원본 크기.
@@ -884,10 +925,12 @@ async fn with_thumbs(
     // 공개 댓글 수도 여기서 붙인다 (목록마다 한 번의 쿼리).
     let ids: Vec<String> = posts.iter().map(|p| p.id.clone()).collect();
     let counts = comments::counts(&state.ctx, &ids).await?;
-    for (view, p) in items.iter_mut().zip(posts) {
+    let names = authors(state, posts).await?;
+    for ((view, p), author) in items.iter_mut().zip(posts).zip(names) {
         if let Some(n) = counts.get(&p.id) {
             view["comments"] = json!(n);
         }
+        view["author"] = author;
     }
     for (view, p) in items.iter_mut().zip(posts) {
         let Some(url) = posts::cover_of(p) else {

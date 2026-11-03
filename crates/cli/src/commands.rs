@@ -667,12 +667,13 @@ async fn board(g: &Global, cmd: BoardCmd) -> Out {
         BoardCmd::Show { slug } => {
             let b = boards::show(&ctx, &actor, &slug).await?;
             let human = format!(
-                "{} ({})  종류 {}  읽기 {}  쓰기 {}  댓글 {} (승인 {})",
+                "{} ({})  종류 {}  읽기 {}  쓰기 {} (승인 {})  댓글 {} (승인 {})",
                 b.name,
                 b.slug,
                 b.kind,
                 b.policy.read,
                 b.policy.write,
+                b.policy.write_approval.as_str(),
                 b.policy.comment,
                 b.policy.comment_approval.as_str()
             );
@@ -683,22 +684,28 @@ async fn board(g: &Global, cmd: BoardCmd) -> Out {
                 || args.write.is_some()
                 || args.comment.is_some()
                 || args.comment_approval.is_some()
+                || args.write_approval.is_some()
             {
                 let current = boards::show(&ctx, &actor, &args.slug).await?.policy;
-                let comment_approval = match args.comment_approval.as_deref() {
-                    None => current.comment_approval,
-                    Some(s) => maru_core::model::CommentApproval::parse(s).ok_or_else(|| {
+                let approval = |v: Option<&str>, now| match v {
+                    None => Ok(now),
+                    Some(s) => maru_core::model::Approval::parse(s).ok_or_else(|| {
                         Error::new(Code::Validation)
                             .with_message("error.comment_policy")
                             .arg("value", s)
                             .arg("allowed", "off, guest, all")
-                    })?,
+                    }),
                 };
+                let comment_approval =
+                    approval(args.comment_approval.as_deref(), current.comment_approval)?;
+                let write_approval =
+                    approval(args.write_approval.as_deref(), current.write_approval)?;
                 Some(maru_core::model::BoardPolicy {
                     read: args.read.unwrap_or(current.read),
                     write: args.write.unwrap_or(current.write),
                     comment: args.comment.unwrap_or(current.comment),
                     comment_approval,
+                    write_approval,
                     ..current
                 })
             } else {

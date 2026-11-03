@@ -14,8 +14,7 @@ use crate::audit::Target;
 use crate::clock;
 use crate::error::{Code, Error, Result};
 use crate::model::{
-    Board, CaptchaMode, Comment, CommentApproval, CommentAuthor, CommentStatus, Listing, PageReq,
-    Post,
+    Approval, Board, CaptchaMode, Comment, CommentAuthor, CommentStatus, Listing, PageReq, Post,
 };
 use crate::services::{auth, captcha, members, posts, settings};
 use crate::store::{CommentQuery, Ctx, Tx};
@@ -131,8 +130,8 @@ pub fn rules(board: &Board, captcha_mode: CaptchaMode) -> CommentRules {
     CommentRules {
         open,
         guest,
-        guest_review: board.policy.comment_approval != CommentApproval::Off,
-        member_review: board.policy.comment_approval == CommentApproval::All,
+        guest_review: board.policy.comment_approval != Approval::Off,
+        member_review: board.policy.comment_approval == Approval::All,
         captcha: guest && captcha_mode == CaptchaMode::Guest,
         max_chars: MAX_BODY_CHARS,
     }
@@ -251,9 +250,9 @@ pub async fn create(ctx: &Ctx, actor: &Actor, input: NewComment) -> Result<Comme
     };
     let moderator = can_moderate(actor, &board);
     let review = match board.policy.comment_approval {
-        CommentApproval::Off => false,
-        CommentApproval::Guest => actor_type == CommentAuthor::Guest,
-        CommentApproval::All => !moderator,
+        Approval::Off => false,
+        Approval::Guest => actor_type == CommentAuthor::Guest,
+        Approval::All => !moderator,
     };
     let now = clock::now();
     let c = Comment {
@@ -479,7 +478,7 @@ fn owns(actor: &Actor, c: &Comment) -> bool {
     matches!((actor.member_id(), &c.author_id), (Some(a), Some(b)) if a == b)
 }
 
-fn can_moderate(actor: &Actor, board: &Board) -> bool {
+pub(crate) fn can_moderate(actor: &Actor, board: &Board) -> bool {
     actor.has(Permission::PostModerate)
         && actor
             .require_board(Permission::PostModerate, &board.id)
@@ -544,7 +543,7 @@ fn check_body(body: &str) -> Result<String> {
     Ok(body)
 }
 
-fn check_guest_password(pw: &str) -> Result<&str> {
+pub(crate) fn check_guest_password(pw: &str) -> Result<&str> {
     let n = pw.chars().count();
     if !(MIN_GUEST_PASSWORD..=MAX_GUEST_PASSWORD).contains(&n) {
         return Err(Error::new(Code::Validation)

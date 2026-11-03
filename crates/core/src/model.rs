@@ -28,13 +28,16 @@ pub struct BoardPolicy {
     pub comment: String,
     /// 쓴 댓글을 바로 보일지, 관리자 승인 뒤 보일지
     #[serde(default)]
-    pub comment_approval: CommentApproval,
+    pub comment_approval: Approval,
+    /// 공개 화면에서 쓴 글을 바로 보일지, 관리자 승인 뒤 보일지 (ADR-0053)
+    #[serde(default)]
+    pub write_approval: Approval,
 }
 
-/// 댓글 승인 (게시판 정책, ADR-0052).
+/// 댓글·공개 글쓰기 승인 (게시판 정책, ADR-0052·0053).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]
-pub enum CommentApproval {
+pub enum Approval {
     /// 바로 보인다
     Off,
     /// 비회원 댓글만 승인 뒤 보인다
@@ -44,7 +47,7 @@ pub enum CommentApproval {
     All,
 }
 
-impl CommentApproval {
+impl Approval {
     pub const ALL: [Self; 3] = [Self::Off, Self::Guest, Self::All];
 
     pub fn as_str(self) -> &'static str {
@@ -78,7 +81,8 @@ impl Default for BoardPolicy {
             write: member(),
             moderate: editor(),
             comment: member(),
-            comment_approval: CommentApproval::Guest,
+            comment_approval: Approval::Guest,
+            write_approval: Approval::Guest,
         }
     }
 }
@@ -205,6 +209,12 @@ pub struct Post {
     /// 조회수. 서버가 모아 두었다가 주기마다 더하므로 몇십 초 늦을 수 있다 (ADR-0049).
     #[serde(default)]
     pub view_count: i64,
+    /// 비회원 글이면 적은 이름 (ADR-0053). 이때 `author_id` 는 비고 `actor_type` 은 `human`.
+    #[serde(default)]
+    pub guest_name: Option<String>,
+    /// 비회원 비밀번호의 argon2id 해시. 밖으로 내보내지 않는다.
+    #[serde(skip)]
+    pub guest_pw_hash: Option<String>,
 }
 
 impl Post {

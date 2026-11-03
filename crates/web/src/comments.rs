@@ -31,7 +31,7 @@ pub fn routes() -> Router<AppState> {
         .layer(middleware::map_response(no_store))
 }
 
-async fn no_store(mut res: Response) -> Response {
+pub(crate) async fn no_store(mut res: Response) -> Response {
     let h = res.headers_mut();
     h.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
     h.insert(
@@ -79,7 +79,7 @@ struct CommentForm {
     captcha_answer: String,
 }
 
-async fn viewer(
+pub(crate) async fn viewer(
     state: &AppState,
     headers: &HeaderMap,
 ) -> Result<(Actor, Option<maru_core::services::auth::SignedIn>), Error> {

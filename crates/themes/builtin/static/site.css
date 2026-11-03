@@ -449,3 +449,15 @@ main { min-height: 50vh; }
 .place-addr { display: block; margin-top: .2em; color: var(--muted); font-size: .925em; }
 .place-addr:empty { display: none; }
 .place-links { display: flex; flex-wrap: wrap; gap: .4em 1em; margin-top: .6em; font-size: .925em; }
+
+/* 공개 화면 글쓰기 (ADR-0053) */
+.board-head { display: flex; align-items: baseline; justify-content: space-between; gap: calc(var(--space) * 2); flex-wrap: wrap; margin: 0 0 calc(var(--space) * 6); }
+.board-head .page-title { margin: 0; }
+.write-button { flex: none; font-weight: 600; color: var(--bg); background: var(--fg); border-radius: var(--radius-sm); padding: calc(var(--space) * 1) calc(var(--space) * 2); text-decoration: none; }
+.write-button:hover, .write-button:focus-visible { background: color-mix(in srgb, var(--fg) 82%, var(--bg)); }
+.meta .author { color: var(--fg); font-weight: 600; }
+.post-actions { display: flex; gap: calc(var(--space) * 2); margin: calc(var(--space) * 4) 0 0; font-size: .95rem; }
+.post-actions a { color: var(--muted); }
+.account-wrap.write-wrap { max-width: 46rem; }
+.write-form textarea { min-height: 18rem; line-height: 1.7; }
+.write-form select { font: inherit; color: var(--fg); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: calc(var(--space) * 1.25) calc(var(--space) * 1.5); }

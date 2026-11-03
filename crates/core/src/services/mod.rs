@@ -2,6 +2,7 @@
 //! 시그니처는 `(&Ctx, &Actor, input)`.
 
 pub mod auth;
+pub mod board_posts;
 pub mod boards;
 pub mod captcha;
 pub mod categories;

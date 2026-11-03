@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,\n                    actor_type, published_at, created_at, updated_at, scheduled_at, cover,\n                    category_id, is_notice, is_secret, view_count,\n                    (SELECT json_group_array(t.name ORDER BY pt.position)\n                       FROM post_tags pt JOIN tags t ON t.id = pt.tag_id\n                      WHERE pt.post_id = posts.id) AS \"tags!: String\"\n             FROM posts\n             WHERE board_id = ?1 AND status = 'published' AND kind = 'post'\n               AND (published_at < ?2 OR (published_at = ?2 AND id < ?3))\n             ORDER BY published_at DESC, id DESC\n             LIMIT 1",
+  "query": "SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,\n                actor_type, published_at, created_at, updated_at, scheduled_at, cover,\n                category_id, is_notice, is_secret, view_count, guest_name, guest_pw_hash,\n                (SELECT json_group_array(t.name ORDER BY pt.position)\n                   FROM post_tags pt JOIN tags t ON t.id = pt.tag_id\n                  WHERE pt.post_id = posts.id) AS \"tags!: String\"\n         FROM posts WHERE id = ?",
   "describe": {
     "columns": [
       {
@@ -213,14 +213,36 @@
         }
       },
       {
-        "name": "tags!: String",
+        "name": "guest_name",
         "ordinal": 19,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "guest_name"
+          }
+        }
+      },
+      {
+        "name": "guest_pw_hash",
+        "ordinal": 20,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "guest_pw_hash"
+          }
+        }
+      },
+      {
+        "name": "tags!: String",
+        "ordinal": 21,
         "type_info": "Text",
         "origin": "Expression"
       }
     ],
     "parameters": {
-      "Right": 3
+      "Right": 1
     },
     "nullable": [
       false,
@@ -242,8 +264,10 @@
       false,
       false,
       false,
+      true,
+      true,
       true
     ]
   },
-  "hash": "81a40f309ea7109560e2997742bc522cd69aaf57c9fdb409e7df34432e794258"
+  "hash": "605d7bcc587c478ec786c66d83fb062bb3dd182a6d4262526c52933ad7af80f1"
 }

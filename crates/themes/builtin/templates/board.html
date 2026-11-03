@@ -1,6 +1,9 @@
 {% extends "base.html" %}
 {% block main %}
-<h1 class="page-title">{{ board.name }}{% if category %} <span class="page-sub">· {{ category.name }}</span>{% endif %}{% if search.searched %} <span class="page-sub">· 검색</span>{% endif %}</h1>
+<div class="board-head">
+  <h1 class="page-title">{{ board.name }}{% if category %} <span class="page-sub">· {{ category.name }}</span>{% endif %}{% if search.searched %} <span class="page-sub">· 검색</span>{% endif %}</h1>
+  {% if board.write_url and not search.searched %}<a class="write-button" href="{{ board.write_url }}">글쓰기</a>{% endif %}
+</div>
 {% if search.searched %}
 <p class="search-back"><a href="{{ board.url }}">← {{ board.name }} 목록으로</a></p>
 {% include "_hits.html" %}

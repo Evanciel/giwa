@@ -98,6 +98,11 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "error.comment_deleted" => "지운 댓글은 되돌리지 않습니다.",
         "error.comment_length" => "댓글은 1~{max}자로 써 주세요.",
         "error.comment_password" => "비밀번호가 맞지 않습니다.",
+        "error.post_password" => "비밀번호가 맞지 않습니다.",
+        "error.guest_secret" => "비회원은 비밀글을 쓸 수 없습니다. 로그인하고 써 주세요.",
+        "error.post_agent_board" => {
+            "에이전트 토큰은 게시판 글쓰기 화면을 쓰지 않습니다. 초안으로 쓰고 발행 권한으로 올리세요."
+        }
         "error.guest_required" => "로그인하지 않았다면 이름과 비밀번호를 적어 주세요.",
         "error.guest_password" => {
             "비밀번호는 {min}자 이상으로 정해 주세요. 나중에 고치거나 지울 때 씁니다."
@@ -106,9 +111,7 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "error.captcha_option" => {
             "확인 질문 방식 `{value}` 는 쓸 수 없습니다. 가능한 값: {allowed}"
         }
-        "error.comment_policy" => {
-            "댓글 승인 방식 `{value}` 는 쓸 수 없습니다. 가능한 값: {allowed}"
-        }
+        "error.comment_policy" => "승인 방식 `{value}` 는 쓸 수 없습니다. 가능한 값: {allowed}",
         "error.signup_option" => "가입 방식 `{value}` 는 쓸 수 없습니다. 가능한 값: {allowed}",
         "mail.verify.subject" => "[{site}] 메일 주소를 확인해 주세요",
         "mail.verify.body" => {

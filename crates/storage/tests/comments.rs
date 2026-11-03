@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use maru_core::actor::{Actor, Permission, rank};
-use maru_core::model::{BoardPolicy, CommentApproval, CommentStatus, PageReq};
+use maru_core::model::{Approval, BoardPolicy, CommentStatus, PageReq};
 use maru_core::services::boards::{self, BoardPatch, NewBoard};
 use maru_core::services::comments::{self, GuestAuthor, Moderation, NewComment};
 use maru_core::services::members::{self, SignupInput};
@@ -368,7 +368,7 @@ async fn guest_comment_needs_captcha_and_review() {
 async fn replies_edit_delete_and_placeholders() {
     let e = env(BoardPolicy {
         comment: "guest".into(),
-        comment_approval: CommentApproval::Off,
+        comment_approval: Approval::Off,
         ..Default::default()
     })
     .await;

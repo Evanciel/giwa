@@ -5,6 +5,7 @@
 mod account;
 mod admin;
 mod api;
+mod board_write;
 mod comments;
 mod error;
 mod etag;
@@ -96,6 +97,7 @@ pub fn router(state: AppState) -> Router {
         .merge(admin::routes())
         .merge(account::routes())
         .merge(comments::routes())
+        .merge(board_write::routes())
         .nest("/api/v1", api::routes())
         .layer(middleware::from_fn_with_state(state.clone(), rate_limit))
         .with_state(state)
@@ -126,7 +128,9 @@ async fn rate_limit(State(state): State<AppState>, req: Request, next: Next) -> 
             || path.starts_with("/reset/")
             || path.starts_with("/verify/")
             || path.starts_with("/c/")
-            || path.ends_with("/comments"));
+            || path.ends_with("/comments")
+            || path.starts_with("/write/")
+            || (path.starts_with("/b/") && (path.ends_with("/edit") || path.ends_with("/delete"))));
     let allowed =
         state.limiter.check(ip, Bucket::All) && (!login || state.limiter.check(ip, Bucket::Login));
     if allowed {

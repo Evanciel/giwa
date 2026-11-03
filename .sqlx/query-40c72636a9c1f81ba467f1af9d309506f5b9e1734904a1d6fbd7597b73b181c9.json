@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,\n                        actor_type, published_at, created_at, updated_at, scheduled_at, cover,\n                        category_id, is_notice, is_secret, view_count,\n                        (SELECT json_group_array(t.name ORDER BY pt.position)\n                           FROM post_tags pt JOIN tags t ON t.id = pt.tag_id\n                          WHERE pt.post_id = posts.id) AS \"tags!: String\"\n                 FROM posts\n                 WHERE kind = 'post' AND (?1 IS NULL OR board_id = ?1) AND (?2 IS NULL OR status = ?2)\n                   AND id IN (SELECT d.post_id FROM search_fts f JOIN search_docs d ON d.id = f.rowid\n                               WHERE search_fts MATCH ?5)\n                 ORDER BY updated_at DESC, id DESC\n                 LIMIT ?3 OFFSET ?4",
+  "query": "SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,\n                        actor_type, published_at, created_at, updated_at, scheduled_at, cover,\n                        category_id, is_notice, is_secret, view_count, guest_name, guest_pw_hash,\n                        (SELECT json_group_array(t.name ORDER BY pt.position)\n                           FROM post_tags pt JOIN tags t ON t.id = pt.tag_id\n                          WHERE pt.post_id = posts.id) AS \"tags!: String\"\n                 FROM posts\n                 WHERE kind = 'post' AND (?1 IS NULL OR board_id = ?1) AND (?2 IS NULL OR status = ?2)\n                   AND id IN (SELECT d.post_id FROM search_fts f JOIN search_docs d ON d.id = f.rowid\n                               WHERE search_fts MATCH ?5)\n                 ORDER BY updated_at DESC, id DESC\n                 LIMIT ?3 OFFSET ?4",
   "describe": {
     "columns": [
       {
@@ -213,8 +213,30 @@
         }
       },
       {
-        "name": "tags!: String",
+        "name": "guest_name",
         "ordinal": 19,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "guest_name"
+          }
+        }
+      },
+      {
+        "name": "guest_pw_hash",
+        "ordinal": 20,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "guest_pw_hash"
+          }
+        }
+      },
+      {
+        "name": "tags!: String",
+        "ordinal": 21,
         "type_info": "Text",
         "origin": "Expression"
       }
@@ -242,8 +264,10 @@
       false,
       false,
       false,
+      true,
+      true,
       true
     ]
   },
-  "hash": "236355611eb4994b918f2f9b068cce84f7062b4ff6e12bd9915eed8218bb3341"
+  "hash": "40c72636a9c1f81ba467f1af9d309506f5b9e1734904a1d6fbd7597b73b181c9"
 }

@@ -529,6 +529,9 @@ pub struct BoardUpdateArgs {
     /// 댓글 승인: off(바로 보임), guest(비회원 것만 승인 뒤), all(모두 승인 뒤)
     #[arg(long)]
     pub comment_approval: Option<String>,
+    /// 공개 화면 글쓰기 승인: off, guest(비회원 글만 승인 뒤), all
+    #[arg(long)]
+    pub write_approval: Option<String>,
 }
 
 #[derive(Debug, Subcommand)]

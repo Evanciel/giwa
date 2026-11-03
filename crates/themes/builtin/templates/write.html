@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{# 게시판 글쓰기·고치기(form), 지우기(delete), 안내(notice). 스크립트 없이 동작한다 (ADR-0053). #}
+{% block main_class %}wrap account-wrap write-wrap{% endblock %}
+{% block main %}
+<section class="account" aria-labelledby="write-title">
+{% if write.view == "form" %}
+  <h1 id="write-title">{% if write.mode == "new" %}글쓰기{% else %}글 고치기{% endif %}</h1>
+  <p class="account-lead"><a href="{{ write.back }}">{{ write.board.name }}</a>{% if write.review and write.mode == "new" %} · 관리자가 확인한 뒤에 목록에 보입니다.{% endif %}</p>
+  {% if write.error %}<p class="form-error" role="alert">{{ write.error }}</p>{% endif %}
+  <form class="account-form write-form" method="post" action="{{ write.action }}">
+    <input type="hidden" name="_csrf" value="{{ write.csrf }}">
+    {% if write.categories %}
+    <label for="category">분류</label>
+    <select id="category" name="category">
+      <option value="">분류 없음</option>
+      {% for c in write.categories %}<option value="{{ c.slug }}"{% if c.selected %} selected{% endif %}>{{ c.name }}</option>{% endfor %}
+    </select>
+    {% endif %}
+    <label for="title">제목</label>
+    <input id="title" type="text" name="title" value="{{ write.title }}" maxlength="200" required{% if not write.error %} autofocus{% endif %}>
+    <label for="body">내용</label>
+    <textarea id="body" name="body" rows="14" required aria-describedby="body-hint">{{ write.body }}</textarea>
+    <p id="body-hint" class="hint">빈 줄로 문단을 나눕니다. <code>**굵게**</code>, <code>- 목록</code>, 주소는 그대로 붙여 넣으면 됩니다.</p>
+    <label for="tags">태그</label>
+    <input id="tags" type="text" name="tags" value="{{ write.tags }}" maxlength="400" aria-describedby="tags-hint">
+    <p id="tags-hint" class="hint">쉼표로 나눠 적습니다. 예: 국밥, 부산</p>
+    {% if write.can_secret %}
+    <label class="check"><input type="checkbox" name="secret"{% if write.secret %} checked{% endif %}> 비밀글 (나와 관리자만 읽습니다)</label>
+    {% endif %}
+    {% if write.guest %}
+    <fieldset class="comment-guest">
+      <legend>비회원으로 쓰기</legend>
+      <div class="comment-guest-row">
+        <label>이름 <input type="text" name="name" value="{{ write.name }}" minlength="2" maxlength="20" autocomplete="nickname" required></label>
+        <label>비밀번호 <input type="password" name="password" value="{{ write.password }}" minlength="4" maxlength="64" autocomplete="new-password" required></label>
+      </div>
+      <p class="hint">비밀번호는 나중에 고치거나 지울 때 씁니다.</p>
+    </fieldset>
+    {% endif %}
+    {% if write.needs_password %}
+    <label for="password">쓸 때 정한 비밀번호</label>
+    <input id="password" type="password" name="password" autocomplete="current-password" required>
+    {% endif %}
+    {% if write.captcha %}
+    <input type="hidden" name="captcha_token" value="{{ write.captcha.token }}">
+    <label for="captcha">확인 질문: {{ write.captcha.question }}</label>
+    <input id="captcha" type="text" name="captcha_answer" inputmode="numeric" autocomplete="off" required aria-describedby="captcha-hint">
+    <p id="captcha-hint" class="hint">답을 숫자로 적어 주세요. 자동 프로그램이 글을 붓는 것을 막는 질문입니다.</p>
+    {% endif %}
+    <div class="trap" aria-hidden="true"><label>웹사이트 <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+    <button type="submit">{% if write.mode == "new" %}올리기{% else %}고치기{% endif %}</button>
+  </form>
+  <p class="account-links"><a href="{{ write.back }}">돌아가기</a></p>
+
+{% elif write.view == "delete" %}
+  <h1 id="write-title">글 지우기</h1>
+  <p class="account-lead">「{{ write.post_title }}」 을 지웁니다.</p>
+  {% if write.error %}<p class="form-error" role="alert">{{ write.error }}</p>{% endif %}
+  <form class="account-form" method="post" action="{{ write.action }}">
+    <input type="hidden" name="_csrf" value="{{ write.csrf }}">
+    {% if write.needs_password %}
+    <label for="password">쓸 때 정한 비밀번호</label>
+    <input id="password" type="password" name="password" autocomplete="current-password" required>
+    {% endif %}
+    <button type="submit">지우기</button>
+  </form>
+  <p class="account-links"><a href="{{ write.back }}">글로 돌아가기</a></p>
+
+{% else %}
+  <h1 id="write-title">{{ write.heading }}</h1>
+  <p class="account-lead">{{ write.body }}</p>
+  {% if write.links %}<p class="account-links">{% for l in write.links %}<a href="{{ l.href }}">{{ l.label }}</a>{% endfor %}</p>{% endif %}
+{% endif %}
+</section>
+{% endblock %}

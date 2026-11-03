@@ -89,6 +89,8 @@ struct PostRow {
     /// `json_group_array` 결과 (태그가 없으면 `[]`).
     tags: String,
     view_count: i64,
+    guest_name: Option<String>,
+    guest_pw_hash: Option<String>,
 }
 
 impl TryFrom<PostRow> for Post {
@@ -118,6 +120,8 @@ impl TryFrom<PostRow> for Post {
             is_secret: r.is_secret != 0,
             tags: serde_json::from_str(&r.tags).map_err(Error::internal)?,
             view_count: r.view_count,
+            guest_name: r.guest_name,
+            guest_pw_hash: r.guest_pw_hash,
         })
     }
 }
@@ -350,7 +354,7 @@ async fn post_by_id<'e>(e: impl SqliteExecutor<'e>, id: &str) -> Result<Option<P
         PostRow,
         r#"SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,
                 actor_type, published_at, created_at, updated_at, scheduled_at, cover,
-                category_id, is_notice, is_secret, view_count,
+                category_id, is_notice, is_secret, view_count, guest_name, guest_pw_hash,
                 (SELECT json_group_array(t.name ORDER BY pt.position)
                    FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
                   WHERE pt.post_id = posts.id) AS "tags!: String"
@@ -459,7 +463,7 @@ impl Store for SqliteStore {
             PostRow,
             r#"SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,
                     actor_type, published_at, created_at, updated_at, scheduled_at, cover,
-                    category_id, is_notice, is_secret, view_count,
+                    category_id, is_notice, is_secret, view_count, guest_name, guest_pw_hash,
                     (SELECT json_group_array(t.name ORDER BY pt.position)
                        FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
                       WHERE pt.post_id = posts.id) AS "tags!: String"
@@ -487,7 +491,7 @@ impl Store for SqliteStore {
                       p.created_at AS "created_at!", p.updated_at AS "updated_at!",
                       p.scheduled_at, p.cover,
                       p.category_id, p.is_notice AS "is_notice!", p.is_secret AS "is_secret!",
-                      p.view_count AS "view_count!",
+                      p.view_count AS "view_count!", p.guest_name, p.guest_pw_hash,
                       (SELECT json_group_array(t.name ORDER BY pt.position)
                          FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
                         WHERE pt.post_id = p.id) AS "tags!: String"
@@ -552,7 +556,7 @@ impl Store for SqliteStore {
                 PostRow,
                 r#"SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,
                         actor_type, published_at, created_at, updated_at, scheduled_at, cover,
-                        category_id, is_notice, is_secret, view_count,
+                        category_id, is_notice, is_secret, view_count, guest_name, guest_pw_hash,
                         (SELECT json_group_array(t.name ORDER BY pt.position)
                            FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
                           WHERE pt.post_id = posts.id) AS "tags!: String"
@@ -577,7 +581,7 @@ impl Store for SqliteStore {
             PostRow,
             r#"SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,
                     actor_type, published_at, created_at, updated_at, scheduled_at, cover,
-                    category_id, is_notice, is_secret, view_count,
+                    category_id, is_notice, is_secret, view_count, guest_name, guest_pw_hash,
                     (SELECT json_group_array(t.name ORDER BY pt.position)
                        FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
                       WHERE pt.post_id = posts.id) AS "tags!: String"
@@ -1035,7 +1039,7 @@ impl Store for SqliteStore {
             PostRow,
             r#"SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,
                     actor_type, published_at, created_at, updated_at, scheduled_at, cover,
-                    category_id, is_notice, is_secret, view_count,
+                    category_id, is_notice, is_secret, view_count, guest_name, guest_pw_hash,
                     (SELECT json_group_array(t.name ORDER BY pt.position)
                        FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
                       WHERE pt.post_id = posts.id) AS "tags!: String"
@@ -1057,7 +1061,7 @@ impl Store for SqliteStore {
             PostRow,
             r#"SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,
                     actor_type, published_at, created_at, updated_at, scheduled_at, cover,
-                    category_id, is_notice, is_secret, view_count,
+                    category_id, is_notice, is_secret, view_count, guest_name, guest_pw_hash,
                     (SELECT json_group_array(t.name ORDER BY pt.position)
                        FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
                       WHERE pt.post_id = posts.id) AS "tags!: String"
@@ -1094,7 +1098,7 @@ impl Store for SqliteStore {
                       c.created_at AS "created_at!", c.updated_at AS "updated_at!",
                       c.scheduled_at, c.cover,
                       c.category_id, c.is_notice AS "is_notice!", c.is_secret AS "is_secret!",
-                      c.view_count AS "view_count!",
+                      c.view_count AS "view_count!", c.guest_name, c.guest_pw_hash,
                       (SELECT json_group_array(t.name ORDER BY pt.position)
                          FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
                         WHERE pt.post_id = c.id) AS "tags!: String"
@@ -1377,8 +1381,9 @@ impl WriteTx for SqliteWriteTx {
         sqlx::query!(
             "INSERT INTO posts (id, board_id, kind, status, title, slug, body_md, excerpt,
                                 author_id, actor_type, published_at, created_at, updated_at,
-                                scheduled_at, cover, category_id, is_notice, is_secret)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                scheduled_at, cover, category_id, is_notice, is_secret,
+                                guest_name, guest_pw_hash)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             p.id,
             p.board_id,
             kind,
@@ -1396,7 +1401,9 @@ impl WriteTx for SqliteWriteTx {
             p.cover,
             p.category_id,
             p.is_notice,
-            p.is_secret
+            p.is_secret,
+            p.guest_name,
+            p.guest_pw_hash
         )
         .execute(&mut *self.tx)
         .await
