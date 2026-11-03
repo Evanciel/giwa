@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO font_files (id, font_id, weight, italic, format, path, size, sha256, created_at)\n             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 9
+    },
+    "nullable": []
+  },
+  "hash": "64c1b40a0de0088d7d8e3d6603d4f7b34635781f795d73eeaf7c7f5b01a1d09e"
+}

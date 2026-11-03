@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE fonts SET name = ?, fallback = ?, license = ?, license_path = ?, updated_at = ?\n             WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "90bdd211e2cbdedfe9201660220a41674151a4a70ba142e2c791d11966a739e1"
+}

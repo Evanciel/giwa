@@ -13,7 +13,7 @@ use maru_core::services::boards::{self, NewBoard};
 use maru_core::services::posts::{self, NewPost};
 use maru_core::services::tokens::{self, NewToken};
 use maru_core::services::{
-    auth, categories, design, files, media, menus, pages, presets, settings, tags, templates,
+    auth, categories, design, files, fonts, media, menus, pages, presets, settings, tags, templates,
 };
 use maru_core::urls::{self, Target};
 use maru_core::{Actor, Code, Ctx, Error, Result};
@@ -22,9 +22,9 @@ use serde_json::{Value, json};
 
 use crate::output;
 use crate::{
-    BoardCmd, CategoryCmd, Command, DesignCmd, FileCmd, Global, InitArgs, LoginLinkArgs, MediaCmd,
-    MenuCmd, MenuSetArgs, PageCmd, PostCmd, PostListArgs, PostNewArgs, ServeArgs, SiteCmd, TagCmd,
-    TemplateCmd, TokenCmd, TokenCreateArgs,
+    BoardCmd, CategoryCmd, Command, DesignCmd, FileCmd, FontCmd, Global, InitArgs, LoginLinkArgs,
+    MediaCmd, MenuCmd, MenuSetArgs, PageCmd, PostCmd, PostListArgs, PostNewArgs, ServeArgs,
+    SiteCmd, TagCmd, TemplateCmd, TokenCmd, TokenCreateArgs,
 };
 
 pub async fn run(g: &Global, command: Command) -> ExitCode {
@@ -44,6 +44,7 @@ pub async fn run(g: &Global, command: Command) -> ExitCode {
         Command::Menu(cmd) => menu(g, cmd).await,
         Command::Site(cmd) => site(g, cmd).await,
         Command::Design(cmd) => design_cmd(g, cmd).await,
+        Command::Font(cmd) => font_cmd(g, cmd).await,
         Command::LoginLink(args) => login_link(g, args).await,
     };
     match res {
@@ -1039,7 +1040,7 @@ async fn design_cmd(g: &Global, cmd: DesignCmd) -> Out {
 async fn design_inner(ctx: &Ctx, actor: &Actor, cmd: DesignCmd) -> Out {
     let (tokens, verb) = match cmd {
         DesignCmd::Show { css: true } => {
-            let css = design::tokens(ctx).await?.to_css();
+            let css = design::tokens(ctx).await?.to_css(&fonts::list(ctx).await?);
             return Ok((json!({ "css": css }), css));
         }
         DesignCmd::Show { css: false } => (design::tokens(ctx).await?, None),
@@ -1238,6 +1239,136 @@ async fn file_cmd(g: &Global, cmd: FileCmd) -> Out {
     };
     db.close().await;
     res
+}
+
+// ---- font ----
+
+async fn font_cmd(g: &Global, cmd: FontCmd) -> Out {
+    let (ctx, _config, db) = open(g).await?;
+    let actor = actor(&ctx).await?;
+    let res = font_inner(g, &ctx, &actor, cmd).await;
+    db.close().await;
+    res
+}
+
+async fn font_inner(g: &Global, ctx: &Ctx, actor: &Actor, cmd: FontCmd) -> Out {
+    match cmd {
+        FontCmd::List => {
+            let list = fonts::list(ctx).await?;
+            let mut human = format!("올린 서체 {}개", list.len());
+            for f in &list {
+                let weights: Vec<String> = f
+                    .files
+                    .iter()
+                    .map(|x| format!("{}{}", x.weight, if x.italic { "i" } else { "" }))
+                    .collect();
+                human.push_str(&format!(
+                    "\n{}  {}  굵기 [{}]  {}",
+                    f.slug,
+                    f.name,
+                    weights.join(" "),
+                    f.license
+                ));
+            }
+            Ok((to_value(&list)?, human))
+        }
+        FontCmd::Show { slug } => font_out(&fonts::get(ctx, &slug).await?, "서체", &[]),
+        FontCmd::Add(args) => {
+            let bytes = read_file(&args.file)?;
+            let license_text = args.license_file.as_deref().map(read_body).transpose()?;
+            let input = fonts::NewFont {
+                name: args.name,
+                slug: args.slug,
+                fallback: args.fallback,
+                license: args.license,
+                license_text,
+                rights_confirmed: g.yes,
+            };
+            let upload = fonts::FontUpload {
+                weight: args.weight,
+                italic: args.italic,
+                bytes,
+            };
+            let up = fonts::add_with_file(ctx, actor, input, upload).await?;
+            font_out(&up.font, "올렸습니다", &up.warnings)
+        }
+        FontCmd::Update(args) => {
+            let license_text = if args.no_license_file {
+                Some(String::new())
+            } else {
+                args.license_file.as_deref().map(read_body).transpose()?
+            };
+            let patch = fonts::FontPatch {
+                name: args.name,
+                fallback: args.fallback,
+                license: args.license,
+                license_text,
+            };
+            font_out(
+                &fonts::update(ctx, actor, &args.slug, patch).await?,
+                "고쳤습니다",
+                &[],
+            )
+        }
+        FontCmd::Remove {
+            slug,
+            weight: Some(weight),
+            italic,
+        } => font_out(
+            &fonts::remove_file(ctx, actor, &slug, weight, italic).await?,
+            "파일을 뗐습니다",
+            &[],
+        ),
+        FontCmd::Remove { slug, .. } => {
+            let r = fonts::remove(ctx, actor, &slug).await?;
+            let mut human = format!("지웠습니다: {} ({})", r.font.name, r.font.slug);
+            if r.used_in_posts > 0 {
+                human.push_str(&format!(
+                    "\n이 서체를 쓴 글·페이지 {}개는 기본 서체로 보입니다.",
+                    r.used_in_posts
+                ));
+            }
+            Ok((to_value(&r)?, human))
+        }
+    }
+}
+
+/// 사람용 출력에는 글 안에 쓰는 법과 사이트 본문 서체로 쓰는 명령을 같이 낸다.
+fn font_out(f: &maru_core::model::Font, verb: &str, warnings: &[String]) -> Out {
+    let mut human = format!("{verb}: {} ({})  라이선스 {}", f.name, f.slug, f.license);
+    for x in &f.files {
+        human.push_str(&format!(
+            "\n  굵기 {}{}  {}  {}KB  {}",
+            x.weight,
+            if x.italic { " 기울임" } else { "" },
+            x.format,
+            x.size / 1024,
+            x.url
+        ));
+    }
+    human.push_str(&format!(
+        "\n글에 쓰기: :font[글자]{{{0}}}\n사이트 본문 서체로: maru design set --set font.body={0}",
+        f.slug
+    ));
+    for w in warnings {
+        human.push_str(&format!("\n주의: {w}"));
+    }
+    let mut data = to_value(f)?;
+    if !warnings.is_empty()
+        && let Some(obj) = data.as_object_mut()
+    {
+        obj.insert("warnings".into(), json!(warnings));
+    }
+    Ok((data, human))
+}
+
+fn read_file(path: &Path) -> Result<Vec<u8>> {
+    std::fs::read(path).map_err(|e| {
+        Error::new(Code::NotFound)
+            .with_message("error.io")
+            .arg("path", path.display().to_string())
+            .with_source(e)
+    })
 }
 
 async fn template_cmd(g: &Global, cmd: TemplateCmd) -> Out {

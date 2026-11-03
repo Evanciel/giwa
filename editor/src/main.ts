@@ -48,7 +48,7 @@ import {
   wrappedIn,
 } from "./commands";
 import { IMAGE_WIDTHS, load, parse, schema, serialize } from "./markdown";
-import { videoEmbed } from "./syntax";
+import { isFontSlug, videoEmbed } from "./syntax";
 import {
   altFromName,
   ATTACH_ACCEPT,
@@ -215,11 +215,27 @@ function spanClass(s: EditorState, kind: "color" | "mark"): string | null {
   return v ? `${spec.prefix}-${v}` : null;
 }
 
-/** 서체 단추 글자: 지금 글자의 서체 이름. */
+/** 운영자가 올린 서체 (slug, 이름). 글쓰기 화면의 `data-fonts` 에서 읽는다 (ADR-0048). */
+let uploadedFonts: [string, string][] = [];
+
+function readUploadedFonts(raw: string | undefined): [string, string][] {
+  try {
+    const list: unknown = JSON.parse(raw || "[]");
+    if (!Array.isArray(list)) return [];
+    return list
+      .filter((f): f is { slug: string; name: string } => typeof f?.slug === "string" && typeof f?.name === "string" && isFontSlug(f.slug))
+      .map((f) => [f.slug, f.name]);
+  } catch {
+    return [];
+  }
+}
+
+/** 서체 단추 글자: 지금 글자의 서체 이름. 목록에 없는 slug 는 지운 서체다. */
 function fontLabel(s: EditorState, mode: Mode): string {
   if (mode !== "rich") return "서체";
   const v = spanValue(s, m.font);
-  return SPAN_MENU.font.items.find(([value]) => value === v)?.[1] ?? SPAN_MENU.font.none;
+  if (!v) return SPAN_MENU.font.none;
+  return [...SPAN_MENU.font.items, ...uploadedFonts].find(([value]) => value === v)?.[1] ?? "(지워진 서체)";
 }
 
 /** 툴바 크기 단추 옆 숫자. 예전 값(small 등)은 숫자가 없어 비운다. */
@@ -1439,16 +1455,18 @@ class Editor {
       f.style.fontSize = `${Math.min(Number(value), 24) / 16}rem`;
       return f;
     };
+    // 서체는 내장 넷 뒤에 운영자가 올린 서체를 구분선으로 나눠 붙인다.
+    const extra = kind === "font" ? uploadedFonts : [];
     // 서식 모드는 같은 글자에 여러 값을 바로 바꿔 볼 수 있게 메뉴를 남긴다.
     // Markdown 모드는 누를 때마다 문법이 한 겹씩 더 감싸므로 한 번 고르면 닫는다.
     this.openMenu(
       spec.title,
       [
         ...(rich ? [{ label: spec.none, cls: "me-menu-none", isCurrent: () => now() === null, run: () => apply(null) }] : []),
-        ...spec.items.map(([value, label]) => ({
+        ...[...spec.items, ...extra].map(([value, label], i) => ({
           label: kind === "size" ? `${label}px` : label,
           face: face(value, label),
-          cls: kind === "size" ? "me-size" : kind === "font" ? "me-font" : "me-swatch",
+          cls: kind === "size" ? "me-size" : kind === "font" ? (i === spec.items.length ? "me-font me-font-uploaded" : "me-font") : "me-swatch",
           isCurrent: () => now() === value,
           run: () => apply(value),
         })),
@@ -1660,6 +1678,7 @@ function start() {
   const form = textarea?.closest("form");
   const csrf = form?.querySelector<HTMLInputElement>('input[name="_csrf"]')?.value;
   if (!textarea || !form || !csrf) return;
+  uploadedFonts = readUploadedFonts(form.dataset.fonts);
   const title = form.querySelector<HTMLInputElement>('input[name="title"]');
   const editor = new Editor(textarea, form, csrf, title);
   bindPublish(form, csrf, () => editor.markdown());

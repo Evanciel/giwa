@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM font_files WHERE font_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "233aa3f8eb54603c323446bfa257e297a53c7f73346f2ef70a22b8ca0b633915"
+}

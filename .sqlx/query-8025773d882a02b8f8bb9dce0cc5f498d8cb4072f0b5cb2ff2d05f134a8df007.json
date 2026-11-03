@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT (SELECT count(*) FROM posts WHERE status != 'deleted' AND body_md LIKE ?1)\n                    + (SELECT count(*) FROM pages WHERE body_md LIKE ?1) AS \"n!: i64\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "n!: i64",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "8025773d882a02b8f8bb9dce0cc5f498d8cb4072f0b5cb2ff2d05f134a8df007"
+}

@@ -13,8 +13,8 @@ use crate::audit::{AuditRecord, Target};
 use crate::blobs::Blobs;
 use crate::error::{Error, Result};
 use crate::model::{
-    Attachment, Board, Category, LoginTicket, Media, Member, MenuLink, Page, PageStatus, Post,
-    PostStatus, PostTemplate, Revision, Role, Session, Tag, Token,
+    Attachment, Board, Category, Font, FontFile, LoginTicket, Media, Member, MenuLink, Page,
+    PageStatus, Post, PostStatus, PostTemplate, Revision, Role, Session, Tag, Token,
 };
 
 /// 서비스 함수의 첫 인자.
@@ -127,6 +127,12 @@ pub trait Store: Send + Sync {
     async fn tag_by_slug(&self, slug: &str) -> Result<Option<Tag>>;
     /// 공개 글이 하나 이상 달린 태그와 그 글 수 (`PublishedQuery` 와 같은 공개 기준). 이름순.
     async fn list_tags(&self, max_read_rank: i64) -> Result<Vec<Tag>>;
+
+    /// 올린 서체 (이름순, 파일은 굵기·기울임 순).
+    async fn list_fonts(&self) -> Result<Vec<Font>>;
+    async fn font_by_slug(&self, slug: &str) -> Result<Option<Font>>;
+    /// 본문에 `]{slug}` 꾸밈이 남은 글(지운 글 제외)·페이지 수.
+    async fn count_font_uses(&self, slug: &str) -> Result<i64>;
 }
 
 #[async_trait]
@@ -208,6 +214,16 @@ pub trait WriteTx: Send {
     async fn insert_template(&mut self, t: &PostTemplate) -> Result<()>;
     async fn update_template(&mut self, t: &PostTemplate) -> Result<()>;
     async fn delete_template(&mut self, id: &str) -> Result<()>;
+
+    async fn font_by_slug(&mut self, slug: &str) -> Result<Option<Font>>;
+    /// 서체만 쓴다 (`files` 는 무시).
+    async fn insert_font(&mut self, f: &Font) -> Result<()>;
+    /// 이름·대체 계열·라이선스·전문 경로·`updated_at`.
+    async fn update_font(&mut self, f: &Font) -> Result<()>;
+    /// 서체와 그 파일 행을 지운다.
+    async fn delete_font(&mut self, id: &str) -> Result<()>;
+    async fn insert_font_file(&mut self, font_id: &str, f: &FontFile) -> Result<()>;
+    async fn delete_font_file(&mut self, id: &str) -> Result<()>;
 }
 
 /// 쓰기 트랜잭션. 드롭하면 롤백된다.

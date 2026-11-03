@@ -5,6 +5,8 @@
 //! - 글자 꾸밈: `:color[글자]{red}`, `:mark[글자]{yellow}`, `:size[글자]{24}`, `:font[글자]{serif}`
 //!
 //! 에디터(`editor/src/syntax.ts`)와 같은 규칙이어야 한다. 정해진 이름·값만 받고, 나머지는 글자 그대로 둔다.
+//! 예외로 서체는 운영자가 올린 서체 slug(`design::is_font_slug` 모양)도 받는다 (ADR-0048). 렌더는 DB 를 보지 않으므로
+//! 지워진 서체도 class 는 남고, 그 class 의 CSS 가 없어 기본 서체로 보인다.
 //! 만든 HTML 은 다른 HTML 과 똑같이 ammonia 정화를 거친다 (허용 클래스는 [`allowed_classes`]).
 
 use std::borrow::Cow;
@@ -12,6 +14,8 @@ use std::ops::Range;
 use std::sync::LazyLock;
 
 use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
+
+use crate::design::is_font_slug;
 
 pub const BOX_KINDS: [&str; 8] = [
     "info", "tip", "warn", "danger", "center", "right", "gallery", "details",
@@ -84,6 +88,21 @@ fn build_classes() -> Vec<(&'static str, Vec<String>)> {
         ("strong", vec!["place-name".to_owned()]),
         ("details", vec![box_class("details")]),
     ]
+}
+
+/// 글자 꾸밈 span 의 class 값을 걸러 허용된 것만 남긴다. 남는 게 없으면 `None`.
+/// 정해진 목록에 더해 올린 서체 `ff-{slug}` 를 모양으로 받는다 (정화 단계가 쓴다).
+pub fn filter_span_classes(value: &str) -> Option<String> {
+    let fixed = allowed_classes()
+        .iter()
+        .find(|(tag, _)| *tag == "span")
+        .map(|(_, c)| c.as_slice())
+        .unwrap_or_default();
+    let kept: Vec<&str> = value
+        .split_ascii_whitespace()
+        .filter(|c| fixed.iter().any(|f| f == c) || c.strip_prefix("ff-").is_some_and(is_font_slug))
+        .collect();
+    (!kept.is_empty()).then(|| kept.join(" "))
 }
 
 pub fn expand(md: &str, options: Options) -> Cow<'_, str> {
@@ -491,7 +510,8 @@ fn expand_spans(md: &str, options: Options) -> String {
             let label_end = label_end(md, i + open.len() - 1, &inside)?;
             let rest = &md[label_end + 1..];
             let value = rest.strip_prefix('{')?.split_once('}')?.0;
-            values.contains(&value).then(|| {
+            let ok = values.contains(&value) || (*name == "font" && is_font_slug(value));
+            ok.then(|| {
                 (
                     open.len(),
                     format!("<span class=\"{prefix}-{value}\">"),
@@ -717,6 +737,20 @@ mod tests {
     }
 
     #[test]
+    fn span_class_filter_keeps_fixed_and_font_slugs_only() {
+        assert_eq!(
+            filter_span_classes("tc-red ff-company-gothic").as_deref(),
+            Some("tc-red ff-company-gothic")
+        );
+        assert_eq!(filter_span_classes("ff-serif").as_deref(), Some("ff-serif"));
+        assert_eq!(filter_span_classes("evil ff-system ff-A tc-x"), None);
+        assert_eq!(
+            filter_span_classes("place-addr").as_deref(),
+            Some("place-addr")
+        );
+    }
+
+    #[test]
     fn spans_become_classes_and_unknown_values_stay_text() {
         let s = ex("이건 :color[빨간 **굵게**]{red} 와 :mark[노랑]{yellow}");
         assert_eq!(
@@ -733,7 +767,20 @@ mod tests {
             ex(":font[명조]{serif} :font[a]{mono} :font[펜]{pen}"),
             "<span class=\"ff-serif\">명조</span> <span class=\"ff-mono\">a</span> <span class=\"ff-pen\">펜</span>"
         );
-        assert_eq!(ex(":font[가]{comic}"), ":font[가]{comic}");
+        // 올린 서체 slug 는 모양으로 받고, 모양이 아니면 글자로 남는다.
+        assert_eq!(
+            ex(":font[회사]{company-gothic}"),
+            "<span class=\"ff-company-gothic\">회사</span>"
+        );
+        for raw in [
+            ":font[가]{Comic}",
+            ":font[가]{a b}",
+            ":font[가]{x;}",
+            ":font[가]{system}",
+            ":color[가]{company-gothic}",
+        ] {
+            assert_eq!(ex(raw), raw);
+        }
         assert_eq!(ex(":size[가]{25}"), ":size[가]{25}");
         assert_eq!(ex(":size[가]{24px}"), ":size[가]{24px}");
         assert_eq!(ex("`:color[가]{red}`"), "`:color[가]{red}`");

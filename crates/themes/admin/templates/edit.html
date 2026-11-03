@@ -5,7 +5,7 @@
 {% block content %}
 {% set published = post and post.status == "published" %}
 <form method="post" action="{% if post %}/admin/posts/{{ post.id }}{% else %}/admin/posts/new{% endif %}" class="write editor"
-      data-site-url="{{ site.url }}" data-site-name="{{ site.name }}"{% if post %} data-post-id="{{ post.id }}"{% endif %}{% if board_slug %} data-board="{{ board_slug }}"{% endif %}>
+      data-site-url="{{ site.url }}" data-site-name="{{ site.name }}"{% if post %} data-post-id="{{ post.id }}"{% endif %}{% if board_slug %} data-board="{{ board_slug }}"{% endif %} data-fonts="{{ fonts_json }}">
   <input type="hidden" name="_csrf" value="{{ csrf }}">
 
   {# 위에 붙는 막대: 돌아가기 · 상태 · 임시 저장 시각 · 저장 · 발행. 에디터가 도구 막대를 그 아래에 붙인다. #}
@@ -161,7 +161,8 @@
 </section>
 {% endif %}
 {% endblock %}
-{% block head %}<link rel="stylesheet" href="/admin/assets/editor.css">{% endblock %}
+{% block head %}<link rel="stylesheet" href="/admin/assets/editor.css">
+<link rel="stylesheet" href="/assets/fonts.css">{% endblock %}
 {% block scripts %}
 <script src="/admin/assets/editor.js" defer></script>
 {% endblock %}

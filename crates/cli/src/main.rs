@@ -72,6 +72,9 @@ enum Command {
     /// 디자인 토큰 (색, 글꼴, 글자 크기, 여백)
     #[command(subcommand)]
     Design(DesignCmd),
+    /// 올린 서체 (글 안 꾸밈·사이트 본문 서체에 쓴다)
+    #[command(subcommand)]
+    Font(FontCmd),
     /// 관리 화면 로그인 링크를 만든다 (10분, 1회용)
     LoginLink(LoginLinkArgs),
     /// 설치 상태를 점검한다 (데이터, DB, 포트, 운영자, 테마)
@@ -578,6 +581,70 @@ pub enum DesignCmd {
     Reset,
 }
 
+#[derive(Debug, Subcommand)]
+pub enum FontCmd {
+    /// 올린 서체 목록
+    List,
+    /// 서체 하나
+    Show { slug: String },
+    /// 서체 파일을 올린다 (woff2·woff·ttf·otf, 20MB 이하). 서체가 없으면 만든다.
+    /// 웹에 올려 내보낼 권리가 있다는 확인으로 `--yes` 가 필요하다
+    Add(FontAddArgs),
+    /// 이름·대체 계열·라이선스를 고친다
+    Update(FontUpdateArgs),
+    /// 서체를 지운다. `--weight` 를 주면 그 굵기 파일만 뗀다. 글 안 꾸밈은 기본 서체로 보인다
+    Remove {
+        slug: String,
+        #[arg(long)]
+        weight: Option<i64>,
+        #[arg(long)]
+        italic: bool,
+    },
+}
+
+#[derive(Debug, Args)]
+pub struct FontAddArgs {
+    /// 서체 파일 경로
+    pub file: PathBuf,
+    /// 메뉴에 보일 이름 (예: "회사 고딕")
+    #[arg(long)]
+    pub name: String,
+    /// OFL-1.1, Apache-2.0, MIT, CC0-1.0, other(웹폰트 사용권을 직접 확인함)
+    #[arg(long)]
+    pub license: String,
+    /// 글·토큰에 쓸 이름 (영소문자·숫자·`-`). 비우면 이름에서 만든다
+    #[arg(long)]
+    pub slug: Option<String>,
+    /// 못 받았을 때 떨어질 계열: sans, serif, mono, cursive
+    #[arg(long)]
+    pub fallback: Option<String>,
+    /// 굵기 100~900
+    #[arg(long, default_value_t = 400)]
+    pub weight: i64,
+    #[arg(long)]
+    pub italic: bool,
+    /// 라이선스 전문 파일 (OFL.txt 등). 공개 사이트에서 함께 내보낸다
+    #[arg(long)]
+    pub license_file: Option<PathBuf>,
+}
+
+#[derive(Debug, Args)]
+pub struct FontUpdateArgs {
+    pub slug: String,
+    #[arg(long)]
+    pub name: Option<String>,
+    #[arg(long)]
+    pub fallback: Option<String>,
+    #[arg(long)]
+    pub license: Option<String>,
+    /// 라이선스 전문 파일을 바꾼다
+    #[arg(long)]
+    pub license_file: Option<PathBuf>,
+    /// 붙인 라이선스 전문을 뗀다
+    #[arg(long, conflicts_with = "license_file")]
+    pub no_license_file: bool,
+}
+
 #[derive(Debug, Args)]
 pub struct DesignSetArgs {
     /// `경로=값` (예: color.primary=#2f5d50, type_scale.base=18, font.body=system)
@@ -591,6 +658,8 @@ pub struct DesignSetArgs {
 pub struct Global {
     pub data: PathBuf,
     pub json: bool,
+    /// `--yes`: 확인이 필요한 명령(서체 올리기의 배포 권리 확인)을 진행한다
+    pub yes: bool,
     pub quiet: bool,
 }
 
@@ -610,10 +679,11 @@ fn main() -> ExitCode {
         Ok(cli) => cli,
         Err(e) => return output::clap_error(e, json),
     };
-    let _ = cli.yes; // 확인 질문이 있는 명령이 아직 없다. 모든 명령은 비대화형이다.
+    // 모든 명령은 비대화형이다. 확인이 필요한 명령은 묻지 않고 `--yes` 가 없으면 다음 명령을 안내한다.
     let g = Global {
         data: cli.data,
         json: cli.json,
+        yes: cli.yes,
         quiet: cli.quiet,
     };
     let Some(command) = cli.command else {

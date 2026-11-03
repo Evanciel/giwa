@@ -1,0 +1,134 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT ff.id AS \"id!\", ff.font_id AS \"font_id!\", f.slug AS \"slug!\",\n                  ff.weight AS \"weight!\", ff.italic AS \"italic!\", ff.format AS \"format!\",\n                  ff.path AS \"path!\", ff.size AS \"size!\", ff.sha256 AS \"sha256!\",\n                  ff.created_at AS \"created_at!\"\n           FROM font_files ff JOIN fonts f ON f.id = ff.font_id\n           WHERE (?1 IS NULL OR f.slug = ?1)\n           ORDER BY ff.weight, ff.italic",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "font_files",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "font_id!",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "font_files",
+            "name": "font_id"
+          }
+        }
+      },
+      {
+        "name": "slug!",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "fonts",
+            "name": "slug"
+          }
+        }
+      },
+      {
+        "name": "weight!",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "font_files",
+            "name": "weight"
+          }
+        }
+      },
+      {
+        "name": "italic!",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "font_files",
+            "name": "italic"
+          }
+        }
+      },
+      {
+        "name": "format!",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "font_files",
+            "name": "format"
+          }
+        }
+      },
+      {
+        "name": "path!",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "font_files",
+            "name": "path"
+          }
+        }
+      },
+      {
+        "name": "size!",
+        "ordinal": 7,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "font_files",
+            "name": "size"
+          }
+        }
+      },
+      {
+        "name": "sha256!",
+        "ordinal": 8,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "font_files",
+            "name": "sha256"
+          }
+        }
+      },
+      {
+        "name": "created_at!",
+        "ordinal": 9,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "font_files",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "1910bb44d8b5afd5ee9db54d9ecc690ddfcb7fbeeb2039e14f91214bf7141a90"
+}

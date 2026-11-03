@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO fonts (id, slug, name, fallback, license, license_path, created_at, updated_at)\n             VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 8
+    },
+    "nullable": []
+  },
+  "hash": "bd55d075abc6dc96259ff2fe363697389e8d82f48ed5c020e7c02b5663e5c813"
+}

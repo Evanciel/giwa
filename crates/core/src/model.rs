@@ -278,6 +278,46 @@ pub struct Attachment {
     pub created_at: String,
 }
 
+/// 운영자가 올린 서체 (ADR-0048). 글 안 `:font[…]{slug}` 와 토큰 `font.body`·`font.heading` 에 쓴다.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+pub struct Font {
+    pub id: Id,
+    /// `ff-{slug}` class 와 토큰 값 (소문자·숫자·`-`)
+    pub slug: String,
+    /// 메뉴·관리 화면에 보일 이름
+    pub name: String,
+    /// 파일을 못 받았을 때 떨어질 계열: `sans` | `serif` | `mono` | `cursive`
+    pub fallback: String,
+    /// `OFL-1.1` | `Apache-2.0` | `MIT` | `CC0-1.0` | `other`
+    pub license: String,
+    /// 붙인 라이선스 전문의 보관소 경로
+    pub license_path: Option<String>,
+    /// 라이선스 전문 주소 (`/fonts/{slug}/LICENSE.txt`). 전문이 없으면 비어 있다
+    pub license_url: Option<String>,
+    /// 굵기·기울임 순
+    pub files: Vec<FontFile>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// 서체의 굵기·기울임 하나에 해당하는 파일.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+pub struct FontFile {
+    pub id: Id,
+    /// 100~900
+    pub weight: i64,
+    pub italic: bool,
+    /// 첫 바이트로 판정한 형식: `woff2` | `woff` | `ttf` | `otf`
+    pub format: String,
+    /// 보관소 상대 경로 (`fonts/{slug}/{sha256 앞 16자}.{format}`)
+    pub path: String,
+    /// 공개 주소 (`/fonts/{slug}/{sha256 앞 16자}.{format}`)
+    pub url: String,
+    pub size: i64,
+    pub sha256: String,
+    pub created_at: String,
+}
+
 /// 글 틀. 새 글 본문으로 불러오는 뼈대.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
 pub struct PostTemplate {

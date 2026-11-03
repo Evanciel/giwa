@@ -92,6 +92,18 @@ export const SPAN_VALUES: Record<string, readonly string[]> = {
   font: ["serif", "pen", "brush", "mono"],
 };
 
+/** 운영자가 올린 서체 이름(slug) 규칙. 서버 `design::is_font_slug` 와 같다 (ADR-0048). */
+const RESERVED_FONT_SLUGS = ["serif", "pen", "brush", "mono", "system", "sans", "cursive", "none", "default", "inherit", "initial", "unset", "revert"];
+export function isFontSlug(s: string): boolean {
+  return /^[a-z][a-z0-9-]{0,30}[a-z0-9]$/.test(s) && !s.includes("--") && !RESERVED_FONT_SLUGS.includes(s);
+}
+
+/** 꾸밈 값을 받을지. 정해진 값, 그리고 서체는 올린 서체 slug 모양도 받는다
+ *  (렌더는 서체 목록을 보지 않는다. 지운 서체는 기본 서체로 보일 뿐 글은 그대로). */
+export function spanValueOk(name: string, value: string): boolean {
+  return (SPAN_VALUES[name]?.includes(value) ?? false) || (name === "font" && isFontSlug(value));
+}
+
 const BOX_OPEN = new RegExp(`^:::[ \t]*(${BOX_KINDS.join("|")})[ \t]*$`);
 const BOX_CLOSE = /^:::[ \t]*$/;
 
@@ -228,8 +240,8 @@ function spanRule(state: StateInline, silent: boolean): boolean {
   const labelStart = state.pos + m[0].length;
   const labelEnd = state.md.helpers.parseLinkLabel(state, labelStart - 1, false);
   if (labelEnd < 0) return false;
-  const v = state.src.slice(labelEnd + 1, state.posMax).match(/^\{([a-z0-9]+)\}/);
-  if (!v || !SPAN_VALUES[m[1]].includes(v[1])) return false;
+  const v = state.src.slice(labelEnd + 1, state.posMax).match(/^\{([a-z0-9-]+)\}/);
+  if (!v || !spanValueOk(m[1], v[1])) return false;
   if (!silent) {
     const max = state.posMax;
     state.pos = labelStart;

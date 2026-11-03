@@ -22,7 +22,7 @@ use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use maru_core::Actor;
 use maru_core::model::Media;
-use maru_core::services::{auth, media, posts};
+use maru_core::services::{auth, fonts, media, posts};
 use maru_core::{Code, Ctx, Error, Result};
 use maru_themes::{Admin, Theme};
 use tokio::net::TcpListener;
@@ -32,10 +32,12 @@ use tower_http::timeout::TimeoutLayer;
 
 pub use ratelimit::{Bucket, RateLimiter};
 
-/// 요청 본문 상한. 이미지 업로드(10MB) + 여유. JSON·폼 추출은 axum 기본값(2MB)이 따로 막는다.
-const BODY_LIMIT: usize = media::MAX_BYTES + 256 * 1024;
-/// 업로드 경로만 axum 추출 상한을 이 값으로 올린다.
-pub(crate) const UPLOAD_LIMIT: usize = BODY_LIMIT;
+/// 요청 본문 상한. 가장 큰 업로드(서체 20MB) + 여유. JSON·폼 추출은 axum 기본값(2MB)이 따로 막는다.
+const BODY_LIMIT: usize = fonts::MAX_BYTES + 256 * 1024;
+/// 그림·첨부 업로드 경로의 상한. 이 경로들은 요청 머리(Content-Length)만 보고도 413 으로 막는다.
+pub(crate) const UPLOAD_LIMIT: usize = media::MAX_BYTES + 256 * 1024;
+/// 서체 파일 업로드 경로의 추출 상한.
+pub(crate) const FONT_UPLOAD_LIMIT: usize = BODY_LIMIT;
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 /// 만료 세션·링크·요청 제한 키 정리 주기.
 const PURGE_EVERY: Duration = Duration::from_secs(10 * 60);
@@ -203,4 +205,13 @@ pub(crate) async fn upload_media(
     tokio::task::spawn_blocking(move || handle.block_on(media::upload(&ctx, &actor, input)))
         .await
         .map_err(maru_core::Error::internal)?
+}
+
+/// 그림·첨부 업로드 경로의 상한. 요청 머리(Content-Length)만 보고도 413 으로 막고(tower-http),
+/// 추출 상한(axum)도 같은 값으로 올린다. 전체 상한은 서체(20MB) 때문에 더 크다.
+pub(crate) fn upload_limit() -> (RequestBodyLimitLayer, axum::extract::DefaultBodyLimit) {
+    (
+        RequestBodyLimitLayer::new(UPLOAD_LIMIT),
+        axum::extract::DefaultBodyLimit::max(UPLOAD_LIMIT),
+    )
 }

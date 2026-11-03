@@ -252,3 +252,18 @@ html.publish-lock { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+/* 서체 (ADR-0048) */
+.font-list { list-style: none; padding: 0; margin: 0 0 2rem; display: grid; gap: .75rem; }
+.font-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: .9rem 1rem; }
+.font-sample { font-size: 1.5rem; line-height: 1.4; margin: 0 0 .5rem; overflow-wrap: anywhere; }
+.font-meta { margin: 0 0 .4rem; }
+.font-files { list-style: none; padding: 0; margin: 0 0 .4rem; display: flex; flex-wrap: wrap; gap: .35rem .75rem; }
+.font-files li { display: inline-flex; align-items: center; gap: .35rem; }
+.font-card .hint { margin: .25rem 0; }
+.font-card .actions { margin-top: .5rem; }
+.font-card .actions button { margin-top: 0; }
+form.inline { display: inline; margin: 0; }
+.font-upload { max-width: 560px; }
+.font-upload .choice { display: flex; align-items: center; gap: .4rem; font-weight: 400; cursor: pointer; }
+.font-upload .choice input { width: auto; }

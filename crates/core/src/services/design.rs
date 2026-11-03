@@ -6,7 +6,7 @@ use serde_json::{Value, json};
 use crate::actor::{Actor, Permission};
 use crate::audit::Target;
 use crate::clock;
-use crate::design::Tokens;
+use crate::design::{Tokens, font_stack};
 use crate::error::{Code, Error, Result};
 use crate::store::{Ctx, Tx};
 
@@ -46,6 +46,20 @@ pub async fn update(ctx: &Ctx, actor: &Actor, patch: Value) -> Result<Tokens> {
     after.validate()?;
     if after == before {
         return Ok(before);
+    }
+    // 내장 이름이 아닌 서체 값은 올린 서체여야 한다 (ADR-0048).
+    for (field, value) in [
+        ("font.body", &after.font.body),
+        ("font.heading", &after.font.heading),
+        ("font.mono", &after.font.mono),
+    ] {
+        if font_stack(value).is_none() && tx.font_by_slug(value).await?.is_none() {
+            return Err(Error::new(Code::Validation)
+                .with_message("error.font_not_found")
+                .arg("slug", value.clone())
+                .arg("field", field)
+                .next("maru font list"));
+        }
     }
     let value = serde_json::to_value(&after).map_err(Error::internal)?;
     tx.put_setting(KEY, &value, &clock::now()).await?;

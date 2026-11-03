@@ -21,7 +21,7 @@ use maru_core::model::{PageReq, Post, PostStatus};
 use maru_core::output::Success;
 use maru_core::services::auth::{self, NewSession, SignedIn};
 use maru_core::services::posts::{self, NewPost, PostPatch};
-use maru_core::services::{boards, categories, files, media, settings, templates};
+use maru_core::services::{boards, categories, design, files, fonts, media, settings, templates};
 use maru_core::urls::{self, Target};
 use maru_core::{Code, Error};
 use serde::Deserialize;
@@ -43,14 +43,18 @@ pub fn routes() -> Router<AppState> {
         .route("/admin/posts/new", get(new_form).post(create))
         .route("/admin/posts/{id}", get(edit_form).post(save))
         .route("/admin/posts/{id}/{action}", post(action))
-        .route(
-            "/admin/media",
-            post(upload).layer(DefaultBodyLimit::max(crate::UPLOAD_LIMIT)),
-        )
+        .route("/admin/media", post(upload).layer(crate::upload_limit()))
         .route(
             "/admin/files",
-            post(upload_file).layer(DefaultBodyLimit::max(crate::UPLOAD_LIMIT)),
+            post(upload_file).layer(crate::upload_limit()),
         )
+        .route("/admin/fonts", get(fonts_page))
+        .route(
+            "/admin/fonts/upload",
+            post(upload_font).layer(DefaultBodyLimit::max(crate::FONT_UPLOAD_LIMIT)),
+        )
+        .route("/admin/fonts/{slug}/license", post(font_license))
+        .route("/admin/fonts/{slug}/{action}", post(font_action))
         .route("/admin/templates", get(list_templates).post(save_template))
         .route("/admin/preview", post(preview))
         .route("/admin/slug-check", get(check_slug))
@@ -797,6 +801,12 @@ async fn edit_page(
             // 칸을 보일지만 정한다. 실제 권한 검사는 서비스가 한다.
             "can_notice": who.actor.has(Permission::PostPublish),
             "can_add_category": who.actor.has(Permission::StructureEdit),
+            // 서체 메뉴에 붙일 올린 서체 (ADR-0048). 속성 값으로 넣으므로 템플릿이 HTML 이스케이프한다.
+            "fonts_json": Value::Array(
+                fonts::list(&state.ctx).await.unwrap_or_default().iter()
+                    .map(|f| json!({ "slug": f.slug, "name": f.name }))
+                    .collect(),
+            ).to_string(),
             "board_slug": board_slug,
             "public_url": public_url,
             "notice": notice_text,
@@ -1072,6 +1082,209 @@ async fn action(
         }
         Ok(p) => Redirect::to(&format!("/admin/posts/{}?done={done}", p.id)).into_response(),
         Err(e) => fail(&state, Some(&who), &e).await,
+    }
+}
+
+// ---- 서체 (ADR-0048) ----
+
+#[derive(Debug, Default, Deserialize)]
+struct FontsQuery {
+    #[serde(default)]
+    done: Option<String>,
+}
+
+async fn fonts_page(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<FontsQuery>,
+) -> Response {
+    let who = match require(&state, &headers, "/admin/fonts").await {
+        Ok(w) => w,
+        Err(r) => return *r,
+    };
+    fonts_render(&state, &who, StatusCode::OK, q.done.as_deref(), None).await
+}
+
+async fn fonts_render(
+    state: &AppState,
+    who: &SignedIn,
+    status: StatusCode,
+    done: Option<&str>,
+    error: Option<String>,
+) -> Response {
+    let list = match fonts::list(&state.ctx).await {
+        Ok(l) => l,
+        Err(e) => return fail(state, Some(who), &e).await,
+    };
+    let tokens = design::tokens(&state.ctx).await.unwrap_or_default();
+    let notice = match done {
+        Some("uploaded") => Some("서체를 올렸습니다."),
+        Some("body") => Some("사이트 본문 서체로 정했습니다."),
+        Some("heading") => Some("사이트 제목 서체로 정했습니다."),
+        Some("removed") => Some("서체를 지웠습니다. 이 서체를 쓴 글은 기본 서체로 보입니다."),
+        Some("file-removed") => Some("파일을 뗐습니다."),
+        _ => None,
+    };
+    let ctx = merge(
+        base(state, Some(who), "fonts").await,
+        json!({
+            "fonts": list.iter().map(|f| json!({
+                "slug": f.slug,
+                "name": f.name,
+                "license": f.license,
+                "license_url": f.license_url,
+                "fallback": f.fallback,
+                "files": f.files.iter().map(|x| json!({
+                    "weight": x.weight,
+                    "italic": x.italic,
+                    "format": x.format,
+                    "kb": x.size / 1024,
+                })).collect::<Vec<_>>(),
+                "has_bold": f.files.iter().any(|x| x.weight >= 600),
+                "is_body": tokens.font.body == f.slug,
+                "is_heading": tokens.font.heading == f.slug,
+            })).collect::<Vec<_>>(),
+            "licenses": fonts::LICENSES,
+            "max_mb": fonts::MAX_BYTES / 1024 / 1024,
+            "can_edit": who.actor.has(Permission::DesignEdit),
+            "notice": notice,
+            "error": error,
+        }),
+    );
+    render(state, status, "fonts.html", &ctx)
+}
+
+#[derive(Debug, Deserialize)]
+struct FontUploadQuery {
+    name: String,
+    #[serde(default)]
+    slug: Option<String>,
+    license: String,
+    #[serde(default)]
+    fallback: Option<String>,
+    #[serde(default)]
+    weight: Option<i64>,
+    #[serde(default)]
+    italic: Option<u8>,
+    #[serde(default)]
+    rights: Option<u8>,
+}
+
+/// 서체 올리기. 본문은 파일 바이트 그대로(`/admin/media` 와 같은 방식), 나머지는 쿼리.
+async fn upload_font(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<FontUploadQuery>,
+    body: Bytes,
+) -> Result<Response, ApiError> {
+    let who = json_session(&state, &headers).await?;
+    let input = fonts::NewFont {
+        name: q.name,
+        slug: q.slug.filter(|s| !s.is_empty()),
+        fallback: q.fallback.filter(|s| !s.is_empty()),
+        license: q.license,
+        license_text: None,
+        rights_confirmed: q.rights.unwrap_or(0) != 0,
+    };
+    let upload = fonts::FontUpload {
+        weight: q.weight.unwrap_or(400),
+        italic: q.italic.unwrap_or(0) != 0,
+        bytes: body.to_vec(),
+    };
+    let up = fonts::add_with_file(&state.ctx, &who.actor, input, upload).await?;
+    Ok((StatusCode::CREATED, Json(Success::new(up))).into_response())
+}
+
+#[derive(Debug, Deserialize)]
+struct LicenseBody {
+    license_text: String,
+}
+
+/// 올린 뒤 라이선스 전문을 붙인다 (JSON).
+async fn font_license(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(slug): Path<String>,
+    body: Result<Json<LicenseBody>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let who = json_session(&state, &headers).await?;
+    let Json(b) = body.map_err(|e| {
+        ApiError(
+            Error::new(Code::Validation)
+                .with_message("error.json_body")
+                .arg("detail", e.body_text()),
+        )
+    })?;
+    let patch = fonts::FontPatch {
+        license_text: Some(b.license_text),
+        ..fonts::FontPatch::default()
+    };
+    let font = fonts::update(&state.ctx, &who.actor, &slug, patch).await?;
+    Ok(Json(Success::new(font)).into_response())
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct FontActionForm {
+    #[serde(default, rename = "_csrf")]
+    csrf: String,
+    #[serde(default)]
+    weight: Option<i64>,
+    #[serde(default)]
+    italic: Option<u8>,
+}
+
+/// 목록의 단추들 (스크립트 없이 폼으로): 본문·제목 서체로 쓰기, 굵기 파일 떼기, 서체 지우기.
+async fn font_action(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path((slug, action)): Path<(String, String)>,
+    Form(f): Form<FontActionForm>,
+) -> Response {
+    let who = match require(&state, &headers, "/admin/fonts").await {
+        Ok(w) => w,
+        Err(r) => return *r,
+    };
+    if !session_csrf_ok(&who, &f.csrf) {
+        return csrf_failed(&state, Some(&who)).await;
+    }
+    let res = match action.as_str() {
+        "use-body" | "use-heading" => {
+            let field = if action == "use-body" {
+                "body"
+            } else {
+                "heading"
+            };
+            design::update(&state.ctx, &who.actor, json!({ "font": { field: slug } }))
+                .await
+                .map(|_| field)
+        }
+        "remove-file" => fonts::remove_file(
+            &state.ctx,
+            &who.actor,
+            &slug,
+            f.weight.unwrap_or(400),
+            f.italic.unwrap_or(0) != 0,
+        )
+        .await
+        .map(|_| "file-removed"),
+        "remove" => fonts::remove(&state.ctx, &who.actor, &slug)
+            .await
+            .map(|_| "removed"),
+        _ => Err(Error::new(Code::NotFound).with_message("error.not_found")),
+    };
+    match res {
+        Ok(done) => Redirect::to(&format!("/admin/fonts?done={done}")).into_response(),
+        Err(e) if e.code() == Code::Forbidden || e.code() == Code::NotFound => {
+            fail(&state, Some(&who), &e).await
+        }
+        Err(e) => {
+            let status = if e.code() == Code::Conflict {
+                StatusCode::CONFLICT
+            } else {
+                StatusCode::BAD_REQUEST
+            };
+            fonts_render(&state, &who, status, None, Some(e.message())).await
+        }
     }
 }
 

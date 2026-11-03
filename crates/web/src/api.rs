@@ -12,8 +12,8 @@ use axum::{Json, Router};
 use maru_core::model::{MenuItem, PageReq, PageStatus, PostStatus};
 use maru_core::output::Success;
 use maru_core::services::{
-    anonymous_actor, boards, categories, design, files, media, menus, pages, posts, settings, tags,
-    templates, tokens,
+    anonymous_actor, boards, categories, design, files, fonts, media, menus, pages, posts,
+    settings, tags, templates, tokens,
 };
 use maru_core::{Actor, Code, Error};
 use serde::Deserialize;
@@ -48,11 +48,24 @@ pub fn routes() -> Router<AppState> {
         .route("/menus/{location}", get(get_menu).put(put_menu))
         .route("/settings", get(get_settings).patch(update_settings))
         .route("/design/tokens", get(get_tokens).patch(update_tokens))
+        .route("/fonts", get(list_fonts).post(add_font))
+        .route(
+            "/fonts/{slug}",
+            get(get_font).patch(update_font).delete(remove_font),
+        )
+        .route(
+            "/fonts/{slug}/files",
+            post(upload_font_file).layer(DefaultBodyLimit::max(crate::FONT_UPLOAD_LIMIT)),
+        )
+        .route(
+            "/fonts/{slug}/files/{weight}",
+            axum::routing::delete(remove_font_file),
+        )
         .route(
             "/media",
             get(list_media)
                 .post(upload_media)
-                .layer(DefaultBodyLimit::max(crate::UPLOAD_LIMIT)),
+                .layer(crate::upload_limit()),
         )
         .route(
             "/media/{id}",
@@ -62,7 +75,7 @@ pub fn routes() -> Router<AppState> {
             "/files",
             get(list_files)
                 .post(upload_file)
-                .layer(DefaultBodyLimit::max(crate::UPLOAD_LIMIT)),
+                .layer(crate::upload_limit()),
         )
         .route("/files/{id}", get(get_file).delete(delete_file))
         .route("/templates", get(list_templates).post(save_template))
@@ -359,6 +372,93 @@ async fn update_tokens(
     Ok(ok(
         StatusCode::OK,
         design::update(&state.ctx, &actor, patch).await?,
+    ))
+}
+
+async fn list_fonts(State(state): State<AppState>) -> Result<Response, ApiError> {
+    Ok(ok(StatusCode::OK, fonts::list(&state.ctx).await?))
+}
+
+async fn get_font(
+    State(state): State<AppState>,
+    Path(slug): Path<String>,
+) -> Result<Response, ApiError> {
+    Ok(ok(StatusCode::OK, fonts::get(&state.ctx, &slug).await?))
+}
+
+/// 서체 만들기 (JSON). 같은 slug·이름이 있으면 그 서체를 맞춰 돌려준다.
+async fn add_font(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    body: Result<Json<fonts::NewFont>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let Json(input) = body.map_err(bad_json)?;
+    Ok(ok(
+        StatusCode::CREATED,
+        fonts::add(&state.ctx, &actor, input).await?,
+    ))
+}
+
+async fn update_font(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(slug): Path<String>,
+    body: Result<Json<fonts::FontPatch>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let Json(patch) = body.map_err(bad_json)?;
+    Ok(ok(
+        StatusCode::OK,
+        fonts::update(&state.ctx, &actor, &slug, patch).await?,
+    ))
+}
+
+async fn remove_font(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(slug): Path<String>,
+) -> Result<Response, ApiError> {
+    Ok(ok(
+        StatusCode::OK,
+        fonts::remove(&state.ctx, &actor, &slug).await?,
+    ))
+}
+
+#[derive(Debug, Deserialize)]
+struct FontFileQuery {
+    weight: Option<i64>,
+    #[serde(default)]
+    italic: Option<u8>,
+}
+
+/// `POST /fonts/{slug}/files?weight=700&italic=1`, 본문은 서체 파일 바이트 그대로 (`/media` 와 같은 방식).
+async fn upload_font_file(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(slug): Path<String>,
+    Query(q): Query<FontFileQuery>,
+    body: Bytes,
+) -> Result<Response, ApiError> {
+    let input = fonts::FontUpload {
+        weight: q.weight.unwrap_or(400),
+        italic: q.italic.unwrap_or(0) != 0,
+        bytes: body.to_vec(),
+    };
+    Ok(ok(
+        StatusCode::CREATED,
+        fonts::add_file(&state.ctx, &actor, &slug, input).await?,
+    ))
+}
+
+async fn remove_font_file(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path((slug, weight)): Path<(String, i64)>,
+    Query(q): Query<FontFileQuery>,
+) -> Result<Response, ApiError> {
+    let italic = q.italic.unwrap_or(0) != 0;
+    Ok(ok(
+        StatusCode::OK,
+        fonts::remove_file(&state.ctx, &actor, &slug, weight, italic).await?,
     ))
 }
 

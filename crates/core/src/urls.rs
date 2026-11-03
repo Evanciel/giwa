@@ -83,6 +83,17 @@ pub fn file(id: &str) -> String {
     format!("/files/{id}")
 }
 
+/// 올린 서체 파일 주소. 보관소 경로(`fonts/{slug}/{hash}.{ext}`)의 마지막 조각을 쓴다.
+pub fn font_file(slug: &str, path: &str) -> String {
+    let name = path.rsplit('/').next().unwrap_or_default();
+    format!("/fonts/{slug}/{name}")
+}
+
+/// 올린 서체의 라이선스 전문 주소.
+pub fn font_license(slug: &str) -> String {
+    format!("/fonts/{slug}/LICENSE.txt")
+}
+
 /// 미디어 파일 주소. 보관소 경로는 ASCII 규칙(`blobs::valid_path`)을 따르므로 인코딩하지 않는다.
 pub fn media(blob_path: &str) -> String {
     format!("/media/{blob_path}")

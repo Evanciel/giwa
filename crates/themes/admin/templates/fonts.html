@@ -1,0 +1,108 @@
+{% extends "_base.html" %}
+{% block title %}서체{% endblock %}
+{% block head %}<link rel="stylesheet" href="/assets/fonts.css">{% endblock %}
+{% block content %}
+<div class="heading-row">
+  <h1>서체 <span class="count">{{ fonts | length }}</span></h1>
+</div>
+<p class="hint">내장 서체(명조·손글씨·붓글씨·고정폭) 말고 다른 서체를 쓰려면 여기서 올립니다. 올린 서체는 글쓰기 화면의 「서체」 메뉴에 나오고, 사이트 본문·제목 서체로도 쓸 수 있습니다.</p>
+
+{% if fonts %}
+<ul class="font-list">
+{% for f in fonts %}
+  <li class="font-card">
+    <p class="font-sample ff-{{ f.slug }}">가나다라 ABC 123 다람쥐 헌 쳇바퀴에 타고파</p>
+    <p class="font-meta">
+      <strong>{{ f.name }}</strong> <code>{{ f.slug }}</code> · {{ f.license }}
+      {% if f.license_url %} · <a href="{{ f.license_url }}" target="_blank" rel="noopener">라이선스 전문</a>{% endif %}
+      {% if f.is_body %} <span class="badge badge-published">본문 서체</span>{% endif %}
+      {% if f.is_heading %} <span class="badge badge-published">제목 서체</span>{% endif %}
+    </p>
+    <ul class="font-files" aria-label="{{ f.name }} 파일">
+    {% for x in f.files %}
+      <li>
+        <span class="badge">굵기 {{ x.weight }}{% if x.italic %} 기울임{% endif %} · {{ x.format }} · {{ x.kb }}KB</span>
+        {% if can_edit %}
+        <form method="post" action="/admin/fonts/{{ f.slug }}/remove-file" class="inline">
+          <input type="hidden" name="_csrf" value="{{ csrf }}">
+          <input type="hidden" name="weight" value="{{ x.weight }}">
+          <input type="hidden" name="italic" value="{% if x.italic %}1{% else %}0{% endif %}">
+          <button type="submit" class="link" aria-label="{{ f.name }} 굵기 {{ x.weight }} 파일 떼기">떼기</button>
+        </form>
+        {% endif %}
+      </li>
+    {% else %}
+      <li class="hint">파일이 없습니다. 아래에서 같은 이름으로 올리세요.</li>
+    {% endfor %}
+    </ul>
+    {% if f.files and not f.has_bold %}<p class="hint">굵게(700) 파일이 없으면 브라우저가 굵게를 흉내 내서 한글이 번져 보일 수 있습니다.</p>{% endif %}
+    <p class="hint">글에 쓰기: <code>:font[글자]{{ "{" ~ f.slug ~ "}" }}</code></p>
+    {% if can_edit %}
+    <div class="actions">
+      {% if not f.is_body %}
+      <form method="post" action="/admin/fonts/{{ f.slug }}/use-body">
+        <input type="hidden" name="_csrf" value="{{ csrf }}">
+        <button type="submit" class="secondary">본문 서체로</button>
+      </form>
+      {% endif %}
+      {% if not f.is_heading %}
+      <form method="post" action="/admin/fonts/{{ f.slug }}/use-heading">
+        <input type="hidden" name="_csrf" value="{{ csrf }}">
+        <button type="submit" class="secondary">제목 서체로</button>
+      </form>
+      {% endif %}
+      <form method="post" action="/admin/fonts/{{ f.slug }}/remove">
+        <input type="hidden" name="_csrf" value="{{ csrf }}">
+        <button type="submit" class="warn">지우기</button>
+      </form>
+    </div>
+    {% endif %}
+  </li>
+{% endfor %}
+</ul>
+{% else %}
+<p class="empty">아직 올린 서체가 없습니다.</p>
+{% endif %}
+
+{% if can_edit %}
+<section class="font-upload" aria-labelledby="font-upload-title">
+  <h2 id="font-upload-title">서체 올리기</h2>
+  <form class="stack" data-font-upload data-csrf="{{ csrf }}">
+    <label for="font-file">파일 <span class="hint">woff2·woff·ttf·otf, {{ max_mb }}MB 이하. woff2 가 가장 가볍습니다.</span></label>
+    <input id="font-file" type="file" accept=".woff2,.woff,.ttf,.otf" required>
+    <p class="font-sample" data-font-preview hidden>가나다라 ABC 123 다람쥐 헌 쳇바퀴에 타고파</p>
+    <label for="font-name">이름</label>
+    <input id="font-name" maxlength="40" required placeholder="예: 회사 고딕" list="font-names" autocomplete="off">
+    <datalist id="font-names">{% for f in fonts %}<option value="{{ f.name }}">{% endfor %}</datalist>
+    <p class="hint">이미 있는 서체 이름을 쓰면 그 서체에 굵기를 더합니다.</p>
+    <label for="font-weight">굵기</label>
+    <select id="font-weight">
+      {% for w in range(100, 1000, 100) %}<option value="{{ w }}"{% if w == 400 %} selected{% endif %}>{{ w }}{% if w == 400 %} (보통){% elif w == 700 %} (굵게){% endif %}</option>{% endfor %}
+    </select>
+    <label class="choice"><input type="checkbox" id="font-italic"> 기울임 꼴</label>
+    <label for="font-fallback">파일을 못 받았을 때</label>
+    <select id="font-fallback">
+      <option value="sans">고딕 계열</option>
+      <option value="serif">명조 계열</option>
+      <option value="mono">고정폭</option>
+      <option value="cursive">손글씨 계열</option>
+    </select>
+    <label for="font-license">라이선스</label>
+    <select id="font-license" required>
+      <option value="OFL-1.1">SIL OFL 1.1</option>
+      <option value="Apache-2.0">Apache 2.0</option>
+      <option value="MIT">MIT</option>
+      <option value="CC0-1.0">CC0</option>
+      <option value="other">기타 — 웹폰트 사용권을 직접 확인함</option>
+    </select>
+    <label for="font-license-text">라이선스 전문 <span class="hint">(선택) OFL.txt 내용을 붙여 넣으면 사이트에서 함께 내보냅니다</span></label>
+    <textarea id="font-license-text" rows="4"></textarea>
+    <label class="choice"><input type="checkbox" id="font-rights" required> 이 서체를 웹에 올려 내보낼 권리가 있습니다</label>
+    <button type="submit">올리기</button>
+    <p class="hint" data-font-status role="status" aria-live="polite"></p>
+  </form>
+  <noscript><p class="hint">올리기는 스크립트가 필요합니다. 스크립트 없이는 <code>maru font add &lt;파일&gt; --name &lt;이름&gt; --license OFL-1.1 --yes</code> 를 쓰세요.</p></noscript>
+</section>
+{% endif %}
+{% endblock %}
+{% block scripts %}{% if can_edit %}<script src="/admin/assets/fonts.js" defer></script>{% endif %}{% endblock %}

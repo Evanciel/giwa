@@ -33,12 +33,14 @@ pub fn routes() -> Router<AppState> {
         .route("/rss.xml", get(crate::feeds::rss))
         .route("/robots.txt", get(crate::feeds::robots))
         .route("/assets/tokens.css", get(tokens_css))
+        .route("/assets/fonts.css", get(fonts_css))
         .route("/assets/{*path}", get(asset))
         .route_layer(middleware::from_fn(crate::etag::conditional));
     Router::new()
         .merge(rendered)
         .route("/media/{*path}", get(media_file))
         .route("/files/{id}", get(file_download))
+        .route("/fonts/{slug}/{name}", get(font_file))
         .fallback(not_found)
 }
 
@@ -375,14 +377,65 @@ async fn page_inner(state: &AppState, slug: &str) -> Result<Value> {
 /// 디자인 토큰 CSS. 토큰은 검증된 값만 들어 있어 그대로 내보낸다.
 async fn tokens_css(State(state): State<AppState>) -> Response {
     let tokens = design::tokens(&state.ctx).await.unwrap_or_default();
+    let fonts = maru_core::services::fonts::list(&state.ctx)
+        .await
+        .unwrap_or_default();
     (
         [
             (header::CONTENT_TYPE, "text/css; charset=utf-8"),
             (header::CACHE_CONTROL, "no-cache"),
         ],
-        tokens.to_css(),
+        tokens.to_css(&fonts),
     )
         .into_response()
+}
+
+/// 올린 서체의 `@font-face`·`.ff-{slug}` (ADR-0048). slug·주소는 정해진 모양이라 그대로 내보낸다.
+async fn fonts_css(State(state): State<AppState>) -> Response {
+    let list = maru_core::services::fonts::list(&state.ctx)
+        .await
+        .unwrap_or_default();
+    (
+        [
+            (header::CONTENT_TYPE, "text/css; charset=utf-8"),
+            (header::CACHE_CONTROL, "no-cache"),
+        ],
+        maru_core::services::fonts::css(&list),
+    )
+        .into_response()
+}
+
+/// 올린 서체 파일과 라이선스 전문. 파일 이름에 내용 해시가 들어 있어 오래 캐시한다.
+async fn font_file(
+    State(state): State<AppState>,
+    Path((slug, name)): Path<(String, String)>,
+) -> Response {
+    use maru_core::services::fonts;
+    match fonts::file(&state.ctx, &slug, &name).await {
+        Ok((format, bytes)) => {
+            let cache = if format == "txt" {
+                "no-cache"
+            } else {
+                "public, max-age=31536000, immutable"
+            };
+            (
+                [
+                    (header::CONTENT_TYPE, fonts::mime(&format)),
+                    (header::CACHE_CONTROL, cache),
+                    (header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
+                ],
+                bytes,
+            )
+                .into_response()
+        }
+        Err(e) if e.code() == Code::NotFound => {
+            (StatusCode::NOT_FOUND, "not found").into_response()
+        }
+        Err(e) => {
+            tracing::error!(error = ?e, "서체 파일 읽기 실패");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
 }
 
 async fn asset(State(state): State<AppState>, Path(path): Path<String>) -> Response {

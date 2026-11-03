@@ -103,6 +103,24 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "error.scope_unknown" => {
             "알 수 없는 스코프입니다: {value} (read, draft, publish, structure, design, admin)"
         }
+        "error.font_not_found" => "`{slug}` 서체를 찾을 수 없습니다.",
+        "error.font_file_not_found" => "`{slug}` 서체에 굵기 {weight} 파일이 없습니다.",
+        "error.font_file" => "서체 파일이 아니거나 깨졌습니다. 가능한 형식: {allowed}",
+        "error.font_weight" => "굵기는 100~900 사이의 100 단위여야 합니다: {value}",
+        "error.font_name" => "서체 이름은 1~{max}자여야 합니다.",
+        "error.font_slug" => {
+            "서체 주소 이름은 영소문자로 시작하는 영소문자·숫자·`-` 2~32자여야 하고, 내장 서체 이름은 쓸 수 없습니다: {value}"
+        }
+        "error.font_fallback" => "대체 계열이 올바르지 않습니다: {value} (가능: {allowed})",
+        "error.font_license" => "라이선스가 올바르지 않습니다: {value} (가능: {allowed})",
+        "error.font_license_text" => "라이선스 전문은 {max}KB 이하여야 합니다.",
+        "error.font_rights" => "이 서체를 웹에 올려 내보낼 권리가 있는지 확인해야 합니다.",
+        "error.font_in_use" => {
+            "`{slug}` 서체는 디자인 토큰 `{field}` 에서 쓰고 있어 지울 수 없습니다."
+        }
+        "warn.font_large" => {
+            "서체 파일이 {size}MB 입니다. 방문자 화면이 느릴 수 있으니 woff2 로 줄여 올리세요 (scripts/subset-fonts.py)."
+        }
         "error.input_encoding" => "본문이 UTF-8 이 아닙니다: {path}",
         "hint.input_encoding" => "편집기에서 UTF-8 로 저장한 뒤 `--from` 으로 다시 넘기세요.",
         _ => return None,

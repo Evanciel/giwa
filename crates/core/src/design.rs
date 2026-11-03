@@ -9,6 +9,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{Code, Error, Result};
+use crate::model::Font;
 
 /// 본문 대비 최소값 (WCAG 2.x AA, 일반 글자).
 pub const MIN_CONTRAST: f64 = 4.5;
@@ -112,6 +113,50 @@ pub const FONTS: &[(&str, &str)] = &[
     ("mono", "ui-monospace, SFMono-Regular, Consolas, monospace"),
 ];
 
+/// 올린 서체가 쓸 수 없는 이름. 내장 서체 값(`:font[]{serif}` 등)·토큰 이름·CSS 키워드와 겹치지 않게 한다.
+pub const RESERVED_FONT_SLUGS: &[&str] = &[
+    "serif", "pen", "brush", "mono", "system", "sans", "cursive", "none", "default", "inherit",
+    "initial", "unset", "revert",
+];
+
+/// 올린 서체 파일을 못 받았을 때 떨어질 계열과 그 스택 (ADR-0048).
+pub const FONT_FALLBACKS: &[(&str, &str)] = &[
+    ("sans", FONTS[1].1),
+    (
+        "serif",
+        "\"Noto Serif KR\", AppleMyungjo, Batang, \"바탕\", serif",
+    ),
+    ("mono", "D2Coding, ui-monospace, Consolas, monospace"),
+    ("cursive", "cursive"),
+];
+
+/// 올린 서체 slug 규칙: 영소문자로 시작하고 영소문자·숫자로 끝나는 2~32자, 가운데는 `-` 도 된다.
+/// 예약어는 안 된다. 이 모양이면 CSS class·글꼴 이름·URL 조각에 그대로 써도 안전하다.
+pub fn is_font_slug(s: &str) -> bool {
+    let b = s.as_bytes();
+    (2..=32).contains(&b.len())
+        && b[0].is_ascii_lowercase()
+        && b[b.len() - 1].is_ascii_alphanumeric()
+        && b.iter()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || *c == b'-')
+        && !s.contains("--")
+        && !RESERVED_FONT_SLUGS.contains(&s)
+}
+
+/// 올린 서체의 CSS 글꼴 이름. 사용자 PC 에 설치된 글꼴과 겹치지 않게 앞머리를 붙인다.
+pub fn uploaded_font_family(slug: &str) -> String {
+    format!("maru-u-{slug}")
+}
+
+/// 올린 서체의 CSS 스택. `fallback` 이 목록에 없으면 고딕 계열.
+pub fn uploaded_font_stack(slug: &str, fallback: &str) -> String {
+    let tail = FONT_FALLBACKS
+        .iter()
+        .find(|(n, _)| *n == fallback)
+        .map_or(FONT_FALLBACKS[0].1, |(_, s)| *s);
+    format!("\"{}\", {tail}", uploaded_font_family(slug))
+}
+
 const HEADER: &[&str] = &["sticky", "static"];
 const DENSITY: &[&str] = &["compact", "comfortable", "spacious"];
 const MOTION: &[&str] = &["none", "subtle", "normal"];
@@ -194,12 +239,13 @@ impl Tokens {
             ("font.heading", &self.font.heading),
             ("font.mono", &self.font.mono),
         ] {
-            font_stack(value).ok_or_else(|| {
-                invalid(name, value).arg(
+            // 올린 서체(slug)는 모양만 본다. 실제로 있는지는 저장할 때 서비스가 DB 로 확인한다.
+            if font_stack(value).is_none() && !is_font_slug(value) {
+                return Err(invalid(name, value).arg(
                     "allowed",
                     FONTS.iter().map(|(n, _)| *n).collect::<Vec<_>>().join(", "),
-                )
-            })?;
+                ));
+            }
         }
         range(
             "type_scale.base",
@@ -230,13 +276,24 @@ impl Tokens {
         Ok(())
     }
 
-    /// CSS 변수 파일. `validate` 를 통과한 값만 넣는다.
-    pub fn to_css(&self) -> String {
+    /// CSS 변수 파일. `validate` 를 통과한 값만 넣는다. `uploaded` 는 올린 서체 목록(slug 를 스택으로 바꿀 때 쓴다).
+    /// 목록에 없는 slug 는 시스템 고딕으로 떨어진다.
+    pub fn to_css(&self, uploaded: &[Font]) -> String {
         let mut css = String::from(
             "/* Maru 디자인 토큰. 직접 고치지 말고 `maru design set` 을 쓴다. */\n:root {\n",
         );
         push_palette(&mut css, &self.color);
-        let stack = |name: &str| font_stack(name).unwrap_or(FONTS[1].1);
+        let stack = |name: &str| -> String {
+            font_stack(name).map_or_else(
+                || {
+                    uploaded.iter().find(|f| f.slug == name).map_or_else(
+                        || FONTS[1].1.to_owned(),
+                        |f| uploaded_font_stack(&f.slug, &f.fallback),
+                    )
+                },
+                str::to_owned,
+            )
+        };
         let _ = writeln!(css, "  --font-body: {};", stack(&self.font.body));
         let _ = writeln!(css, "  --font-heading: {};", stack(&self.font.heading));
         let _ = writeln!(css, "  --font-mono: {};", stack(&self.font.mono));
@@ -421,10 +478,56 @@ mod tests {
 
     #[test]
     fn css_has_both_modes_and_no_raw_input() {
-        let css = Tokens::default().to_css();
+        let css = Tokens::default().to_css(&[]);
         assert!(css.contains("--primary: #2f5d50;"));
         assert!(css.contains("prefers-color-scheme: dark"));
         assert!(css.contains("--fs-h1:"));
         assert!(!css.contains("<"));
+    }
+
+    #[test]
+    fn font_slugs_are_safe_and_avoid_reserved_names() {
+        for ok in ["company-gothic", "ab", "font2", "a-1"] {
+            assert!(is_font_slug(ok), "{ok}");
+        }
+        for bad in [
+            "a",
+            "serif",
+            "system",
+            "Gothic",
+            "1abc",
+            "ab-",
+            "a--b",
+            "a b",
+            "a;b",
+            "가나",
+            &"a".repeat(33),
+        ] {
+            assert!(!is_font_slug(bad), "{bad}");
+        }
+    }
+
+    #[test]
+    fn uploaded_font_token_becomes_its_stack() {
+        let mut t = Tokens::default();
+        t.font.body = "company-gothic".into();
+        t.validate().unwrap();
+        let font = Font {
+            id: "f".into(),
+            slug: "company-gothic".into(),
+            name: "회사 고딕".into(),
+            fallback: "serif".into(),
+            license: "OFL-1.1".into(),
+            license_path: None,
+            license_url: None,
+            files: vec![],
+            created_at: String::new(),
+            updated_at: String::new(),
+        };
+        let css = t.to_css(&[font]);
+        assert!(css.contains("--font-body: \"maru-u-company-gothic\", \"Noto Serif KR\""));
+        // 목록에 없으면 시스템 고딕
+        let css = t.to_css(&[]);
+        assert!(css.contains(&format!("--font-body: {};", FONTS[1].1)));
     }
 }

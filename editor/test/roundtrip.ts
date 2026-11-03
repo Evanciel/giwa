@@ -40,6 +40,7 @@ const rich: Record<string, string> = {
   "글자 꾸밈": "이건 :color[빨간 글자]{red} 와 :mark[형광펜 **굵게**]{yellow} 그리고 :size[큰 글자]{large}",
   "숫자 크기·늘어난 팔레트": ":size[작은]{11} :size[큰 **굵게**]{38} :color[남색]{navy} :color[자주]{wine} :mark[민트]{mint} :mark[회색]{gray}",
   "서체": ":font[명조로 쓴 **글**]{serif} 와 :font[a_b]{mono} 그리고 :font[겹친 :color[빨강]{red}]{serif} :font[손글씨]{pen} :font[붓]{brush}",
+  "올린 서체·지운 서체": ":font[회사 서체]{company-gothic} 와 :font[지운 **서체**]{old-font2}",
   "닫히지 않은 상자는 글자": ":::info\n닫는 줄 없음",
   "사진 크기·캡션": "![바다](/media/2026/11/a.jpg#w50 \"동해 바다\")\n\n글 ![산](/media/2026/11/b.jpg#w75) 끝",
   "갤러리": ":::gallery\n![a](/media/a.jpg) ![b](/media/b.jpg)\n![c](/media/c.jpg)\n:::",
@@ -64,6 +65,16 @@ const rich: Record<string, string> = {
   check("팔레트 밖 색은 글자 그대로", bad.ok && bad.doc.textContent.includes("{magenta}"), bad.ok ? bad.doc.textContent : "");
   const odd = load("이건 :size[가]{25} 와 :size[나]{24px}");
   check("단계 밖 크기는 글자 그대로", odd.ok && odd.doc.textContent.includes("{25}") && odd.doc.textContent.includes("{24px}"), odd.ok ? odd.doc.textContent : "");
+  const up = load(":font[가]{company-gothic}");
+  const upMarks: string[] = [];
+  if (up.ok) up.doc.descendants((node) => void upMarks.push(...node.marks.map((x) => `${x.type.name}=${x.attrs.value}`)));
+  check("올린 서체 slug 는 마크", upMarks.includes("font=company-gothic"), upMarks.join(","));
+  const notSlug = load(":font[가]{Comic} :font[나]{a b} :font[다]{system} :color[라]{company-gothic}");
+  check(
+    "slug 모양이 아닌 서체 값은 글자 그대로",
+    notSlug.ok && ["{Comic}", "{a b}", "{system}", "{company-gothic}"].every((t) => notSlug.doc.textContent.includes(t)),
+    notSlug.ok ? notSlug.doc.textContent : "",
+  );
   const num = load(":size[가]{24}");
   const marks: string[] = [];
   if (num.ok) num.doc.descendants((node) => void marks.push(...node.marks.map((x) => `${x.type.name}=${x.attrs.value}`)));

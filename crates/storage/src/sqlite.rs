@@ -4,9 +4,9 @@ use async_trait::async_trait;
 use maru_core::actor::{AuthorType, Permission, Scope};
 use maru_core::audit::AuditRecord;
 use maru_core::model::{
-    Attachment, Board, BoardPolicy, Category, LoginTicket, Media, MediaVariant, Member,
-    MemberStatus, Page, PageStatus, Post, PostKind, PostStatus, PostTemplate, Revision, Role,
-    Session, Tag, Token,
+    Attachment, Board, BoardPolicy, Category, Font, FontFile, LoginTicket, Media, MediaVariant,
+    Member, MemberStatus, Page, PageStatus, Post, PostKind, PostStatus, PostTemplate, Revision,
+    Role, Session, Tag, Token,
 };
 use maru_core::store::{MenuRow, PostFilter, PublishedQuery, Store, WriteTx};
 use maru_core::{Code, Error, Result, clock, slug, urls};
@@ -820,6 +820,31 @@ impl Store for SqliteStore {
         .map_err(db_error)?;
         Ok(rows.into_iter().map(Tag::from).collect())
     }
+
+    async fn list_fonts(&self) -> Result<Vec<Font>> {
+        let fonts = font_rows(&self.db.read, None).await?;
+        let files = font_file_rows(&self.db.read, None).await?;
+        Ok(assemble_fonts(fonts, files))
+    }
+
+    async fn font_by_slug(&self, slug: &str) -> Result<Option<Font>> {
+        let fonts = font_rows(&self.db.read, Some(slug)).await?;
+        let files = font_file_rows(&self.db.read, Some(slug)).await?;
+        Ok(assemble_fonts(fonts, files).pop())
+    }
+
+    async fn count_font_uses(&self, slug: &str) -> Result<i64> {
+        // slug 는 영소문자·숫자·`-` 뿐이라 LIKE 의 `%`·`_` 가 섞이지 않는다.
+        let pattern = format!("%]{{{slug}}}%");
+        sqlx::query_scalar!(
+            r#"SELECT (SELECT count(*) FROM posts WHERE status != 'deleted' AND body_md LIKE ?1)
+                    + (SELECT count(*) FROM pages WHERE body_md LIKE ?1) AS "n!: i64""#,
+            pattern
+        )
+        .fetch_one(&self.db.read)
+        .await
+        .map_err(db_error)
+    }
 }
 
 // ---- 분류·태그 ----
@@ -1610,6 +1635,90 @@ impl WriteTx for SqliteWriteTx {
         Ok(())
     }
 
+    async fn font_by_slug(&mut self, slug: &str) -> Result<Option<Font>> {
+        let fonts = font_rows(&mut *self.tx, Some(slug)).await?;
+        let files = font_file_rows(&mut *self.tx, Some(slug)).await?;
+        Ok(assemble_fonts(fonts, files).pop())
+    }
+
+    async fn insert_font(&mut self, f: &Font) -> Result<()> {
+        sqlx::query!(
+            "INSERT INTO fonts (id, slug, name, fallback, license, license_path, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            f.id,
+            f.slug,
+            f.name,
+            f.fallback,
+            f.license,
+            f.license_path,
+            f.created_at,
+            f.updated_at
+        )
+        .execute(&mut *self.tx)
+        .await
+        .map_err(db_error)?;
+        Ok(())
+    }
+
+    async fn update_font(&mut self, f: &Font) -> Result<()> {
+        sqlx::query!(
+            "UPDATE fonts SET name = ?, fallback = ?, license = ?, license_path = ?, updated_at = ?
+             WHERE id = ?",
+            f.name,
+            f.fallback,
+            f.license,
+            f.license_path,
+            f.updated_at,
+            f.id
+        )
+        .execute(&mut *self.tx)
+        .await
+        .map_err(db_error)?;
+        Ok(())
+    }
+
+    async fn delete_font(&mut self, id: &str) -> Result<()> {
+        // 외래키 CASCADE 가 있지만 연결 설정에 기대지 않고 파일 행을 먼저 지운다.
+        sqlx::query!("DELETE FROM font_files WHERE font_id = ?", id)
+            .execute(&mut *self.tx)
+            .await
+            .map_err(db_error)?;
+        sqlx::query!("DELETE FROM fonts WHERE id = ?", id)
+            .execute(&mut *self.tx)
+            .await
+            .map_err(db_error)?;
+        Ok(())
+    }
+
+    async fn insert_font_file(&mut self, font_id: &str, f: &FontFile) -> Result<()> {
+        let italic = i64::from(f.italic);
+        sqlx::query!(
+            "INSERT INTO font_files (id, font_id, weight, italic, format, path, size, sha256, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            f.id,
+            font_id,
+            f.weight,
+            italic,
+            f.format,
+            f.path,
+            f.size,
+            f.sha256,
+            f.created_at
+        )
+        .execute(&mut *self.tx)
+        .await
+        .map_err(db_error)?;
+        Ok(())
+    }
+
+    async fn delete_font_file(&mut self, id: &str) -> Result<()> {
+        sqlx::query!("DELETE FROM font_files WHERE id = ?", id)
+            .execute(&mut *self.tx)
+            .await
+            .map_err(db_error)?;
+        Ok(())
+    }
+
     async fn tag_by_slug(&mut self, slug: &str) -> Result<Option<Tag>> {
         tag_by_slug(&mut *self.tx, slug).await
     }
@@ -1710,6 +1819,97 @@ impl From<TemplateRow> for PostTemplate {
             updated_at: r.updated_at,
         }
     }
+}
+
+// ---- 서체 ----
+
+struct FontRow {
+    id: String,
+    slug: String,
+    name: String,
+    fallback: String,
+    license: String,
+    license_path: Option<String>,
+    created_at: String,
+    updated_at: String,
+}
+
+struct FontFileRow {
+    id: String,
+    font_id: String,
+    slug: String,
+    weight: i64,
+    italic: i64,
+    format: String,
+    path: String,
+    size: i64,
+    sha256: String,
+    created_at: String,
+}
+
+/// `slug` 가 없으면 전부.
+async fn font_rows<'e>(e: impl SqliteExecutor<'e>, slug: Option<&str>) -> Result<Vec<FontRow>> {
+    sqlx::query_as!(
+        FontRow,
+        "SELECT id, slug, name, fallback, license, license_path, created_at, updated_at
+         FROM fonts WHERE (?1 IS NULL OR slug = ?1) ORDER BY name, slug",
+        slug
+    )
+    .fetch_all(e)
+    .await
+    .map_err(db_error)
+}
+
+async fn font_file_rows<'e>(
+    e: impl SqliteExecutor<'e>,
+    slug: Option<&str>,
+) -> Result<Vec<FontFileRow>> {
+    sqlx::query_as!(
+        FontFileRow,
+        r#"SELECT ff.id AS "id!", ff.font_id AS "font_id!", f.slug AS "slug!",
+                  ff.weight AS "weight!", ff.italic AS "italic!", ff.format AS "format!",
+                  ff.path AS "path!", ff.size AS "size!", ff.sha256 AS "sha256!",
+                  ff.created_at AS "created_at!"
+           FROM font_files ff JOIN fonts f ON f.id = ff.font_id
+           WHERE (?1 IS NULL OR f.slug = ?1)
+           ORDER BY ff.weight, ff.italic"#,
+        slug
+    )
+    .fetch_all(e)
+    .await
+    .map_err(db_error)
+}
+
+fn assemble_fonts(fonts: Vec<FontRow>, files: Vec<FontFileRow>) -> Vec<Font> {
+    fonts
+        .into_iter()
+        .map(|r| Font {
+            files: files
+                .iter()
+                .filter(|f| f.font_id == r.id)
+                .map(|f| FontFile {
+                    id: f.id.clone(),
+                    weight: f.weight,
+                    italic: f.italic != 0,
+                    format: f.format.clone(),
+                    url: urls::font_file(&f.slug, &f.path),
+                    path: f.path.clone(),
+                    size: f.size,
+                    sha256: f.sha256.clone(),
+                    created_at: f.created_at.clone(),
+                })
+                .collect(),
+            license_url: r.license_path.as_ref().map(|_| urls::font_license(&r.slug)),
+            id: r.id,
+            slug: r.slug,
+            name: r.name,
+            fallback: r.fallback,
+            license: r.license,
+            license_path: r.license_path,
+            created_at: r.created_at,
+            updated_at: r.updated_at,
+        })
+        .collect()
 }
 
 // ---- 첨부 파일 ----

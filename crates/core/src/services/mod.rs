@@ -6,6 +6,7 @@ pub mod boards;
 pub mod categories;
 pub mod design;
 pub mod files;
+pub mod fonts;
 pub mod media;
 pub mod menus;
 pub mod pages;

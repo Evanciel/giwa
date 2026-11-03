@@ -160,15 +160,19 @@ fn render_inner(
             }),
         );
     }
-    // 확장 문법이 만든 클래스(강조 상자·정렬·글자 꾸밈)만 남긴다.
+    // 확장 문법이 만든 클래스(강조 상자·정렬·글자 꾸밈)만 남긴다. span 은 올린 서체 class(`ff-{slug}`)가
+    // 정해진 목록이 아니어서 class 속성을 열고 attribute_filter 에서 거른다 (ADR-0048).
     for (tag, classes) in directives::allowed_classes() {
-        builder.add_allowed_classes(tag, classes.iter().map(String::as_str));
+        if *tag != "span" {
+            builder.add_allowed_classes(tag, classes.iter().map(String::as_str));
+        }
     }
     let clean = builder
         .link_rel(Some("noopener noreferrer"))
         .url_schemes(["http", "https", "mailto"].into_iter().collect())
         .add_tags(["input"])
         .add_tag_attributes("input", ["type", "checked", "disabled"])
+        .add_tag_attributes("span", ["class"])
         .add_tag_attributes("sup", ["id"])
         .add_tag_attributes("div", ["id"])
         .add_tag_attributes("h2", ["id"])
@@ -186,6 +190,9 @@ fn render_inner(
         // id 는 각주 번호(`fn-3`, `fnref-3`)와 제목 앵커(`h-…`)만 남긴다.
         // 사용자가 쓴 다른 id 는 DOM 을 어지럽힐 수 있다.
         .attribute_filter(|element, attr, value| {
+            if element == "span" && attr == "class" {
+                return directives::filter_span_classes(value).map(Into::into);
+            }
             let ok = match attr {
                 "id" if element.starts_with('h') => is_heading_id(value),
                 "id" => is_note_id(value),

@@ -19,6 +19,9 @@ OFL 의 예약 글꼴 이름(Nanum, NanumPen, NanumBrush, NanumMyeongjo 등) 때
 `Maru Pen`·`Maru Brush`·`Maru Serif` 로 바꿨다(저작권·라이선스·상표 표기는 그대로 둠). 라이선스 전문은
 `crates/themes/builtin/static/fonts/OFL.txt` 이고 공개 사이트에서 `/assets/fonts/OFL.txt` 로 나간다.
 
+운영자가 관리 화면이나 `maru font add` 로 올린 서체는 바이너리에 들어가지 않는 사이트 데이터다. 서체마다 라이선스와
+「웹에 내보낼 권리」 확인을 DB 에 남기고, 붙인 라이선스 전문은 `/fonts/{slug}/LICENSE.txt` 로 함께 낸다 (ADR-0048).
+
 내장 테마 CSS·템플릿과 에디터의 Maru 층(도구 막대·업로드·자동 저장·CSS)은 자체 제작이다.
 번들에 들어간 패키지의 버전과 라이선스 전문은 빌드할 때 `crates/themes/admin/static/editor.licenses.txt` 로
 자동으로 모인다(esbuild 메타파일 기준). 관리 화면은 이 파일을 `/admin/assets/editor.licenses.txt` 로 내보내고, 번들 첫 줄이 그 위치를 가리킨다.
