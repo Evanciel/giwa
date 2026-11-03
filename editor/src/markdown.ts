@@ -211,7 +211,8 @@ export const schema = new Schema({
     })
     .addToEnd("color", spanMark("color", "tc"))
     .addToEnd("highlight", spanMark("mark", "hl"))
-    .addToEnd("size", spanMark("size", "fs")),
+    .addToEnd("size", spanMark("size", "fs"))
+    .addToEnd("font", spanMark("font", "ff")),
 });
 
 // 서식 편집기가 읽는 문법: CommonMark + 취소선 + Maru 확장. HTML 은 토큰으로 받아서 "다룰 수 없음" 으로 걸러낸다.
@@ -256,6 +257,7 @@ const parser = new MarkdownParser(schema, readMd, {
   maru_color: { mark: "color", getAttrs: (tok) => ({ value: tok.meta.value }) },
   maru_mark: { mark: "highlight", getAttrs: (tok) => ({ value: tok.meta.value }) },
   maru_size: { mark: "size", getAttrs: (tok) => ({ value: tok.meta.value }) },
+  maru_font: { mark: "font", getAttrs: (tok) => ({ value: tok.meta.value }) },
 });
 
 /** `:이름[` … `]{값}`. 값은 닫을 때 쓴다. */
@@ -340,6 +342,7 @@ const serializer = new MarkdownSerializer(
     color: spanSyntax("color"),
     highlight: spanSyntax("mark"),
     size: spanSyntax("size"),
+    font: spanSyntax("font"),
   },
 );
 

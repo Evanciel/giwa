@@ -386,12 +386,15 @@ async fn tokens_css(State(state): State<AppState>) -> Response {
 }
 
 async fn asset(State(state): State<AppState>, Path(path): Path<String>) -> Response {
+    // 내장 폰트는 내용이 바뀌면 파일 이름의 번호를 올리므로(maru-pen-1.woff2) 오래 캐시한다.
+    let cache = if path.starts_with("fonts/") && path.ends_with(".woff2") {
+        "public, max-age=31536000, immutable"
+    } else {
+        "no-cache"
+    };
     match state.theme.asset(&path) {
         Some((bytes, mime)) => (
-            [
-                (header::CONTENT_TYPE, mime),
-                (header::CACHE_CONTROL, "no-cache"),
-            ],
+            [(header::CONTENT_TYPE, mime), (header::CACHE_CONTROL, cache)],
             bytes.into_owned(),
         )
             .into_response(),

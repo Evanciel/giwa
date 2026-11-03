@@ -39,6 +39,7 @@ const rich: Record<string, string> = {
   "겹친 상자·정렬": ":::tip\n바깥\n\n:::center\n가운데\n:::\n:::\n\n:::right\n오른쪽\n:::",
   "글자 꾸밈": "이건 :color[빨간 글자]{red} 와 :mark[형광펜 **굵게**]{yellow} 그리고 :size[큰 글자]{large}",
   "숫자 크기·늘어난 팔레트": ":size[작은]{11} :size[큰 **굵게**]{38} :color[남색]{navy} :color[자주]{wine} :mark[민트]{mint} :mark[회색]{gray}",
+  "서체": ":font[명조로 쓴 **글**]{serif} 와 :font[a_b]{mono} 그리고 :font[겹친 :color[빨강]{red}]{serif} :font[손글씨]{pen} :font[붓]{brush}",
   "닫히지 않은 상자는 글자": ":::info\n닫는 줄 없음",
   "사진 크기·캡션": "![바다](/media/2026/11/a.jpg#w50 \"동해 바다\")\n\n글 ![산](/media/2026/11/b.jpg#w75) 끝",
   "갤러리": ":::gallery\n![a](/media/a.jpg) ![b](/media/b.jpg)\n![c](/media/c.jpg)\n:::",

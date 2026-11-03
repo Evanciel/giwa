@@ -89,6 +89,7 @@ export const SPAN_VALUES: Record<string, readonly string[]> = {
   color: ["red", "orange", "ochre", "brown", "green", "teal", "blue", "navy", "purple", "wine", "pink", "gray"],
   mark: ["yellow", "orange", "green", "mint", "blue", "purple", "pink", "gray"],
   size: ["11", "13", "15", "16", "19", "24", "28", "30", "34", "38", "small", "large", "xlarge"],
+  font: ["serif", "pen", "brush", "mono"],
 };
 
 const BOX_OPEN = new RegExp(`^:::[ \t]*(${BOX_KINDS.join("|")})[ \t]*$`);
@@ -217,7 +218,7 @@ function leafRule(state: StateBlock, startLine: number, endLine: number, silent:
   return true;
 }
 
-const SPAN_OPEN = /^:(color|mark|size)\[/;
+const SPAN_OPEN = /^:(color|mark|size|font)\[/;
 
 /** `:color[글자]{red}`. 안쪽 글자에는 다른 서식이 들어갈 수 있다. */
 function spanRule(state: StateInline, silent: boolean): boolean {

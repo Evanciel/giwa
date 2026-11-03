@@ -143,6 +143,7 @@ const TOOLS: (Tool | "|")[] = [
   { row: "insert", icon: "emoji", label: "특수문자", name: "이모지·특수문자", run: (ed) => ed.toggleChars(), md: (ed) => ed.toggleChars() },
 
   { row: "format", icon: "caret", label: "본문", labelOf: paraLabel, name: "문단 종류 (본문·제목·소제목)", run: (ed) => ed.openParaMenu(), md: (ed) => ed.openParaMenu() },
+  { row: "format", icon: "caret", label: "기본 서체", labelOf: fontLabel, name: "서체", run: (ed) => ed.openSpanMenu("font"), md: (ed) => ed.openSpanMenu("font") },
   "|",
   { row: "format", label: "B", name: "굵게", keys: `${MOD}+B`, run: cmd(toggleMark(m.strong)), md: (ed) => ed.mdWrap("**", "**", "굵은 글"), active: (s) => markActive(s, m.strong), enabled: can(toggleMark(m.strong)) },
   { row: "format", label: "I", name: "기울임", keys: `${MOD}+I`, run: cmd(toggleMark(m.em)), md: (ed) => ed.mdWrap("*", "*", "기울인 글"), active: (s) => markActive(s, m.em), enabled: can(toggleMark(m.em)) },
@@ -186,9 +187,9 @@ interface MenuItem {
 
 /** 꾸밈 메뉴: 문법 이름 → (값, 보이는 이름). `none` 은 맨 앞의 「꾸밈 없음」 단추 이름.
  *  크기의 small·large·xlarge 는 예전 글에만 남아 있어 메뉴에 두지 않는다 (ADR-0046). */
-type SpanKind = "color" | "mark" | "size";
+type SpanKind = "color" | "mark" | "size" | "font";
 const SIZE_STEPS = ["11", "13", "15", "16", "19", "24", "28", "30", "34", "38"];
-const SPAN_MENU: Record<SpanKind, { title: string; mark: "color" | "highlight" | "size"; prefix: string; none: string; items: [string, string][] }> = {
+const SPAN_MENU: Record<SpanKind, { title: string; mark: "color" | "highlight" | "size" | "font"; prefix: string; none: string; items: [string, string][] }> = {
   color: {
     title: "글자 색",
     mark: "color",
@@ -204,6 +205,7 @@ const SPAN_MENU: Record<SpanKind, { title: string; mark: "color" | "highlight" |
     items: [["yellow", "노랑"], ["orange", "주황"], ["green", "연두"], ["mint", "민트"], ["blue", "하늘"], ["purple", "연보라"], ["pink", "분홍"], ["gray", "회색"]],
   },
   size: { title: "글자 크기", mark: "size", prefix: "fs", none: "본문", items: SIZE_STEPS.map((v) => [v, v]) },
+  font: { title: "서체", mark: "font", prefix: "ff", none: "기본 서체", items: [["serif", "명조"], ["pen", "손글씨"], ["brush", "붓글씨"], ["mono", "고정폭"]] },
 };
 
 /** 지금 글자의 꾸밈 클래스 (tc-red 같은 것). 툴바 색 막대에 쓴다. */
@@ -211,6 +213,13 @@ function spanClass(s: EditorState, kind: "color" | "mark"): string | null {
   const spec = SPAN_MENU[kind];
   const v = spanValue(s, m[spec.mark]);
   return v ? `${spec.prefix}-${v}` : null;
+}
+
+/** 서체 단추 글자: 지금 글자의 서체 이름. */
+function fontLabel(s: EditorState, mode: Mode): string {
+  if (mode !== "rich") return "서체";
+  const v = spanValue(s, m.font);
+  return SPAN_MENU.font.items.find(([value]) => value === v)?.[1] ?? SPAN_MENU.font.none;
 }
 
 /** 툴바 크기 단추 옆 숫자. 예전 값(small 등)은 숫자가 없어 비운다. */
@@ -1422,8 +1431,9 @@ class Editor {
         this.mdWrap(`:${kind}[`, `]{${value}}`, "글자");
       }
     };
-    // 색은 「가」 견본, 크기는 숫자를 그 크기에 가깝게(24 넘으면 24 로) 보인다.
-    const face = (value: string) => {
+    // 색은 「가」 견본, 서체는 그 서체로 쓴 이름, 크기는 숫자를 그 크기에 가깝게(24 넘으면 24 로) 보인다.
+    const face = (value: string, label: string) => {
+      if (kind === "font") return el("span", { class: `ff-${value}` }, label);
       if (kind !== "size") return el("span", { class: `${spec.prefix}-${value}` }, "가");
       const f = el("span", {}, value);
       f.style.fontSize = `${Math.min(Number(value), 24) / 16}rem`;
@@ -1437,8 +1447,8 @@ class Editor {
         ...(rich ? [{ label: spec.none, cls: "me-menu-none", isCurrent: () => now() === null, run: () => apply(null) }] : []),
         ...spec.items.map(([value, label]) => ({
           label: kind === "size" ? `${label}px` : label,
-          face: face(value),
-          cls: kind === "size" ? "me-size" : "me-swatch",
+          face: face(value, label),
+          cls: kind === "size" ? "me-size" : kind === "font" ? "me-font" : "me-swatch",
           isCurrent: () => now() === value,
           run: () => apply(value),
         })),

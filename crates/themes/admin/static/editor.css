@@ -368,6 +368,15 @@
 .fs-small { font-size: .85em; }
 .fs-large { font-size: 1.25em; }
 .fs-xlarge { font-size: 1.6em; line-height: 1.3; }
+/* 서체 (ADR-0047). 내장 폰트는 나눔 폰트(OFL)를 줄여 이름을 바꾼 것이다(THIRD_PARTY.md).
+   그 서체를 쓴 글자가 있을 때만 브라우저가 받는다. 손글씨는 같은 크기에서 작아 보여 키운다. */
+@font-face { font-family: "Maru Serif"; src: url("/assets/fonts/maru-serif-1.woff2") format("woff2"); font-display: swap; }
+@font-face { font-family: "Maru Pen"; src: url("/assets/fonts/maru-pen-1.woff2") format("woff2"); font-display: swap; size-adjust: 125%; }
+@font-face { font-family: "Maru Brush"; src: url("/assets/fonts/maru-brush-1.woff2") format("woff2"); font-display: swap; size-adjust: 120%; }
+.ff-serif { font-family: "Maru Serif", "Noto Serif KR", AppleMyungjo, Batang, "바탕", serif; }
+.ff-pen { font-family: "Maru Pen", sans-serif; }
+.ff-brush { font-family: "Maru Brush", sans-serif; }
+.ff-mono { font-family: var(--font-mono, D2Coding, ui-monospace, Consolas, monospace); }
 .align-center { text-align: center; }
 .align-right { text-align: right; }
 .align-center img { margin-inline: auto; }
@@ -431,6 +440,7 @@
 /* 색 견본은 「가」 하나, 크기는 숫자. 이름은 툴팁·읽어 주기로 (ADR-0046) */
 .me button.me-menu-item.me-swatch { min-width: 2rem; padding: 0 .375rem; font-weight: 700; }
 .me button.me-menu-item.me-size { min-width: 2.5rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.me button.me-menu-item.me-font { min-width: 4rem; }
 .me button.me-menu-item.me-menu-none { color: var(--muted); }
 .me button.me-menu-item[aria-pressed="true"] { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
 .me-doc .callout, .me-doc .align-center, .me-doc .align-right { position: relative; }

@@ -489,8 +489,32 @@ fn design_tokens_flow_to_css() {
     assert!(css.contains("--fs-base: 1.125rem;"));
     let (_, home) = http(&bind, "GET", "/", &[], "");
     assert!(home.contains(r#"href="/assets/tokens.css""#));
-    let (status, _) = http(&bind, "GET", "/assets/site.css", &[], "");
+    let (status, css) = http(&bind, "GET", "/assets/site.css", &[], "");
     assert_eq!(status, 200);
+    // 내장 서체(ADR-0047): CSS 가 가리키는 파일이 실제로 있고, 오래 캐시되며, 라이선스가 함께 나간다.
+    for font in ["maru-serif-1", "maru-pen-1", "maru-brush-1"] {
+        let url = format!("/assets/fonts/{font}.woff2");
+        assert!(css.contains(&url), "{url}");
+        let mut s = TcpStream::connect(&bind).unwrap();
+        write!(
+            s,
+            "GET {url} HTTP/1.1\r\nHost: {bind}\r\nConnection: close\r\n\r\n"
+        )
+        .unwrap();
+        let mut raw = Vec::new();
+        s.read_to_end(&mut raw).unwrap();
+        let head = String::from_utf8_lossy(&raw[..raw.len().min(512)]).to_ascii_lowercase();
+        assert!(head.starts_with("http/1.1 200"), "{url}: {head}");
+        assert!(head.contains("content-type: font/woff2"), "{head}");
+        assert!(head.contains("max-age=31536000, immutable"), "{head}");
+        assert!(
+            raw.windows(4).any(|w| w == b"wOF2"),
+            "{url} 는 woff2 가 아니다"
+        );
+    }
+    let (status, ofl) = http(&bind, "GET", "/assets/fonts/OFL.txt", &[], "");
+    assert_eq!(status, 200);
+    assert!(ofl.contains("SIL Open Font License"));
 }
 
 /// U11: 사이트맵·RSS·robots·메타가 공개 글과 함께 움직이고, 숨기면 동시에 빠진다.

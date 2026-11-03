@@ -2,7 +2,7 @@
 //!
 //! - 블록 상자: `:::info` … `:::` (info·tip·warn·danger 강조 상자, center·right 정렬, gallery 사진 격자,
 //!   details 접기 — 첫 문단이 요약, ADR-0041)
-//! - 글자 꾸밈: `:color[글자]{red}`, `:mark[글자]{yellow}`, `:size[글자]{large}`
+//! - 글자 꾸밈: `:color[글자]{red}`, `:mark[글자]{yellow}`, `:size[글자]{24}`, `:font[글자]{serif}`
 //!
 //! 에디터(`editor/src/syntax.ts`)와 같은 규칙이어야 한다. 정해진 이름·값만 받고, 나머지는 글자 그대로 둔다.
 //! 만든 HTML 은 다른 HTML 과 똑같이 ammonia 정화를 거친다 (허용 클래스는 [`allowed_classes`]).
@@ -19,7 +19,7 @@ pub const BOX_KINDS: [&str; 8] = [
 
 /// (문법 이름, 클래스 앞머리, 쓸 수 있는 값). 크기의 숫자는 px 기준 단계(rem 으로 그린다),
 /// small·large·xlarge 는 예전 글을 위해 남긴 값이다 (ADR-0046).
-pub const SPANS: [(&str, &str, &[&str]); 3] = [
+pub const SPANS: [(&str, &str, &[&str]); 4] = [
     (
         "color",
         "tc",
@@ -42,6 +42,7 @@ pub const SPANS: [(&str, &str, &[&str]); 3] = [
             "11", "13", "15", "16", "19", "24", "28", "30", "34", "38", "small", "large", "xlarge",
         ],
     ),
+    ("font", "ff", &["serif", "pen", "brush", "mono"]),
 ];
 
 fn box_class(kind: &str) -> String {
@@ -87,9 +88,9 @@ fn build_classes() -> Vec<(&'static str, Vec<String>)> {
 
 pub fn expand(md: &str, options: Options) -> Cow<'_, str> {
     if !md.contains(":::")
-        && !md.contains(":color[")
-        && !md.contains(":mark[")
-        && !md.contains(":size[")
+        && !SPANS
+            .iter()
+            .any(|(name, _, _)| md.contains(&format!(":{name}[")))
         && !md.contains("::video[")
         && !md.contains("::place[")
     {
@@ -728,6 +729,11 @@ mod tests {
             "<span class=\"fs-24\">큰</span> <span class=\"tc-navy\">남</span> \
              <span class=\"hl-mint\">민</span> <span class=\"fs-large\">옛</span>"
         );
+        assert_eq!(
+            ex(":font[명조]{serif} :font[a]{mono} :font[펜]{pen}"),
+            "<span class=\"ff-serif\">명조</span> <span class=\"ff-mono\">a</span> <span class=\"ff-pen\">펜</span>"
+        );
+        assert_eq!(ex(":font[가]{comic}"), ":font[가]{comic}");
         assert_eq!(ex(":size[가]{25}"), ":size[가]{25}");
         assert_eq!(ex(":size[가]{24px}"), ":size[가]{24px}");
         assert_eq!(ex("`:color[가]{red}`"), "`:color[가]{red}`");

@@ -10,6 +10,14 @@ Rust 크레이트 라이선스는 `cargo deny check licenses` 로 따로 검사�
 | markdown-it, linkify-it, mdurl, uc.micro, punycode.js | 같은 번들 | https://github.com/markdown-it | MIT | 에디터 안의 Markdown 해석 |
 | entities | 같은 번들 | https://github.com/fb55/entities | BSD-2-Clause | markdown-it 의존 |
 | orderedmap, rope-sequence, w3c-keyname | 같은 번들 | https://github.com/marijnh | MIT | ProseMirror 의존 |
+| 나눔손글씨 펜 → **Maru Pen** | `crates/themes/builtin/static/fonts/maru-pen-1.woff2` | NHN(네이버) 나눔글꼴, https://github.com/google/fonts `ofl/nanumpenscript/NanumPenScript-Regular.ttf` (2026-11-03 받음) | SIL OFL 1.1 | 서체 「손글씨」. ADR-0047 |
+| 나눔손글씨 붓 → **Maru Brush** | `…/fonts/maru-brush-1.woff2` | 같은 저장소 `ofl/nanumbrushscript/NanumBrushScript-Regular.ttf` | SIL OFL 1.1 | 서체 「붓글씨」 |
+| 나눔명조 → **Maru Serif** | `…/fonts/maru-serif-1.woff2` | 같은 저장소 `ofl/nanummyeongjo/NanumMyeongjo-Regular.ttf` | SIL OFL 1.1 | 서체 「명조」 |
+
+세 폰트는 `scripts/subset-fonts.py` 로 한글 11172자·호환 자모·영문·문장부호만 남기고 힌팅을 빼 woff2 로 줄였다.
+OFL 의 예약 글꼴 이름(Nanum, NanumPen, NanumBrush, NanumMyeongjo 등) 때문에 변경본은 폰트 안 이름을
+`Maru Pen`·`Maru Brush`·`Maru Serif` 로 바꿨다(저작권·라이선스·상표 표기는 그대로 둠). 라이선스 전문은
+`crates/themes/builtin/static/fonts/OFL.txt` 이고 공개 사이트에서 `/assets/fonts/OFL.txt` 로 나간다.
 
 내장 테마 CSS·템플릿과 에디터의 Maru 층(도구 막대·업로드·자동 저장·CSS)은 자체 제작이다.
 번들에 들어간 패키지의 버전과 라이선스 전문은 빌드할 때 `crates/themes/admin/static/editor.licenses.txt` 로
