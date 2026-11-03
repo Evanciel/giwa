@@ -13,8 +13,8 @@ use crate::audit::{AuditRecord, Target};
 use crate::blobs::Blobs;
 use crate::error::{Error, Result};
 use crate::model::{
-    Attachment, Board, LoginTicket, Media, Member, MenuLink, Page, PageStatus, Post, PostStatus,
-    PostTemplate, Revision, Role, Session, Token,
+    Attachment, Board, Category, LoginTicket, Media, Member, MenuLink, Page, PageStatus, Post,
+    PostStatus, PostTemplate, Revision, Role, Session, Tag, Token,
 };
 
 /// 서비스 함수의 첫 인자.
@@ -35,6 +35,28 @@ pub struct PublishedQuery {
     pub max_read_rank: i64,
     pub limit: i64,
     pub offset: i64,
+    pub category_id: Option<String>,
+    /// `None` 전체, `Some(true)` 공지만, `Some(false)` 공지 빼고.
+    pub notices: Option<bool>,
+    pub tag_id: Option<String>,
+    /// 비밀글을 뺀다 (피드·사이트맵·태그 목록).
+    pub exclude_secret: bool,
+}
+
+impl PublishedQuery {
+    /// 조건 없이 읽을 수 있는 모든 공개 글.
+    pub fn new(max_read_rank: i64, limit: i64, offset: i64) -> Self {
+        Self {
+            board_id: None,
+            max_read_rank,
+            limit,
+            offset,
+            category_id: None,
+            notices: None,
+            tag_id: None,
+            exclude_secret: false,
+        }
+    }
 }
 
 /// 관리용 글 목록 조건.
@@ -98,6 +120,13 @@ pub trait Store: Send + Sync {
 
     /// 사용자가 저장한 글 틀 (이름순).
     async fn list_templates(&self) -> Result<Vec<PostTemplate>>;
+
+    /// 게시판의 분류 (정렬 순서, 이름순).
+    async fn categories_of_board(&self, board_id: &str) -> Result<Vec<Category>>;
+    async fn category_by_id(&self, id: &str) -> Result<Option<Category>>;
+    async fn tag_by_slug(&self, slug: &str) -> Result<Option<Tag>>;
+    /// 공개 글이 하나 이상 달린 태그와 그 글 수 (`PublishedQuery` 와 같은 공개 기준). 이름순.
+    async fn list_tags(&self, max_read_rank: i64) -> Result<Vec<Tag>>;
 }
 
 #[async_trait]
@@ -120,8 +149,19 @@ pub trait WriteTx: Send {
         slug: &str,
         except: Option<&str>,
     ) -> Result<bool>;
+    /// 글과 함께 `post.tags` 도 쓴다. 태그 이름은 core 가 정규화해 둔 것이어야 한다.
     async fn insert_post(&mut self, post: &Post) -> Result<()>;
+    /// 글과 함께 `post.tags` 를 통째로 바꾼다.
     async fn update_post(&mut self, post: &Post) -> Result<()>;
+    async fn tag_by_slug(&mut self, slug: &str) -> Result<Option<Tag>>;
+
+    async fn categories_of_board(&mut self, board_id: &str) -> Result<Vec<Category>>;
+    async fn category_by_id(&mut self, id: &str) -> Result<Option<Category>>;
+    async fn category_by_slug(&mut self, board_id: &str, slug: &str) -> Result<Option<Category>>;
+    async fn insert_category(&mut self, c: &Category) -> Result<()>;
+    async fn update_category(&mut self, c: &Category) -> Result<()>;
+    /// 분류를 지우고 그 분류의 글은 분류를 비운다. 비운 글 수를 돌려준다.
+    async fn delete_category(&mut self, id: &str) -> Result<u64>;
     async fn insert_revision(&mut self, rev: &Revision) -> Result<()>;
 
     async fn insert_token(&mut self, token: &Token) -> Result<()>;

@@ -167,6 +167,30 @@ input.write-title::placeholder { color: var(--muted); opacity: .6; font-weight: 
 .publish-when .choice input { width: auto; }
 .when-at { margin-top: .5rem; }
 .when-at input { width: auto; max-width: 100%; }
+
+/* 분류 · 태그 · 공개 범위 · 공지 */
+.category-row { display: flex; gap: .5rem; align-items: center; }
+.category-row select { flex: 1; min-width: 0; }
+.category-row button { margin: 0; padding: .5rem .75rem; white-space: nowrap; }
+.publish-visibility legend { display: block; font-weight: 600; margin-bottom: .35rem; padding: 0; }
+.publish-visibility .choice, .publish-field > .choice { display: flex; align-items: baseline; flex-wrap: wrap; gap: .1rem .45rem; padding: .2rem 0; font-weight: 400; cursor: pointer; }
+.publish-visibility .choice input, .publish-field > .choice input { width: auto; align-self: center; }
+.choice-hint { font-size: .8125rem; color: var(--muted); }
+.tag-box {
+  display: flex; flex-wrap: wrap; align-items: center; gap: .35rem;
+  padding: .35rem .45rem; min-height: 2.6rem; cursor: text;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.tag-box:focus-within { outline: 2px solid var(--primary); outline-offset: 2px; }
+.tag-box input { flex: 1; min-width: 7rem; width: auto; border: 0; padding: .2rem .25rem; background: transparent; }
+.tag-box input:focus-visible { outline: none; }
+.tag-chip {
+  display: inline-flex; align-items: center; gap: .1rem; max-width: 100%;
+  padding: .1rem .2rem .1rem .6rem; border-radius: 999px; font-size: .875rem;
+  background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--primary);
+}
+.tag-chip button { margin: 0; padding: 0 .35rem; border: 0; background: none; color: inherit; font-weight: 400; line-height: 1.4; border-radius: 999px; }
+.tag-chip button:hover { background: color-mix(in srgb, var(--primary) 18%, transparent); }
 .publish-actions { display: flex; flex-wrap: wrap; gap: .5rem; padding-top: .75rem; border-top: 1px solid var(--border); }
 .publish-actions button { margin: 0; }
 .publish [hidden] { display: none; }

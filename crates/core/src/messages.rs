@@ -53,6 +53,15 @@ pub fn lookup(key: &str) -> Option<&'static str> {
             "기본 틀 `{name}` 은 고치거나 지울 수 없습니다. 다른 이름으로 저장하세요."
         }
         "error.post_template_not_found" => "`{name}` 틀을 찾을 수 없습니다.",
+        "error.category_not_found" => "{board} 게시판에 `{slug}` 분류가 없습니다.",
+        "error.category_exists" => "{board} 게시판에 이미 `{slug}` 분류가 있습니다.",
+        "error.category_too_many" => "분류는 게시판마다 {max}개까지 만들 수 있습니다.",
+        "error.tag_length" => "태그는 {max}자까지입니다: {value}",
+        "error.tag_invalid" => "글자나 숫자가 없는 태그는 쓸 수 없습니다: {value}",
+        "error.tag_too_many" => "태그는 글마다 {max}개까지입니다.",
+        "error.tag_not_found" => "`{slug}` 태그를 찾을 수 없습니다.",
+        "error.post_secret" => "비밀글입니다. 작성자와 관리자만 읽을 수 있습니다.",
+        "hint.post_secret" => "작성자라면 로그인한 뒤 다시 여세요.",
         "error.file_not_found" => "`{id}` 첨부 파일을 찾을 수 없습니다.",
         "error.file_type" => "첨부할 수 없는 파일입니다: {name} (가능한 형식: {allowed})",
         "error.file_content" => "파일 내용이 확장자({ext})와 맞지 않습니다: {name}",

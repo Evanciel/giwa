@@ -2,12 +2,17 @@
 {% block main %}
 <article class="post">
   <header>
-    <p class="crumb"><a href="{{ board.url }}">{{ board.name }}</a></p>
+    <p class="crumb"><a href="{{ board.url }}">{{ board.name }}</a>{% if post.category %} <span aria-hidden="true">›</span> <a href="{{ post.category.url }}">{{ post.category.name }}</a>{% endif %}</p>
     <h1>{{ post.title }}</h1>
     <p class="meta"><time datetime="{{ post.published_at }}">{{ post.date }}</time></p>
   </header>
   {% with toc = post.toc %}{% include "_toc.html" %}{% endwith %}
   {# body_html 은 서버가 ammonia 로 정화한 값만 들어온다. |safe 는 여기에만 쓴다. #}
   <div class="prose">{{ post.body_html | safe }}</div>
+  {% if post.tags %}
+  <ul class="tags" aria-label="태그">
+    {% for t in post.tags %}<li><a href="{{ t.url }}" rel="tag">#{{ t.name }}</a></li>{% endfor %}
+  </ul>
+  {% endif %}
 </article>
 {% endblock %}

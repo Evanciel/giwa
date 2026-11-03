@@ -3,8 +3,11 @@
 // - 스크립트가 없으면 이 칸은 본문 아래에 그대로 보이고 그대로 동작한다.
 // - 주소: 입력하는 동안 겹치는지 서버에 묻는다 (`/admin/slug-check`, core `posts::check_slug`).
 // - 요약·대표 이미지: 저장 전 본문을 서버 미리보기(`/admin/preview`)에 보내 자동 요약과 본문 사진을 받는다.
+// - 분류: 새 글은 고른 게시판의 분류만 보인다. 권한이 있으면 그 자리에서 새 분류를 만든다(`/admin/categories`).
+// - 태그: 쉼표·Enter 로 칩을 만든다. 값은 언제나 원래 칸(`name=tags`)에 쉼표로 이어 둔다.
 // - 서랍은 값만 고친다. 저장은 언제나 폼 제출(발행·예약·저장 단추)이다.
 
+import { TAG_CHARS, TAG_MAX, splitTags, tagKey } from "./tags";
 import { uploadFile } from "./upload";
 
 const SUMMARY_MIN = 80;
@@ -61,6 +64,7 @@ export function bindPublish(form: HTMLFormElement, csrf: string, markdown: () =>
   const cover = $<HTMLInputElement>("#cover");
   const pick = $<HTMLElement>("[data-cover-pick]");
   const share = $<HTMLElement>("[data-share]");
+  const category = $<HTMLSelectElement>("[data-category]");
   const title = form.querySelector<HTMLInputElement>("#title");
   const boardSelect = form.querySelector<HTMLSelectElement>("#board");
   const siteUrl = (form.dataset.siteUrl ?? "").replace(/\/+$/, "");
@@ -90,7 +94,7 @@ export function bindPublish(form: HTMLFormElement, csrf: string, markdown: () =>
     document.documentElement.classList.add("publish-lock");
     refresh();
     // 서랍이 미끄러져 들어온 뒤 첫 칸으로
-    window.setTimeout(() => (slug ?? panel).focus(), 50);
+    window.setTimeout(() => (category ?? slug ?? panel).focus(), 50);
   };
   const close = () => {
     if (!isOpen()) return;
@@ -148,6 +152,67 @@ export function bindPublish(form: HTMLFormElement, csrf: string, markdown: () =>
     if (r.checked && r.value === "schedule") at?.focus();
   });
   if (whenRadios.length) syncWhen();
+
+  // ---- 공개 범위: 비공개면 발행하지 않으므로 예약을 끄고 단추 이름을 바꾼다 ----
+  const visRadios = Array.from(panel.querySelectorAll<HTMLInputElement>("[data-visibility]"));
+  const saveBtn = $<HTMLButtonElement>("[data-save]");
+  const labels = new Map<HTMLElement, string>();
+  for (const b of [nowBtn, saveBtn]) if (b) labels.set(b, b.textContent ?? "");
+  const syncVisibility = () => {
+    const priv = visRadios.some((r) => r.checked && r.value === "private");
+    for (const [b, text] of labels) b.textContent = priv ? "비공개로 저장" : text;
+    for (const r of whenRadios) {
+      r.disabled = priv && r.value === "schedule";
+      if (priv && r.value === "now") r.checked = true;
+    }
+    if (whenRadios.length) syncWhen();
+  };
+  for (const r of visRadios) r.addEventListener("change", syncVisibility);
+  syncVisibility();
+
+  // ---- 분류 ----
+  const syncCategories = () => {
+    if (!category) return;
+    const b = board();
+    for (const o of Array.from(category.options)) {
+      if (!o.dataset.board) continue;
+      const mine = o.dataset.board === b;
+      o.hidden = !mine;
+      o.disabled = !mine;
+      if (!mine && o.selected) category.value = "";
+    }
+  };
+  boardSelect?.addEventListener("change", syncCategories);
+  syncCategories();
+  const addCategory = $<HTMLButtonElement>("[data-category-add]");
+  if (addCategory && category) {
+    addCategory.hidden = false;
+    addCategory.addEventListener("click", async () => {
+      const name = window.prompt("새 분류 이름")?.trim();
+      if (!name) return;
+      addCategory.disabled = true;
+      try {
+        const c = await getJson<{ slug: string; name: string }>("/admin/categories", csrf, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ board: board(), name }),
+        });
+        // 같은 주소가 이미 있으면 서버가 그 분류를 돌려준다
+        const found = Array.from(category.options).find((o) => o.value === c.slug && o.dataset.board === board());
+        if (!found) category.append(el("option", { value: c.slug, "data-board": board() }, c.name));
+        category.value = c.slug;
+      } catch (e) {
+        window.alert((e as Error).message);
+      } finally {
+        addCategory.disabled = false;
+        category.focus();
+      }
+    });
+  }
+
+  // ---- 태그 ----
+  const tagsField = $<HTMLInputElement>("[data-tags]");
+  if (tagsField) bindTags(tagsField, $<HTMLElement>("[data-tags-info]"), panel.querySelector<HTMLLabelElement>("label[for=tags]"));
 
   // ---- 주소 ----
   let slugTimer = 0;
@@ -337,4 +402,94 @@ export function bindPublish(form: HTMLFormElement, csrf: string, markdown: () =>
   };
 
   if (location.hash === "#publish") open();
+}
+
+/** 태그 칸을 칩 상자로 바꾼다. 원래 칸은 숨겨 두고 제출할 값만 담는다. */
+function bindTags(field: HTMLInputElement, hint: HTMLElement | null, label: HTMLLabelElement | null) {
+  let tags = splitTags(field.value);
+  const box = el("div", { class: "tag-box" });
+  const typing = el("input", { type: "text", id: "tags-typing", autocomplete: "off", spellcheck: "false", enterkeyhint: "done" });
+  box.append(typing);
+  field.type = "hidden";
+  field.after(box);
+  if (label) label.htmlFor = typing.id;
+  let warning = "";
+
+  const paint = () => {
+    const chips = tags.map((t, i) => {
+      const chip = el("span", { class: "tag-chip" }, `#${t}`);
+      const x = el("button", { type: "button", "aria-label": `${t} 태그 빼기` }, "×");
+      x.addEventListener("click", () => {
+        tags.splice(i, 1);
+        sync();
+        typing.focus();
+      });
+      chip.append(x);
+      return chip;
+    });
+    // 입력칸은 떼지 않는다(떼었다 붙이면 쓰던 중에 포커스가 빠진다). 칩만 바꾼다.
+    for (const old of Array.from(box.querySelectorAll(".tag-chip"))) old.remove();
+    for (const chip of chips) box.insertBefore(chip, typing);
+    const full = tags.length >= TAG_MAX;
+    typing.placeholder = full ? "더 넣을 수 없습니다" : tags.length ? "" : "태그 입력 후 Enter";
+    typing.readOnly = full;
+    if (hint) {
+      hint.textContent = warning || `${tags.length}/${TAG_MAX}개 · Enter 나 쉼표로 넣고 Backspace 로 뺍니다.`;
+      hint.classList.toggle("is-bad", !!warning);
+    }
+  };
+  const sync = () => {
+    field.value = tags.join(", ");
+    paint();
+  };
+  const add = (text: string) => {
+    warning = "";
+    for (const t of splitTags(text)) {
+      if (tags.some((x) => tagKey(x) === tagKey(t))) continue;
+      if ([...t].length > TAG_CHARS) {
+        warning = `‘${t.slice(0, 12)}…’ 는 ${TAG_CHARS}자를 넘어 넣지 않았습니다.`;
+        continue;
+      }
+      if (tags.length >= TAG_MAX) {
+        warning = `태그는 ${TAG_MAX}개까지입니다.`;
+        break;
+      }
+      tags.push(t);
+    }
+    typing.value = "";
+    sync();
+  };
+
+  // 한글 조합 중 Enter 는 글자를 확정할 뿐이다. 확정된 뒤(compositionend)에 칩으로 만든다.
+  let addAfterCompose = false;
+  typing.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === ",") {
+      // 조합 중에는 막지 않는다(막으면 확정이 안 되는 브라우저가 있다). 조합 중 Enter 는 폼을 제출하지 않는다.
+      if (e.isComposing) {
+        addAfterCompose = e.key === "Enter";
+        return;
+      }
+      // Enter 가 폼을 제출(임시저장)하지 않게 한다
+      e.preventDefault();
+      if (typing.value.trim()) add(typing.value);
+    } else if (e.key === "Backspace" && !typing.value && tags.length && !e.isComposing) {
+      tags = tags.slice(0, -1);
+      warning = "";
+      sync();
+    }
+  });
+  typing.addEventListener("compositionend", () => {
+    if (!addAfterCompose) return;
+    addAfterCompose = false;
+    window.setTimeout(() => typing.value.trim() && add(typing.value), 0);
+  });
+  // 붙여 넣기 등으로 쉼표가 들어오면 바로 나눈다
+  typing.addEventListener("input", (e) => {
+    if (!(e as InputEvent).isComposing && typing.value.includes(",")) add(typing.value);
+  });
+  typing.addEventListener("blur", () => typing.value.trim() && add(typing.value));
+  box.addEventListener("click", (e) => e.target === box && typing.focus());
+  // 칩이 되기 전에 저장을 눌러도 쓰던 글자를 넣는다
+  field.form?.addEventListener("submit", () => typing.value.trim() && add(typing.value));
+  paint();
 }

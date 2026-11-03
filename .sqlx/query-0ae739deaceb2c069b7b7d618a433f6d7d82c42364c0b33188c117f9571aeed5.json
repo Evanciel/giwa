@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO posts (id, board_id, kind, status, title, slug, body_md, excerpt,\n                                author_id, actor_type, published_at, created_at, updated_at,\n                                scheduled_at, cover, category_id, is_notice, is_secret)\n             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 18
+    },
+    "nullable": []
+  },
+  "hash": "0ae739deaceb2c069b7b7d618a433f6d7d82c42364c0b33188c117f9571aeed5"
+}

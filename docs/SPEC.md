@@ -113,8 +113,9 @@
 | site_settings | key, value(JSON) | 사이트명, 설명, 언어, 활성 테마, 토큰 오버라이드 등 |
 | boards | slug, name, kind, view_template, field_schema(JSON), policy(JSON), group_id, sort_order | kind: blog, notice, gallery, free, qna, faq |
 | board_groups | slug, name, policy(JSON) | 그누보드 게시판 그룹 대응 |
-| categories | board_id, name, sort_order | |
-| posts | board_id, parent_id, thread_path, kind(post/comment), status, title, slug, body_md, excerpt, meta(JSON), author_id, actor_type(human/agent), is_notice, is_secret, category_id, published_at, view_count | status: draft, review, published, hidden, pending(댓글 승인 대기), spam |
+| categories | board_id, name, slug, sort_order | 게시판별, `(board_id, slug)` 유일. 한 단계(하위 분류 없음) |
+| tags / post_tags | tags: name, slug(유일) · post_tags: post_id, tag_id, position | 사이트 하나의 태그 목록. 대소문자·앞 `#` 이 달라도 같은 slug 면 같은 태그(ADR-0044) |
+| posts | board_id, parent_id, thread_path, kind(post/comment), status, title, slug, body_md, excerpt, meta(JSON), author_id, actor_type(human/agent), is_notice, is_secret, category_id, published_at, view_count | status: draft, review, published, hidden, pending(댓글 승인 대기), spam. `is_secret` = 목록엔 제목만, 본문은 작성자·관리자만(ADR-0043). `category_id` 는 FK 없음(ADR-0045) |
 | revisions | post_id(또는 page_id), body_md, meta, actor, changeset_id | 글·페이지 공용 |
 | pages | slug, title, body_md, layout, blocks(JSON), status | 블록 기반 페이지 지원 |
 | menus | location(header/footer), items(JSON 트리) | |

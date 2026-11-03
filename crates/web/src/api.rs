@@ -12,7 +12,8 @@ use axum::{Json, Router};
 use maru_core::model::{MenuItem, PageReq, PageStatus, PostStatus};
 use maru_core::output::Success;
 use maru_core::services::{
-    anonymous_actor, boards, design, files, media, menus, pages, posts, settings, templates, tokens,
+    anonymous_actor, boards, categories, design, files, media, menus, pages, posts, settings, tags,
+    templates, tokens,
 };
 use maru_core::{Actor, Code, Error};
 use serde::Deserialize;
@@ -27,6 +28,17 @@ pub fn routes() -> Router<AppState> {
             "/boards/{slug}",
             get(get_board).patch(update_board).delete(delete_board),
         )
+        .route("/boards/{slug}/posts", get(board_posts))
+        .route(
+            "/boards/{slug}/categories",
+            get(list_categories).post(create_category),
+        )
+        .route(
+            "/boards/{slug}/categories/{category}",
+            axum::routing::patch(update_category).delete(delete_category),
+        )
+        .route("/tags", get(list_tags))
+        .route("/tags/{slug}", get(tag_posts))
         .route("/posts", get(list_posts).post(create_post))
         .route("/posts/{id}", get(get_post).patch(update_post))
         .route("/posts/{id}/{action}", post(post_action))
@@ -434,6 +446,113 @@ async fn list_templates(
         StatusCode::OK,
         templates::list(&state.ctx, &actor).await?,
     ))
+}
+
+#[derive(Debug, Deserialize)]
+struct PublicListQuery {
+    category: Option<String>,
+    page: Option<u32>,
+    per_page: Option<u32>,
+}
+
+/// `GET /boards/{slug}/posts?category=` 공개 화면과 같은 목록(공지 따로, 비밀글은 제목만).
+async fn board_posts(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(slug): Path<String>,
+    Query(q): Query<PublicListQuery>,
+) -> Result<Response, ApiError> {
+    let board = boards::readable(&state.ctx, &actor, &slug).await?;
+    let page = PageReq::new(q.page.unwrap_or(1), q.per_page.unwrap_or(20));
+    let out = posts::public_board(&state.ctx, &actor, &board, q.category.as_deref(), page).await?;
+    Ok(ok(StatusCode::OK, out))
+}
+
+async fn list_categories(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(slug): Path<String>,
+) -> Result<Response, ApiError> {
+    Ok(ok(
+        StatusCode::OK,
+        categories::list(&state.ctx, &actor, &slug).await?,
+    ))
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CategoryBody {
+    name: String,
+    #[serde(default)]
+    slug: Option<String>,
+}
+
+/// `POST /boards/{slug}/categories` 같은 주소가 있으면 그것을 돌려준다(멱등).
+async fn create_category(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(board): Path<String>,
+    body: Result<Json<CategoryBody>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let Json(b) = body.map_err(bad_json)?;
+    let input = categories::NewCategory {
+        board,
+        name: b.name,
+        slug: b.slug,
+    };
+    Ok(ok(
+        StatusCode::OK,
+        categories::create(&state.ctx, &actor, input).await?,
+    ))
+}
+
+async fn update_category(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path((board, category)): Path<(String, String)>,
+    body: Result<Json<categories::CategoryPatch>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let Json(patch) = body.map_err(bad_json)?;
+    Ok(ok(
+        StatusCode::OK,
+        categories::update(&state.ctx, &actor, &board, &category, patch).await?,
+    ))
+}
+
+async fn delete_category(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path((board, category)): Path<(String, String)>,
+) -> Result<Response, ApiError> {
+    Ok(ok(
+        StatusCode::OK,
+        categories::delete(&state.ctx, &actor, &board, &category).await?,
+    ))
+}
+
+async fn list_tags(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+) -> Result<Response, ApiError> {
+    Ok(ok(StatusCode::OK, tags::list(&state.ctx, &actor).await?))
+}
+
+#[derive(Debug, serde::Serialize)]
+struct TagPage {
+    tag: maru_core::model::Tag,
+    posts: maru_core::model::Listing<maru_core::model::Post>,
+}
+
+/// `GET /tags/{slug}` 태그가 달린 공개 글 (비밀글 제외).
+async fn tag_posts(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(slug): Path<String>,
+    Query(q): Query<PublicListQuery>,
+) -> Result<Response, ApiError> {
+    let page = PageReq::new(q.page.unwrap_or(1), q.per_page.unwrap_or(20));
+    let (tag, posts) = posts::public_tag(&state.ctx, &actor, &slug, page).await?;
+    Ok(ok(StatusCode::OK, TagPage { tag, posts }))
 }
 
 /// `POST /templates` 같은 이름이 있으면 덮어쓴다.

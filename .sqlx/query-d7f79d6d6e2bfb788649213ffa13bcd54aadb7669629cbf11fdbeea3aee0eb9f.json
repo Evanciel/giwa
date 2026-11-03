@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO tags (id, name, slug, created_at) VALUES (?, ?, ?, ?)\n             ON CONFLICT (slug) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "d7f79d6d6e2bfb788649213ffa13bcd54aadb7669629cbf11fdbeea3aee0eb9f"
+}

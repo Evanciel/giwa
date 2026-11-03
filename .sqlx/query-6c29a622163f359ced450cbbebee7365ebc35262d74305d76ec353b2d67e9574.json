@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,\n                    actor_type, published_at, created_at, updated_at, scheduled_at, cover\n             FROM posts WHERE board_id = ? AND slug = ?",
+  "query": "SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,\n                    actor_type, published_at, created_at, updated_at, scheduled_at, cover,\n                    category_id, is_notice, is_secret,\n                    (SELECT json_group_array(t.name ORDER BY pt.position)\n                       FROM post_tags pt JOIN tags t ON t.id = pt.tag_id\n                      WHERE pt.post_id = posts.id) AS \"tags!: String\"\n             FROM posts\n             WHERE kind = 'post' AND (?1 IS NULL OR board_id = ?1) AND (?2 IS NULL OR status = ?2)\n             ORDER BY updated_at DESC, id DESC\n             LIMIT ?3 OFFSET ?4",
   "describe": {
     "columns": [
       {
@@ -167,10 +167,49 @@
             "name": "cover"
           }
         }
+      },
+      {
+        "name": "category_id",
+        "ordinal": 15,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "category_id"
+          }
+        }
+      },
+      {
+        "name": "is_notice",
+        "ordinal": 16,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "is_notice"
+          }
+        }
+      },
+      {
+        "name": "is_secret",
+        "ordinal": 17,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "is_secret"
+          }
+        }
+      },
+      {
+        "name": "tags!: String",
+        "ordinal": 18,
+        "type_info": "Text",
+        "origin": "Expression"
       }
     ],
     "parameters": {
-      "Right": 2
+      "Right": 4
     },
     "nullable": [
       false,
@@ -187,8 +226,12 @@
       false,
       false,
       true,
+      true,
+      true,
+      false,
+      false,
       true
     ]
   },
-  "hash": "8eb0a24b2d92fa73f64713ba694f4e9a7b25b77d390ad48166aff6761ff3f409"
+  "hash": "6c29a622163f359ced450cbbebee7365ebc35262d74305d76ec353b2d67e9574"
 }

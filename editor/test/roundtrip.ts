@@ -6,6 +6,7 @@ import { readFileSync } from "fs";
 
 import { load, parse, serialize } from "../src/markdown";
 import { videoEmbed } from "../src/syntax";
+import { splitTags } from "../src/tags";
 
 let failed = 0;
 function check(name: string, cond: boolean, detail = "") {
@@ -134,6 +135,14 @@ const plain: Record<string, string> = {
 for (const [name, md] of Object.entries(plain)) {
   const r = load(md);
   check(`Markdown 으로 보냄: ${name}`, !r.ok, r.ok ? serialize(r.doc) : "");
+}
+
+// 태그 칸
+{
+  const same = (a: string[], b: string[]) => JSON.stringify(a) === JSON.stringify(b);
+  const got = splitTags(" #Rust, 제주   여행 ,rust,, ##맛집 ");
+  check("태그: #·공백 정리, 대소문자 겹침 제거", same(got, ["Rust", "제주 여행", "맛집"]), JSON.stringify(got));
+  check("태그: 빈 값", splitTags(" , ,").length === 0);
 }
 
 if (failed > 0) {

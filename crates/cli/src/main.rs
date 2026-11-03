@@ -42,6 +42,12 @@ enum Command {
     /// 게시판
     #[command(subcommand)]
     Board(BoardCmd),
+    /// 게시판 분류
+    #[command(subcommand)]
+    Category(CategoryCmd),
+    /// 태그
+    #[command(subcommand)]
+    Tag(TagCmd),
     /// API 토큰
     #[command(subcommand)]
     Token(TokenCmd),
@@ -175,6 +181,21 @@ pub struct PostEditArgs {
     /// 빈 문자열이면 예약을 취소한다. `maru serve` 가 돌고 있어야 그 시각에 발행된다
     #[arg(long)]
     pub schedule: Option<String>,
+    /// 분류 슬러그 (`maru category list --board <게시판>`). 빈 문자열이면 분류를 뺀다
+    #[arg(long)]
+    pub category: Option<String>,
+    /// 태그를 이것들로 바꾼다 (여러 번 쓸 수 있다)
+    #[arg(long = "tag")]
+    pub tags: Vec<String>,
+    /// 태그를 모두 뺀다
+    #[arg(long, conflicts_with = "tags")]
+    pub clear_tags: bool,
+    /// 게시판 맨 위 고정 (true/false). 발행 권한이 필요하다
+    #[arg(long)]
+    pub notice: Option<bool>,
+    /// 비밀글 (true/false). 본문은 작성자와 관리자만 읽는다
+    #[arg(long)]
+    pub secret: Option<bool>,
 }
 
 #[derive(Debug, Args)]
@@ -207,6 +228,65 @@ pub struct PostNewArgs {
     /// 같은 슬러그의 글이 있으면 만들지 않고 그 글을 돌려준다 (`--slug` 필요)
     #[arg(long, requires = "slug")]
     pub if_not_exists: bool,
+    /// 분류 슬러그 (`maru category list --board <게시판>`)
+    #[arg(long)]
+    pub category: Option<String>,
+    /// 태그 (여러 번 쓸 수 있다: `--tag 제주 --tag 여행`)
+    #[arg(long = "tag")]
+    pub tags: Vec<String>,
+    /// 게시판 맨 위에 고정한다 (발행 권한 필요)
+    #[arg(long)]
+    pub notice: bool,
+    /// 비밀글: 목록에는 제목만, 본문은 작성자와 관리자만
+    #[arg(long)]
+    pub secret: bool,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum CategoryCmd {
+    /// 게시판의 분류 목록
+    List {
+        #[arg(long)]
+        board: String,
+    },
+    /// 분류를 만든다. 같은 주소가 있으면 그것을 돌려준다
+    Add {
+        #[arg(long)]
+        board: String,
+        name: String,
+        /// 생략하면 이름에서 만든다
+        #[arg(long)]
+        slug: Option<String>,
+    },
+    /// 분류 이름을 바꾼다 (주소는 그대로, 바꾸려면 --new-slug)
+    Rename {
+        #[arg(long)]
+        board: String,
+        slug: String,
+        name: String,
+        #[arg(long)]
+        new_slug: Option<String>,
+    },
+    /// 분류 순서를 바꾼다 (작을수록 앞)
+    Move {
+        #[arg(long)]
+        board: String,
+        slug: String,
+        #[arg(long, allow_negative_numbers = true)]
+        order: i64,
+    },
+    /// 분류를 지운다. 그 분류의 글은 분류가 비워진다
+    Remove {
+        #[arg(long)]
+        board: String,
+        slug: String,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum TagCmd {
+    /// 공개 글이 달린 태그와 글 수
+    List,
 }
 
 #[derive(Debug, Args)]

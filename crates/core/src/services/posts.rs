@@ -7,8 +7,8 @@ use crate::actor::{Actor, Permission};
 use crate::audit::{self, Target};
 use crate::clock;
 use crate::error::{Code, Error, Result};
-use crate::model::{Board, Listing, PageReq, Post, PostKind, PostStatus, Revision};
-use crate::services::{boards, required_text};
+use crate::model::{Board, Category, Listing, PageReq, Post, PostKind, PostStatus, Revision, Tag};
+use crate::services::{boards, categories, required_text, tags};
 use crate::slug;
 use crate::store::{Ctx, PostFilter, PublishedQuery, Tx, WriteTx};
 
@@ -36,6 +36,18 @@ pub struct NewPost {
     /// 대표 이미지 (`/media/...`). 비우면 본문 첫 사진
     #[serde(default)]
     pub cover: Option<String>,
+    /// 분류 슬러그 (`maru category list --board <게시판>`). 비우면 분류 없음
+    #[serde(default)]
+    pub category: Option<String>,
+    /// 태그 이름. 앞의 `#` 은 떼고, 글마다 20개·태그마다 30자까지
+    #[serde(default)]
+    pub tags: Vec<String>,
+    /// 게시판 목록 맨 위에 고정한다. 발행 권한이 필요하다
+    #[serde(default)]
+    pub notice: bool,
+    /// 비밀글: 목록에는 제목만 보이고 본문은 작성자와 관리자만 읽는다
+    #[serde(default)]
+    pub secret: bool,
 }
 
 pub async fn create_draft(ctx: &Ctx, actor: &Actor, input: NewPost) -> Result<Post> {
@@ -74,6 +86,18 @@ pub async fn create_draft(ctx: &Ctx, actor: &Actor, input: NewPost) -> Result<Po
         }
         None => unique_slug(&mut *tx, &board.id, &slug::from_title(&title, "post"), None).await?,
     };
+    let category_id = match input.category.as_deref() {
+        Some(c) => categories::resolve(&mut *tx, &board, c)
+            .await?
+            .map(|c| c.id),
+        None => None,
+    };
+    let tags = tags::normalize(&mut *tx, &input.tags).await?;
+    if input.notice {
+        actor.require(Permission::PostPublish)?;
+        actor.require_board(Permission::PostPublish, &board.id)?;
+        actor.require_rank(Permission::PostPublish, &board.policy.write)?;
+    }
 
     let now = clock::now();
     let post = Post {
@@ -92,6 +116,10 @@ pub async fn create_draft(ctx: &Ctx, actor: &Actor, input: NewPost) -> Result<Po
         updated_at: now,
         scheduled_at: None,
         cover,
+        category_id,
+        is_notice: input.notice,
+        is_secret: input.secret,
+        tags,
     };
     tx.insert_post(&post).await?;
     tx.insert_revision(&revision_of(&post, actor)).await?;
@@ -176,6 +204,9 @@ pub async fn get(ctx: &Ctx, actor: &Actor, id: &str) -> Result<Post> {
             .require_rank(Permission::PostRead, &board.policy.read)
             .is_ok()
     {
+        if post.is_secret && !can_read_secret(actor, &board, &post) {
+            return Err(secret(&post));
+        }
         return Ok(post);
     }
     // 초안은 존재를 드러내지 않는다.
@@ -184,6 +215,7 @@ pub async fn get(ctx: &Ctx, actor: &Actor, id: &str) -> Result<Post> {
 }
 
 /// 공개 글 하나. 홈·목록·RSS·사이트맵과 같은 공개 기준을 쓴다.
+/// 비밀글은 작성자·관리자가 아니면 `FORBIDDEN`(`error.post_secret`)이다. 글이 있다는 것은 숨기지 않는다.
 pub async fn public_post(
     ctx: &Ctx,
     actor: &Actor,
@@ -198,14 +230,39 @@ pub async fn public_post(
         .await?
         .filter(Post::is_public)
         .ok_or_else(|| not_found(post_slug))?;
+    if post.is_secret && !can_read_secret(actor, &board, &post) {
+        return Err(secret(&post));
+    }
     Ok((board, post))
 }
 
+/// 공개 목록 조건 (`public_posts_where`).
+#[derive(Debug, Clone, Default)]
+pub struct PublicFilter {
+    /// 공지만(`Some(true)`) 또는 공지 빼고(`Some(false)`).
+    pub notices: Option<bool>,
+    pub category_id: Option<String>,
+    pub tag_id: Option<String>,
+    /// 비밀글을 아예 뺀다 (피드·사이트맵·태그 목록).
+    pub exclude_secret: bool,
+}
+
 /// 공개 글 목록. `board` 가 없으면 읽을 수 있는 모든 게시판.
+/// 볼 수 없는 비밀글은 제목만 남기고 본문·요약·대표 이미지·태그를 비운다.
 pub async fn public_posts(
     ctx: &Ctx,
     actor: &Actor,
     board: Option<&Board>,
+    page: PageReq,
+) -> Result<Listing<Post>> {
+    public_posts_where(ctx, actor, board, &PublicFilter::default(), page).await
+}
+
+pub async fn public_posts_where(
+    ctx: &Ctx,
+    actor: &Actor,
+    board: Option<&Board>,
+    filter: &PublicFilter,
     page: PageReq,
 ) -> Result<Listing<Post>> {
     if !actor.has(Permission::PostRead) {
@@ -218,18 +275,169 @@ pub async fn public_posts(
     }
     let q = PublishedQuery {
         board_id: board.map(|b| b.id.clone()),
-        max_read_rank: actor.rank(),
-        limit: page.limit(),
-        offset: page.offset(),
+        category_id: filter.category_id.clone(),
+        notices: filter.notices,
+        tag_id: filter.tag_id.clone(),
+        exclude_secret: filter.exclude_secret,
+        ..PublishedQuery::new(actor.rank(), page.limit(), page.offset())
     };
     let total = ctx.store.count_published(&q).await?;
     let items = ctx.store.list_published(&q).await?;
     Ok(Listing {
-        items,
+        items: mask_secrets(ctx, actor, board, items).await?,
         total,
         page: page.page,
         per_page: page.per_page,
     })
+}
+
+/// 게시판 첫 화면에 필요한 것.
+#[derive(Debug, Clone, Serialize, JsonSchema)]
+pub struct BoardPage {
+    /// 공지 (모든 쪽·모든 분류에서 맨 위)
+    pub notices: Vec<Post>,
+    /// 공지를 뺀 글
+    pub posts: Listing<Post>,
+    pub categories: Vec<Category>,
+    /// 고른 분류
+    pub category: Option<Category>,
+}
+
+const MAX_NOTICES: u32 = 20;
+
+/// 게시판 목록 화면. `category` 는 분류 슬러그.
+pub async fn public_board(
+    ctx: &Ctx,
+    actor: &Actor,
+    board: &Board,
+    category: Option<&str>,
+    page: PageReq,
+) -> Result<BoardPage> {
+    let categories = ctx.store.categories_of_board(&board.id).await?;
+    let category = match category.map(str::trim).filter(|c| !c.is_empty()) {
+        Some(c) => {
+            let key = slug::normalize(c).unwrap_or_default();
+            Some(
+                categories
+                    .iter()
+                    .find(|x| x.slug == key)
+                    .cloned()
+                    .ok_or_else(|| {
+                        Error::new(Code::NotFound)
+                            .with_message("error.category_not_found")
+                            .arg("board", board.slug.clone())
+                            .arg("slug", c)
+                    })?,
+            )
+        }
+        None => None,
+    };
+    let notices = public_posts_where(
+        ctx,
+        actor,
+        Some(board),
+        &PublicFilter {
+            notices: Some(true),
+            ..PublicFilter::default()
+        },
+        PageReq::new(1, MAX_NOTICES),
+    )
+    .await?
+    .items;
+    let posts = public_posts_where(
+        ctx,
+        actor,
+        Some(board),
+        &PublicFilter {
+            notices: Some(false),
+            category_id: category.as_ref().map(|c| c.id.clone()),
+            ..PublicFilter::default()
+        },
+        page,
+    )
+    .await?;
+    Ok(BoardPage {
+        notices,
+        posts,
+        categories,
+        category,
+    })
+}
+
+/// 태그가 달린 공개 글 (비밀글 제외).
+pub async fn public_tag(
+    ctx: &Ctx,
+    actor: &Actor,
+    tag_slug: &str,
+    page: PageReq,
+) -> Result<(Tag, Listing<Post>)> {
+    let tag = tags::find(ctx, tag_slug).await?;
+    let list = public_posts_where(
+        ctx,
+        actor,
+        None,
+        &PublicFilter {
+            tag_id: Some(tag.id.clone()),
+            exclude_secret: true,
+            ..PublicFilter::default()
+        },
+        page,
+    )
+    .await?;
+    Ok((tag, list))
+}
+
+/// 비밀글 본문을 볼 수 있는가: 작성자 본인 또는 그 게시판을 관리할 수 있는 사람.
+pub fn can_read_secret(actor: &Actor, board: &Board, post: &Post) -> bool {
+    is_own(actor, post)
+        || (actor.has(Permission::PostModerate)
+            && actor
+                .require_rank(Permission::PostModerate, &board.policy.moderate)
+                .is_ok())
+}
+
+/// 볼 수 없는 비밀글의 본문·요약·대표 이미지·태그를 비운다.
+async fn mask_secrets(
+    ctx: &Ctx,
+    actor: &Actor,
+    board: Option<&Board>,
+    items: Vec<Post>,
+) -> Result<Vec<Post>> {
+    if !items.iter().any(|p| p.is_secret) {
+        return Ok(items);
+    }
+    let all = match board {
+        Some(b) => vec![b.clone()],
+        None => ctx.store.list_boards().await?,
+    };
+    Ok(items
+        .into_iter()
+        .map(|p| {
+            let readable = !p.is_secret
+                || all
+                    .iter()
+                    .find(|b| b.id == p.board_id)
+                    .is_some_and(|b| can_read_secret(actor, b, &p));
+            if readable {
+                p
+            } else {
+                Post {
+                    body_md: String::new(),
+                    excerpt: None,
+                    cover: None,
+                    tags: vec![],
+                    ..p
+                }
+            }
+        })
+        .collect())
+}
+
+fn secret(post: &Post) -> Error {
+    Error::new(Code::Forbidden)
+        .with_message("error.post_secret")
+        .arg("title", post.title.clone())
+        .with_hint("hint.post_secret")
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
@@ -251,6 +459,18 @@ pub struct PostPatch {
     /// 발행 권한이 필요하고, 아직 공개되지 않은 글에만 걸린다
     #[serde(default)]
     pub scheduled_at: Option<String>,
+    /// 분류 슬러그. 빈 문자열이면 분류를 뺀다
+    #[serde(default)]
+    pub category: Option<String>,
+    /// 태그를 통째로 바꾼다. 빈 배열이면 모두 뺀다
+    #[serde(default)]
+    pub tags: Option<Vec<String>>,
+    /// 게시판 맨 위 고정. 바꾸려면 발행 권한이 필요하다
+    #[serde(default)]
+    pub notice: Option<bool>,
+    /// 비밀글 여부
+    #[serde(default)]
+    pub secret: Option<bool>,
 }
 
 /// 글을 고친다. 제목이나 본문이 바뀌면 리비전을 남긴다.
@@ -297,6 +517,23 @@ pub async fn update(ctx: &Ctx, actor: &Actor, id: &str, patch: PostPatch) -> Res
             return Err(slug_conflict(&board, &s));
         }
         after.slug = s;
+    }
+    if let Some(c) = &patch.category {
+        after.category_id = categories::resolve(&mut *tx, &board, c)
+            .await?
+            .map(|c| c.id);
+    }
+    if let Some(t) = &patch.tags {
+        after.tags = tags::normalize(&mut *tx, t).await?;
+    }
+    if let Some(n) = patch.notice {
+        if n != before.is_notice {
+            authorize_post(actor, &board, &before, Permission::PostPublish)?;
+        }
+        after.is_notice = n;
+    }
+    if let Some(s) = patch.secret {
+        after.is_secret = s;
     }
     if after == before {
         return Ok(before);

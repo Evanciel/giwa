@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,\n                actor_type, published_at, created_at, updated_at, scheduled_at, cover\n         FROM posts WHERE id = ?",
+  "query": "SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,\n                actor_type, published_at, created_at, updated_at, scheduled_at, cover,\n                category_id, is_notice, is_secret,\n                (SELECT json_group_array(t.name ORDER BY pt.position)\n                   FROM post_tags pt JOIN tags t ON t.id = pt.tag_id\n                  WHERE pt.post_id = posts.id) AS \"tags!: String\"\n         FROM posts WHERE id = ?",
   "describe": {
     "columns": [
       {
@@ -167,6 +167,45 @@
             "name": "cover"
           }
         }
+      },
+      {
+        "name": "category_id",
+        "ordinal": 15,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "category_id"
+          }
+        }
+      },
+      {
+        "name": "is_notice",
+        "ordinal": 16,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "is_notice"
+          }
+        }
+      },
+      {
+        "name": "is_secret",
+        "ordinal": 17,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "is_secret"
+          }
+        }
+      },
+      {
+        "name": "tags!: String",
+        "ordinal": 18,
+        "type_info": "Text",
+        "origin": "Expression"
       }
     ],
     "parameters": {
@@ -187,8 +226,12 @@
       false,
       false,
       true,
+      true,
+      true,
+      false,
+      false,
       true
     ]
   },
-  "hash": "9cb5b294e28c3434f48fa9a757561cb76cfe27684ec540a839c374e64ca26bfe"
+  "hash": "61b11f91b54e2880c8d3992b2585ba147d309bc9566458f3081e4fde3577635d"
 }

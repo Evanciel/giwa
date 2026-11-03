@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO post_tags (post_id, tag_id, position)\n             SELECT ?, id, ? FROM tags WHERE slug = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "d1d7e6899d6af1e626272e4932ea9ba6ef96b6ed2c068858c8e873e8c5bc37d9"
+}

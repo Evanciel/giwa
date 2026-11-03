@@ -153,13 +153,49 @@ pub struct Post {
     /// 대표 이미지 주소 (`/media/...`). 없으면 본문 첫 사진을 쓴다.
     #[serde(default)]
     pub cover: Option<String>,
+    /// 게시판 안의 분류. 분류를 지우면 비워진다.
+    #[serde(default)]
+    pub category_id: Option<Id>,
+    /// 게시판 목록 맨 위에 고정한다.
+    #[serde(default)]
+    pub is_notice: bool,
+    /// 목록에는 제목만 보이고, 본문은 작성자와 관리자만 읽는다.
+    #[serde(default)]
+    pub is_secret: bool,
+    /// 태그 이름 (글쓴이가 적은 순서).
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 impl Post {
     /// 공개 여부 판단은 이것 하나다. 게시판 읽기 권한은 별도로 본다.
+    /// 비밀글도 공개 글이다(목록에 보인다). 본문을 보여 줄지는 `services::posts` 가 정한다.
     pub fn is_public(&self) -> bool {
         self.status == PostStatus::Published && self.kind == PostKind::Post
     }
+}
+
+/// 게시판 안의 분류.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Category {
+    pub id: Id,
+    pub board_id: Id,
+    pub name: String,
+    pub slug: String,
+    pub sort_order: i64,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// 사이트 전체 태그. `posts` 는 공개 글 수다(목록 조회 때만 채운다).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Tag {
+    pub id: Id,
+    pub name: String,
+    pub slug: String,
+    pub created_at: String,
+    #[serde(default)]
+    pub posts: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

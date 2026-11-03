@@ -4,11 +4,12 @@ use async_trait::async_trait;
 use maru_core::actor::{AuthorType, Permission, Scope};
 use maru_core::audit::AuditRecord;
 use maru_core::model::{
-    Attachment, Board, BoardPolicy, LoginTicket, Media, MediaVariant, Member, MemberStatus, Page,
-    PageStatus, Post, PostKind, PostStatus, PostTemplate, Revision, Role, Session, Token,
+    Attachment, Board, BoardPolicy, Category, LoginTicket, Media, MediaVariant, Member,
+    MemberStatus, Page, PageStatus, Post, PostKind, PostStatus, PostTemplate, Revision, Role,
+    Session, Tag, Token,
 };
 use maru_core::store::{MenuRow, PostFilter, PublishedQuery, Store, WriteTx};
-use maru_core::{Code, Error, Result, urls};
+use maru_core::{Code, Error, Result, clock, slug, urls};
 use serde_json::Value;
 use sqlx::{Sqlite, SqliteExecutor, Transaction};
 
@@ -80,6 +81,11 @@ struct PostRow {
     updated_at: String,
     scheduled_at: Option<String>,
     cover: Option<String>,
+    category_id: Option<String>,
+    is_notice: i64,
+    is_secret: i64,
+    /// `json_group_array` 결과 (태그가 없으면 `[]`).
+    tags: String,
 }
 
 impl TryFrom<PostRow> for Post {
@@ -104,6 +110,10 @@ impl TryFrom<PostRow> for Post {
             updated_at: r.updated_at,
             scheduled_at: r.scheduled_at,
             cover: r.cover,
+            category_id: r.category_id,
+            is_notice: r.is_notice != 0,
+            is_secret: r.is_secret != 0,
+            tags: serde_json::from_str(&r.tags).map_err(Error::internal)?,
         })
     }
 }
@@ -319,9 +329,13 @@ async fn board_by_slug<'e>(e: impl SqliteExecutor<'e>, slug: &str) -> Result<Opt
 async fn post_by_id<'e>(e: impl SqliteExecutor<'e>, id: &str) -> Result<Option<Post>> {
     sqlx::query_as!(
         PostRow,
-        "SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,
-                actor_type, published_at, created_at, updated_at, scheduled_at, cover
-         FROM posts WHERE id = ?",
+        r#"SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,
+                actor_type, published_at, created_at, updated_at, scheduled_at, cover,
+                category_id, is_notice, is_secret,
+                (SELECT json_group_array(t.name ORDER BY pt.position)
+                   FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
+                  WHERE pt.post_id = posts.id) AS "tags!: String"
+         FROM posts WHERE id = ?"#,
         id
     )
     .fetch_optional(e)
@@ -424,9 +438,13 @@ impl Store for SqliteStore {
     async fn post_by_slug(&self, board_id: &str, slug: &str) -> Result<Option<Post>> {
         sqlx::query_as!(
             PostRow,
-            "SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,
-                    actor_type, published_at, created_at, updated_at, scheduled_at, cover
-             FROM posts WHERE board_id = ? AND slug = ?",
+            r#"SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,
+                    actor_type, published_at, created_at, updated_at, scheduled_at, cover,
+                    category_id, is_notice, is_secret,
+                    (SELECT json_group_array(t.name ORDER BY pt.position)
+                       FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
+                      WHERE pt.post_id = posts.id) AS "tags!: String"
+             FROM posts WHERE board_id = ? AND slug = ?"#,
             board_id,
             slug
         )
@@ -440,6 +458,7 @@ impl Store for SqliteStore {
     // 공개 범위의 SQL 은 이 두 쿼리에만 있다 (PHASE1_PLAN §4.6).
     // 게시판 read 정책의 역할 이름을 roles 와 조인해 서열을 비교한다. 모르는 역할이면 빠진다.
     async fn list_published(&self, q: &PublishedQuery) -> Result<Vec<Post>> {
+        let notice = q.notices.map(i64::from);
         let rows = sqlx::query_as!(
             PostRow,
             r#"SELECT p.id AS "id!", p.board_id AS "board_id!", p.kind AS "kind!",
@@ -447,18 +466,31 @@ impl Store for SqliteStore {
                       p.body_md AS "body_md!", p.excerpt, p.author_id,
                       p.actor_type AS "actor_type!", p.published_at,
                       p.created_at AS "created_at!", p.updated_at AS "updated_at!",
-                      p.scheduled_at, p.cover
+                      p.scheduled_at, p.cover,
+                      p.category_id, p.is_notice AS "is_notice!", p.is_secret AS "is_secret!",
+                      (SELECT json_group_array(t.name ORDER BY pt.position)
+                         FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
+                        WHERE pt.post_id = p.id) AS "tags!: String"
                FROM posts p
                JOIN boards b ON b.id = p.board_id
                JOIN roles r ON r.name = json_extract(b.policy, '$.read')
                WHERE p.status = 'published' AND p.kind = 'post'
                  AND r.rank <= ?1 AND (?2 IS NULL OR p.board_id = ?2)
+                 AND (?5 IS NULL OR p.category_id = ?5)
+                 AND (?6 IS NULL OR p.is_notice = ?6)
+                 AND (?7 IS NULL OR EXISTS (SELECT 1 FROM post_tags x
+                                             WHERE x.post_id = p.id AND x.tag_id = ?7))
+                 AND (?8 = 0 OR p.is_secret = 0)
                ORDER BY p.published_at DESC, p.id DESC
                LIMIT ?3 OFFSET ?4"#,
             q.max_read_rank,
             q.board_id,
             q.limit,
-            q.offset
+            q.offset,
+            q.category_id,
+            notice,
+            q.tag_id,
+            q.exclude_secret
         )
         .fetch_all(&self.db.read)
         .await
@@ -467,15 +499,25 @@ impl Store for SqliteStore {
     }
 
     async fn count_published(&self, q: &PublishedQuery) -> Result<i64> {
+        let notice = q.notices.map(i64::from);
         sqlx::query_scalar!(
             r#"SELECT count(*) AS "n!: i64"
                FROM posts p
                JOIN boards b ON b.id = p.board_id
                JOIN roles r ON r.name = json_extract(b.policy, '$.read')
                WHERE p.status = 'published' AND p.kind = 'post'
-                 AND r.rank <= ?1 AND (?2 IS NULL OR p.board_id = ?2)"#,
+                 AND r.rank <= ?1 AND (?2 IS NULL OR p.board_id = ?2)
+                 AND (?3 IS NULL OR p.category_id = ?3)
+                 AND (?4 IS NULL OR p.is_notice = ?4)
+                 AND (?5 IS NULL OR EXISTS (SELECT 1 FROM post_tags x
+                                             WHERE x.post_id = p.id AND x.tag_id = ?5))
+                 AND (?6 = 0 OR p.is_secret = 0)"#,
             q.max_read_rank,
-            q.board_id
+            q.board_id,
+            q.category_id,
+            notice,
+            q.tag_id,
+            q.exclude_secret
         )
         .fetch_one(&self.db.read)
         .await
@@ -486,12 +528,16 @@ impl Store for SqliteStore {
         let status = q.status.map(PostStatus::as_str);
         let rows = sqlx::query_as!(
             PostRow,
-            "SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,
-                    actor_type, published_at, created_at, updated_at, scheduled_at, cover
+            r#"SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,
+                    actor_type, published_at, created_at, updated_at, scheduled_at, cover,
+                    category_id, is_notice, is_secret,
+                    (SELECT json_group_array(t.name ORDER BY pt.position)
+                       FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
+                      WHERE pt.post_id = posts.id) AS "tags!: String"
              FROM posts
              WHERE kind = 'post' AND (?1 IS NULL OR board_id = ?1) AND (?2 IS NULL OR status = ?2)
              ORDER BY updated_at DESC, id DESC
-             LIMIT ?3 OFFSET ?4",
+             LIMIT ?3 OFFSET ?4"#,
             q.board_id,
             status,
             q.limit,
@@ -739,6 +785,169 @@ impl Store for SqliteStore {
             .await
             .map_err(db_error)
     }
+
+    async fn categories_of_board(&self, board_id: &str) -> Result<Vec<Category>> {
+        categories_of_board(&self.db.read, board_id).await
+    }
+
+    async fn category_by_id(&self, id: &str) -> Result<Option<Category>> {
+        category_by_id(&self.db.read, id).await
+    }
+
+    async fn tag_by_slug(&self, slug: &str) -> Result<Option<Tag>> {
+        tag_by_slug(&self.db.read, slug).await
+    }
+
+    // 공개 범위 조건은 list_published·count_published 와 같다.
+    async fn list_tags(&self, max_read_rank: i64) -> Result<Vec<Tag>> {
+        let rows = sqlx::query_as!(
+            TagRow,
+            r#"SELECT t.id AS "id!", t.name AS "name!", t.slug AS "slug!",
+                      t.created_at AS "created_at!", count(*) AS "posts!: i64"
+               FROM tags t
+               JOIN post_tags pt ON pt.tag_id = t.id
+               JOIN posts p ON p.id = pt.post_id
+               JOIN boards b ON b.id = p.board_id
+               JOIN roles r ON r.name = json_extract(b.policy, '$.read')
+               WHERE p.status = 'published' AND p.kind = 'post' AND p.is_secret = 0
+                 AND r.rank <= ?
+               GROUP BY t.id
+               ORDER BY t.name"#,
+            max_read_rank
+        )
+        .fetch_all(&self.db.read)
+        .await
+        .map_err(db_error)?;
+        Ok(rows.into_iter().map(Tag::from).collect())
+    }
+}
+
+// ---- 분류·태그 ----
+
+struct CategoryRow {
+    id: String,
+    board_id: String,
+    name: String,
+    slug: String,
+    sort_order: i64,
+    created_at: String,
+    updated_at: String,
+}
+
+impl From<CategoryRow> for Category {
+    fn from(r: CategoryRow) -> Self {
+        Category {
+            id: r.id,
+            board_id: r.board_id,
+            name: r.name,
+            slug: r.slug,
+            sort_order: r.sort_order,
+            created_at: r.created_at,
+            updated_at: r.updated_at,
+        }
+    }
+}
+
+struct TagRow {
+    id: String,
+    name: String,
+    slug: String,
+    created_at: String,
+    posts: i64,
+}
+
+impl From<TagRow> for Tag {
+    fn from(r: TagRow) -> Self {
+        Tag {
+            id: r.id,
+            name: r.name,
+            slug: r.slug,
+            created_at: r.created_at,
+            posts: r.posts,
+        }
+    }
+}
+
+async fn categories_of_board<'e>(
+    e: impl SqliteExecutor<'e>,
+    board_id: &str,
+) -> Result<Vec<Category>> {
+    let rows = sqlx::query_as!(
+        CategoryRow,
+        "SELECT id, board_id, name, slug, sort_order, created_at, updated_at
+         FROM categories WHERE board_id = ? ORDER BY sort_order, name",
+        board_id
+    )
+    .fetch_all(e)
+    .await
+    .map_err(db_error)?;
+    Ok(rows.into_iter().map(Category::from).collect())
+}
+
+async fn category_by_id<'e>(e: impl SqliteExecutor<'e>, id: &str) -> Result<Option<Category>> {
+    Ok(sqlx::query_as!(
+        CategoryRow,
+        "SELECT id, board_id, name, slug, sort_order, created_at, updated_at
+         FROM categories WHERE id = ?",
+        id
+    )
+    .fetch_optional(e)
+    .await
+    .map_err(db_error)?
+    .map(Category::from))
+}
+
+async fn tag_by_slug<'e>(e: impl SqliteExecutor<'e>, slug: &str) -> Result<Option<Tag>> {
+    Ok(sqlx::query_as!(
+        TagRow,
+        r#"SELECT id, name, slug, created_at, 0 AS "posts!: i64" FROM tags WHERE slug = ?"#,
+        slug
+    )
+    .fetch_optional(e)
+    .await
+    .map_err(db_error)?
+    .map(Tag::from))
+}
+
+/// 글의 태그를 통째로 바꾼다. 없는 태그는 만든다. 이름은 core 가 정규화해 둔 것.
+async fn write_post_tags(
+    conn: &mut sqlx::SqliteConnection,
+    post_id: &str,
+    tags: &[String],
+) -> Result<()> {
+    sqlx::query!("DELETE FROM post_tags WHERE post_id = ?", post_id)
+        .execute(&mut *conn)
+        .await
+        .map_err(db_error)?;
+    for (i, name) in tags.iter().enumerate() {
+        let slug = slug::tag(name);
+        if slug.is_empty() {
+            return Err(Error::internal(format!("주소가 비는 태그: {name}")));
+        }
+        let (id, now, position) = (clock::new_id(), clock::now(), i as i64);
+        sqlx::query!(
+            "INSERT INTO tags (id, name, slug, created_at) VALUES (?, ?, ?, ?)
+             ON CONFLICT (slug) DO NOTHING",
+            id,
+            name,
+            slug,
+            now
+        )
+        .execute(&mut *conn)
+        .await
+        .map_err(db_error)?;
+        sqlx::query!(
+            "INSERT INTO post_tags (post_id, tag_id, position)
+             SELECT ?, id, ? FROM tags WHERE slug = ?",
+            post_id,
+            position,
+            slug
+        )
+        .execute(&mut *conn)
+        .await
+        .map_err(db_error)?;
+    }
+    Ok(())
 }
 
 #[async_trait]
@@ -860,8 +1069,8 @@ impl WriteTx for SqliteWriteTx {
         sqlx::query!(
             "INSERT INTO posts (id, board_id, kind, status, title, slug, body_md, excerpt,
                                 author_id, actor_type, published_at, created_at, updated_at,
-                                scheduled_at, cover)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                scheduled_at, cover, category_id, is_notice, is_secret)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             p.id,
             p.board_id,
             kind,
@@ -876,12 +1085,15 @@ impl WriteTx for SqliteWriteTx {
             p.created_at,
             p.updated_at,
             p.scheduled_at,
-            p.cover
+            p.cover,
+            p.category_id,
+            p.is_notice,
+            p.is_secret
         )
         .execute(&mut *self.tx)
         .await
         .map_err(db_error)?;
-        Ok(())
+        write_post_tags(&mut self.tx, &p.id, &p.tags).await
     }
 
     async fn update_post(&mut self, p: &Post) -> Result<()> {
@@ -889,7 +1101,8 @@ impl WriteTx for SqliteWriteTx {
         let res = sqlx::query!(
             "UPDATE posts SET board_id = ?, status = ?, title = ?, slug = ?, body_md = ?,
                               excerpt = ?, published_at = ?, updated_at = ?,
-                              scheduled_at = ?, cover = ?
+                              scheduled_at = ?, cover = ?, category_id = ?,
+                              is_notice = ?, is_secret = ?
              WHERE id = ?",
             p.board_id,
             status,
@@ -901,6 +1114,9 @@ impl WriteTx for SqliteWriteTx {
             p.updated_at,
             p.scheduled_at,
             p.cover,
+            p.category_id,
+            p.is_notice,
+            p.is_secret,
             p.id
         )
         .execute(&mut *self.tx)
@@ -909,7 +1125,7 @@ impl WriteTx for SqliteWriteTx {
         if res.rows_affected() != 1 {
             return Err(Error::new(Code::NotFound).arg("id", p.id.clone()));
         }
-        Ok(())
+        write_post_tags(&mut self.tx, &p.id, &p.tags).await
     }
 
     async fn insert_revision(&mut self, r: &Revision) -> Result<()> {
@@ -1392,6 +1608,84 @@ impl WriteTx for SqliteWriteTx {
             .await
             .map_err(db_error)?;
         Ok(())
+    }
+
+    async fn tag_by_slug(&mut self, slug: &str) -> Result<Option<Tag>> {
+        tag_by_slug(&mut *self.tx, slug).await
+    }
+
+    async fn categories_of_board(&mut self, board_id: &str) -> Result<Vec<Category>> {
+        categories_of_board(&mut *self.tx, board_id).await
+    }
+
+    async fn category_by_id(&mut self, id: &str) -> Result<Option<Category>> {
+        category_by_id(&mut *self.tx, id).await
+    }
+
+    async fn category_by_slug(&mut self, board_id: &str, slug: &str) -> Result<Option<Category>> {
+        Ok(sqlx::query_as!(
+            CategoryRow,
+            "SELECT id, board_id, name, slug, sort_order, created_at, updated_at
+             FROM categories WHERE board_id = ? AND slug = ?",
+            board_id,
+            slug
+        )
+        .fetch_optional(&mut *self.tx)
+        .await
+        .map_err(db_error)?
+        .map(Category::from))
+    }
+
+    async fn insert_category(&mut self, c: &Category) -> Result<()> {
+        sqlx::query!(
+            "INSERT INTO categories (id, board_id, name, slug, sort_order, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?)",
+            c.id,
+            c.board_id,
+            c.name,
+            c.slug,
+            c.sort_order,
+            c.created_at,
+            c.updated_at
+        )
+        .execute(&mut *self.tx)
+        .await
+        .map_err(db_error)?;
+        Ok(())
+    }
+
+    async fn update_category(&mut self, c: &Category) -> Result<()> {
+        let res = sqlx::query!(
+            "UPDATE categories SET name = ?, slug = ?, sort_order = ?, updated_at = ? WHERE id = ?",
+            c.name,
+            c.slug,
+            c.sort_order,
+            c.updated_at,
+            c.id
+        )
+        .execute(&mut *self.tx)
+        .await
+        .map_err(db_error)?;
+        if res.rows_affected() != 1 {
+            return Err(Error::new(Code::NotFound).arg("id", c.id.clone()));
+        }
+        Ok(())
+    }
+
+    async fn delete_category(&mut self, id: &str) -> Result<u64> {
+        let cleared = sqlx::query!(
+            "UPDATE posts SET category_id = NULL WHERE category_id = ?",
+            id
+        )
+        .execute(&mut *self.tx)
+        .await
+        .map_err(db_error)?
+        .rows_affected();
+        sqlx::query!("DELETE FROM categories WHERE id = ?", id)
+            .execute(&mut *self.tx)
+            .await
+            .map_err(db_error)?;
+        Ok(cleared)
     }
 }
 

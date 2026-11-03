@@ -576,3 +576,140 @@ fn agent_token_cannot_issue_login_link() {
     assert_eq!(v["ok"], false);
     assert_eq!(v["error"]["code"], "FORBIDDEN");
 }
+
+/// 발행 서랍의 분류·태그·공개 범위·공지가 서비스를 거쳐 DB 에 남고, 편집 화면이 그 값을 다시 보여 준다.
+/// 칸이 없는 옛 폼으로 저장해도 값이 지워지지 않는다.
+#[test]
+fn publish_drawer_fields_reach_the_db() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("site");
+    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(&data, &["category", "add", "--board", "blog", "여행"]);
+    let (_server, bind) = start_server(&data, &tmp.path().join("serve.log"));
+    let link = maru(&data, &["login-link"]);
+    let session = sign_in_with_link(&bind, &path_of(link["url"].as_str().unwrap()));
+    let cookie = format!("maru_session={session}");
+
+    let page = http(&bind, "GET", "/admin/posts/new", &[("Cookie", &cookie)], "");
+    assert_eq!(page.status, 200);
+    assert!(page.body.contains("name=\"visibility\""));
+    assert!(
+        page.body.contains("name=\"notice_shown\""),
+        "운영자에게는 공지 칸"
+    );
+    assert!(page.body.contains("data-board=\"blog\""), "분류 선택지");
+    let csrf = page.csrf();
+
+    let res = http(
+        &bind,
+        "POST",
+        "/admin/posts/new",
+        &[FORM, ("Cookie", &cookie)],
+        &form(&[
+            ("_csrf", &csrf),
+            ("board", "blog"),
+            ("title", "서랍에서 쓴 글"),
+            ("body_md", "본문입니다."),
+            ("category", "여행"),
+            ("tags", "#제주, 바다, 제주"),
+            ("notice_shown", "1"),
+            ("notice", "1"),
+            ("visibility", "secret"),
+            ("intent", "publish"),
+        ]),
+    );
+    assert_eq!(res.status, 303, "{}", res.body);
+    assert!(
+        res.location().ends_with("?done=published"),
+        "{}",
+        res.location()
+    );
+    let edit_path = res.location().split('?').next().unwrap().to_owned();
+    let id = edit_path.rsplit('/').next().unwrap().to_owned();
+    let p = maru(&data, &["post", "show", &id]);
+    assert_eq!(p["status"], "published");
+    assert!(p["category_id"].is_string(), "{p}");
+    assert_eq!(p["tags"], serde_json::json!(["제주", "바다"]));
+    assert_eq!(
+        (p["is_notice"].clone(), p["is_secret"].clone()),
+        (true.into(), true.into())
+    );
+
+    // 편집 화면이 값을 다시 보여 준다
+    let edit = http(&bind, "GET", &edit_path, &[("Cookie", &cookie)], "");
+    assert!(edit.body.contains("value=\"제주, 바다\""), "태그 값");
+    assert!(edit.body.contains("value=\"secret\" checked"), "공개 범위");
+    assert!(
+        edit.body.contains("name=\"notice\" value=\"1\" checked"),
+        "공지"
+    );
+    assert!(
+        edit.body.contains("data-board=\"blog\" selected>여행"),
+        "분류"
+    );
+
+    // 칸이 없는 폼(옛 화면)으로 저장해도 지워지지 않는다
+    let res = http(
+        &bind,
+        "POST",
+        &edit_path,
+        &[FORM, ("Cookie", &cookie)],
+        &form(&[
+            ("_csrf", &csrf),
+            ("title", "서랍에서 쓴 글 (고침)"),
+            ("body_md", "본문입니다."),
+            ("intent", "draft"),
+        ]),
+    );
+    assert_eq!(res.status, 303, "{}", res.body);
+    let kept = maru(&data, &["post", "show", &id]);
+    assert_eq!(kept["tags"], p["tags"]);
+    assert_eq!(kept["category_id"], p["category_id"]);
+    assert_eq!(
+        (kept["is_notice"].clone(), kept["is_secret"].clone()),
+        (true.into(), true.into())
+    );
+
+    // 비공개 = 숨김
+    let res = http(
+        &bind,
+        "POST",
+        &edit_path,
+        &[FORM, ("Cookie", &cookie)],
+        &form(&[
+            ("_csrf", &csrf),
+            ("title", "서랍에서 쓴 글 (고침)"),
+            ("body_md", "본문입니다."),
+            ("visibility", "private"),
+            ("intent", "draft"),
+        ]),
+    );
+    assert!(
+        res.location().ends_with("?done=hidden"),
+        "{}",
+        res.location()
+    );
+    assert_eq!(maru(&data, &["post", "show", &id])["status"], "hidden");
+
+    // 서랍의 「새 분류」: CSRF 머리가 있어야 만든다
+    let body = r#"{"board":"blog","name":"맛집"}"#;
+    let json = ("Content-Type", "application/json");
+    let res = http(
+        &bind,
+        "POST",
+        "/admin/categories",
+        &[json, ("Cookie", &cookie)],
+        body,
+    );
+    assert_eq!(res.status, 403, "{}", res.body);
+    let res = http(
+        &bind,
+        "POST",
+        "/admin/categories",
+        &[json, ("Cookie", &cookie), ("X-CSRF-Token", &csrf)],
+        body,
+    );
+    assert_eq!(res.status, 201, "{}", res.body);
+    let made: Value = serde_json::from_str(&res.body).unwrap();
+    assert_eq!(made["data"]["slug"], "맛집");
+}

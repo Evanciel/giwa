@@ -15,12 +15,13 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
 use axum::{Router, middleware};
+use maru_core::actor::Permission;
 use maru_core::clock;
 use maru_core::model::{PageReq, Post, PostStatus};
 use maru_core::output::Success;
 use maru_core::services::auth::{self, NewSession, SignedIn};
 use maru_core::services::posts::{self, NewPost, PostPatch};
-use maru_core::services::{boards, files, media, settings, templates};
+use maru_core::services::{boards, categories, files, media, settings, templates};
 use maru_core::urls::{self, Target};
 use maru_core::{Code, Error};
 use serde::Deserialize;
@@ -53,6 +54,7 @@ pub fn routes() -> Router<AppState> {
         .route("/admin/templates", get(list_templates).post(save_template))
         .route("/admin/preview", post(preview))
         .route("/admin/slug-check", get(check_slug))
+        .route("/admin/categories", post(create_category))
         .route("/admin/assets/{*path}", get(asset))
         .layer(middleware::map_response(admin_headers))
 }
@@ -654,6 +656,41 @@ struct PostForm {
     /// `draft`, `publish`, `schedule`, `unschedule`
     #[serde(default)]
     intent: String,
+    /// 분류 슬러그 (빈 값 = 분류 없음). 칸이 없으면 `None` 이고 건드리지 않는다.
+    #[serde(default)]
+    category: Option<String>,
+    /// 쉼표로 이은 태그. 칸이 없으면 `None` 이고 건드리지 않는다.
+    #[serde(default)]
+    tags: Option<String>,
+    /// 체크하면 `on`
+    #[serde(default)]
+    notice: Option<String>,
+    /// 공지 칸을 보여 줬을 때만 `1`. 없으면 공지 여부를 건드리지 않는다(발행 권한 없는 사람).
+    #[serde(default)]
+    notice_shown: String,
+    /// `public`, `secret`, `private`(= 숨김)
+    #[serde(default)]
+    visibility: String,
+}
+
+impl PostForm {
+    fn tag_list(&self) -> Option<Vec<String>> {
+        self.tags.as_deref().map(|t| {
+            t.split(',')
+                .map(str::trim)
+                .filter(|t| !t.is_empty())
+                .map(str::to_owned)
+                .collect()
+        })
+    }
+
+    fn notice_value(&self) -> Option<bool> {
+        (self.notice_shown == "1").then(|| self.notice.is_some())
+    }
+
+    fn secret_value(&self) -> Option<bool> {
+        (!self.visibility.is_empty()).then(|| self.visibility == "secret")
+    }
 }
 
 /// 폼의 예약 의도를 서비스 입력으로. `None` 이면 예약을 건드리지 않는다.
@@ -697,17 +734,46 @@ async fn edit_page(
             })
         })
     });
+    // 분류: 고치는 글은 그 게시판 것만, 새 글은 게시판을 바꿀 수 있어 전부(스크립트가 게시판별로 거른다).
+    let mut cats = Vec::new();
+    for b in boards
+        .iter()
+        .filter(|b| board_slug.as_deref().is_none_or(|s| s == b.slug))
+    {
+        for c in categories::list(&state.ctx, &who.actor, &b.slug)
+            .await
+            .unwrap_or_default()
+        {
+            cats.push((b.slug.clone(), c));
+        }
+    }
+    let category_slug = |id: Option<&str>| {
+        id.and_then(|id| cats.iter().find(|(_, c)| c.id == id))
+            .map(|(_, c)| c.slug.clone())
+    };
     // 실패해서 다시 그릴 때는 사용자가 보낸 값을 그대로 돌려준다.
     let values = match (form, post) {
         (Some(f), _) => json!({
             "board": f.board, "title": f.title, "slug": f.slug,
             "body_md": f.body_md, "excerpt": f.excerpt,
             "cover": f.cover, "scheduled_at": f.scheduled_at,
+            "category": f.category, "tags": f.tags,
+            "notice": f.notice.is_some(), "visibility": f.visibility,
         }),
         (None, Some(p)) => json!({
             "board": board_slug, "title": p.title, "slug": p.slug,
             "body_md": p.body_md, "excerpt": p.excerpt, "cover": p.cover,
             "scheduled_at": p.scheduled_at.as_deref().map(|s| clock::to_local_input(s, tz)),
+            "category": category_slug(p.category_id.as_deref()),
+            "tags": p.tags.join(", "),
+            "notice": p.is_notice,
+            "visibility": if p.status == PostStatus::Hidden {
+                "private"
+            } else if p.is_secret {
+                "secret"
+            } else {
+                "public"
+            },
         }),
         (None, None) => json!({ "board": boards.first().map(|b| b.slug.clone()) }),
     };
@@ -727,6 +793,10 @@ async fn edit_page(
                 "scheduled": p.scheduled_at.as_deref().map(|s| clock::display_datetime(s, tz)),
             })),
             "values": values,
+            "categories": cats.iter().map(|(b, c)| json!({ "board": b, "slug": c.slug, "name": c.name })).collect::<Vec<_>>(),
+            // 칸을 보일지만 정한다. 실제 권한 검사는 서비스가 한다.
+            "can_notice": who.actor.has(Permission::PostPublish),
+            "can_add_category": who.actor.has(Permission::StructureEdit),
             "board_slug": board_slug,
             "public_url": public_url,
             "notice": notice_text,
@@ -768,6 +838,10 @@ async fn create(
         body_md: f.body_md.clone(),
         excerpt: opt(&f.excerpt),
         cover: opt(&f.cover),
+        category: f.category.as_deref().and_then(opt),
+        tags: f.tag_list().unwrap_or_default(),
+        notice: f.notice_value().unwrap_or(false),
+        secret: f.secret_value().unwrap_or(false),
     };
     let post = match posts::create_draft(&state.ctx, &who.actor, input).await {
         Ok(p) => p,
@@ -790,6 +864,42 @@ async fn create(
 
 /// 저장 뒤 `intent=publish` 면 발행, `schedule`·`unschedule` 이면 예약까지. 실패해도 저장은 남는다.
 async fn finish_save(state: &AppState, who: &SignedIn, post: Post, f: &PostForm) -> Response {
+    // 비공개 = 숨김. 발행·예약보다 먼저 본다: 공개 글은 숨기고, 공개 전 글은 예약을 풀고 저장만 한다.
+    if f.visibility == "private" {
+        let res = if post.status == PostStatus::Published {
+            posts::hide(&state.ctx, &who.actor, &post.id)
+                .await
+                .map(|p| (p, "hidden"))
+        } else if post.scheduled_at.is_some() {
+            let patch = PostPatch {
+                scheduled_at: Some(String::new()),
+                ..Default::default()
+            };
+            posts::update(&state.ctx, &who.actor, &post.id, patch)
+                .await
+                .map(|p| (p, "saved"))
+        } else {
+            Ok((post.clone(), "saved"))
+        };
+        return match res {
+            Ok((p, done)) => {
+                Redirect::to(&format!("/admin/posts/{}?done={done}", p.id)).into_response()
+            }
+            Err(e) if e.code() != Code::Internal => {
+                edit_page(
+                    state,
+                    who,
+                    StatusCode::from_u16(e.code().http_status()).unwrap_or(StatusCode::BAD_REQUEST),
+                    Some(&post),
+                    None,
+                    Some("저장했지만 비공개로 바꾸지 못했습니다."),
+                    Some(e.message()),
+                )
+                .await
+            }
+            Err(e) => fail(state, Some(who), &e).await,
+        };
+    }
     if matches!(f.intent.as_str(), "schedule" | "unschedule") {
         let res = match schedule_value(state, f).await {
             Ok(at) => {
@@ -899,6 +1009,10 @@ async fn save(
         excerpt: Some(f.excerpt.clone()),
         cover: Some(f.cover.clone()),
         scheduled_at: None,
+        category: f.category.clone(),
+        tags: f.tag_list(),
+        notice: f.notice_value(),
+        secret: f.secret_value(),
     };
     match posts::update(&state.ctx, &who.actor, &id, patch).await {
         Ok(p) => finish_save(&state, &who, p, &f).await,
@@ -1112,13 +1226,27 @@ async fn preview(
     body: Result<Json<posts::PreviewInput>, JsonRejection>,
 ) -> Result<Response, ApiError> {
     let who = json_session(&state, &headers).await?;
-    let Json(input) = body.map_err(|e| {
-        ApiError(
-            Error::new(Code::Validation)
-                .with_message("error.json_body")
-                .arg("detail", e.body_text()),
-        )
-    })?;
+    let Json(input) = body.map_err(json_body_error)?;
     let out = posts::preview(&state.ctx, &who.actor, input)?;
     Ok(Json(Success::new(out)).into_response())
+}
+
+/// 발행 설정의 「새 분류」: 그 자리에서 분류를 만든다. 같은 주소가 있으면 그것을 돌려준다.
+async fn create_category(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    body: Result<Json<categories::NewCategory>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let who = json_session(&state, &headers).await?;
+    let Json(input) = body.map_err(json_body_error)?;
+    let c = categories::create(&state.ctx, &who.actor, input).await?;
+    Ok((StatusCode::CREATED, Json(Success::new(c))).into_response())
+}
+
+fn json_body_error(e: JsonRejection) -> ApiError {
+    ApiError(
+        Error::new(Code::Validation)
+            .with_message("error.json_body")
+            .arg("detail", e.body_text()),
+    )
 }

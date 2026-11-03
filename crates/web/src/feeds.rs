@@ -58,16 +58,22 @@ fn xml_response(xml: String, mime: &'static str) -> Response {
 }
 
 /// 공개 글 전부 (게시판 슬러그와 함께). 화면 목록과 같은 서비스를 페이지 단위로 돈다.
+/// 비밀글은 제목만 보이는 글이라 피드·사이트맵에는 아예 넣지 않는다.
 async fn all_public_posts(state: &AppState, max: usize) -> Result<Vec<(String, Post)>> {
     let actor = anonymous_actor(&state.ctx).await?;
     let all_boards = state.ctx.store.list_boards().await?;
+    let filter = posts::PublicFilter {
+        exclude_secret: true,
+        ..Default::default()
+    };
     let mut out = Vec::new();
     let mut page = 1;
     loop {
-        let list = posts::public_posts(
+        let list = posts::public_posts_where(
             &state.ctx,
             &actor,
             None,
+            &filter,
             PageReq::new(page, PageReq::MAX_PER_PAGE),
         )
         .await?;

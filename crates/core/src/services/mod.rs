@@ -3,6 +3,7 @@
 
 pub mod auth;
 pub mod boards;
+pub mod categories;
 pub mod design;
 pub mod files;
 pub mod media;
@@ -11,6 +12,7 @@ pub mod pages;
 pub mod posts;
 pub mod presets;
 pub mod settings;
+pub mod tags;
 pub mod templates;
 pub mod tokens;
 

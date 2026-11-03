@@ -47,6 +47,38 @@
     </div>
 
     <div class="publish-field">
+      <label for="category">분류</label>
+      <div class="category-row">
+        <select id="category" name="category" data-category>
+          <option value="">분류 없음</option>
+          {% for c in categories %}<option value="{{ c.slug }}" data-board="{{ c.board }}"{% if c.slug == values.category and (not board_slug or c.board == board_slug) %} selected{% endif %}>{{ c.name }}</option>{% endfor %}
+        </select>
+        {% if can_add_category %}<button type="button" class="secondary small" data-category-add hidden>+ 새 분류</button>{% endif %}
+      </div>
+    </div>
+
+    <div class="publish-field">
+      <label for="tags">태그</label>
+      <input id="tags" name="tags" maxlength="700" value="{{ values.tags or '' }}" placeholder="쉼표로 구분 (예: 제주, 여행)" autocomplete="off" data-tags>
+      <p class="publish-hint" data-tags-info>최대 20개, 하나에 30자까지. 태그 화면에서 같은 태그의 글을 모아 봅니다.</p>
+    </div>
+
+    {% set vis = values.visibility or "public" %}
+    <fieldset class="publish-field publish-visibility">
+      <legend>공개 범위</legend>
+      <label class="choice"><input type="radio" name="visibility" value="public"{% if vis == "public" %} checked{% endif %} data-visibility> 전체 공개</label>
+      <label class="choice"><input type="radio" name="visibility" value="secret"{% if vis == "secret" %} checked{% endif %} data-visibility> 비밀글 <span class="choice-hint">목록에는 제목만, 본문은 나와 관리자만</span></label>
+      <label class="choice"><input type="radio" name="visibility" value="private"{% if vis == "private" %} checked{% endif %} data-visibility> 비공개 <span class="choice-hint">{% if published %}공개 페이지에서 내립니다{% else %}발행하지 않고 저장만 합니다{% endif %}</span></label>
+    </fieldset>
+
+    {% if can_notice %}
+    <div class="publish-field">
+      <input type="hidden" name="notice_shown" value="1">
+      <label class="choice"><input type="checkbox" name="notice" value="1"{% if values.notice %} checked{% endif %}> 공지로 올리기 <span class="choice-hint">게시판 목록 맨 위에 고정합니다</span></label>
+    </div>
+    {% endif %}
+
+    <div class="publish-field">
       <label for="slug">주소</label>
       <input id="slug" name="slug" maxlength="120" value="{{ values.slug }}" placeholder="비우면 제목에서 만듭니다" autocomplete="off" spellcheck="false">
       <p class="publish-hint" data-slug-info>비우면 제목에서 만듭니다.</p>
@@ -91,7 +123,7 @@
 
     <div class="publish-actions">
       {% if published %}
-      <button type="submit" name="intent" value="draft">저장</button>
+      <button type="submit" name="intent" value="draft" data-save>저장</button>
       {% else %}
       <button type="submit" name="intent" value="publish" data-when-now>지금 발행</button>
       <button type="submit" name="intent" value="schedule" data-when-later>예약 발행</button>

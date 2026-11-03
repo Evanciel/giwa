@@ -1,5 +1,26 @@
 {% extends "base.html" %}
 {% block main %}
-<h1 class="page-title">{{ board.name }}</h1>
+<h1 class="page-title">{{ board.name }}{% if category %} <span class="page-sub">· {{ category.name }}</span>{% endif %}</h1>
+{% if categories %}
+<nav class="cats" aria-label="분류">
+  <ul>
+    <li><a href="{{ board.url }}"{% if not category %} aria-current="page"{% endif %}>전체</a></li>
+    {% for c in categories %}
+    <li><a href="{{ c.url }}"{% if c.current %} aria-current="page"{% endif %}>{{ c.name }}</a></li>
+    {% endfor %}
+  </ul>
+</nav>
+{% endif %}
+{% if notices %}
+<ul class="notice-list" aria-label="공지">
+  {% for post in notices %}
+  <li>
+    <span class="badge">공지</span>
+    <a href="{{ post.url }}">{% if post.is_secret %}{% include "_lock.html" %}{% endif %}{{ post.title }}</a>
+    <time datetime="{{ post.published_at }}">{{ post.date }}</time>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
 {% include "_list.html" %}
 {% endblock %}

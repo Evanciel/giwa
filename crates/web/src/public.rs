@@ -6,12 +6,14 @@ use axum::http::{StatusCode, header};
 use axum::middleware;
 use axum::response::{Html, IntoResponse, Response};
 use axum::routing::get;
-use maru_core::model::{Board, Listing, MenuItem, MenuLink, Page, PageReq, Post, SiteSettings};
+use maru_core::model::{
+    Board, Category, Listing, MenuItem, MenuLink, Page, PageReq, Post, SiteSettings,
+};
 use maru_core::services::{
-    anonymous_actor, boards, design, files, media, menus, pages, posts, settings,
+    anonymous_actor, boards, design, files, media, menus, pages, posts, settings, tags,
 };
 use maru_core::urls::{self, Target};
-use maru_core::{Code, Error, Result, blobs, clock, markdown};
+use maru_core::{Code, Error, Result, blobs, clock, markdown, slug};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -25,6 +27,8 @@ pub fn routes() -> Router<AppState> {
         .route("/b/{board}", get(board))
         .route("/b/{board}/{post}", get(post))
         .route("/p/{page}", get(page))
+        .route("/tags", get(tags_index))
+        .route("/tags/{tag}", get(tag_page))
         .route("/sitemap.xml", get(crate::feeds::sitemap))
         .route("/rss.xml", get(crate::feeds::rss))
         .route("/robots.txt", get(crate::feeds::robots))
@@ -41,6 +45,8 @@ pub fn routes() -> Router<AppState> {
 #[derive(Debug, Deserialize)]
 struct PageQuery {
     page: Option<u32>,
+    /// 게시판 분류 주소. 빈 값은 전체.
+    category: Option<String>,
 }
 
 /// 템플릿에 넘기는 사이트 공통 값. 설정·메뉴를 못 읽어도 화면은 기본값으로 뜬다.
@@ -131,9 +137,24 @@ async fn home_inner(state: &AppState, q: PageQuery) -> Result<Value> {
     let actor = anonymous_actor(&state.ctx).await?;
     let page = PageReq::new(q.page.unwrap_or(1), site.settings.posts_per_page);
     let list = posts::public_posts(&state.ctx, &actor, None, page).await?;
+    let items = summaries_any_board(state, &list.items, &site.settings).await?;
+    Ok(json!({
+        "meta": json!({ "title": site.settings.name, "description": site.settings.description }),
+        "site": site.json,
+        "canonical": urls::absolute(&state.ctx.site_url, &Target::Home),
+        "posts": items,
+        "pagination": pagination(&list, &urls::path(&Target::Home)),
+    }))
+}
+
+/// 여러 게시판에 걸친 목록(첫 화면·태그)의 항목. 글마다 게시판 주소를 찾아 붙인다.
+async fn summaries_any_board(
+    state: &AppState,
+    list: &[Post],
+    s: &SiteSettings,
+) -> Result<Vec<Value>> {
     let all_boards = state.ctx.store.list_boards().await?;
     let items = list
-        .items
         .iter()
         .map(|p| {
             let slug = all_boards
@@ -141,17 +162,10 @@ async fn home_inner(state: &AppState, q: PageQuery) -> Result<Value> {
                 .find(|b| b.id == p.board_id)
                 .map(|b| b.slug.as_str())
                 .unwrap_or_default();
-            post_summary(slug, p, &site.settings)
+            post_summary(slug, p, s)
         })
         .collect::<Vec<_>>();
-    let items = with_thumbs(state, items, &list.items).await?;
-    Ok(json!({
-        "meta": json!({ "title": site.settings.name, "description": site.settings.description }),
-        "site": site.json,
-        "canonical": urls::absolute(&state.ctx.site_url, &Target::Home),
-        "posts": items,
-        "pagination": pagination(&list, &Target::Home),
-    }))
+    with_thumbs(state, items, list).await
 }
 
 async fn board(
@@ -168,25 +182,71 @@ async fn board_inner(state: &AppState, slug: &str, q: PageQuery) -> Result<Value
     let actor = anonymous_actor(&state.ctx).await?;
     let board = boards::readable(&state.ctx, &actor, slug).await?;
     let page = PageReq::new(q.page.unwrap_or(1), site.settings.posts_per_page);
-    let list = posts::public_posts(&state.ctx, &actor, Some(&board), page).await?;
-    let target = Target::Board { board: &board.slug };
-    let items = list
-        .items
+    let category = q.category.as_deref().filter(|c| !c.is_empty());
+    let found = posts::public_board(&state.ctx, &actor, &board, category, page).await?;
+    let cats = &found.categories;
+    let target = match &found.category {
+        Some(c) => Target::Category {
+            board: &board.slug,
+            category: &c.slug,
+        },
+        None => Target::Board { board: &board.slug },
+    };
+    let summarize = |list: &[Post]| {
+        list.iter()
+            .map(|p| {
+                let mut view = post_summary(&board.slug, p, &site.settings);
+                view["category"] = category_of(&board.slug, cats, p);
+                view
+            })
+            .collect::<Vec<_>>()
+    };
+    let notices = summarize(&found.notices);
+    let items = summarize(&found.posts.items);
+    let items = with_thumbs(state, items, &found.posts.items).await?;
+    let current = found.category.as_ref().map(|c| c.id.as_str());
+    let categories = cats
         .iter()
-        .map(|p| post_summary(&board.slug, p, &site.settings))
+        .map(|c| {
+            let mut v = category_json(&board.slug, c);
+            v["current"] = json!(Some(c.id.as_str()) == current);
+            v
+        })
         .collect::<Vec<_>>();
-    let items = with_thumbs(state, items, &list.items).await?;
+    let title = match &found.category {
+        Some(c) => format!("{} · {} · {}", c.name, board.name, site.settings.name),
+        None => format!("{} · {}", board.name, site.settings.name),
+    };
     Ok(json!({
         "meta": json!({
-            "title": format!("{} · {}", board.name, site.settings.name),
+            "title": title,
             "description": site.settings.description,
         }),
         "site": site.json,
         "canonical": urls::absolute(&state.ctx.site_url, &target),
         "board": board_json(&board),
+        "categories": categories,
+        "category": found.category.as_ref().map(|c| category_json(&board.slug, c)),
+        "notices": notices,
         "posts": items,
-        "pagination": pagination(&list, &target),
+        "pagination": pagination(&found.posts, &urls::path(&target)),
     }))
+}
+
+fn category_json(board_slug: &str, c: &Category) -> Value {
+    json!({
+        "name": c.name,
+        "slug": c.slug,
+        "url": urls::path(&Target::Category { board: board_slug, category: &c.slug }),
+    })
+}
+
+/// 글의 분류(없으면 null). 지운 분류를 가리키면 없는 것으로 본다.
+fn category_of(board_slug: &str, cats: &[Category], p: &Post) -> Value {
+    p.category_id
+        .as_deref()
+        .and_then(|id| cats.iter().find(|c| c.id == id))
+        .map_or(Value::Null, |c| category_json(board_slug, c))
 }
 
 async fn post(
@@ -206,6 +266,11 @@ async fn post_inner(state: &AppState, board_slug: &str, post_slug: &str) -> Resu
         post: &post.slug,
     };
     let mut view = post_summary(&board.slug, &post, &site.settings);
+    if let Some(id) = &post.category_id
+        && let Some(c) = state.ctx.store.category_by_id(id).await?
+    {
+        view["category"] = category_json(&board.slug, &c);
+    }
     let doc = body_document(state, &post.body_md, &site.settings).await?;
     view["body_html"] = Value::String(doc.html.into_string());
     view["toc"] = json!(doc.toc);
@@ -224,6 +289,66 @@ async fn post_inner(state: &AppState, board_slug: &str, post_slug: &str) -> Resu
         "board": board_json(&board),
         "post": view,
     }))
+}
+
+async fn tags_index(State(state): State<AppState>) -> Response {
+    let v = tags_index_inner(&state).await;
+    render(&state, "tags.html", v).await
+}
+
+async fn tags_index_inner(state: &AppState) -> Result<Value> {
+    let site = load_site(state).await?;
+    let actor = anonymous_actor(&state.ctx).await?;
+    let list = tags::list(&state.ctx, &actor).await?;
+    let items = list
+        .iter()
+        .map(|t| json!({ "name": t.name, "url": tag_url(&t.slug), "posts": t.posts }))
+        .collect::<Vec<_>>();
+    Ok(json!({
+        "meta": json!({
+            "title": format!("태그 · {}", site.settings.name),
+            "description": site.settings.description,
+        }),
+        "site": site.json,
+        "canonical": urls::absolute(&state.ctx.site_url, &Target::Tags),
+        "tags": items,
+    }))
+}
+
+async fn tag_page(
+    State(state): State<AppState>,
+    Path(slug): Path<String>,
+    Query(q): Query<PageQuery>,
+) -> Response {
+    let v = tag_page_inner(&state, &slug, q).await;
+    render(&state, "tag.html", v).await
+}
+
+async fn tag_page_inner(state: &AppState, slug: &str, q: PageQuery) -> Result<Value> {
+    let site = load_site(state).await?;
+    let actor = anonymous_actor(&state.ctx).await?;
+    let page = PageReq::new(q.page.unwrap_or(1), site.settings.posts_per_page);
+    let (tag, list) = posts::public_tag(&state.ctx, &actor, slug, page).await?;
+    let target = Target::Tag { tag: &tag.slug };
+    let items = summaries_any_board(state, &list.items, &site.settings).await?;
+    Ok(json!({
+        "meta": json!({
+            "title": format!("#{} · {}", tag.name, site.settings.name),
+            "description": format!("'{}' 태그가 달린 글 {}개", tag.name, list.total),
+            // 글이 없는 태그 화면은 검색에 내보내지 않는다.
+            "noindex": list.total == 0,
+        }),
+        "site": site.json,
+        "canonical": urls::absolute(&state.ctx.site_url, &target),
+        "tag": json!({ "name": tag.name, "url": tag_url(&tag.slug), "posts": list.total }),
+        "tags_url": urls::path(&Target::Tags),
+        "posts": items,
+        "pagination": pagination(&list, &urls::path(&target)),
+    }))
+}
+
+fn tag_url(slug: &str) -> String {
+    urls::path(&Target::Tag { tag: slug })
 }
 
 async fn page(State(state): State<AppState>, Path(slug): Path<String>) -> Response {
@@ -453,18 +578,27 @@ fn post_summary(board_slug: &str, p: &Post, s: &SiteSettings) -> Value {
         "published_at": published,
         "date": clock::display_date(&published, s.tz_offset_min),
         "summary": summary,
+        "is_notice": p.is_notice,
+        "is_secret": p.is_secret,
+        // 비밀글은 서비스가 이미 태그를 비워서 준다.
+        "tags": p.tags.iter().map(|name| json!({
+            "name": name,
+            "url": tag_url(&slug::tag(name)),
+        })).collect::<Vec<_>>(),
+        "category": Value::Null,
     })
 }
 
-fn pagination<T>(list: &Listing<T>, target: &Target<'_>) -> Value {
-    let base = urls::path(target);
+/// `base` 는 첫 쪽 주소. 이미 쿼리(`?category=`)가 있으면 `&page=` 로 잇는다.
+fn pagination<T>(list: &Listing<T>, base: &str) -> Value {
     let total_pages = list.total_pages();
     let page = i64::from(list.page);
+    let sep = if base.contains('?') { '&' } else { '?' };
     let link = |n: i64| {
         if n == 1 {
-            base.clone()
+            base.to_owned()
         } else {
-            format!("{base}?page={n}")
+            format!("{base}{sep}page={n}")
         }
     };
     json!({

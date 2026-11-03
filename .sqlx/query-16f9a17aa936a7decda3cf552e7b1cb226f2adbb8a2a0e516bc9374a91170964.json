@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE categories SET name = ?, slug = ?, sort_order = ?, updated_at = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "16f9a17aa936a7decda3cf552e7b1cb226f2adbb8a2a0e516bc9374a91170964"
+}

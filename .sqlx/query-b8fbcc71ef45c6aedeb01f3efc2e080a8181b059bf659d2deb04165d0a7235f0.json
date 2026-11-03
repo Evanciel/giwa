@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT count(*) AS \"n!: i64\"\n               FROM posts p\n               JOIN boards b ON b.id = p.board_id\n               JOIN roles r ON r.name = json_extract(b.policy, '$.read')\n               WHERE p.status = 'published' AND p.kind = 'post'\n                 AND r.rank <= ?1 AND (?2 IS NULL OR p.board_id = ?2)\n                 AND (?3 IS NULL OR p.category_id = ?3)\n                 AND (?4 IS NULL OR p.is_notice = ?4)\n                 AND (?5 IS NULL OR EXISTS (SELECT 1 FROM post_tags x\n                                             WHERE x.post_id = p.id AND x.tag_id = ?5))\n                 AND (?6 = 0 OR p.is_secret = 0)",
+  "describe": {
+    "columns": [
+      {
+        "name": "n!: i64",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "b8fbcc71ef45c6aedeb01f3efc2e080a8181b059bf659d2deb04165d0a7235f0"
+}

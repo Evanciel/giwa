@@ -43,6 +43,12 @@ pub fn from_title(title: &str, fallback: &str) -> String {
     }
 }
 
+/// 태그 이름의 주소 조각. 앞의 `#` 은 뗀다. 글자가 하나도 남지 않으면 빈 문자열.
+/// 대소문자·기호만 다른 태그(`Rust`, `rust!`)는 같은 태그가 된다.
+pub fn tag(name: &str) -> String {
+    from_title(name.trim().trim_start_matches('#'), "")
+}
+
 fn collapse(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for ch in s.chars() {
@@ -86,5 +92,12 @@ mod tests {
             "첫-글-rust로-cms-만들기"
         );
         assert_eq!(from_title("!!!", "post"), "post");
+    }
+
+    #[test]
+    fn tag_drops_hash_and_case() {
+        assert_eq!(tag("#Rust"), "rust");
+        assert_eq!(tag(" 제주 여행 "), "제주-여행");
+        assert_eq!(tag("###"), "");
     }
 }

@@ -66,6 +66,10 @@ fn draft(title: &str) -> NewPost {
         body_md: "본문입니다.".into(),
         excerpt: None,
         cover: None,
+        category: None,
+        tags: vec![],
+        notice: false,
+        secret: false,
     }
 }
 
@@ -1336,5 +1340,392 @@ async fn templates_upsert_by_name_and_protect_builtins() {
         .await,
         3
     );
+    e.db.close().await;
+}
+
+// ---- 분류·태그·공지·비밀글 (GAP C1~C4) ----
+
+use maru_core::services::{categories, tags};
+
+fn in_category(title: &str, category: &str) -> NewPost {
+    NewPost {
+        category: Some(category.into()),
+        ..draft(title)
+    }
+}
+
+fn new_category(name: &str) -> categories::NewCategory {
+    categories::NewCategory {
+        board: "blog".into(),
+        name: name.into(),
+        slug: None,
+    }
+}
+
+#[tokio::test]
+async fn categories_are_idempotent_and_delete_clears_posts() {
+    let e = env().await;
+    blog(&e.ctx).await;
+    let local = Actor::local();
+    let travel = categories::create(&e.ctx, &local, new_category("제주 여행"))
+        .await
+        .unwrap();
+    assert_eq!(travel.slug, "제주-여행");
+    let again = categories::create(&e.ctx, &local, new_category("제주 여행"))
+        .await
+        .unwrap();
+    assert_eq!(again.id, travel.id, "같은 주소면 기존 분류");
+    let food = categories::create(&e.ctx, &local, new_category("맛집"))
+        .await
+        .unwrap();
+    assert!(food.sort_order > travel.sort_order, "새 분류는 뒤에");
+
+    // 구조 편집 권한이 없으면 만들 수 없다.
+    let writer = Actor::agent("w".into(), &Scope::DEFAULT, None);
+    assert_eq!(
+        categories::create(&e.ctx, &writer, new_category("몰래"))
+            .await
+            .unwrap_err()
+            .code(),
+        Code::Forbidden
+    );
+
+    // 없는 분류로 글을 쓰면 다음 명령을 알려 준다.
+    let err = posts::create_draft(&e.ctx, &local, in_category("글", "없는-분류"))
+        .await
+        .unwrap_err();
+    assert_eq!(err.code(), Code::NotFound);
+    assert!(
+        err.next_commands()
+            .iter()
+            .any(|c| c.contains("maru category list"))
+    );
+
+    let post = posts::create_draft(&e.ctx, &local, in_category("한라산", "제주-여행"))
+        .await
+        .unwrap();
+    assert_eq!(post.category_id.as_deref(), Some(travel.id.as_str()));
+
+    // 이름 바꾸기·순서
+    let patch = categories::CategoryPatch {
+        name: Some("제주".into()),
+        sort_order: Some(9),
+        ..Default::default()
+    };
+    let renamed = categories::update(&e.ctx, &local, "blog", "제주-여행", patch)
+        .await
+        .unwrap();
+    assert_eq!(
+        (renamed.name.as_str(), renamed.slug.as_str()),
+        ("제주", "제주-여행")
+    );
+    let list = categories::list(&e.ctx, &local, "blog").await.unwrap();
+    assert_eq!(list.first().map(|c| c.slug.as_str()), Some("맛집"));
+
+    // 지우면 글은 남고 분류만 빈다. 감사 기록에 비운 글 수가 남는다.
+    categories::delete(&e.ctx, &local, "blog", "제주-여행")
+        .await
+        .unwrap();
+    let after = posts::get(&e.ctx, &local, &post.id).await.unwrap();
+    assert_eq!(after.category_id, None);
+    assert_eq!(
+        scalar(
+            &e.db,
+            "SELECT count(*) FROM audit_log WHERE action = 'category.delete'
+             AND json_extract(diff, '$.posts_cleared') = 1"
+        )
+        .await,
+        1
+    );
+
+    // 분류 비우기(빈 문자열)
+    let p2 = posts::create_draft(&e.ctx, &local, in_category("국밥", "맛집"))
+        .await
+        .unwrap();
+    let cleared = posts::update(
+        &e.ctx,
+        &local,
+        &p2.id,
+        posts::PostPatch {
+            category: Some(String::new()),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(cleared.category_id, None);
+    e.db.close().await;
+}
+
+fn with_tags(title: &str, t: &[&str]) -> NewPost {
+    NewPost {
+        tags: t.iter().map(|s| (*s).to_owned()).collect(),
+        ..draft(title)
+    }
+}
+
+#[tokio::test]
+async fn tags_are_normalized_ordered_and_counted() {
+    let e = env().await;
+    blog(&e.ctx).await;
+    let local = Actor::local();
+    let anon = anonymous_actor(&e.ctx).await.unwrap();
+
+    let a = posts::create_draft(
+        &e.ctx,
+        &local,
+        with_tags("첫 글", &["#Rust", " 제주   여행 ", "rust", "  "]),
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        a.tags,
+        vec!["Rust", "제주 여행"],
+        "앞 #·공백 정리, 중복 제거, 순서 유지"
+    );
+    // 이미 있는 태그는 처음 이름으로 맞춘다.
+    let b = posts::create_draft(&e.ctx, &local, with_tags("둘째 글", &["RUST"]))
+        .await
+        .unwrap();
+    assert_eq!(b.tags, vec!["Rust"]);
+    let reread = posts::get(&e.ctx, &local, &a.id).await.unwrap();
+    assert_eq!(reread.tags, a.tags, "저장한 순서대로 다시 읽힌다");
+
+    // 공개 전에는 태그 목록에 없다.
+    assert!(tags::list(&e.ctx, &anon).await.unwrap().is_empty());
+    posts::publish(&e.ctx, &local, &a.id).await.unwrap();
+    posts::publish(&e.ctx, &local, &b.id).await.unwrap();
+    let list = tags::list(&e.ctx, &anon).await.unwrap();
+    let rust = list.iter().find(|t| t.slug == "rust").unwrap();
+    assert_eq!(rust.posts, 2);
+    let (tag, by_tag) = posts::public_tag(&e.ctx, &anon, "Rust", PageReq::default())
+        .await
+        .unwrap();
+    assert_eq!((tag.name.as_str(), by_tag.total), ("Rust", 2));
+
+    // 태그 바꾸기·모두 빼기
+    let changed = posts::update(
+        &e.ctx,
+        &local,
+        &a.id,
+        posts::PostPatch {
+            tags: Some(vec!["여행".into(), "Rust".into()]),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(changed.tags, vec!["여행", "Rust"]);
+    let none = posts::update(
+        &e.ctx,
+        &local,
+        &a.id,
+        posts::PostPatch {
+            tags: Some(vec![]),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    assert!(none.tags.is_empty());
+
+    // 한도
+    let many: Vec<String> = (0..21).map(|i| format!("t{i}")).collect();
+    let err = posts::create_draft(
+        &e.ctx,
+        &local,
+        NewPost {
+            tags: many,
+            ..draft("많음")
+        },
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(err.code(), Code::Validation);
+    let long = "가".repeat(31);
+    let err = posts::create_draft(&e.ctx, &local, with_tags("긺", &[long.as_str()]))
+        .await
+        .unwrap_err();
+    assert_eq!(err.code(), Code::Validation);
+    let err = posts::create_draft(&e.ctx, &local, with_tags("기호", &["!!!"]))
+        .await
+        .unwrap_err();
+    assert_eq!(err.code(), Code::Validation);
+    e.db.close().await;
+}
+
+#[tokio::test]
+async fn notices_need_publish_and_stay_on_top() {
+    let e = env().await;
+    blog(&e.ctx).await;
+    let local = Actor::local();
+    let anon = anonymous_actor(&e.ctx).await.unwrap();
+    let writer = Actor::agent("w".into(), &Scope::DEFAULT, None);
+    let notice = |title: &str| NewPost {
+        notice: true,
+        ..draft(title)
+    };
+
+    assert_eq!(
+        posts::create_draft(&e.ctx, &writer, notice("몰래 공지"))
+            .await
+            .unwrap_err()
+            .code(),
+        Code::Forbidden
+    );
+    let mine = posts::create_draft(&e.ctx, &writer, draft("내 글"))
+        .await
+        .unwrap();
+    assert_eq!(
+        posts::update(
+            &e.ctx,
+            &writer,
+            &mine.id,
+            posts::PostPatch {
+                notice: Some(true),
+                ..Default::default()
+            }
+        )
+        .await
+        .unwrap_err()
+        .code(),
+        Code::Forbidden
+    );
+
+    categories::create(&e.ctx, &local, new_category("일상"))
+        .await
+        .unwrap();
+    let n = posts::create_draft(&e.ctx, &local, notice("공지입니다"))
+        .await
+        .unwrap();
+    posts::publish(&e.ctx, &local, &n.id).await.unwrap();
+    for (i, cat) in [None, Some("일상"), Some("일상")].into_iter().enumerate() {
+        let input = NewPost {
+            category: cat.map(str::to_owned),
+            ..draft(&format!("일반 {i}"))
+        };
+        let p = posts::create_draft(&e.ctx, &local, input).await.unwrap();
+        posts::publish(&e.ctx, &local, &p.id).await.unwrap();
+    }
+
+    let board = boards::readable(&e.ctx, &anon, "blog").await.unwrap();
+    let page = posts::public_board(&e.ctx, &anon, &board, None, PageReq::default())
+        .await
+        .unwrap();
+    assert_eq!(page.notices.len(), 1);
+    assert_eq!(page.notices[0].title, "공지입니다");
+    assert_eq!(page.posts.total, 3, "공지는 일반 목록에서 빠진다");
+    assert_eq!(page.categories.len(), 1);
+
+    // 분류를 골라도 공지는 그대로 위에 있다.
+    let page = posts::public_board(&e.ctx, &anon, &board, Some("일상"), PageReq::default())
+        .await
+        .unwrap();
+    assert_eq!((page.notices.len(), page.posts.total), (1, 2));
+    assert_eq!(page.category.map(|c| c.slug), Some("일상".to_owned()));
+    assert_eq!(
+        posts::public_board(&e.ctx, &anon, &board, Some("없음"), PageReq::default())
+            .await
+            .unwrap_err()
+            .code(),
+        Code::NotFound
+    );
+    e.db.close().await;
+}
+
+#[tokio::test]
+async fn secret_post_body_is_only_for_author_and_moderators() {
+    let e = env().await;
+    blog(&e.ctx).await;
+    let local = Actor::local();
+    let anon = anonymous_actor(&e.ctx).await.unwrap();
+    let moderator = Actor::agent(
+        "ed".into(),
+        &[Scope::Read, Scope::Draft, Scope::Publish],
+        None,
+    );
+    let reader = Actor::agent("r".into(), &[Scope::Read], None);
+
+    let input = NewPost {
+        secret: true,
+        tags: vec!["비밀태그".into()],
+        excerpt: Some("요약도 비밀".into()),
+        body_md: "비밀 본문입니다.".into(),
+        ..draft("비밀 상담")
+    };
+    let s = posts::create_draft(&e.ctx, &local, input).await.unwrap();
+    posts::publish(&e.ctx, &local, &s.id).await.unwrap();
+
+    // 손님·읽기 토큰: 본문은 FORBIDDEN(글이 있다는 것은 숨기지 않는다), 목록에는 제목만
+    for who in [&anon, &reader] {
+        let err = posts::public_post(&e.ctx, who, "blog", &s.slug)
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), Code::Forbidden);
+        assert_eq!(err.message_key(), "error.post_secret");
+        assert_eq!(
+            posts::get(&e.ctx, who, &s.id).await.unwrap_err().code(),
+            Code::Forbidden
+        );
+        let list = posts::public_posts(&e.ctx, who, None, PageReq::default())
+            .await
+            .unwrap();
+        let item = list.items.iter().find(|p| p.id == s.id).unwrap();
+        assert_eq!(item.title, "비밀 상담");
+        assert!(item.is_secret);
+        assert!(item.body_md.is_empty() && item.excerpt.is_none() && item.tags.is_empty());
+        assert!(item.cover.is_none());
+    }
+    // 태그 목록·태그 페이지·피드용 목록에는 아예 없다.
+    assert!(tags::list(&e.ctx, &anon).await.unwrap().is_empty());
+    let (_, by_tag) = posts::public_tag(&e.ctx, &anon, "비밀태그", PageReq::default())
+        .await
+        .unwrap();
+    assert_eq!(by_tag.total, 0);
+    let feed = posts::public_posts_where(
+        &e.ctx,
+        &anon,
+        None,
+        &posts::PublicFilter {
+            exclude_secret: true,
+            ..Default::default()
+        },
+        PageReq::default(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(feed.total, 0);
+
+    // 작성자(로컬)와 관리자는 본문을 읽는다.
+    for who in [&local, &moderator] {
+        let (_, p) = posts::public_post(&e.ctx, who, "blog", &s.slug)
+            .await
+            .unwrap();
+        assert!(p.body_md.contains("비밀 본문"));
+        let list = posts::public_posts(&e.ctx, who, None, PageReq::default())
+            .await
+            .unwrap();
+        assert!(
+            list.items
+                .iter()
+                .any(|p| p.id == s.id && !p.body_md.is_empty())
+        );
+    }
+
+    // 비밀을 풀면 누구나 읽는다.
+    posts::update(
+        &e.ctx,
+        &local,
+        &s.id,
+        posts::PostPatch {
+            secret: Some(false),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    posts::public_post(&e.ctx, &anon, "blog", &s.slug)
+        .await
+        .unwrap();
     e.db.close().await;
 }

@@ -22,15 +22,38 @@ const SEGMENT: &AsciiSet = &CONTROLS
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Target<'a> {
     Home,
-    Board { board: &'a str },
-    Post { board: &'a str, post: &'a str },
-    Page { page: &'a str },
+    Board {
+        board: &'a str,
+    },
+    Post {
+        board: &'a str,
+        post: &'a str,
+    },
+    Page {
+        page: &'a str,
+    },
+    /// 게시판의 한 분류 (`/b/{board}?category={slug}`)
+    Category {
+        board: &'a str,
+        category: &'a str,
+    },
+    Tags,
+    Tag {
+        tag: &'a str,
+    },
     Sitemap,
     Rss,
 }
 
+/// 쿼리 값에서는 `&`·`=`·`+` 도 인코딩한다.
+const QUERY: &AsciiSet = &SEGMENT.add(b'&').add(b'=').add(b'+');
+
 fn enc(s: &str) -> String {
     utf8_percent_encode(s, SEGMENT).to_string()
+}
+
+fn enc_query(s: &str) -> String {
+    utf8_percent_encode(s, QUERY).to_string()
 }
 
 /// 사이트 안 경로 (`/` 로 시작).
@@ -40,6 +63,11 @@ pub fn path(target: &Target<'_>) -> String {
         Target::Board { board } => format!("/b/{}", enc(board)),
         Target::Post { board, post } => format!("/b/{}/{}", enc(board), enc(post)),
         Target::Page { page } => format!("/p/{}", enc(page)),
+        Target::Category { board, category } => {
+            format!("/b/{}?category={}", enc(board), enc_query(category))
+        }
+        Target::Tags => "/tags".to_owned(),
+        Target::Tag { tag } => format!("/tags/{}", enc(tag)),
         Target::Sitemap => "/sitemap.xml".to_owned(),
         Target::Rss => "/rss.xml".to_owned(),
     }
@@ -74,6 +102,17 @@ mod tests {
             "/b/blog/%EC%B2%AB-%EA%B8%80"
         );
         assert_eq!(path(&Target::Board { board: "a/b" }), "/b/a%2Fb");
+        assert_eq!(
+            path(&Target::Category {
+                board: "blog",
+                category: "a&b=c"
+            }),
+            "/b/blog?category=a%26b%3Dc"
+        );
+        assert_eq!(
+            path(&Target::Tag { tag: "제주" }),
+            "/tags/%EC%A0%9C%EC%A3%BC"
+        );
     }
 
     #[test]

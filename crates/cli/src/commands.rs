@@ -12,7 +12,9 @@ use maru_core::model::{MenuItem, MenuLink, Page, PageReq, PageStatus, PostStatus
 use maru_core::services::boards::{self, NewBoard};
 use maru_core::services::posts::{self, NewPost};
 use maru_core::services::tokens::{self, NewToken};
-use maru_core::services::{auth, design, files, media, menus, pages, presets, settings, templates};
+use maru_core::services::{
+    auth, categories, design, files, media, menus, pages, presets, settings, tags, templates,
+};
 use maru_core::urls::{self, Target};
 use maru_core::{Actor, Code, Ctx, Error, Result};
 use maru_storage::{DataDir, Db};
@@ -20,9 +22,9 @@ use serde_json::{Value, json};
 
 use crate::output;
 use crate::{
-    BoardCmd, Command, DesignCmd, FileCmd, Global, InitArgs, LoginLinkArgs, MediaCmd, MenuCmd,
-    MenuSetArgs, PageCmd, PostCmd, PostListArgs, PostNewArgs, ServeArgs, SiteCmd, TemplateCmd,
-    TokenCmd, TokenCreateArgs,
+    BoardCmd, CategoryCmd, Command, DesignCmd, FileCmd, Global, InitArgs, LoginLinkArgs, MediaCmd,
+    MenuCmd, MenuSetArgs, PageCmd, PostCmd, PostListArgs, PostNewArgs, ServeArgs, SiteCmd, TagCmd,
+    TemplateCmd, TokenCmd, TokenCreateArgs,
 };
 
 pub async fn run(g: &Global, command: Command) -> ExitCode {
@@ -36,6 +38,8 @@ pub async fn run(g: &Global, command: Command) -> ExitCode {
         Command::Media(cmd) => media_cmd(g, cmd).await,
         Command::File(cmd) => file_cmd(g, cmd).await,
         Command::Template(cmd) => template_cmd(g, cmd).await,
+        Command::Category(cmd) => category_cmd(g, cmd).await,
+        Command::Tag(cmd) => tag_cmd(g, cmd).await,
         Command::Page(cmd) => page(g, cmd).await,
         Command::Menu(cmd) => menu(g, cmd).await,
         Command::Site(cmd) => site(g, cmd).await,
@@ -372,6 +376,14 @@ async fn post(g: &Global, cmd: PostCmd) -> Out {
                 excerpt: args.excerpt,
                 cover: args.cover,
                 scheduled_at: schedule_arg(&ctx, args.schedule).await?,
+                category: args.category,
+                tags: if args.clear_tags {
+                    Some(vec![])
+                } else {
+                    (!args.tags.is_empty()).then_some(args.tags)
+                },
+                notice: args.notice,
+                secret: args.secret,
             };
             let p = posts::update(&ctx, &actor, &args.id, patch).await?;
             post_out(&ctx, &p, "고쳤습니다").await
@@ -455,6 +467,10 @@ async fn post_new(ctx: &Ctx, actor: &Actor, args: PostNewArgs) -> Out {
         body_md,
         excerpt: args.excerpt,
         cover: args.cover,
+        category: args.category,
+        tags: args.tags,
+        notice: args.notice,
+        secret: args.secret,
     };
     let schedule = schedule_arg(ctx, args.schedule).await?;
     let (mut p, created) = if args.if_not_exists {
@@ -1252,6 +1268,82 @@ async fn template_cmd(g: &Global, cmd: TemplateCmd) -> Out {
             let t = templates::delete(&ctx, &actor, &id).await?;
             let human = format!("틀을 지웠습니다: {}", t.name);
             Ok((to_value(&t)?, human))
+        }
+    };
+    db.close().await;
+    res
+}
+
+async fn category_cmd(g: &Global, cmd: CategoryCmd) -> Out {
+    let (ctx, _config, db) = open(g).await?;
+    let actor = actor(&ctx).await?;
+    let one = |c: &maru_core::model::Category, verb: &str| -> Out {
+        Ok((
+            to_value(c)?,
+            format!("{verb}: {} (주소 {})", c.name, c.slug),
+        ))
+    };
+    let res = match cmd {
+        CategoryCmd::List { board } => {
+            let list = categories::list(&ctx, &actor, &board).await?;
+            let mut human = format!("{board} 게시판 분류 {}개", list.len());
+            for c in &list {
+                human.push_str(&format!("\n{:>3}  {}  ({})", c.sort_order, c.name, c.slug));
+            }
+            if list.is_empty() {
+                human.push_str(&format!(
+                    "\n만들기: maru category add --board {board} <이름>"
+                ));
+            }
+            Ok((to_value(&list)?, human))
+        }
+        CategoryCmd::Add { board, name, slug } => {
+            let input = categories::NewCategory { board, name, slug };
+            let c = categories::create(&ctx, &actor, input).await?;
+            one(&c, "분류")
+        }
+        CategoryCmd::Rename {
+            board,
+            slug,
+            name,
+            new_slug,
+        } => {
+            let patch = categories::CategoryPatch {
+                name: Some(name),
+                slug: new_slug,
+                sort_order: None,
+            };
+            let c = categories::update(&ctx, &actor, &board, &slug, patch).await?;
+            one(&c, "이름을 바꿨습니다")
+        }
+        CategoryCmd::Move { board, slug, order } => {
+            let patch = categories::CategoryPatch {
+                sort_order: Some(order),
+                ..Default::default()
+            };
+            let c = categories::update(&ctx, &actor, &board, &slug, patch).await?;
+            one(&c, "순서를 바꿨습니다")
+        }
+        CategoryCmd::Remove { board, slug } => {
+            let c = categories::delete(&ctx, &actor, &board, &slug).await?;
+            one(&c, "지웠습니다")
+        }
+    };
+    db.close().await;
+    res
+}
+
+async fn tag_cmd(g: &Global, cmd: TagCmd) -> Out {
+    let (ctx, _config, db) = open(g).await?;
+    let actor = actor(&ctx).await?;
+    let res = match cmd {
+        TagCmd::List => {
+            let list = tags::list(&ctx, &actor).await?;
+            let mut human = format!("태그 {}개", list.len());
+            for t in &list {
+                human.push_str(&format!("\n#{}  글 {}개", t.name, t.posts));
+            }
+            Ok((to_value(&list)?, human))
         }
     };
     db.close().await;
