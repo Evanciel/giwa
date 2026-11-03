@@ -1,0 +1,57 @@
+{# 글 아래 댓글 (ADR-0052). 이 화면은 손님 기준으로 모두에게 같다: 고치기·지우기는 따로 연 화면에서 누구 것인지 확인한다.
+   본문은 사용자 입력이라 자동 이스케이프만 쓴다 (|safe 금지). #}
+<section class="comments" id="comments" aria-labelledby="comments-title">
+  <h2 id="comments-title">댓글{% if comments.count %} <span class="count">{{ comments.count }}</span>{% endif %}</h2>
+  {% if comments.pending %}<p class="form-notice" role="status">댓글을 받았습니다. 관리자가 확인한 뒤에 보입니다.</p>{% endif %}
+
+  {% if comments.items %}
+  <ol class="comment-list">
+    {% for c in comments.items %}
+    <li class="comment{% if c.depth %} reply{% endif %}{% if c.deleted %} deleted{% endif %}" id="comment-{{ c.id }}">
+      {% if c.deleted %}
+      <p class="comment-body muted">삭제된 댓글입니다.</p>
+      {% else %}
+      <p class="comment-head">
+        <strong class="comment-author">{{ c.author_name }}</strong>{% if c.is_guest %} <span class="comment-badge">비회원</span>{% endif %}
+        <time datetime="{{ c.created_at }}">{{ c.date }}</time>{% if c.edited %} <span class="muted">· 고침</span>{% endif %}
+      </p>
+      <p class="comment-body">{% if c.reply_to_name %}<span class="comment-to">@{{ c.reply_to_name }}</span> {% endif %}{{ c.body }}</p>
+      <p class="comment-actions">
+        {% if comments.rules.open %}<a href="{{ c.reply_url }}">답글</a>{% endif %}
+        <a href="{{ c.edit_url }}" rel="nofollow">고치기</a>
+        <a href="{{ c.delete_url }}" rel="nofollow">지우기</a>
+      </p>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+  {% endif %}
+
+  {% if comments.rules.open %}
+  <form class="comment-form account-form" id="comment-form" method="post" action="{{ comments.action }}">
+    {% if comments.reply_to %}
+    <input type="hidden" name="reply_to" value="{{ comments.reply_to.id }}">
+    <p class="comment-replying"><strong>{{ comments.reply_to.name }}</strong> 님에게 답글 · <a href="#comments">취소</a></p>
+    {% endif %}
+    <label for="comment-body">{% if comments.reply_to %}답글{% else %}댓글{% endif %}</label>
+    <textarea id="comment-body" name="body" rows="4" maxlength="{{ comments.rules.max_chars }}" required></textarea>
+    {% if comments.rules.guest %}
+    <fieldset class="comment-guest">
+      <legend>비회원으로 쓸 때만 <span class="muted">(<a href="{{ comments.login_url }}">로그인</a>했다면 비워 두세요)</span></legend>
+      <div class="comment-guest-row">
+        <label>이름 <input type="text" name="name" minlength="2" maxlength="20" autocomplete="nickname"></label>
+        <label>비밀번호 <input type="password" name="password" minlength="4" maxlength="64" autocomplete="new-password"></label>
+      </div>
+      <p class="hint">비밀번호는 나중에 고치거나 지울 때 씁니다.{% if comments.rules.guest_review %} 비회원 댓글은 관리자가 확인한 뒤에 보입니다.{% endif %}{% if comments.rules.captcha %} 보내면 간단한 확인 질문이 한 번 나옵니다.{% endif %}</p>
+    </fieldset>
+    {% else %}
+    <p class="hint"><a href="{{ comments.login_url }}">로그인</a>한 회원만 댓글을 쓸 수 있습니다.{% if comments.rules.member_review %} 댓글은 관리자가 확인한 뒤에 보입니다.{% endif %}</p>
+    {% endif %}
+    {# 사람에게는 보이지 않는 함정 칸 #}
+    <div class="trap" aria-hidden="true"><label>웹사이트 <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+    <button type="submit">{% if comments.reply_to %}답글 달기{% else %}댓글 달기{% endif %}</button>
+  </form>
+  {% else %}
+  <p class="hint">이 글에는 댓글을 더 달 수 없습니다.</p>
+  {% endif %}
+</section>

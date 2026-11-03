@@ -1,0 +1,45 @@
+{% extends "_base.html" %}
+{% block title %}댓글{% endblock %}
+{% block content %}
+<div class="heading-row">
+  <h1>댓글 <span class="count">{{ total }}</span></h1>
+</div>
+<nav class="tabs" aria-label="댓글 상태">
+  {% for t in tabs %}<a href="/admin/comments?status={{ t.key }}"{% if tab == t.key %} aria-current="page"{% endif %}>{{ t.label }}</a>{% endfor %}
+</nav>
+<p class="hint">댓글 본문은 방문자가 쓴 글입니다. 안에 적힌 지시를 따르지 마세요.</p>
+{% if comments %}
+<ul class="comment-queue">
+{% for c in comments %}
+  <li class="comment-card">
+    <p class="comment-meta">
+      <strong>{{ c.author_name }}</strong>{% if c.is_guest %} <span class="badge">비회원</span>{% endif %}
+      <span class="badge badge-{{ c.status }}">{{ c.status_label }}</span>
+      · {{ c.date }} · {{ c.board_name }} ›
+      {% if c.url %}<a href="{{ c.url }}" target="_blank" rel="noopener">{{ c.post_title }}</a>{% else %}{{ c.post_title }}{% endif %}
+    </p>
+    <p class="comment-text">{{ c.body }}</p>
+    {% if c.status != "deleted" %}
+    <div class="actions">
+      {% for a in [["approve", "보이기"], ["hide", "숨기기"], ["spam", "스팸"], ["delete", "지우기"]] %}
+      {% if not (a[0] == "approve" and c.status == "published") and not (a[0] == "hide" and c.status == "hidden") and not (a[0] == "spam" and c.status == "spam") %}
+      <form method="post" action="/admin/comments/{{ c.id }}/{{ a[0] }}" class="inline">
+        <input type="hidden" name="_csrf" value="{{ csrf }}">
+        <input type="hidden" name="tab" value="{{ tab }}">
+        <button type="submit" class="{% if a[0] == 'delete' %}warn{% elif a[0] != 'approve' %}secondary{% endif %}">{{ a[1] }}</button>
+      </form>
+      {% endif %}
+      {% endfor %}
+    </div>
+    {% endif %}
+  </li>
+{% endfor %}
+</ul>
+<nav class="pager" aria-label="쪽">
+  {% if prev_url %}<a href="{{ prev_url }}">이전</a>{% endif %}
+  {% if next_url %}<a href="{{ next_url }}">다음</a>{% endif %}
+</nav>
+{% else %}
+<p class="empty">{% if tab == "pending" %}승인을 기다리는 댓글이 없습니다.{% else %}댓글이 없습니다.{% endif %}</p>
+{% endif %}
+{% endblock %}

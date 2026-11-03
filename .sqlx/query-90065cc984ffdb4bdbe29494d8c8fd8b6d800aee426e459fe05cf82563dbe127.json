@@ -1,0 +1,33 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT post_id AS \"post_id!\", count(*) AS \"n!: i64\" FROM comments\n           WHERE status = 'published' AND post_id IN (SELECT value FROM json_each(?))\n           GROUP BY post_id",
+  "describe": {
+    "columns": [
+      {
+        "name": "post_id!",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "comments",
+            "name": "post_id"
+          }
+        }
+      },
+      {
+        "name": "n!: i64",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "90065cc984ffdb4bdbe29494d8c8fd8b6d800aee426e459fe05cf82563dbe127"
+}

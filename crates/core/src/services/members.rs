@@ -15,7 +15,9 @@ use crate::actor::{Actor, Permission, rank};
 use crate::audit::Target;
 use crate::clock;
 use crate::error::{Code, Error, Result};
-use crate::model::{Listing, Member, MemberStatus, PageReq, SignupMode, TicketPurpose};
+use crate::model::{
+    CaptchaMode, Listing, Member, MemberStatus, PageReq, SignupMode, TicketPurpose,
+};
 use crate::services::auth::{self, NewSession, SignedIn};
 use crate::services::{mail, settings, tokens};
 use crate::store::{Ctx, Tx};
@@ -46,6 +48,9 @@ pub struct SignupInput {
     /// 닉네임 (사이트 안에서 겹치지 않게, 2~20자)
     pub display_name: String,
     pub password: String,
+    /// 사이트가 확인 질문을 낼 때 (`captcha = guest`, ADR-0052)
+    #[serde(default)]
+    pub captcha: Option<crate::services::captcha::Answer>,
 }
 
 /// 가입 결과. 이미 있는 이메일이어도 같은 모양이다(계정이 있는지 새지 않게).
@@ -71,6 +76,10 @@ pub async fn signup(ctx: &Ctx, input: SignupInput) -> Result<SignupOutcome> {
     }
     let email = auth::check_email(&input.email)?;
     let name = check_name(&input.display_name)?;
+    if site.captcha == CaptchaMode::Guest {
+        let answer = input.captcha.clone().unwrap_or_default();
+        crate::services::captcha::check(ctx, &answer).await?;
+    }
     let hash = auth::hash_password(&input.password)?;
     let outcome = SignupOutcome {
         verify_required: site.signup_verify,

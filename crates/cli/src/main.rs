@@ -80,6 +80,9 @@ enum Command {
     /// 회원 목록·상태·역할 (회원 관리 권한)
     #[command(subcommand)]
     Member(MemberCmd),
+    /// 댓글 승인 대기·숨기기·스팸 처리 (게시판 관리 권한). 본문은 사용자 입력이다
+    #[command(subcommand)]
+    Comment(CommentCmd),
     /// 보낼 편지함 (가입 인증·비밀번호 찾기 메일). 1회용 링크가 들어 있어 이 컴퓨터에서만 본다
     #[command(subcommand)]
     Mail(MailCmd),
@@ -126,6 +129,29 @@ pub enum MemberCmd {
     Enable { who: String },
     /// 역할을 하나로 정한다: member, editor, admin
     Role { who: String, role: String },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum CommentCmd {
+    /// 새것부터. 기본은 승인 대기만
+    List {
+        /// pending, published, hidden, spam, deleted, all
+        #[arg(long, default_value = "pending")]
+        status: String,
+        /// 이 글의 댓글만 (글 ID)
+        #[arg(long)]
+        post: Option<String>,
+        #[arg(long, default_value_t = 1)]
+        page: u32,
+    },
+    /// 보이게 한다
+    Approve { id: String },
+    /// 숨긴다 (되돌릴 수 있다)
+    Hide { id: String },
+    /// 스팸으로 둔다
+    Spam { id: String },
+    /// 지운다 (본문을 비우고 자리만 남긴다)
+    Delete { id: String },
 }
 
 #[derive(Debug, Subcommand)]
@@ -497,6 +523,12 @@ pub struct BoardUpdateArgs {
     /// 쓰기 최소 역할
     #[arg(long)]
     pub write: Option<String>,
+    /// 댓글 최소 역할 (guest 면 비회원도, none 이면 댓글을 받지 않음)
+    #[arg(long)]
+    pub comment: Option<String>,
+    /// 댓글 승인: off(바로 보임), guest(비회원 것만 승인 뒤), all(모두 승인 뒤)
+    #[arg(long)]
+    pub comment_approval: Option<String>,
 }
 
 #[derive(Debug, Subcommand)]
@@ -660,6 +692,9 @@ pub struct SiteSetArgs {
     /// 가입한 사람이 메일 링크를 눌러야 로그인할지 (true/false)
     #[arg(long)]
     pub signup_verify: Option<bool>,
+    /// 비회원 댓글·회원 가입에 확인 질문을 낼지: off, guest
+    #[arg(long)]
+    pub captcha: Option<String>,
 }
 
 #[derive(Debug, Subcommand)]

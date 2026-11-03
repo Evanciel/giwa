@@ -13,10 +13,19 @@ use crate::audit::{AuditRecord, Target};
 use crate::blobs::Blobs;
 use crate::error::{Error, Result};
 use crate::model::{
-    Attachment, Board, Category, Font, FontFile, LoginTicket, MailOut, MailStatus, Media, Member,
-    MenuLink, Page, PageStatus, Post, PostStatus, PostTemplate, Revision, Role, Session, Tag,
-    TicketPurpose, Token,
+    Attachment, Board, Category, Comment, CommentStatus, Font, FontFile, LoginTicket, MailOut,
+    MailStatus, Media, Member, MenuLink, Page, PageStatus, Post, PostStatus, PostTemplate,
+    Revision, Role, Session, Tag, TicketPurpose, Token,
 };
+
+/// 댓글 관리 목록 조건. 비어 있는 조건은 거르지 않는다.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct CommentQuery<'a> {
+    pub status: Option<CommentStatus>,
+    pub post_id: Option<&'a str>,
+    /// 이 게시판들의 글에 달린 댓글만. `None` 이면 전부
+    pub board_ids: Option<&'a [String]>,
+}
 
 /// 서비스 함수의 첫 인자.
 #[derive(Clone)]
@@ -141,6 +150,34 @@ pub trait Store: Send + Sync {
     async fn mail_by_id(&self, id: &str) -> Result<Option<MailOut>>;
     /// 배달 결과 (상태·시도 수·오류·보낸 때). 감사 대상이 아닌 시스템 기록.
     async fn update_mail(&self, m: &MailOut) -> Result<()>;
+
+    async fn comment_by_id(&self, id: &str) -> Result<Option<Comment>>;
+    /// 글의 댓글, 쓴 순서. `statuses` 에 든 상태만.
+    async fn comments_of_post(
+        &self,
+        post_id: &str,
+        statuses: &[CommentStatus],
+    ) -> Result<Vec<Comment>>;
+    /// 관리 목록, 새것부터.
+    async fn list_comments(
+        &self,
+        q: &CommentQuery<'_>,
+        limit: i64,
+        offset: i64,
+    ) -> Result<Vec<Comment>>;
+    async fn count_comments(&self, q: &CommentQuery<'_>) -> Result<i64>;
+    /// 글마다 공개 댓글 수. 댓글이 없는 글은 빠진다.
+    async fn comment_counts(&self, post_ids: &[String]) -> Result<Vec<(String, i64)>>;
+    /// 캡차 도전을 둔다 (시스템 기록, 감사 대상 아님). 만료된 것은 함께 지운다.
+    async fn insert_challenge(
+        &self,
+        id_hash: &str,
+        answer: &str,
+        now: &str,
+        expires_at: &str,
+    ) -> Result<()>;
+    /// 유효한 도전을 꺼내며 지우고 `(답, 낸 때)` 를 돌려준다. 한 번만 `Some`.
+    async fn take_challenge(&self, id_hash: &str, now: &str) -> Result<Option<(String, String)>>;
     /// 만료된 세션·로그인 링크를 지운다. 시스템 정리라 감사 대상이 아니다 (PHASE1_PLAN §5).
     async fn purge_expired(&self, now: &str) -> Result<u64>;
 
@@ -251,6 +288,12 @@ pub trait WriteTx: Send {
     async fn member_by_name(&mut self, name: &str) -> Result<Option<Member>>;
     /// 쌓였으면 `true`. 같은 `idem_key` 가 이미 있으면 `false`
     async fn queue_mail(&mut self, m: &MailOut) -> Result<bool>;
+    async fn comment_by_id(&mut self, id: &str) -> Result<Option<Comment>>;
+    async fn insert_comment(&mut self, c: &Comment) -> Result<()>;
+    /// 상태·본문·고친 때.
+    async fn update_comment(&mut self, c: &Comment) -> Result<()>;
+    /// 지우지 않은 대댓글 수.
+    async fn count_live_replies(&mut self, parent_id: &str) -> Result<i64>;
     async fn insert_ticket(&mut self, t: &LoginTicket) -> Result<()>;
     /// 회원의 아직 쓰지 않은 링크를 모두 지운다 (새 링크 발급 시).
     async fn delete_open_tickets(&mut self, member_id: &str, purpose: TicketPurpose)

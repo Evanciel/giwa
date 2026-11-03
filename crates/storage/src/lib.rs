@@ -1,6 +1,7 @@
 //! Maru SQLite 저장소 구현
 
 pub mod blobs;
+mod comments;
 pub mod data_dir;
 pub mod db;
 mod mail;

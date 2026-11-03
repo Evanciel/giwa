@@ -23,6 +23,41 @@ pub struct BoardPolicy {
     /// 남의 글을 관리할 수 있는 최소 역할
     #[serde(default = "editor")]
     pub moderate: String,
+    /// 댓글을 쓸 수 있는 최소 역할. `none` 이면 댓글을 받지 않는다 (ADR-0052)
+    #[serde(default = "member")]
+    pub comment: String,
+    /// 쓴 댓글을 바로 보일지, 관리자 승인 뒤 보일지
+    #[serde(default)]
+    pub comment_approval: CommentApproval,
+}
+
+/// 댓글 승인 (게시판 정책, ADR-0052).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum CommentApproval {
+    /// 바로 보인다
+    Off,
+    /// 비회원 댓글만 승인 뒤 보인다
+    #[default]
+    Guest,
+    /// 모든 댓글이 승인 뒤 보인다 (관리 권한이 있는 사람 것은 바로)
+    All,
+}
+
+impl CommentApproval {
+    pub const ALL: [Self; 3] = [Self::Off, Self::Guest, Self::All];
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Off => "off",
+            Self::Guest => "guest",
+            Self::All => "all",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|m| m.as_str() == s)
+    }
 }
 
 fn guest() -> String {
@@ -42,6 +77,8 @@ impl Default for BoardPolicy {
             read: guest(),
             write: member(),
             moderate: editor(),
+            comment: member(),
+            comment_approval: CommentApproval::Guest,
         }
     }
 }
@@ -484,6 +521,35 @@ pub struct SiteSettings {
     /// 가입한 사람이 메일 링크를 눌러야 로그인할 수 있다
     #[serde(default = "default_true")]
     pub signup_verify: bool,
+    /// 사람 확인 질문을 누구에게 낼지 (GAP M10, ADR-0052)
+    #[serde(default)]
+    pub captcha: CaptchaMode,
+}
+
+/// 사람 확인 질문 (자체 캡차, ADR-0052). 비회원 댓글·회원 가입 폼에 낸다.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum CaptchaMode {
+    /// 내지 않는다 (함정 칸·시간 확인은 그대로)
+    Off,
+    /// 비회원 댓글과 회원 가입
+    #[default]
+    Guest,
+}
+
+impl CaptchaMode {
+    pub const ALL: [Self; 2] = [Self::Off, Self::Guest];
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Off => "off",
+            Self::Guest => "guest",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|m| m.as_str() == s)
+    }
 }
 
 /// 회원 가입 방식 (GAP M1, ADR-0051).
@@ -533,6 +599,7 @@ impl Default for SiteSettings {
             show_search: true,
             signup: SignupMode::Off,
             signup_verify: true,
+            captcha: CaptchaMode::Guest,
         }
     }
 }
@@ -656,6 +723,95 @@ impl MailStatus {
             .into_iter()
             .find(|p| p.as_str() == s)
     }
+}
+
+/// 댓글 상태 (`comments.status`). 공개는 `Published` 하나다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum CommentStatus {
+    Published,
+    /// 승인 대기
+    Pending,
+    Hidden,
+    Spam,
+    /// 지운 댓글. 대댓글이 있으면 자리만 남고 본문은 비어 있다
+    Deleted,
+}
+
+impl CommentStatus {
+    pub const ALL: [Self; 5] = [
+        Self::Published,
+        Self::Pending,
+        Self::Hidden,
+        Self::Spam,
+        Self::Deleted,
+    ];
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Published => "published",
+            Self::Pending => "pending",
+            Self::Hidden => "hidden",
+            Self::Spam => "spam",
+            Self::Deleted => "deleted",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|m| m.as_str() == s)
+    }
+}
+
+/// 댓글 쓴 사람 (`comments.actor_type`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum CommentAuthor {
+    Human,
+    Guest,
+    Local,
+}
+
+impl CommentAuthor {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Human => "human",
+            Self::Guest => "guest",
+            Self::Local => "local",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "human" => Some(Self::Human),
+            "guest" => Some(Self::Guest),
+            "local" => Some(Self::Local),
+            _ => None,
+        }
+    }
+}
+
+/// 댓글 한 개 (`comments`). 본문은 사용자 입력이라 에이전트에게는 데이터로만 넘긴다 (원칙 6).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+pub struct Comment {
+    pub id: Id,
+    pub post_id: Id,
+    /// 대댓글이면 뿌리 댓글
+    pub parent_id: Option<Id>,
+    /// 답한 댓글 (뿌리 또는 같은 뿌리 아래 대댓글)
+    pub reply_to_id: Option<Id>,
+    pub status: CommentStatus,
+    /// 평문. 화면에서 이스케이프한다
+    pub body: String,
+    pub author_id: Option<Id>,
+    pub guest_name: Option<String>,
+    /// 비회원 비밀번호 해시. 밖으로 내보내지 않는다
+    #[serde(skip)]
+    #[schemars(skip)]
+    pub guest_pw_hash: Option<String>,
+    pub actor_type: CommentAuthor,
+    pub created_at: String,
+    /// 본문을 마지막으로 고친 때 (상태 변경은 audit_log 에만 남는다 → 화면의 「고침」 표시).
+    pub updated_at: String,
 }
 
 /// 보낼 편지함의 편지 한 통 (`mail_outbox`). 본문에 1회용 링크가 들 수 있어 REST 로 내보내지 않는다.

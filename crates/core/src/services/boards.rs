@@ -215,6 +215,12 @@ fn check_policy(policy: &BoardPolicy) -> Result<()> {
                 .arg("value", role.clone()));
         }
     }
+    // 댓글은 `none`(받지 않음)도 된다 (ADR-0052).
+    if policy.comment != "none" && crate::actor::rank::of_role(&policy.comment).is_none() {
+        return Err(Error::new(Code::Validation)
+            .with_message("error.board_policy_role")
+            .arg("value", policy.comment.clone()));
+    }
     Ok(())
 }
 

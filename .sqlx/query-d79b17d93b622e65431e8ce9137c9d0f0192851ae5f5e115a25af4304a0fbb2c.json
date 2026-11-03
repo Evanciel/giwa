@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM challenges WHERE id_hash = ? AND expires_at > ? RETURNING answer, issued_at",
+  "describe": {
+    "columns": [
+      {
+        "name": "answer",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "challenges",
+            "name": "answer"
+          }
+        }
+      },
+      {
+        "name": "issued_at",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "challenges",
+            "name": "issued_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "d79b17d93b622e65431e8ce9137c9d0f0192851ae5f5e115a25af4304a0fbb2c"
+}

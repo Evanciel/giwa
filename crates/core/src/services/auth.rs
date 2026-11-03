@@ -358,6 +358,14 @@ pub(crate) fn hash_password(password: &str) -> Result<String> {
         .to_string())
 }
 
+/// 길이 검사 없이 argon2id 해시 (비회원 댓글 비밀번호, ADR-0052).
+pub(crate) fn hash_raw(password: &str) -> Result<String> {
+    Ok(Argon2::default()
+        .hash_password(password.as_bytes())
+        .map_err(|e| Error::internal(e.to_string()))?
+        .to_string())
+}
+
 pub(crate) async fn start_session(tx: &mut Tx, member: Member, method: &str) -> Result<NewSession> {
     let raw = new_secret()?;
     let now = clock::now();

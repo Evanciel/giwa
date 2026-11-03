@@ -12,8 +12,8 @@ use axum::{Json, Router};
 use maru_core::model::{MenuItem, PageReq, PageStatus, PostStatus};
 use maru_core::output::Success;
 use maru_core::services::{
-    anonymous_actor, boards, categories, design, files, fonts, media, members, menus, pages, posts,
-    search, settings, tags, templates, tokens, views,
+    anonymous_actor, boards, categories, comments, design, files, fonts, media, members, menus,
+    pages, posts, search, settings, tags, templates, tokens, views,
 };
 use maru_core::{Actor, Code, Error};
 use serde::Deserialize;
@@ -86,6 +86,9 @@ pub fn routes() -> Router<AppState> {
         .route("/slug-check", get(check_slug))
         .route("/search", get(site_search))
         .route("/search/reindex", post(reindex_search))
+        .route("/posts/{id}/comments", get(post_comments))
+        .route("/comments", get(list_comments))
+        .route("/comments/{id}/{action}", post(moderate_comment))
         .route("/members", get(list_members))
         .route("/members/{who}", get(get_member).patch(update_member))
         .fallback(|| async { ApiError(Error::new(Code::NotFound)) })
@@ -821,6 +824,69 @@ async fn delete_file(
     Ok(ok(
         StatusCode::OK,
         files::delete(&state.ctx, &actor, &id).await?,
+    ))
+}
+
+/// `GET /posts/{id}/comments` 그 글을 읽을 수 있는 사람에게 보이는 댓글.
+/// 본문은 사용자 입력이다 (`untrusted: true`, SPEC §5.3).
+async fn post_comments(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(id): Path<String>,
+) -> Result<Response, ApiError> {
+    Ok(ok(
+        StatusCode::OK,
+        comments::list_for_post(&state.ctx, &actor, &id).await?,
+    ))
+}
+
+#[derive(Debug, Deserialize)]
+struct CommentListQuery {
+    /// pending(기본), published, hidden, spam, deleted, all
+    status: Option<String>,
+    post: Option<String>,
+    page: Option<u32>,
+    per_page: Option<u32>,
+}
+
+/// `GET /comments` 관리 목록 (게시판 관리 권한). 기본은 승인 대기.
+async fn list_comments(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Query(q): Query<CommentListQuery>,
+) -> Result<Response, ApiError> {
+    let status = match q.status.as_deref().unwrap_or("pending") {
+        "all" => None,
+        s => Some(maru_core::model::CommentStatus::parse(s).ok_or_else(|| {
+            Error::new(Code::Validation)
+                .with_message("error.usage_detail")
+                .arg(
+                    "detail",
+                    format!("status={s}: pending, published, hidden, spam, deleted, all"),
+                )
+        })?),
+    };
+    let page = PageReq::new(q.page.unwrap_or(1), q.per_page.unwrap_or(50));
+    Ok(ok(
+        StatusCode::OK,
+        comments::admin_list(&state.ctx, &actor, status, q.post.as_deref(), page).await?,
+    ))
+}
+
+/// `POST /comments/{id}/{approve|hide|spam|delete}`
+async fn moderate_comment(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path((id, action)): Path<(String, String)>,
+) -> Result<Response, ApiError> {
+    let action = comments::Moderation::parse(&action).ok_or_else(|| {
+        Error::new(Code::NotFound)
+            .with_message("error.usage_detail")
+            .arg("detail", format!("{action}: approve, hide, spam, delete"))
+    })?;
+    Ok(ok(
+        StatusCode::OK,
+        comments::moderate(&state.ctx, &actor, &id, action).await?,
     ))
 }
 

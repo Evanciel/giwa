@@ -48,6 +48,8 @@ pub fn routes() -> Router<AppState> {
             "/admin/files",
             post(upload_file).layer(crate::upload_limit()),
         )
+        .route("/admin/comments", get(comments_page))
+        .route("/admin/comments/{id}/{action}", post(comment_action))
         .route("/admin/fonts", get(fonts_page))
         .route(
             "/admin/fonts/upload",
@@ -558,6 +560,165 @@ async fn password(
 // ---- 글 ----
 
 /// 완료 알림은 정해진 목록에서만 고른다. 쿼리 문자열을 화면에 그대로 비추지 않는다.
+#[derive(Debug, Default, Deserialize)]
+struct CommentsQuery {
+    #[serde(default)]
+    status: String,
+    #[serde(default)]
+    page: Option<u32>,
+    #[serde(default)]
+    done: String,
+}
+
+/// 댓글 관리: 승인 대기부터 (ADR-0052). 본문은 사용자 입력이라 자동 이스케이프로만 보인다.
+async fn comments_page(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<CommentsQuery>,
+) -> Response {
+    use maru_core::model::CommentStatus;
+    use maru_core::services::comments;
+    let who = match require(&state, &headers, "/admin/comments").await {
+        Ok(w) => w,
+        Err(r) => return *r,
+    };
+    let status = match q.status.as_str() {
+        "" => Some(CommentStatus::Pending),
+        "all" => None,
+        s => CommentStatus::parse(s).or(Some(CommentStatus::Pending)),
+    };
+    let page = PageReq::new(q.page.unwrap_or(1), 50);
+    let list = match comments::admin_list(&state.ctx, &who.actor, status, None, page).await {
+        Ok(l) => l,
+        Err(e) => return fail(&state, Some(&who), &e).await,
+    };
+    let tz = settings::site(&state.ctx)
+        .await
+        .map(|s| s.tz_offset_min)
+        .unwrap_or(540);
+    let mut rows = Vec::with_capacity(list.items.len());
+    for c in &list.items {
+        let post = state.ctx.store.post_by_id(&c.post_id).await.ok().flatten();
+        let board = match &post {
+            Some(p) => state
+                .ctx
+                .store
+                .board_by_id(&p.board_id)
+                .await
+                .ok()
+                .flatten(),
+            None => None,
+        };
+        let url = match (&post, &board) {
+            (Some(p), Some(b)) if p.is_public() => Some(format!(
+                "{}#comment-{}",
+                urls::path(&urls::Target::Post {
+                    board: &b.slug,
+                    post: &p.slug
+                }),
+                c.id
+            )),
+            _ => None,
+        };
+        rows.push(json!({
+            "id": c.id,
+            "status": c.status,
+            "status_label": match c.status {
+                CommentStatus::Published => "공개",
+                CommentStatus::Pending => "승인 대기",
+                CommentStatus::Hidden => "숨김",
+                CommentStatus::Spam => "스팸",
+                CommentStatus::Deleted => "지움",
+            },
+            "author_name": c.author_name,
+            "is_guest": c.is_guest,
+            "body": c.body,
+            "date": maru_core::clock::display_date(&c.created_at, tz),
+            "post_title": post.as_ref().map(|p| p.title.clone()).unwrap_or_default(),
+            "board_name": board.as_ref().map(|b| b.name.clone()).unwrap_or_default(),
+            "url": url,
+        }));
+    }
+    let tab = status.map(|s| s.as_str()).unwrap_or("all");
+    let pages = (list.total + i64::from(page.per_page) - 1) / i64::from(page.per_page);
+    let at = |n: u32| {
+        let n = n.to_string();
+        urls::with_query("/admin/comments", &[("status", tab), ("page", &n)])
+    };
+    let ctx = merge(
+        base(&state, Some(&who), "comments").await,
+        json!({
+            "notice": match q.done.as_str() {
+                "approve" => Some("보이게 했습니다."),
+                "hide" => Some("숨겼습니다."),
+                "spam" => Some("스팸으로 두었습니다."),
+                "delete" => Some("지웠습니다."),
+                _ => None,
+            },
+            "comments": rows,
+            "total": list.total,
+            "tab": tab,
+            "tabs": [
+                { "key": "pending", "label": "승인 대기" },
+                { "key": "published", "label": "공개" },
+                { "key": "hidden", "label": "숨김" },
+                { "key": "spam", "label": "스팸" },
+                { "key": "all", "label": "전부" },
+            ],
+            "prev_url": (page.page > 1).then(|| at(page.page - 1)),
+            "next_url": (i64::from(page.page) < pages).then(|| at(page.page + 1)),
+        }),
+    );
+    render(&state, StatusCode::OK, "comments.html", &ctx)
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct CommentActionForm {
+    #[serde(default, rename = "_csrf")]
+    csrf: String,
+    #[serde(default)]
+    tab: String,
+}
+
+async fn comment_action(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path((id, action)): Path<(String, String)>,
+    Form(f): Form<CommentActionForm>,
+) -> Response {
+    use maru_core::services::comments::{self, Moderation};
+    let who = match require(&state, &headers, "/admin/comments").await {
+        Ok(w) => w,
+        Err(r) => return *r,
+    };
+    if !session_csrf_ok(&who, &f.csrf) {
+        return fail(
+            &state,
+            Some(&who),
+            &Error::new(Code::Forbidden).with_message("error.csrf"),
+        )
+        .await;
+    }
+    let Some(m) = Moderation::parse(&action) else {
+        return fail(&state, Some(&who), &Error::new(Code::NotFound)).await;
+    };
+    match comments::moderate(&state.ctx, &who.actor, &id, m).await {
+        Ok(_) => {
+            let tab = if f.tab.is_empty() {
+                "pending"
+            } else {
+                f.tab.as_str()
+            };
+            Redirect::to(&urls::with_query(
+                "/admin/comments",
+                &[("status", tab), ("done", &action)],
+            ))
+            .into_response()
+        }
+        Err(e) => fail(&state, Some(&who), &e).await,
+    }
+}
+
 fn notice(done: &str) -> Option<&'static str> {
     Some(match done {
         "password" => "비밀번호를 저장했습니다. 다른 기기의 로그인은 끊겼습니다.",

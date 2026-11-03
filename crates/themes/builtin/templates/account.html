@@ -32,6 +32,13 @@
     <p id="pw-hint" class="hint">{{ account.min_password }}자 이상.</p>
     <label for="password2">비밀번호 다시</label>
     <input id="password2" type="password" name="password2" minlength="{{ account.min_password }}" autocomplete="new-password" required>
+    {% if account.captcha %}
+    <input type="hidden" name="captcha_token" value="{{ account.captcha.token }}">
+    <label for="captcha">확인 질문: {{ account.captcha.question }}</label>
+    <input id="captcha" type="text" name="captcha_answer" inputmode="numeric" autocomplete="off" required aria-describedby="captcha-hint">
+    <p id="captcha-hint" class="hint">답을 숫자로 적어 주세요.</p>
+    {% endif %}
+    <div class="trap" aria-hidden="true"><label>웹사이트 <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
     <button type="submit">가입하기</button>
   </form>
   <p class="account-links">이미 가입했나요? <a href="/login">로그인</a></p>

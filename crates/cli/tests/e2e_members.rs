@@ -191,7 +191,10 @@ fn signup_verify_login_and_profile_reach_the_db() {
     );
     drop(server);
 
-    let set = maru(&data, &["site", "set", "--signup", "open"]);
+    let set = maru(
+        &data,
+        &["site", "set", "--signup", "open", "--captcha", "off"],
+    );
     assert_eq!(set["signup"], "open");
     assert_eq!(set["signup_verify"], true);
     let (_server, started) = start_server(&data);

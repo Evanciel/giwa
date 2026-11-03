@@ -13,10 +13,10 @@ use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
 use maru_core::actor::Permission;
 use maru_core::clock;
-use maru_core::model::{PageReq, PostStatus, SignupMode};
+use maru_core::model::{CaptchaMode, PageReq, PostStatus, SignupMode};
 use maru_core::services::auth::{self, SignedIn};
 use maru_core::services::members::{self, ProfilePatch, SignupInput};
-use maru_core::services::{posts, settings};
+use maru_core::services::{captcha, posts, settings};
 use maru_core::urls::{self, Target};
 use maru_core::{Code, Error};
 use serde::Deserialize;
@@ -289,6 +289,14 @@ async fn signup_page(
     name: &str,
     error: Option<String>,
 ) -> Response {
+    // 확인 질문은 가입 화면을 열 때마다 새로 낸다 (이 화면은 no-store).
+    let challenge = match settings::site(&state.ctx).await {
+        Ok(s) if s.captcha == CaptchaMode::Guest => match captcha::issue(&state.ctx).await {
+            Ok(c) => Some(c),
+            Err(e) => return crate::error::page(state, &e).await,
+        },
+        _ => None,
+    };
     page(
         state,
         headers,
@@ -302,6 +310,7 @@ async fn signup_page(
             "min_password": auth::MIN_PASSWORD_CHARS,
             "min_name": members::MIN_NAME_CHARS,
             "max_name": members::MAX_NAME_CHARS,
+            "captcha": challenge,
         }),
     )
     .await
@@ -319,6 +328,13 @@ struct SignupForm {
     password: String,
     #[serde(default)]
     password2: String,
+    #[serde(default)]
+    captcha_token: String,
+    #[serde(default)]
+    captcha_answer: String,
+    /// 함정 칸
+    #[serde(default)]
+    website: String,
 }
 
 async fn signup(
@@ -326,7 +342,7 @@ async fn signup(
     headers: HeaderMap,
     Form(f): Form<SignupForm>,
 ) -> Response {
-    if !pre_csrf_ok(&headers, &f.csrf) {
+    if !pre_csrf_ok(&headers, &f.csrf) || !f.website.is_empty() {
         return csrf_failed(&state, &headers).await;
     }
     if f.password != f.password2 {
@@ -347,6 +363,10 @@ async fn signup(
         email: f.email.clone(),
         display_name: f.display_name.clone(),
         password: f.password,
+        captcha: (!f.captcha_token.is_empty()).then_some(captcha::Answer {
+            token: f.captcha_token,
+            answer: f.captcha_answer,
+        }),
     };
     match members::signup(&state.ctx, input).await {
         Ok(out) if out.verify_required => {

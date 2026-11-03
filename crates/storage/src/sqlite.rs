@@ -4,12 +4,12 @@ use async_trait::async_trait;
 use maru_core::actor::{AuthorType, Permission, Scope};
 use maru_core::audit::AuditRecord;
 use maru_core::model::{
-    Attachment, Board, BoardPolicy, Category, Font, FontFile, LoginTicket, MailOut, MailStatus,
-    Media, MediaVariant, Member, MemberStatus, Page, PageStatus, Post, PostKind, PostStatus,
-    PostTemplate, Revision, Role, Session, Tag, TicketPurpose, Token,
+    Attachment, Board, BoardPolicy, Category, Comment, CommentStatus, Font, FontFile, LoginTicket,
+    MailOut, MailStatus, Media, MediaVariant, Member, MemberStatus, Page, PageStatus, Post,
+    PostKind, PostStatus, PostTemplate, Revision, Role, Session, Tag, TicketPurpose, Token,
 };
 use maru_core::store::{
-    MenuRow, PostFilter, PublishedQuery, SearchQuery, SearchRef, Store, WriteTx,
+    CommentQuery, MenuRow, PostFilter, PublishedQuery, SearchQuery, SearchRef, Store, WriteTx,
 };
 use maru_core::{Code, Error, Result, clock, slug, urls};
 use serde_json::Value;
@@ -719,6 +719,49 @@ impl Store for SqliteStore {
 
     async fn update_mail(&self, m: &MailOut) -> Result<()> {
         crate::mail::update(&self.db.write, m).await
+    }
+
+    async fn comment_by_id(&self, id: &str) -> Result<Option<Comment>> {
+        crate::comments::by_id(&self.db.read, id).await
+    }
+
+    async fn comments_of_post(
+        &self,
+        post_id: &str,
+        statuses: &[CommentStatus],
+    ) -> Result<Vec<Comment>> {
+        crate::comments::of_post(&self.db.read, post_id, statuses).await
+    }
+
+    async fn list_comments(
+        &self,
+        q: &CommentQuery<'_>,
+        limit: i64,
+        offset: i64,
+    ) -> Result<Vec<Comment>> {
+        crate::comments::list(&self.db.read, q, limit, offset).await
+    }
+
+    async fn count_comments(&self, q: &CommentQuery<'_>) -> Result<i64> {
+        crate::comments::count(&self.db.read, q).await
+    }
+
+    async fn comment_counts(&self, post_ids: &[String]) -> Result<Vec<(String, i64)>> {
+        crate::comments::counts(&self.db.read, post_ids).await
+    }
+
+    async fn insert_challenge(
+        &self,
+        id_hash: &str,
+        answer: &str,
+        now: &str,
+        expires_at: &str,
+    ) -> Result<()> {
+        crate::comments::insert_challenge(&self.db.write, id_hash, answer, now, expires_at).await
+    }
+
+    async fn take_challenge(&self, id_hash: &str, now: &str) -> Result<Option<(String, String)>> {
+        crate::comments::take_challenge(&self.db.write, id_hash, now).await
     }
 
     async fn count_members(&self) -> Result<i64> {
@@ -1651,6 +1694,22 @@ impl WriteTx for SqliteWriteTx {
 
     async fn queue_mail(&mut self, m: &MailOut) -> Result<bool> {
         crate::mail::queue(&mut self.tx, m).await
+    }
+
+    async fn comment_by_id(&mut self, id: &str) -> Result<Option<Comment>> {
+        crate::comments::by_id(&mut *self.tx, id).await
+    }
+
+    async fn insert_comment(&mut self, c: &Comment) -> Result<()> {
+        crate::comments::insert(&mut self.tx, c).await
+    }
+
+    async fn update_comment(&mut self, c: &Comment) -> Result<()> {
+        crate::comments::update(&mut self.tx, c).await
+    }
+
+    async fn count_live_replies(&mut self, parent_id: &str) -> Result<i64> {
+        crate::comments::live_replies(&mut self.tx, parent_id).await
     }
 
     async fn add_member_role(&mut self, member_id: &str, role: &str) -> Result<()> {

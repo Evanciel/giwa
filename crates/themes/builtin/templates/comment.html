@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{# 댓글 쓰기 확인 질문·다시 쓰기(compose), 고치기(edit), 지우기(delete), 안내(notice). 스크립트 없이 동작한다. #}
+{% block main_class %}wrap account-wrap{% endblock %}
+{% block main %}
+<section class="account" aria-labelledby="comment-title">
+{% if comment.view == "compose" %}
+  <h1 id="comment-title">댓글 쓰기</h1>
+  <p class="account-lead"><a href="{{ comment.back }}">{{ comment.post_title }}</a></p>
+  {% if comment.error %}<p class="form-error" role="alert">{{ comment.error }}</p>{% endif %}
+  <form class="account-form" method="post" action="{{ comment.action }}">
+    {% if comment.reply_to %}<input type="hidden" name="reply_to" value="{{ comment.reply_to }}">{% endif %}
+    <label for="body">내용</label>
+    <textarea id="body" name="body" rows="5" maxlength="{{ comment.max_chars }}" required>{{ comment.body }}</textarea>
+    {% if comment.guest %}
+    <label for="name">이름</label>
+    <input id="name" type="text" name="name" value="{{ comment.name }}" minlength="2" maxlength="20" autocomplete="nickname" required>
+    <label for="password">비밀번호</label>
+    <input id="password" type="password" name="password" value="{{ comment.password }}" minlength="4" maxlength="64" autocomplete="new-password" required>
+    {% endif %}
+    {% if comment.captcha %}
+    <input type="hidden" name="captcha_token" value="{{ comment.captcha.token }}">
+    <label for="captcha">확인 질문: {{ comment.captcha.question }}</label>
+    <input id="captcha" type="text" name="captcha_answer" inputmode="numeric" autocomplete="off" required aria-describedby="captcha-hint"{% if not comment.error %} autofocus{% endif %}>
+    <p id="captcha-hint" class="hint">답을 숫자로 적어 주세요. 자동 프로그램이 댓글을 붓는 것을 막는 질문입니다.</p>
+    {% endif %}
+    <div class="trap" aria-hidden="true"><label>웹사이트 <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+    <button type="submit">댓글 달기</button>
+  </form>
+  <p class="account-links"><a href="{{ comment.back }}">글로 돌아가기</a></p>
+
+{% elif comment.view == "edit" %}
+  <h1 id="comment-title">댓글 고치기</h1>
+  {% if comment.error %}<p class="form-error" role="alert">{{ comment.error }}</p>{% endif %}
+  <form class="account-form" method="post" action="{{ comment.action }}">
+    <input type="hidden" name="_csrf" value="{{ comment.csrf }}">
+    <label for="body">내용</label>
+    <textarea id="body" name="body" rows="5" maxlength="{{ comment.max_chars }}" required>{{ comment.body }}</textarea>
+    {% if comment.needs_password %}
+    <label for="password">쓸 때 정한 비밀번호</label>
+    <input id="password" type="password" name="password" autocomplete="current-password" required>
+    {% endif %}
+    <button type="submit">고치기</button>
+  </form>
+  <p class="account-links"><a href="{{ comment.back }}">글로 돌아가기</a></p>
+
+{% elif comment.view == "delete" %}
+  <h1 id="comment-title">댓글 지우기</h1>
+  {% if comment.error %}<p class="form-error" role="alert">{{ comment.error }}</p>{% endif %}
+  <blockquote class="comment-quote"><p><strong>{{ comment.author_name }}</strong></p><p>{{ comment.body }}</p></blockquote>
+  <form class="account-form" method="post" action="{{ comment.action }}">
+    <input type="hidden" name="_csrf" value="{{ comment.csrf }}">
+    {% if comment.needs_password %}
+    <label for="password">쓸 때 정한 비밀번호</label>
+    <input id="password" type="password" name="password" autocomplete="current-password" required>
+    {% endif %}
+    <button type="submit" class="danger">지우기</button>
+  </form>
+  <p class="account-links"><a href="{{ comment.back }}">글로 돌아가기</a></p>
+
+{% else %}
+  <h1 id="comment-title">{{ comment.heading }}</h1>
+  <p class="account-lead">{{ comment.body }}</p>
+  {% if comment.links %}<p class="account-links">{% for l in comment.links %}{% if not loop.first %}<span aria-hidden="true">·</span>{% endif %}<a href="{{ l.href }}">{{ l.label }}</a>{% endfor %}</p>{% endif %}
+{% endif %}
+</section>
+{% endblock %}

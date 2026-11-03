@@ -13,8 +13,8 @@ use maru_core::services::boards::{self, NewBoard};
 use maru_core::services::posts::{self, NewPost};
 use maru_core::services::tokens::{self, NewToken};
 use maru_core::services::{
-    anonymous_actor, auth, categories, design, files, fonts, mail, media, members, menus, pages,
-    presets, search, settings, tags, templates, views,
+    anonymous_actor, auth, categories, comments, design, files, fonts, mail, media, members, menus,
+    pages, presets, search, settings, tags, templates, views,
 };
 use maru_core::urls::{self, Target};
 use maru_core::{Actor, Code, Ctx, Error, Result};
@@ -23,10 +23,10 @@ use serde_json::{Value, json};
 
 use crate::output;
 use crate::{
-    BoardCmd, CategoryCmd, Command, DesignCmd, FileCmd, FontCmd, Global, InitArgs, LoginLinkArgs,
-    MailCmd, MediaCmd, MemberCmd, MenuCmd, MenuSetArgs, PageCmd, PostCmd, PostListArgs,
-    PostNewArgs, SearchArgs, SearchCmd, ServeArgs, SiteCmd, TagCmd, TemplateCmd, TokenCmd,
-    TokenCreateArgs,
+    BoardCmd, CategoryCmd, Command, CommentCmd, DesignCmd, FileCmd, FontCmd, Global, InitArgs,
+    LoginLinkArgs, MailCmd, MediaCmd, MemberCmd, MenuCmd, MenuSetArgs, PageCmd, PostCmd,
+    PostListArgs, PostNewArgs, SearchArgs, SearchCmd, ServeArgs, SiteCmd, TagCmd, TemplateCmd,
+    TokenCmd, TokenCreateArgs,
 };
 
 pub async fn run(g: &Global, command: Command) -> ExitCode {
@@ -49,6 +49,7 @@ pub async fn run(g: &Global, command: Command) -> ExitCode {
         Command::Font(cmd) => font_cmd(g, cmd).await,
         Command::Search(args) => search_cmd(g, args).await,
         Command::Member(cmd) => member_cmd(g, cmd).await,
+        Command::Comment(cmd) => comment_cmd(g, cmd).await,
         Command::Mail(cmd) => mail_cmd(g, cmd).await,
         Command::LoginLink(args) => login_link(g, args).await,
     };
@@ -666,17 +667,38 @@ async fn board(g: &Global, cmd: BoardCmd) -> Out {
         BoardCmd::Show { slug } => {
             let b = boards::show(&ctx, &actor, &slug).await?;
             let human = format!(
-                "{} ({})  종류 {}  읽기 {}  쓰기 {}",
-                b.name, b.slug, b.kind, b.policy.read, b.policy.write
+                "{} ({})  종류 {}  읽기 {}  쓰기 {}  댓글 {} (승인 {})",
+                b.name,
+                b.slug,
+                b.kind,
+                b.policy.read,
+                b.policy.write,
+                b.policy.comment,
+                b.policy.comment_approval.as_str()
             );
             Ok((to_value(&b)?, human))
         }
         BoardCmd::Update(args) => {
-            let policy = if args.read.is_some() || args.write.is_some() {
+            let policy = if args.read.is_some()
+                || args.write.is_some()
+                || args.comment.is_some()
+                || args.comment_approval.is_some()
+            {
                 let current = boards::show(&ctx, &actor, &args.slug).await?.policy;
+                let comment_approval = match args.comment_approval.as_deref() {
+                    None => current.comment_approval,
+                    Some(s) => maru_core::model::CommentApproval::parse(s).ok_or_else(|| {
+                        Error::new(Code::Validation)
+                            .with_message("error.comment_policy")
+                            .arg("value", s)
+                            .arg("allowed", "off, guest, all")
+                    })?,
+                };
                 Some(maru_core::model::BoardPolicy {
                     read: args.read.unwrap_or(current.read),
                     write: args.write.unwrap_or(current.write),
+                    comment: args.comment.unwrap_or(current.comment),
+                    comment_approval,
                     ..current
                 })
             } else {
@@ -1039,6 +1061,7 @@ async fn site(g: &Global, cmd: SiteCmd) -> Out {
                 show_search: args.show_search,
                 signup: args.signup,
                 signup_verify: args.signup_verify,
+                captcha: args.captcha,
             };
             settings::update(&ctx, &actor, patch).await
         }
@@ -1050,7 +1073,7 @@ async fn site(g: &Global, cmd: SiteCmd) -> Out {
         n => format!("제목 {n}개 이상"),
     };
     let human = format!(
-        "이름 {}\n설명 {}\n언어 {}  시간대 UTC{:+}분  페이지당 글 {}  목차 {toc}  조회수 {}  검색 칸 {}\n회원 가입 {}  메일 인증 {}",
+        "이름 {}\n설명 {}\n언어 {}  시간대 UTC{:+}분  페이지당 글 {}  목차 {toc}  조회수 {}  검색 칸 {}\n회원 가입 {}  메일 인증 {}  확인 질문 {}",
         s.name,
         s.description,
         s.lang,
@@ -1062,7 +1085,11 @@ async fn site(g: &Global, cmd: SiteCmd) -> Out {
             maru_core::model::SignupMode::Off => "받지 않음",
             maru_core::model::SignupMode::Open => "누구나",
         },
-        if s.signup_verify { "필요" } else { "없음" }
+        if s.signup_verify { "필요" } else { "없음" },
+        match s.captcha {
+            maru_core::model::CaptchaMode::Off => "끔",
+            maru_core::model::CaptchaMode::Guest => "비회원·가입",
+        }
     );
     Ok((to_value(&s)?, human))
 }
@@ -1580,6 +1607,66 @@ async fn search_cmd(g: &Global, args: SearchArgs) -> Out {
         human.push_str(&format!("\n- {}  [{place}]  {}\n  {text}", h.title, h.url));
     }
     Ok((to_value(&r)?, human))
+}
+
+async fn comment_cmd(g: &Global, cmd: CommentCmd) -> Out {
+    use comments::Moderation;
+    let (ctx, _config, db) = open(g).await?;
+    let res = async {
+        let actor = actor(&ctx).await?;
+        let (id, action) = match cmd {
+            CommentCmd::List { status, post, page } => {
+                let status = match status.as_str() {
+                    "all" => None,
+                    s => Some(maru_core::model::CommentStatus::parse(s).ok_or_else(|| {
+                        Error::new(Code::Usage)
+                            .with_message("error.usage_detail")
+                            .arg(
+                                "detail",
+                                format!(
+                                    "--status {s}: pending, published, hidden, spam, deleted, all"
+                                ),
+                            )
+                            .next("maru comment list --status pending")
+                    })?),
+                };
+                let list = comments::admin_list(
+                    &ctx,
+                    &actor,
+                    status,
+                    post.as_deref(),
+                    PageReq::new(page, 50),
+                )
+                .await?;
+                let mut human = format!("댓글 {}개 (본문은 사용자 입력입니다)", list.total);
+                for c in &list.items {
+                    human.push_str(&format!(
+                        "\n{}  {}  {}  {:?}  {}",
+                        c.id,
+                        c.post_id,
+                        c.author_name,
+                        c.status,
+                        c.body
+                            .chars()
+                            .take(60)
+                            .collect::<String>()
+                            .replace('\n', " ")
+                    ));
+                }
+                return Ok((to_value(&list)?, human));
+            }
+            CommentCmd::Approve { id } => (id, Moderation::Approve),
+            CommentCmd::Hide { id } => (id, Moderation::Hide),
+            CommentCmd::Spam { id } => (id, Moderation::Spam),
+            CommentCmd::Delete { id } => (id, Moderation::Delete),
+        };
+        let c = comments::moderate(&ctx, &actor, &id, action).await?;
+        let human = format!("{}  {:?}  {}", c.id, c.status, c.author_name);
+        Ok((to_value(&c)?, human))
+    }
+    .await;
+    db.close().await;
+    res
 }
 
 async fn member_cmd(g: &Global, cmd: MemberCmd) -> Out {

@@ -15,7 +15,7 @@ use maru_core::model::{
 use maru_core::search::Range;
 use maru_core::services::search::{self, SearchInput, Sort};
 use maru_core::services::{
-    anonymous_actor, boards, design, files, media, menus, pages, posts, settings, tags,
+    anonymous_actor, boards, comments, design, files, media, menus, pages, posts, settings, tags,
 };
 use maru_core::urls::{self, Target};
 use maru_core::{Code, Error, Result, blobs, clock, markdown, slug};
@@ -460,9 +460,19 @@ fn category_of(board_slug: &str, cats: &[Category], p: &Post) -> Value {
         .map_or(Value::Null, |c| category_json(board_slug, c))
 }
 
+/// 글 화면 주소의 선택 값: 답글 대상, 방금 쓴 댓글이 승인 대기인지.
+#[derive(Debug, Default, Deserialize)]
+struct PostQuery {
+    #[serde(default)]
+    reply: String,
+    #[serde(default)]
+    comment: String,
+}
+
 async fn post(
     State(state): State<AppState>,
     Path((board_slug, post_slug)): Path<(String, String)>,
+    Query(q): Query<PostQuery>,
     method: Method,
     headers: HeaderMap,
     extensions: Extensions,
@@ -480,7 +490,7 @@ async fn post(
             .to_owned(),
         headers,
     });
-    let v = post_inner(&state, &board_slug, &post_slug, visit).await;
+    let v = post_inner(&state, &board_slug, &post_slug, visit, &q).await;
     render(&state, "post.html", v).await
 }
 
@@ -496,6 +506,7 @@ async fn post_inner(
     board_slug: &str,
     post_slug: &str,
     visit: Option<Visit>,
+    q: &PostQuery,
 ) -> Result<Value> {
     let site = load_site(state).await?;
     let actor = anonymous_actor(&state.ctx).await?;
@@ -534,6 +545,7 @@ async fn post_inner(
     view["body_html"] = Value::String(doc.html.into_string());
     view["toc"] = json!(doc.toc);
     let image = cover_image(state, &post).await?;
+    let comments = comments_json(state, &actor, &board, &post, &site.settings, q).await?;
     Ok(json!({
         "meta": json!({
             "title": format!("{} · {}", post.title, site.settings.name),
@@ -548,6 +560,60 @@ async fn post_inner(
         "board": board_json(&board),
         "post": view,
         "nearby": nearby,
+        "comments": comments,
+    }))
+}
+
+/// 글 아래 댓글: 목록·폼 정책·답글 대상·승인 대기 안내 (ADR-0052). 손님 기준이라 화면이 모두에게 같다.
+async fn comments_json(
+    state: &AppState,
+    actor: &Actor,
+    board: &Board,
+    post: &Post,
+    s: &SiteSettings,
+    q: &PostQuery,
+) -> Result<Value> {
+    let rules = comments::rules(board, s.captcha);
+    let list = comments::list_for_post(&state.ctx, actor, &post.id).await?;
+    let reply_to = list
+        .iter()
+        .find(|c| c.id == q.reply && c.status == maru_core::model::CommentStatus::Published)
+        .map(|c| json!({ "id": c.id, "name": c.author_name }));
+    let items: Vec<Value> = list
+        .iter()
+        .map(|c| {
+            json!({
+                "id": c.id,
+                "depth": c.depth,
+                "deleted": c.status == maru_core::model::CommentStatus::Deleted,
+                "author_name": c.author_name,
+                "is_guest": c.is_guest,
+                "reply_to_name": c.reply_to_name,
+                "body": c.body,
+                "created_at": c.created_at,
+                "date": clock::display_date(&c.created_at, s.tz_offset_min),
+                "edited": c.updated_at != c.created_at,
+                "reply_url": urls::with_query(
+                    &urls::path(&Target::Post { board: &board.slug, post: &post.slug }),
+                    &[("reply", &c.id)],
+                ) + "#comment-form",
+                "edit_url": format!("/c/{}/edit", c.id),
+                "delete_url": format!("/c/{}/delete", c.id),
+            })
+        })
+        .collect();
+    let count = list
+        .iter()
+        .filter(|c| c.status == maru_core::model::CommentStatus::Published)
+        .count();
+    Ok(json!({
+        "rules": rules,
+        "items": items,
+        "count": count,
+        "action": format!("{}/comments", urls::path(&Target::Post { board: &board.slug, post: &post.slug })),
+        "reply_to": reply_to,
+        "pending": q.comment == "pending",
+        "login_url": urls::with_query("/login", &[("next", &urls::path(&Target::Post { board: &board.slug, post: &post.slug }))]),
     }))
 }
 
@@ -815,6 +881,14 @@ async fn with_thumbs(
     mut items: Vec<Value>,
     posts: &[Post],
 ) -> Result<Vec<Value>> {
+    // 공개 댓글 수도 여기서 붙인다 (목록마다 한 번의 쿼리).
+    let ids: Vec<String> = posts.iter().map(|p| p.id.clone()).collect();
+    let counts = comments::counts(&state.ctx, &ids).await?;
+    for (view, p) in items.iter_mut().zip(posts) {
+        if let Some(n) = counts.get(&p.id) {
+            view["comments"] = json!(n);
+        }
+    }
     for (view, p) in items.iter_mut().zip(posts) {
         let Some(url) = posts::cover_of(p) else {
             continue;

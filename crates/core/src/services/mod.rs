@@ -3,7 +3,9 @@
 
 pub mod auth;
 pub mod boards;
+pub mod captcha;
 pub mod categories;
+pub mod comments;
 pub mod design;
 pub mod files;
 pub mod fonts;

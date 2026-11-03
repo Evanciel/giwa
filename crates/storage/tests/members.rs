@@ -44,6 +44,7 @@ async fn env(signup: &str, verify: bool) -> Env {
         SettingsPatch {
             signup: Some(signup.into()),
             signup_verify: Some(verify),
+            captcha: Some("off".into()),
             ..Default::default()
         },
     )
@@ -62,6 +63,7 @@ fn input(email: &str, name: &str) -> SignupInput {
         email: email.into(),
         display_name: name.into(),
         password: PW.into(),
+        captcha: None,
     }
 }
 
