@@ -35,6 +35,9 @@ pub struct BoardPolicy {
     /// 공개 화면에서 쓴 글을 바로 보일지, 관리자 승인 뒤 보일지 (ADR-0053)
     #[serde(default)]
     pub write_approval: Approval,
+    /// 답변글을 달 수 있는 최소 역할. `none` 이면 받지 않는다 (ADR-0056)
+    #[serde(default = "no_role")]
+    pub reply: String,
 }
 
 /// 댓글·공개 글쓰기 승인 (게시판 정책, ADR-0052·0053).
@@ -75,6 +78,9 @@ fn member() -> String {
 fn editor() -> String {
     "editor".into()
 }
+fn no_role() -> String {
+    "none".into()
+}
 
 impl Default for BoardPolicy {
     fn default() -> Self {
@@ -86,6 +92,7 @@ impl Default for BoardPolicy {
             comment: member(),
             comment_approval: Approval::Guest,
             write_approval: Approval::Guest,
+            reply: no_role(),
         }
     }
 }
@@ -113,6 +120,13 @@ pub struct Board {
     pub sort_order: i64,
     pub created_at: String,
     pub updated_at: String,
+}
+
+impl Post {
+    /// 답변 깊이. 맨 위 글은 0.
+    pub fn depth(&self) -> usize {
+        self.thread_path.len() / 5
+    }
 }
 
 impl Board {
@@ -235,6 +249,18 @@ pub struct Post {
     /// 비회원 비밀번호의 argon2id 해시. 밖으로 내보내지 않는다.
     #[serde(skip)]
     pub guest_pw_hash: Option<String>,
+    /// 답변글이면 바로 위 글 (ADR-0056)
+    #[serde(default)]
+    pub parent_id: Option<Id>,
+    /// 답변글이면 맨 위 글. 맨 위 글 자신은 비어 있다
+    #[serde(default)]
+    pub thread_id: Option<Id>,
+    /// 스레드 안 순서 `0001.0002.` (깊이마다 다섯 글자). 맨 위 글은 빈 값
+    #[serde(default)]
+    pub thread_path: String,
+    /// 맨 위 글을 쓴 회원. 비밀 답변을 질문한 사람도 읽게 한다
+    #[serde(default)]
+    pub thread_owner: Option<Id>,
 }
 
 impl Post {

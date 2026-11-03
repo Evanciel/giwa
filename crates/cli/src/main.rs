@@ -268,6 +268,8 @@ pub enum PostCmd {
         #[arg(long)]
         category: Option<String>,
     },
+    /// 공개 글에 답변글 초안을 단다. 게시판·분류는 위 글을 따른다
+    Reply(PostReplyArgs),
     /// 글을 다른 게시판에 초안으로 복사한다
     Copy {
         id: String,
@@ -282,6 +284,31 @@ pub enum PostCmd {
         #[arg(long)]
         from: PathBuf,
     },
+}
+
+#[derive(Debug, Args)]
+pub struct PostReplyArgs {
+    /// 위 글 id
+    pub id: String,
+    #[arg(long)]
+    pub title: String,
+    /// Markdown 본문
+    #[arg(long, conflicts_with = "from")]
+    pub body: Option<String>,
+    /// 본문 파일 (UTF-8). `-` 이면 표준 입력
+    #[arg(long)]
+    pub from: Option<PathBuf>,
+    /// 생략하면 제목에서 만든다
+    #[arg(long)]
+    pub slug: Option<String>,
+    #[arg(long = "tag")]
+    pub tags: Vec<String>,
+    /// 비밀 답변 (위 글이 비밀글이면 늘 비밀글)
+    #[arg(long)]
+    pub secret: bool,
+    /// 만든 뒤 바로 발행
+    #[arg(long)]
+    pub publish: bool,
 }
 
 #[derive(Debug, Args)]
@@ -584,6 +611,9 @@ pub struct BoardUpdateArgs {
     /// 공개 화면 글쓰기 승인: off, guest(비회원 글만 승인 뒤), all
     #[arg(long)]
     pub write_approval: Option<String>,
+    /// 답변글 최소 역할 (none 이면 받지 않음. 문의 게시판 기본은 editor)
+    #[arg(long)]
+    pub reply: Option<String>,
 }
 
 #[derive(Debug, Subcommand)]

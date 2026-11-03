@@ -62,12 +62,14 @@ async fn create_inner(
     check_kind(&input.kind)?;
     let layout = input.layout.unwrap_or_default();
     check_layout(&layout)?;
-    let policy = input.policy.unwrap_or_else(|| {
-        if input.kind == "blog" {
-            BoardPolicy::blog()
-        } else {
-            BoardPolicy::default()
-        }
+    let policy = input.policy.unwrap_or_else(|| match input.kind.as_str() {
+        "blog" => BoardPolicy::blog(),
+        // 문의 게시판은 운영자가 답변글을 단다 (ADR-0056).
+        "qna" => BoardPolicy {
+            reply: "editor".into(),
+            ..BoardPolicy::default()
+        },
+        _ => BoardPolicy::default(),
     });
     check_policy(&policy)?;
 
@@ -238,11 +240,13 @@ fn check_policy(policy: &BoardPolicy) -> Result<()> {
                 .arg("value", role.clone()));
         }
     }
-    // 댓글은 `none`(받지 않음)도 된다 (ADR-0052).
-    if policy.comment != "none" && crate::actor::rank::of_role(&policy.comment).is_none() {
-        return Err(Error::new(Code::Validation)
-            .with_message("error.board_policy_role")
-            .arg("value", policy.comment.clone()));
+    // 댓글·답변은 `none`(받지 않음)도 된다 (ADR-0052·0056).
+    for role in [&policy.comment, &policy.reply] {
+        if role != "none" && crate::actor::rank::of_role(role).is_none() {
+            return Err(Error::new(Code::Validation)
+                .with_message("error.board_policy_role")
+                .arg("value", role.clone()));
+        }
     }
     Ok(())
 }

@@ -40,6 +40,8 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "error.board_exists" => "`{slug}` 게시판이 이미 있습니다.",
         "error.board_not_found" => "`{slug}` 게시판을 찾을 수 없습니다.",
         "error.post_not_found" => "글을 찾을 수 없습니다: {id}",
+        "error.reply_closed" => "이 게시판은 답변글을 받지 않습니다.",
+        "error.reply_depth" => "답변은 {max}단계까지만 달 수 있습니다.",
         "error.revision_not_found" => "이 글의 리비전이 아닙니다: {id}",
         "error.bulk_size" => "한 번에 1개에서 {max}개까지 고를 수 있습니다.",
         "error.bulk_action" => {

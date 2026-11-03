@@ -4,11 +4,15 @@
 {% block main %}
 <section class="account" aria-labelledby="write-title">
 {% if write.view == "form" %}
-  <h1 id="write-title">{% if write.mode == "new" %}글쓰기{% else %}글 고치기{% endif %}</h1>
+  <h1 id="write-title">{% if write.reply %}답변 쓰기{% elif write.mode == "new" %}글쓰기{% else %}글 고치기{% endif %}</h1>
   <p class="account-lead"><a href="{{ write.back }}">{{ write.board.name }}</a>{% if write.review and write.mode == "new" %} · 관리자가 확인한 뒤에 목록에 보입니다.{% endif %}</p>
   {% if write.error %}<p class="form-error" role="alert">{{ write.error }}</p>{% endif %}
   <form class="account-form write-form" method="post" action="{{ write.action }}">
     <input type="hidden" name="_csrf" value="{{ write.csrf }}">
+    {% if write.reply %}
+    <input type="hidden" name="reply_to" value="{{ write.reply.id }}">
+    <p class="reply-to">답변할 글: <strong>{{ write.reply.title }}</strong>{% if write.reply.secret %} · 비밀글이라 답변도 비밀글이 됩니다{% endif %}</p>
+    {% endif %}
     {% if write.categories %}
     <label for="category">분류</label>
     <select id="category" name="category">

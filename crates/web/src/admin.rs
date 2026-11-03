@@ -45,6 +45,7 @@ pub fn routes() -> Router<AppState> {
         .route("/admin/posts/{id}/revisions", get(revisions_page))
         .route("/admin/posts/{id}/revisions/{rev}/revert", post(revert))
         .route("/admin/posts/{id}/move", post(move_post))
+        .route("/admin/posts/{id}/reply", post(reply_post))
         .route("/admin/posts/{id}", get(edit_form).post(save))
         .route("/admin/posts/{id}/{action}", post(action))
         .route("/admin/media", post(upload).layer(crate::upload_limit()))
@@ -736,6 +737,7 @@ fn notice(done: &str) -> Option<&'static str> {
         "reverted" => "리비전으로 되돌렸습니다.",
         "moved" => "다른 게시판으로 옮겼습니다.",
         "copied" => "복사해 초안으로 만들었습니다. 지금 보는 것이 복사본입니다.",
+        "replied" => "답변 초안을 만들었습니다. 다듬은 뒤 발행하세요.",
         _ => return None,
     })
 }
@@ -1029,7 +1031,7 @@ async fn edit_page(
         )
         .await,
         json!({
-            "boards": boards.iter().map(|b| json!({ "slug": b.slug, "name": b.name })).collect::<Vec<_>>(),
+            "boards": boards.iter().map(|b| json!({ "slug": b.slug, "name": b.name, "reply": b.policy.reply != "none" })).collect::<Vec<_>>(),
             "post": post.map(|p| json!({
                 "id": p.id,
                 "status": p.status,
@@ -1483,6 +1485,43 @@ async fn move_post(
         Ok((p, done)) => {
             Redirect::to(&format!("/admin/posts/{}?done={done}", p.id)).into_response()
         }
+        Err(e) => fail(&state, Some(&who), &e).await,
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct ReplyForm {
+    #[serde(default, rename = "_csrf")]
+    csrf: String,
+    #[serde(default)]
+    title: String,
+    #[serde(default)]
+    body_md: String,
+}
+
+/// 답변 초안을 만들고 그 편집 화면으로 간다 (ADR-0056).
+async fn reply_post(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Form(f): Form<ReplyForm>,
+) -> Response {
+    let who = match require(&state, &headers, &format!("/admin/posts/{id}")).await {
+        Ok(w) => w,
+        Err(r) => return *r,
+    };
+    if !session_csrf_ok(&who, &f.csrf) {
+        return csrf_failed(&state, Some(&who)).await;
+    }
+    let input = posts::ReplyInput {
+        title: f.title,
+        body_md: f.body_md,
+        slug: None,
+        tags: Vec::new(),
+        secret: false,
+    };
+    match posts::reply(&state.ctx, &who.actor, &id, input).await {
+        Ok(p) => Redirect::to(&format!("/admin/posts/{}?done=replied", p.id)).into_response(),
         Err(e) => fail(&state, Some(&who), &e).await,
     }
 }

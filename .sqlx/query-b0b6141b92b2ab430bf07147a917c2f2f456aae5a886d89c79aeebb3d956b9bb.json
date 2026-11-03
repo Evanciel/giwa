@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,\n                    actor_type, published_at, created_at, updated_at, scheduled_at, cover,\n                    category_id, is_notice, is_secret, view_count, guest_name, guest_pw_hash,\n                    (SELECT json_group_array(t.name ORDER BY pt.position)\n                       FROM post_tags pt JOIN tags t ON t.id = pt.tag_id\n                      WHERE pt.post_id = posts.id) AS \"tags!: String\"\n             FROM posts WHERE board_id = ? AND slug = ?",
+  "query": "SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,\n                    actor_type, published_at, created_at, updated_at, scheduled_at, cover,\n                    category_id, is_notice, is_secret, view_count, guest_name, guest_pw_hash,\n                    parent_id, thread_id, thread_path, thread_owner,\n                    (SELECT json_group_array(t.name ORDER BY pt.position)\n                       FROM post_tags pt JOIN tags t ON t.id = pt.tag_id\n                      WHERE pt.post_id = posts.id) AS \"tags!: String\"\n             FROM posts WHERE board_id = ? AND slug = ?",
   "describe": {
     "columns": [
       {
@@ -235,8 +235,52 @@
         }
       },
       {
-        "name": "tags!: String",
+        "name": "parent_id",
         "ordinal": 21,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "parent_id"
+          }
+        }
+      },
+      {
+        "name": "thread_id",
+        "ordinal": 22,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "thread_id"
+          }
+        }
+      },
+      {
+        "name": "thread_path",
+        "ordinal": 23,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "thread_path"
+          }
+        }
+      },
+      {
+        "name": "thread_owner",
+        "ordinal": 24,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "thread_owner"
+          }
+        }
+      },
+      {
+        "name": "tags!: String",
+        "ordinal": 25,
         "type_info": "Text",
         "origin": "Expression"
       }
@@ -266,8 +310,12 @@
       false,
       true,
       true,
+      true,
+      true,
+      false,
+      true,
       true
     ]
   },
-  "hash": "dedfeeee3acc4cd394d6a64a9bcf5150204f01da98743985552fdadda8787385"
+  "hash": "b0b6141b92b2ab430bf07147a917c2f2f456aae5a886d89c79aeebb3d956b9bb"
 }

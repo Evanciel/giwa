@@ -14,8 +14,11 @@
     {% for t in post.tags %}<li><a href="{{ t.url }}" rel="tag">#{{ t.name }}</a></li>{% endfor %}
   </ul>
   {% endif %}
-  {% if post.edit_url %}
-  <p class="post-actions"><a href="{{ board.url }}">목록</a><a href="{{ post.edit_url }}" rel="nofollow">고치기</a><a href="{{ post.delete_url }}" rel="nofollow">지우기</a></p>
+  {% if post.parent %}
+  <p class="post-parent">답변한 글: <a href="{{ post.parent.url }}">{{ post.parent.title }}</a></p>
+  {% endif %}
+  {% if post.edit_url or post.reply_url %}
+  <p class="post-actions"><a href="{{ board.url }}">목록</a>{% if post.reply_url %}<a href="{{ post.reply_url }}" rel="nofollow">답변</a>{% endif %}{% if post.edit_url %}<a href="{{ post.edit_url }}" rel="nofollow">고치기</a><a href="{{ post.delete_url }}" rel="nofollow">지우기</a>{% endif %}</p>
   {% endif %}
 </article>
 {% if comments.rules.open or comments.items %}{% include "_comments.html" %}{% endif %}

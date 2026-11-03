@@ -49,6 +49,7 @@ pub fn routes() -> Router<AppState> {
         .route("/posts/{id}/revisions/{rev}/revert", post(revert_post))
         .route("/posts/{id}/move", post(move_post))
         .route("/posts/{id}/copy", post(copy_post))
+        .route("/posts/{id}/reply", post(reply_post))
         .route("/posts/{id}/{action}", post(post_action))
         .route("/pages", get(list_pages).post(create_page))
         .route("/pages/{slug}", get(get_page).patch(update_page))
@@ -293,6 +294,17 @@ async fn copy_post(
 ) -> Result<Response, ApiError> {
     let Json(input) = body.map_err(bad_json)?;
     let post = posts::copy_to(&state.ctx, &actor, &id, input).await?;
+    Ok(ok(StatusCode::CREATED, post))
+}
+
+async fn reply_post(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(id): Path<String>,
+    body: Result<Json<posts::ReplyInput>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let Json(input) = body.map_err(bad_json)?;
+    let post = posts::reply(&state.ctx, &actor, &id, input).await?;
     Ok(ok(StatusCode::CREATED, post))
 }
 

@@ -147,6 +147,19 @@
     <button type="submit" name="how" value="copy" class="secondary">초안으로 복사</button>
   </form>
   {% endif %}
+  {% if post.status == "published" %}{% for b in boards %}{% if b.slug == values.board and b.reply %}
+  <details class="reply-form">
+    <summary>답변 쓰기</summary>
+    <form method="post" action="/admin/posts/{{ post.id }}/reply">
+      <input type="hidden" name="_csrf" value="{{ csrf }}">
+      <label for="reply-title">제목</label>
+      <input id="reply-title" type="text" name="title" value="RE: {{ values.title }}" maxlength="200" required>
+      <label for="reply-body">내용</label>
+      <textarea id="reply-body" name="body_md" rows="6"></textarea>
+      <button type="submit" class="secondary">답변 초안 만들기</button>
+    </form>
+  </details>
+  {% endif %}{% endfor %}{% endif %}
 </section>
 <section class="danger write-danger" aria-label="상태 바꾸기">
   {% if post.status == "published" %}

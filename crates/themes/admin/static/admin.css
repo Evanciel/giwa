@@ -321,3 +321,9 @@ pre.diff > span { display: block; padding: 0 .75rem; }
   .posts tr { position: relative; }
 }
 
+
+/* 답변 쓰기 (ADR-0056) */
+.reply-form { flex-basis: 100%; }
+.reply-form summary { cursor: pointer; font-weight: 600; }
+.reply-form form { display: grid; gap: 0.4rem; margin-block-start: 0.6rem; max-inline-size: 40rem; }
+.reply-form button { justify-self: start; }

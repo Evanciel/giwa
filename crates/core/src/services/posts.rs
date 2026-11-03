@@ -51,6 +51,122 @@ pub struct NewPost {
 }
 
 pub async fn create_draft(ctx: &Ctx, actor: &Actor, input: NewPost) -> Result<Post> {
+    create_inner(ctx, actor, input, None).await
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ReplyInput {
+    pub title: String,
+    #[serde(default)]
+    pub body_md: String,
+    /// 비우면 제목에서 만든다
+    #[serde(default)]
+    pub slug: Option<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    /// 위 글이 비밀글이면 답변도 늘 비밀글이다
+    #[serde(default)]
+    pub secret: bool,
+}
+
+/// 답변글 초안을 만든다 (ADR-0056). 게시판·분류는 위 글을 따르고, 발행은 `publish` 로.
+pub async fn reply(ctx: &Ctx, actor: &Actor, parent_id: &str, input: ReplyInput) -> Result<Post> {
+    let parent = get(ctx, actor, parent_id).await?;
+    let board = ctx
+        .store
+        .board_by_id(&parent.board_id)
+        .await?
+        .ok_or_else(|| not_found(parent_id))?;
+    let new = NewPost {
+        board: board.slug,
+        title: input.title,
+        slug: input.slug,
+        body_md: input.body_md,
+        excerpt: None,
+        cover: None,
+        category: None,
+        tags: input.tags,
+        notice: false,
+        secret: input.secret,
+    };
+    create_inner(ctx, actor, new, Some(&parent.id)).await
+}
+
+/// 답변 깊이 한도.
+pub const MAX_REPLY_DEPTH: usize = 5;
+
+/// 답변글이 들어갈 자리. 위 글을 트랜잭션 안에서 읽어 형제 순서가 겹치지 않는다.
+pub(crate) struct ReplySpot {
+    parent_id: String,
+    thread_id: String,
+    thread_path: String,
+    thread_owner: Option<String>,
+    pub(crate) category_id: Option<String>,
+    pub(crate) secret: bool,
+}
+
+impl ReplySpot {
+    pub(crate) fn apply(self, post: &mut Post) {
+        post.parent_id = Some(self.parent_id);
+        post.thread_id = Some(self.thread_id);
+        post.thread_path = self.thread_path;
+        post.thread_owner = self.thread_owner;
+        post.category_id = self.category_id;
+        post.is_secret |= self.secret;
+    }
+}
+
+pub(crate) async fn reply_spot(
+    tx: &mut dyn WriteTx,
+    actor: &Actor,
+    board: &Board,
+    parent_id: &str,
+) -> Result<ReplySpot> {
+    let parent = tx
+        .post_by_id(parent_id)
+        .await?
+        .filter(|p| p.board_id == board.id && p.status == PostStatus::Published)
+        .ok_or_else(|| not_found(parent_id))?;
+    if board.policy.reply == "none" {
+        return Err(Error::new(Code::Forbidden)
+            .with_message("error.reply_closed")
+            .next(format!("maru board update {} --reply editor", board.slug)));
+    }
+    actor.require_rank(Permission::PostWrite, &board.policy.reply)?;
+    if parent.is_secret && !can_read_secret(actor, board, &parent) {
+        return Err(not_found(parent_id));
+    }
+    if parent.depth() >= MAX_REPLY_DEPTH {
+        return Err(Error::new(Code::Validation)
+            .with_message("error.reply_depth")
+            .arg("max", MAX_REPLY_DEPTH.to_string()));
+    }
+    let n = tx.reply_count(&parent.id).await?;
+    let root = parent.thread_id.is_none();
+    Ok(ReplySpot {
+        thread_path: format!("{}{:04}.", parent.thread_path, n + 1),
+        thread_id: parent
+            .thread_id
+            .clone()
+            .unwrap_or_else(|| parent.id.clone()),
+        thread_owner: if root {
+            parent.author_id.clone()
+        } else {
+            parent.thread_owner.clone()
+        },
+        category_id: parent.category_id.clone(),
+        secret: parent.is_secret,
+        parent_id: parent.id,
+    })
+}
+
+async fn create_inner(
+    ctx: &Ctx,
+    actor: &Actor,
+    input: NewPost,
+    reply_to: Option<&str>,
+) -> Result<Post> {
     let author_type = actor
         .author_type()
         .ok_or_else(|| actor.denied(Permission::PostWrite))?;
@@ -93,6 +209,10 @@ pub async fn create_draft(ctx: &Ctx, actor: &Actor, input: NewPost) -> Result<Po
         None => None,
     };
     let tags = tags::normalize(&mut *tx, &input.tags).await?;
+    let spot = match reply_to {
+        Some(id) => Some(reply_spot(&mut *tx, actor, &board, id).await?),
+        None => None,
+    };
     if input.notice {
         actor.require(Permission::PostPublish)?;
         actor.require_board(Permission::PostPublish, &board.id)?;
@@ -100,7 +220,7 @@ pub async fn create_draft(ctx: &Ctx, actor: &Actor, input: NewPost) -> Result<Po
     }
 
     let now = clock::now();
-    let post = Post {
+    let mut post = Post {
         id: clock::new_id(),
         board_id: board.id.clone(),
         kind: PostKind::Post,
@@ -123,7 +243,14 @@ pub async fn create_draft(ctx: &Ctx, actor: &Actor, input: NewPost) -> Result<Po
         view_count: 0,
         guest_name: None,
         guest_pw_hash: None,
+        parent_id: None,
+        thread_id: None,
+        thread_path: String::new(),
+        thread_owner: None,
     };
+    if let Some(spot) = spot {
+        spot.apply(&mut post);
+    }
     tx.insert_post(&post).await?;
     tx.insert_revision(&revision_of(&post, actor)).await?;
     tx.audit(
@@ -433,6 +560,8 @@ pub async fn nearby(ctx: &Ctx, actor: &Actor, board: &Board, post: &Post) -> Res
 /// 비밀글 본문을 볼 수 있는가: 작성자 본인 또는 그 게시판을 관리할 수 있는 사람.
 pub fn can_read_secret(actor: &Actor, board: &Board, post: &Post) -> bool {
     is_own(actor, post)
+        // 비밀 답변은 맨 위 글을 쓴 회원도 읽는다 (ADR-0056).
+        || (post.thread_owner.is_some() && actor.member_id() == post.thread_owner.as_ref())
         || (actor.has(Permission::PostModerate)
             && actor
                 .require_rank(Permission::PostModerate, &board.policy.moderate)

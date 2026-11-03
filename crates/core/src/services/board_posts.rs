@@ -40,6 +40,9 @@ pub struct BoardWrite {
     pub guest: Option<GuestAuthor>,
     #[serde(default)]
     pub captcha: Option<captcha::Answer>,
+    /// 답변글이면 위 글 id (ADR-0056)
+    #[serde(default)]
+    pub reply_to: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, JsonSchema)]
@@ -87,6 +90,28 @@ pub struct Editable {
     pub board: Board,
     /// 손님 글이라 비밀번호를 받아야 한다
     pub by_password: bool,
+}
+
+/// 공개 화면 답변 폼을 열기 전에: 위 글을 찾고 이 사람이 답변을 달 수 있는지 본다 (ADR-0056).
+/// 글쓰기 역할 검사는 `write` 와 같이 화면 쪽 `may_write` 가 먼저 한다.
+pub async fn reply_target(ctx: &Ctx, actor: &Actor, board: &Board, id: &str) -> Result<Post> {
+    let parent = ctx
+        .store
+        .post_by_id(id)
+        .await?
+        .filter(|p| p.board_id == board.id && p.status == PostStatus::Published)
+        .filter(|p| !p.is_secret || posts::can_read_secret(actor, board, p))
+        .ok_or_else(|| posts::not_found(id))?;
+    if board.policy.reply == "none" {
+        return Err(Error::new(Code::Forbidden).with_message("error.reply_closed"));
+    }
+    actor.require_rank(Permission::PostWrite, &board.policy.reply)?;
+    if parent.depth() >= posts::MAX_REPLY_DEPTH {
+        return Err(Error::new(Code::Validation)
+            .with_message("error.reply_depth")
+            .arg("max", posts::MAX_REPLY_DEPTH.to_string()));
+    }
+    Ok(parent)
 }
 
 pub async fn write(ctx: &Ctx, actor: &Actor, input: BoardWrite) -> Result<Post> {
@@ -156,8 +181,12 @@ pub async fn write(ctx: &Ctx, actor: &Actor, input: BoardWrite) -> Result<Post> 
         None => None,
     };
     let tags = tags::normalize(&mut *tx, &input.tags).await?;
+    let spot = match input.reply_to.as_deref() {
+        Some(id) => Some(posts::reply_spot(&mut *tx, actor, &board, id).await?),
+        None => None,
+    };
     let now = clock::now();
-    let post = Post {
+    let mut post = Post {
         id: clock::new_id(),
         board_id: board.id.clone(),
         kind: PostKind::Post,
@@ -184,7 +213,14 @@ pub async fn write(ctx: &Ctx, actor: &Actor, input: BoardWrite) -> Result<Post> 
         view_count: 0,
         guest_name,
         guest_pw_hash,
+        parent_id: None,
+        thread_id: None,
+        thread_path: String::new(),
+        thread_owner: None,
     };
+    if let Some(spot) = spot {
+        spot.apply(&mut post);
+    }
     tx.insert_post(&post).await?;
     tx.insert_revision(&posts::revision_of(&post, actor))
         .await?;

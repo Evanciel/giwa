@@ -457,6 +457,30 @@ async fn post(g: &Global, cmd: PostCmd) -> Out {
             let p = posts::move_to(&ctx, &actor, &id, posts::MoveInput { board, category }).await?;
             post_out(&ctx, &p, "옮겼습니다").await
         }
+        PostCmd::Reply(args) => {
+            let body_md = match (&args.body, &args.from) {
+                (Some(b), _) => b.clone(),
+                (None, Some(path)) => read_body(path)?,
+                (None, None) => String::new(),
+            };
+            let input = posts::ReplyInput {
+                title: args.title,
+                body_md,
+                slug: args.slug,
+                tags: args.tags,
+                secret: args.secret,
+            };
+            let mut p = posts::reply(&ctx, &actor, &args.id, input).await?;
+            if args.publish {
+                p = posts::publish(&ctx, &actor, &p.id).await?;
+            }
+            let verb = if args.publish {
+                "답변을 발행했습니다"
+            } else {
+                "답변 초안을 만들었습니다"
+            };
+            post_out(&ctx, &p, verb).await
+        }
         PostCmd::Copy { id, board } => {
             let p = posts::copy_to(&ctx, &actor, &id, posts::CopyInput { board }).await?;
             post_out(&ctx, &p, "초안으로 복사했습니다").await
@@ -759,7 +783,7 @@ async fn board(g: &Global, cmd: BoardCmd) -> Out {
         BoardCmd::Show { slug } => {
             let b = boards::show(&ctx, &actor, &slug).await?;
             let human = format!(
-                "{} ({})  종류 {}  형태 {}  읽기 {}  쓰기 {} (승인 {})  댓글 {} (승인 {})",
+                "{} ({})  종류 {}  형태 {}  읽기 {}  쓰기 {} (승인 {})  댓글 {} (승인 {})  답변 {}",
                 b.name,
                 b.slug,
                 b.kind,
@@ -768,7 +792,8 @@ async fn board(g: &Global, cmd: BoardCmd) -> Out {
                 b.policy.write,
                 b.policy.write_approval.as_str(),
                 b.policy.comment,
-                b.policy.comment_approval.as_str()
+                b.policy.comment_approval.as_str(),
+                b.policy.reply
             );
             Ok((to_value(&b)?, human))
         }
@@ -778,6 +803,7 @@ async fn board(g: &Global, cmd: BoardCmd) -> Out {
                 || args.comment.is_some()
                 || args.comment_approval.is_some()
                 || args.write_approval.is_some()
+                || args.reply.is_some()
             {
                 let current = boards::show(&ctx, &actor, &args.slug).await?.policy;
                 let approval = |v: Option<&str>, now| match v {
@@ -797,6 +823,7 @@ async fn board(g: &Global, cmd: BoardCmd) -> Out {
                     read: args.read.unwrap_or(current.read),
                     write: args.write.unwrap_or(current.write),
                     comment: args.comment.unwrap_or(current.comment),
+                    reply: args.reply.unwrap_or(current.reply),
                     comment_approval,
                     write_approval,
                     ..current

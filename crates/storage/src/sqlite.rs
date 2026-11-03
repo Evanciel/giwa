@@ -93,6 +93,10 @@ struct PostRow {
     view_count: i64,
     guest_name: Option<String>,
     guest_pw_hash: Option<String>,
+    parent_id: Option<String>,
+    thread_id: Option<String>,
+    thread_path: String,
+    thread_owner: Option<String>,
 }
 
 impl TryFrom<PostRow> for Post {
@@ -124,6 +128,10 @@ impl TryFrom<PostRow> for Post {
             view_count: r.view_count,
             guest_name: r.guest_name,
             guest_pw_hash: r.guest_pw_hash,
+            parent_id: r.parent_id,
+            thread_id: r.thread_id,
+            thread_path: r.thread_path,
+            thread_owner: r.thread_owner,
         })
     }
 }
@@ -357,6 +365,7 @@ async fn post_by_id<'e>(e: impl SqliteExecutor<'e>, id: &str) -> Result<Option<P
         r#"SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,
                 actor_type, published_at, created_at, updated_at, scheduled_at, cover,
                 category_id, is_notice, is_secret, view_count, guest_name, guest_pw_hash,
+                    parent_id, thread_id, thread_path, thread_owner,
                 (SELECT json_group_array(t.name ORDER BY pt.position)
                    FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
                   WHERE pt.post_id = posts.id) AS "tags!: String"
@@ -466,6 +475,7 @@ impl Store for SqliteStore {
             r#"SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,
                     actor_type, published_at, created_at, updated_at, scheduled_at, cover,
                     category_id, is_notice, is_secret, view_count, guest_name, guest_pw_hash,
+                    parent_id, thread_id, thread_path, thread_owner,
                     (SELECT json_group_array(t.name ORDER BY pt.position)
                        FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
                       WHERE pt.post_id = posts.id) AS "tags!: String"
@@ -494,6 +504,7 @@ impl Store for SqliteStore {
                       p.scheduled_at, p.cover,
                       p.category_id, p.is_notice AS "is_notice!", p.is_secret AS "is_secret!",
                       p.view_count AS "view_count!", p.guest_name, p.guest_pw_hash,
+                      p.parent_id, p.thread_id, p.thread_path AS "thread_path!", p.thread_owner,
                       (SELECT json_group_array(t.name ORDER BY pt.position)
                          FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
                         WHERE pt.post_id = p.id) AS "tags!: String"
@@ -507,7 +518,9 @@ impl Store for SqliteStore {
                  AND (?7 IS NULL OR EXISTS (SELECT 1 FROM post_tags x
                                              WHERE x.post_id = p.id AND x.tag_id = ?7))
                  AND (?8 = 0 OR p.is_secret = 0)
-               ORDER BY p.published_at DESC, p.id DESC
+               ORDER BY COALESCE((SELECT t.published_at FROM posts t WHERE t.id = p.thread_id),
+                                 p.published_at) DESC,
+                        COALESCE(p.thread_id, p.id) DESC, p.thread_path
                LIMIT ?3 OFFSET ?4"#,
             q.max_read_rank,
             q.board_id,
@@ -559,6 +572,7 @@ impl Store for SqliteStore {
                 r#"SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,
                         actor_type, published_at, created_at, updated_at, scheduled_at, cover,
                         category_id, is_notice, is_secret, view_count, guest_name, guest_pw_hash,
+                    parent_id, thread_id, thread_path, thread_owner,
                         (SELECT json_group_array(t.name ORDER BY pt.position)
                            FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
                           WHERE pt.post_id = posts.id) AS "tags!: String"
@@ -584,6 +598,7 @@ impl Store for SqliteStore {
             r#"SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,
                     actor_type, published_at, created_at, updated_at, scheduled_at, cover,
                     category_id, is_notice, is_secret, view_count, guest_name, guest_pw_hash,
+                    parent_id, thread_id, thread_path, thread_owner,
                     (SELECT json_group_array(t.name ORDER BY pt.position)
                        FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
                       WHERE pt.post_id = posts.id) AS "tags!: String"
@@ -1042,6 +1057,7 @@ impl Store for SqliteStore {
             r#"SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,
                     actor_type, published_at, created_at, updated_at, scheduled_at, cover,
                     category_id, is_notice, is_secret, view_count, guest_name, guest_pw_hash,
+                    parent_id, thread_id, thread_path, thread_owner,
                     (SELECT json_group_array(t.name ORDER BY pt.position)
                        FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
                       WHERE pt.post_id = posts.id) AS "tags!: String"
@@ -1064,6 +1080,7 @@ impl Store for SqliteStore {
             r#"SELECT id, board_id, kind, status, title, slug, body_md, excerpt, author_id,
                     actor_type, published_at, created_at, updated_at, scheduled_at, cover,
                     category_id, is_notice, is_secret, view_count, guest_name, guest_pw_hash,
+                    parent_id, thread_id, thread_path, thread_owner,
                     (SELECT json_group_array(t.name ORDER BY pt.position)
                        FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
                       WHERE pt.post_id = posts.id) AS "tags!: String"
@@ -1101,6 +1118,7 @@ impl Store for SqliteStore {
                       c.scheduled_at, c.cover,
                       c.category_id, c.is_notice AS "is_notice!", c.is_secret AS "is_secret!",
                       c.view_count AS "view_count!", c.guest_name, c.guest_pw_hash,
+                      c.parent_id, c.thread_id, c.thread_path AS "thread_path!", c.thread_owner,
                       (SELECT json_group_array(t.name ORDER BY pt.position)
                          FROM post_tags pt JOIN tags t ON t.id = pt.tag_id
                         WHERE pt.post_id = c.id) AS "tags!: String"
@@ -1360,6 +1378,16 @@ impl WriteTx for SqliteWriteTx {
         post_by_id(&mut *self.tx, id).await
     }
 
+    async fn reply_count(&mut self, parent_id: &str) -> Result<i64> {
+        sqlx::query_scalar!(
+            r#"SELECT count(*) AS "n!: i64" FROM posts WHERE parent_id = ?"#,
+            parent_id
+        )
+        .fetch_one(&mut *self.tx)
+        .await
+        .map_err(db_error)
+    }
+
     async fn slug_taken(
         &mut self,
         board_id: &str,
@@ -1386,8 +1414,9 @@ impl WriteTx for SqliteWriteTx {
             "INSERT INTO posts (id, board_id, kind, status, title, slug, body_md, excerpt,
                                 author_id, actor_type, published_at, created_at, updated_at,
                                 scheduled_at, cover, category_id, is_notice, is_secret,
-                                guest_name, guest_pw_hash)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                guest_name, guest_pw_hash, parent_id, thread_id, thread_path,
+                                thread_owner)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             p.id,
             p.board_id,
             kind,
@@ -1407,7 +1436,11 @@ impl WriteTx for SqliteWriteTx {
             p.is_notice,
             p.is_secret,
             p.guest_name,
-            p.guest_pw_hash
+            p.guest_pw_hash,
+            p.parent_id,
+            p.thread_id,
+            p.thread_path,
+            p.thread_owner
         )
         .execute(&mut *self.tx)
         .await

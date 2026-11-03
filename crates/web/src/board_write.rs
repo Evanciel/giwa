@@ -5,7 +5,7 @@
 //! - 새 글은 `/write/{board}` — `/b/{board}/{post}` 와 겹치지 않게 게시판 주소 밖에 둔다.
 
 use axum::Router;
-use axum::extract::{Form, Path, State};
+use axum::extract::{Form, Path, Query, State};
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::middleware;
 use axum::response::{Html, IntoResponse, Redirect, Response};
@@ -59,6 +59,16 @@ struct WriteForm {
     captcha_token: String,
     #[serde(default)]
     captcha_answer: String,
+    /// 답변글이면 위 글 id (ADR-0056)
+    #[serde(default)]
+    reply_to: String,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct NewQuery {
+    /// 답변을 달 위 글 id
+    #[serde(default)]
+    reply: Option<String>,
 }
 
 impl WriteForm {
@@ -68,6 +78,10 @@ impl WriteForm {
             .map(|t| t.trim().trim_start_matches('#').trim().to_owned())
             .filter(|t| !t.is_empty())
             .collect()
+    }
+
+    fn reply_to(&self) -> Option<String> {
+        Some(self.reply_to.trim().to_owned()).filter(|r| !r.is_empty())
     }
 
     fn category(&self) -> Option<String> {
@@ -119,6 +133,7 @@ fn post_url(board: &Board, post: &Post) -> String {
 async fn new_form(
     State(state): State<AppState>,
     Path(slug): Path<String>,
+    Query(q): Query<NewQuery>,
     headers: HeaderMap,
 ) -> Response {
     let (actor, who) = match viewer(&state, &headers).await {
@@ -132,6 +147,16 @@ async fn new_form(
     if let Err(r) = may_write(&state, &actor, who.as_ref(), &board).await {
         return *r;
     }
+    let mut f = WriteForm::default();
+    if let Some(id) = q.reply.as_deref().filter(|r| !r.is_empty()) {
+        match board_posts::reply_target(&state.ctx, &actor, &board, id).await {
+            Ok(parent) => {
+                f.title = format!("RE: {}", parent.title.trim_start_matches("RE: "));
+                f.reply_to = parent.id;
+            }
+            Err(e) => return crate::error::page(&state, &e).await,
+        }
+    }
     form(
         &state,
         &headers,
@@ -139,7 +164,7 @@ async fn new_form(
         &board,
         Mode::New,
         StatusCode::OK,
-        &WriteForm::default(),
+        &f,
         None,
     )
     .await
@@ -214,6 +239,7 @@ async fn create(
             token: f.captcha_token.clone(),
             answer: f.captcha_answer.clone(),
         }),
+        reply_to: f.reply_to(),
     };
     match board_posts::write(&state.ctx, &actor, input).await {
         Ok(p) if p.status == PostStatus::Published => {
@@ -521,6 +547,11 @@ async fn render_form(
         Ok((a, _)) => a,
         Err(e) => return crate::error::page(state, &e).await,
     };
+    // 답변은 위 글의 분류를 따르므로 분류 칸을 감춘다.
+    let parent = match f.reply_to() {
+        Some(id) if fv.mode == Mode::New => state.ctx.store.post_by_id(&id).await.ok().flatten(),
+        _ => None,
+    };
     let cats = categories::list(&state.ctx, &actor, &board.slug)
         .await
         .unwrap_or_default()
@@ -537,7 +568,8 @@ async fn render_form(
         "needs_password": fv.needs_password,
         "can_secret": who.is_some() && !fv.guest_post,
         "review": if who.is_none() { rules.guest_review } else { rules.member_review },
-        "categories": cats,
+        "categories": if parent.is_some() { Vec::new() } else { cats },
+        "reply": parent.as_ref().map(|p| json!({ "id": p.id, "title": p.title, "secret": p.is_secret })),
         "title": f.title,
         "body": f.body,
         "category": f.category,
@@ -549,10 +581,10 @@ async fn render_form(
         "captcha": challenge,
         "error": error,
     });
-    let heading = if fv.mode == Mode::New {
-        "글쓰기"
-    } else {
-        "글 고치기"
+    let heading = match (fv.mode, parent.is_some()) {
+        (Mode::New, true) => "답변 쓰기",
+        (Mode::New, false) => "글쓰기",
+        _ => "글 고치기",
     };
     page(state, status, heading, view, who, Some(headers)).await
 }

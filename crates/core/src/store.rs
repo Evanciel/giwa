@@ -237,6 +237,8 @@ pub trait WriteTx: Send {
     async fn count_board_posts(&mut self, board_id: &str) -> Result<i64>;
 
     async fn post_by_id(&mut self, id: &str) -> Result<Option<Post>>;
+    /// 이 글에 바로 달린 답변글 수 (상태 무관, ADR-0056).
+    async fn reply_count(&mut self, parent_id: &str) -> Result<i64>;
     async fn slug_taken(
         &mut self,
         board_id: &str,

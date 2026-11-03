@@ -562,6 +562,27 @@ async fn post_inner(
         view["edit_url"] = json!(format!("{base}/edit"));
         view["delete_url"] = json!(format!("{base}/delete"));
     }
+    // 답변 단추: 회원(이하)에게 답변을 여는 게시판만 (ADR-0056). 운영자 답변은 관리 화면에서.
+    if public_write(&board)
+        && matches!(board.policy.reply.as_str(), "guest" | "member")
+        && post.depth() < posts::MAX_REPLY_DEPTH
+    {
+        view["reply_url"] = json!(urls::with_query(
+            &format!("/write/{}", board.slug),
+            &[("reply", post.id.as_str())]
+        ));
+    }
+    if let Some(parent) = match &post.parent_id {
+        Some(id) => state.ctx.store.post_by_id(id).await?,
+        None => None,
+    }
+    .filter(|p| p.status == maru_core::model::PostStatus::Published)
+    {
+        view["parent"] = json!({
+            "title": parent.title,
+            "url": urls::path(&Target::Post { board: &board.slug, post: &parent.slug }),
+        });
+    }
     Ok(json!({
         "meta": json!({
             "title": format!("{} · {}", post.title, site.settings.name),
@@ -1022,6 +1043,9 @@ fn post_summary(board_slug: &str, p: &Post, s: &SiteSettings) -> Value {
         "summary": summary,
         "is_notice": p.is_notice,
         "is_secret": p.is_secret,
+        // 답변글 (ADR-0056). 목록은 스레드 순서로 오고 깊이만큼 들여 쓴다.
+        "reply": p.parent_id.is_some(),
+        "depth": p.depth(),
         // 발행 24시간 안 (ADR-0054). 본문 해시 ETag 라 시간이 지나면 응답이 저절로 바뀐다.
         "is_new": !published.is_empty() && published > clock::hours_ago(NEW_HOURS),
         // 그림 없는 카드·갤러리 칸에 쓰는 글자
