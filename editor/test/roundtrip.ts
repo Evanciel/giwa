@@ -3,7 +3,9 @@
 // 열 수 없는 글(표·HTML·할 일·각주)은 Markdown 편집으로 보내야 한다.
 
 import { readFileSync } from "fs";
+import { EditorState, TextSelection } from "prosemirror-state";
 
+import { setBox } from "../src/commands";
 import { load, parse, serialize } from "../src/markdown";
 import { videoEmbed } from "../src/syntax";
 import { splitTags } from "../src/tags";
@@ -96,6 +98,16 @@ const rich: Record<string, string> = {
   check("접기 상자", d.ok && d.doc.firstChild?.type.name === "box" && d.doc.firstChild.attrs.kind === "details");
   check("접기 요약은 첫 문단", d.ok && d.doc.firstChild?.firstChild?.type.name === "paragraph" && d.doc.firstChild.firstChild.textContent === "환불은 언제 되나요?");
   check("접기 다시 쓰기", d.ok && serialize(d.doc) === faq, d.ok ? serialize(d.doc) : "");
+  // 더보기 「접기 상자」 단추: 고른 문단들을 감싸면 위와 같은 글이 된다. 한 번 더 누르면 풀린다.
+  const plain = load("환불은 **언제** 되나요?\n\n결제 후 7일 안에 됩니다.");
+  if (plain.ok) {
+    let st = EditorState.create({ doc: plain.doc });
+    st = st.apply(st.tr.setSelection(TextSelection.create(st.doc, 1, st.doc.content.size - 1)));
+    setBox("details", "details")(st, (tr) => void (st = st.apply(tr)));
+    check("접기 상자 넣기", serialize(st.doc) === faq, serialize(st.doc));
+    setBox("details", "details")(st, (tr) => void (st = st.apply(tr)));
+    check("접기 상자 풀기", serialize(st.doc) === "환불은 **언제** 되나요?\n\n결제 후 7일 안에 됩니다.", serialize(st.doc));
+  } else check("접기 상자 넣기", false, "열기 실패");
 }
 
 // 동영상·장소는 노드로, 주소 판별은 서버와 같은 규칙으로.

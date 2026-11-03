@@ -159,7 +159,7 @@ const TOOLS: (Tool | "|")[] = [
   { row: "format", icon: "bullet", label: "목록", name: "글머리 목록", run: cmd(toggleList(n.bullet_list)), md: (ed) => ed.mdLines("- "), active: (s) => wrappedIn(s, n.bullet_list), enabled: can(toggleList(n.bullet_list)) },
   { row: "format", icon: "ordered", label: "번호", name: "번호 목록", run: cmd(toggleList(n.ordered_list)), md: (ed) => ed.mdLines((i) => `${i + 1}. `), active: (s) => wrappedIn(s, n.ordered_list), enabled: can(toggleList(n.ordered_list)) },
   { row: "format", icon: "task", label: "할 일", name: "할 일 목록", keys: `${MOD}+Shift+9`, run: cmd(toggleTask), md: (ed) => ed.mdLines("- [ ] "), active: taskActive, enabled: can(toggleTask) },
-  { row: "format", icon: "more", label: "더보기", name: "더보기 (코드 블록·각주·갤러리)", run: (ed) => ed.openMore(), md: (ed) => ed.openMore() },
+  { row: "format", icon: "more", label: "더보기", name: "더보기 (코드 블록·각주·갤러리·접기 상자)", run: (ed) => ed.openMore(), md: (ed) => ed.openMore() },
   "|",
   { row: "format", icon: "undo", label: "되돌리기", name: "실행 취소", keys: `${MOD}+Z`, run: cmd(undo), md: (ed) => ed.mdHistory("undo"), enabled: can(undo) },
   { row: "format", icon: "redo", label: "다시", name: "다시 실행", keys: `${MOD}+Shift+Z`, run: cmd(redo), md: (ed) => ed.mdHistory("redo"), enabled: can(redo) },
@@ -1529,6 +1529,7 @@ class Editor {
       { label: "코드 블록", current: rich && blockActive(s, n.code_block), run: () => (rich ? toggleCodeBlock(this.view.state, this.view.dispatch) : this.mdFence()) },
       { label: "각주", run: () => (rich ? insertFootnote(this.view.state, this.view.dispatch) : this.mdFootnote()) },
       { label: "갤러리 (사진 여러 장을 격자로)", current: rich && !!boxKind(s, "gallery"), run: () => (rich ? setBox("gallery", "gallery")(this.view.state, this.view.dispatch) : this.mdBox("gallery")) },
+      { label: "접기 상자 (첫 줄이 질문, 나머지는 눌러야 보임)", current: rich && !!boxKind(s, "details"), run: () => (rich ? setBox("details", "details")(this.view.state, this.view.dispatch) : this.mdBox("details")) },
     ]);
   }
 
