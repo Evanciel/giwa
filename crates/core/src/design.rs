@@ -342,9 +342,16 @@ impl Tokens {
         };
         let _ = writeln!(css, "  --motion: {ms}ms;");
         css.push_str("  color-scheme: light dark;\n}\n");
-        css.push_str("@media (prefers-color-scheme: dark) {\n  :root {\n");
+        // 스킨의 화면 모드 단추(ADR-0081)가 <html data-mode> 를 정하면 그것이 기기 설정보다 먼저다.
         let mut dark = String::new();
         push_palette(&mut dark, &self.color_dark);
+        css.push_str(":root[data-mode=\"light\"] { color-scheme: light; }\n");
+        css.push_str(":root[data-mode=\"dark\"] {\n");
+        css.push_str(&dark);
+        css.push_str("  color-scheme: dark;\n}\n");
+        css.push_str(
+            "@media (prefers-color-scheme: dark) {\n  :root:not([data-mode=\"light\"]) {\n",
+        );
         for line in dark.lines() {
             let _ = writeln!(css, "  {line}");
         }
@@ -481,6 +488,8 @@ mod tests {
         let css = Tokens::default().to_css(&[]);
         assert!(css.contains("--primary: #2f5d50;"));
         assert!(css.contains("prefers-color-scheme: dark"));
+        assert!(css.contains(":root[data-mode=\"dark\"]"));
+        assert!(css.contains(":root:not([data-mode=\"light\"])"));
         assert!(css.contains("--fs-h1:"));
         assert!(!css.contains("<"));
     }

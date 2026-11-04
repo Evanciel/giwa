@@ -1,0 +1,76 @@
+# 커뮤니티 프리셋 (ADR-0081). 모든 op 는 ensure 라서 `maru init` 을 다시 실행해도 안전하다.
+id = "community"
+name = "커뮤니티"
+description = "커뮤니티 스킨, 공지·자유·질문·사진·토론 게시판, 게시판별 최신 글 첫 화면, 도배 방지"
+
+[[ops]]
+op = "settings.ensure"
+values = { skin = "community", flood_seconds = 15, posts_per_page = 20 }
+
+[[ops]]
+op = "tokens.ensure"
+tokens = { color = { primary = "#2754c5" }, color_dark = { primary = "#8aa8ff" } }
+
+[[ops]]
+op = "board.ensure"
+slug = "notice"
+name = "공지사항"
+kind = "notice"
+layout = "list"
+sort_order = 0
+
+[[ops]]
+op = "board.ensure"
+slug = "free"
+name = "자유게시판"
+kind = "free"
+layout = "list"
+sort_order = 1
+
+[[ops]]
+op = "board.ensure"
+slug = "qna"
+name = "질문답변"
+kind = "qna"
+layout = "list"
+sort_order = 2
+
+[[ops]]
+op = "board.ensure"
+slug = "photo"
+name = "사진"
+kind = "gallery"
+layout = "gallery"
+sort_order = 3
+
+[[ops]]
+op = "board.ensure"
+slug = "forum"
+name = "토론"
+kind = "forum"
+layout = "list"
+sort_order = 4
+
+[[ops]]
+op = "menu.ensure"
+location = "header"
+items = [
+  { label = "공지사항", link = { kind = "board", slug = "notice" } },
+  { label = "자유게시판", link = { kind = "board", slug = "free" } },
+  { label = "질문답변", link = { kind = "board", slug = "qna" } },
+  { label = "사진", link = { kind = "board", slug = "photo" } },
+  { label = "토론", link = { kind = "board", slug = "forum" } },
+]
+
+# 첫 화면: 게시판별 최신 글 판. 곁가지: 인기 글.
+[[ops]]
+op = "widgets.ensure"
+items = [
+  { kind = "latest_posts", region = "main", scope = "home", title = "공지사항", config = { board = "notice", limit = 5, show_date = true } },
+  { kind = "latest_posts", region = "main", scope = "home", title = "자유게시판", config = { board = "free", limit = 8, show_date = true } },
+  { kind = "latest_posts", region = "main", scope = "home", title = "질문답변", config = { board = "qna", limit = 8, show_date = true } },
+  { kind = "latest_posts", region = "main", scope = "home", title = "토론", config = { board = "forum", limit = 8, show_date = true } },
+  # 홀수 번째 마지막 판은 community.css 가 두 칸 너비로 편다
+  { kind = "latest_posts", region = "main", scope = "home", title = "사진", config = { board = "photo", limit = 6, view = "card" } },
+  { kind = "popular_posts", region = "sidebar", scope = "all", title = "많이 본 글", config = { limit = 10, days = 7 } },
+]

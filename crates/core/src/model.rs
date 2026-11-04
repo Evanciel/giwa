@@ -756,6 +756,16 @@ pub struct SiteSettings {
     /// 새 운영 신호를 관리자·소유자에게 메일로 알린다 (ADR-0074)
     #[serde(default = "default_true")]
     pub signal_mail: bool,
+    /// 공개 화면 스킨. `SKINS` 중 하나 (ADR-0081)
+    #[serde(default = "default_skin")]
+    pub skin: String,
+}
+
+/// 내장 스킨 `(id, 이름)`. 스킨은 머리글·메뉴·몸통 배치만 바꾸고 안의 화면은 기본 테마를 같이 쓴다.
+pub const SKINS: [(&str, &str); 2] = [("default", "기본"), ("community", "커뮤니티")];
+
+fn default_skin() -> String {
+    SKINS[0].0.into()
 }
 
 /// 사람 확인 질문 (자체 캡차, ADR-0052). 비회원 댓글·회원 가입 폼에 낸다.
@@ -851,6 +861,7 @@ impl Default for SiteSettings {
             mail_retention_days: default_mail_retention_days(),
             signal_comment_burst: default_signal_comment_burst(),
             signal_mail: true,
+            skin: default_skin(),
         }
     }
 }

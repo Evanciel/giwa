@@ -93,6 +93,9 @@ async fn site_value(state: &AppState, s: &SiteSettings) -> Value {
         "rss_url": urls::path(&Target::Rss),
         "search_url": urls::path(&Target::Search),
         "show_search": s.show_search,
+        "skin": s.skin,
+        // 로그인 상태는 HTML 에 굽지 않고 스킨 스크립트가 따로 받는다 (ADR-0081)
+        "account_bar_url": "/me/bar",
         // 가입을 받는 사이트만 머리글에 「내 계정」. 공개 화면은 손님 기준이라 로그인 여부와 상관없이 같다(ADR-0051).
         "show_account": s.signup != maru_core::model::SignupMode::Off,
         "account_url": "/me",

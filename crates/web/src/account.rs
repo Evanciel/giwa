@@ -43,6 +43,7 @@ pub fn routes() -> Router<AppState> {
         .route("/verify/{token}", get(verify_form).post(verify))
         .route("/me", get(me))
         .route("/me/comments", get(my_comments_page))
+        .route("/me/bar", get(account_bar))
         .route("/me/profile", post(profile))
         .route("/me/password", post(password))
         .route("/me/withdraw", post(withdraw))
@@ -710,6 +711,45 @@ async fn require(state: &AppState, headers: &HeaderMap) -> Result<SignedIn, Box<
         )),
         Err(e) => Err(Box::new(crate::error::page(state, &e).await)),
     }
+}
+
+/// 공개 화면 윗줄 회원 막대 (ADR-0081). 공개 HTML 은 모두에게 같아 캐시하므로
+/// 로그인한 사람의 이름·알림 수는 여기서 따로 준다. `no-store` 는 이 라우터 전체에 걸려 있다.
+async fn account_bar(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let who = match crate::admin::current(&state, &headers).await {
+        Ok(w) => w,
+        Err(e) => return crate::error::page(&state, &e).await,
+    };
+    let Some(who) = who else {
+        let site = settings::site(&state.ctx).await.unwrap_or_default();
+        let signup = (site.signup == SignupMode::Open).then_some("/signup");
+        return axum::Json(json!({
+            "signed_in": false,
+            "login_url": "/login",
+            "signup_url": signup,
+        }))
+        .into_response();
+    };
+    let slots = crate::modules::bar_slots(&state, &who.actor).await;
+    let items: Vec<Value> = slots
+        .iter()
+        .filter_map(|s| {
+            let d = &s["data"];
+            Some(json!({
+                "module": s["module"],
+                "label": d["label"].as_str()?,
+                "url": d["url"].as_str()?,
+                "count": d["count"].as_i64().unwrap_or(0),
+            }))
+        })
+        .collect();
+    axum::Json(json!({
+        "signed_in": true,
+        "name": who.member.display_name,
+        "me_url": "/me",
+        "items": items,
+    }))
+    .into_response()
 }
 
 async fn me(

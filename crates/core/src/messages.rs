@@ -154,6 +154,7 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         }
         "error.comment_policy" => "승인 방식 `{value}` 는 쓸 수 없습니다. 가능한 값: {allowed}",
         "error.signup_option" => "가입 방식 `{value}` 는 쓸 수 없습니다. 가능한 값: {allowed}",
+        "error.skin_unknown" => "스킨 `{value}` 는 없습니다. 가능한 값: {allowed}",
         "mail.verify.subject" => "[{site}] 메일 주소를 확인해 주세요",
         "mail.verify.body" => {
             "{name} 님, {site}에 가입해 주셔서 고맙습니다.\n\n아래 링크를 누르면 가입이 끝납니다. 24시간 안에 한 번만 쓸 수 있습니다.\n\n{link}\n\n가입한 적이 없다면 이 메일은 지우셔도 됩니다.\n"

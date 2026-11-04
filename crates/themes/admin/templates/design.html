@@ -7,6 +7,20 @@
 </div>
 <p class="hint">색·서체·글자 크기·간격·폭을 바꿉니다. 저장하면 바로 사이트에 반영되고 감사 로그에 남습니다. 글자와 바탕의 대비가 너무 낮으면 저장하지 않습니다.</p>
 
+<form method="post" action="/admin/design/skin" class="stack site-form skin-form">
+  <input type="hidden" name="_csrf" value="{{ csrf }}">
+  <fieldset>
+    <legend>스킨</legend>
+    <p class="hint">머리글·게시판 메뉴·두 단 배치를 바꿉니다. 색·서체는 아래 디자인 값을 그대로 씁니다.</p>
+    <div class="choice-row">
+      {% for s in skins %}
+      <label class="check"><input type="radio" name="skin" value="{{ s.id }}"{% if s.current %} checked{% endif %}> {{ s.label }} <code>{{ s.id }}</code></label>
+      {% endfor %}
+      <button type="submit" class="secondary">스킨 저장</button>
+    </div>
+  </fieldset>
+</form>
+
 <form method="post" action="/admin/design" class="stack site-form">
   <input type="hidden" name="_csrf" value="{{ csrf }}">
   <fieldset>

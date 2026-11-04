@@ -21,6 +21,8 @@ struct Builtin;
 
 pub struct Theme {
     env: Environment<'static>,
+    /// 내장 스킨 (ADR-0081). 화면의 `site.skin` 으로 고른다. 없거나 모르는 값이면 `env`.
+    skins: Vec<(&'static str, Environment<'static>)>,
     user_dir: Option<PathBuf>,
 }
 
@@ -36,28 +38,29 @@ impl Theme {
         extra: Vec<(&'static str, &'static str)>,
     ) -> Self {
         let user_dir = user_dir.filter(|d| compatible(d));
-        let mut env = Environment::new();
-        env.set_undefined_behavior(UndefinedBehavior::Chainable);
-        env.set_formatter(html_formatter);
-        env.add_function("url_for", url_for);
-        let dir = user_dir.clone();
-        env.set_loader(move |name| {
-            if let Some(text) = dir.as_deref().and_then(|d| read_user(d, "templates", name)) {
-                return Ok(Some(text));
-            }
-            if let Some((_, text)) = extra.iter().find(|(n, _)| *n == name) {
-                return Ok(Some((*text).to_owned()));
-            }
-            Ok(Builtin::get(&format!("templates/{name}"))
-                .and_then(|f| String::from_utf8(f.data.into_owned()).ok()))
-        });
-        Self { env, user_dir }
+        let env = public_env(user_dir.clone(), extra.clone(), None);
+        let skins = maru_core::model::SKINS
+            .iter()
+            .skip(1)
+            .map(|(id, _)| (*id, public_env(user_dir.clone(), extra.clone(), Some(id))))
+            .collect();
+        Self {
+            env,
+            skins,
+            user_dir,
+        }
     }
 
     pub fn render<S: Serialize>(&self, name: &str, ctx: &S) -> Result<String> {
-        let tmpl = self.env.get_template(name).map_err(template_error)?;
-        tmpl.render(minijinja::Value::from(minijinja::value::Serde(ctx)))
-            .map_err(template_error)
+        let value = minijinja::Value::from(minijinja::value::Serde(ctx));
+        let skin = value.get_attr("site").and_then(|s| s.get_attr("skin")).ok();
+        let env = skin
+            .as_ref()
+            .and_then(|s| s.as_str())
+            .and_then(|s| self.skins.iter().find(|(id, _)| *id == s))
+            .map_or(&self.env, |(_, e)| e);
+        let tmpl = env.get_template(name).map_err(template_error)?;
+        tmpl.render(value).map_err(template_error)
     }
 
     /// 정적 파일(`/assets/...`). 사용자 테마가 우선이다.
@@ -71,6 +74,36 @@ impl Theme {
         }
         Builtin::get(&format!("static/{path}")).map(|f| (f.data, mime))
     }
+}
+
+/// 공개 화면 템플릿 환경. 찾는 순서: 사용자 테마 → 스킨(`skins/<id>/templates`) → 모듈 템플릿 → 내장.
+/// 스킨은 몇 장(base·home)만 갈아 끼우고 나머지는 내장 템플릿을 같이 쓴다 (ADR-0081).
+fn public_env(
+    dir: Option<PathBuf>,
+    extra: Vec<(&'static str, &'static str)>,
+    skin: Option<&'static str>,
+) -> Environment<'static> {
+    let mut env = Environment::new();
+    env.set_undefined_behavior(UndefinedBehavior::Chainable);
+    env.set_formatter(html_formatter);
+    env.add_function("url_for", url_for);
+    env.set_loader(move |name| {
+        if let Some(text) = dir.as_deref().and_then(|d| read_user(d, "templates", name)) {
+            return Ok(Some(text));
+        }
+        if let Some(text) = skin
+            .and_then(|s| Builtin::get(&format!("skins/{s}/templates/{name}")))
+            .and_then(|f| String::from_utf8(f.data.into_owned()).ok())
+        {
+            return Ok(Some(text));
+        }
+        if let Some((_, text)) = extra.iter().find(|(n, _)| *n == name) {
+            return Ok(Some((*text).to_owned()));
+        }
+        Ok(Builtin::get(&format!("templates/{name}"))
+            .and_then(|f| String::from_utf8(f.data.into_owned()).ok()))
+    });
+    env
 }
 
 /// 관리 화면 템플릿. 사용자 테마로 덮어쓸 수 없게 내장 파일만 읽는다 (PHASE1_PLAN §7).
@@ -447,7 +480,9 @@ mod tests {
     /// ADR-0017: 내장 템플릿은 URL 을 조합하지 않고 컨텍스트의 `url` 만 쓴다.
     #[test]
     fn builtin_templates_have_no_path_literals() {
-        for path in Builtin::iter().filter(|p| p.starts_with("templates/")) {
+        for path in
+            Builtin::iter().filter(|p| p.starts_with("templates/") || p.starts_with("skins/"))
+        {
             let file = Builtin::get(&path).unwrap();
             let text = std::str::from_utf8(&file.data).unwrap();
             for bad in ["\"/b/", "\"/p/", "'/b/", "'/p/"] {
@@ -468,6 +503,30 @@ mod tests {
         assert!(!blog.ops.is_empty());
         assert!(preset("../x").is_err());
         assert!(preset("nope").is_err());
+    }
+
+    /// 스킨은 `site.skin` 으로 고른다. 모르는 값이면 기본 (ADR-0081).
+    #[test]
+    fn skin_is_picked_by_site_setting() {
+        let theme = Theme::new(None);
+        let ctx = |skin: &str| json!({"site": {"name": "마루", "skin": skin}, "posts": []});
+        let community = theme.render("home.html", &ctx("community")).unwrap();
+        assert!(community.contains("/assets/community.css"), "{community}");
+        assert!(community.contains("data-bar="));
+        for other in ["default", "nope", ""] {
+            let html = theme.render("home.html", &ctx(other)).unwrap();
+            assert!(!html.contains("community.css"), "{other}");
+        }
+        let html = theme.render("home.html", &json!({"posts": []})).unwrap();
+        assert!(!html.contains("community.css"));
+        for id in maru_core::model::SKINS.iter().skip(1).map(|(id, _)| id) {
+            assert!(
+                Builtin::get(&format!("skins/{id}/templates/base.html")).is_some(),
+                "{id}"
+            );
+        }
+        let (_, mime) = theme.asset("community.js").unwrap();
+        assert!(mime.contains("javascript"), "{mime}");
     }
 
     #[test]

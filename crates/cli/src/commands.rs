@@ -1651,6 +1651,7 @@ async fn site(g: &Global, cmd: SiteCmd) -> Out {
                 mail_retention_days: args.mail_retention_days,
                 signal_comment_burst: args.signal_comment_burst,
                 signal_mail: args.signal_mail,
+                skin: args.skin,
             };
             settings::update(&ctx, &actor, patch).await
         }
@@ -1662,8 +1663,9 @@ async fn site(g: &Global, cmd: SiteCmd) -> Out {
         n => format!("제목 {n}개 이상"),
     };
     let human = format!(
-        "이름 {}\n설명 {}\n언어 {}  시간대 UTC{:+}분  페이지당 글 {}  목차 {toc}  조회수 {}  검색 칸 {}\n회원 가입 {}  메일 인증 {}  확인 질문 {}",
+        "이름 {}  스킨 {}\n설명 {}\n언어 {}  시간대 UTC{:+}분  페이지당 글 {}  목차 {toc}  조회수 {}  검색 칸 {}\n회원 가입 {}  메일 인증 {}  확인 질문 {}",
         s.name,
+        s.skin,
         s.description,
         s.lang,
         s.tz_offset_min,

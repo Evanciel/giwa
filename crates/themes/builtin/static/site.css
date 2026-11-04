@@ -608,8 +608,9 @@ main { min-height: 50vh; }
 .widget-empty { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
 .widget-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: calc(var(--space) * 1); font-size: var(--fs-sm); }
 .widget-lines li { display: flex; align-items: baseline; gap: calc(var(--space) * 1); min-width: 0; }
-.widget-lines .subject { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.widget-lines .title { color: var(--fg); text-decoration: none; }
+.widget-lines .subject { flex: 1 1 auto; min-width: 0; display: flex; align-items: baseline; gap: .3em; white-space: nowrap; }
+.widget-lines .title { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--fg); text-decoration: none; }
+.widget-lines .subject > .comment-count, .widget-lines .subject > .new-mark { flex: none; }
 .widget-lines .title:hover { color: var(--primary); text-decoration: underline; }
 .widget-lines .date { flex: none; padding-left: var(--space); color: var(--muted); font-variant-numeric: tabular-nums; }
 .widget-lines .rank { flex: none; inline-size: 1.4em; color: var(--muted); font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }

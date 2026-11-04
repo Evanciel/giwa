@@ -66,6 +66,9 @@ pub const POST_FOOTER: &str = "post_footer";
 pub const COMMENT_ACTIONS: &str = "comment_actions";
 /// 내 정보 화면의 칸.
 pub const ME_SECTIONS: &str = "me_sections";
+/// 공개 화면 윗줄 회원 막대 (`/me/bar`, ADR-0081). 템플릿은 쓰지 않고 `data` 의
+/// `{label, url, count}` 만 JSON 으로 나간다.
+pub const ACCOUNT_BAR: &str = "account_bar";
 
 /// 화면 자리를 채울 때 모듈이 보는 것.
 pub struct SlotView<'a> {

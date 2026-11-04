@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="{{ site.lang or 'ko' }}" data-skin="community">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+{# 커뮤니티 스킨 (ADR-0081). 머리글·메뉴·두 단 몸통만 다르고, 안의 화면은 기본 테마 템플릿을 그대로 쓴다. #}
+<title>{% block title %}{{ meta.title or site.name }}{% endblock %}</title>
+{% if meta.description %}<meta name="description" content="{{ meta.description }}">{% endif %}
+{% if canonical %}<link rel="canonical" href="{{ canonical }}">{% endif %}
+{% if meta.noindex %}<meta name="robots" content="noindex">{% endif %}
+<meta property="og:type" content="{{ meta.type or 'website' }}">
+<meta property="og:site_name" content="{{ site.name }}">
+<meta property="og:title" content="{{ meta.title or site.name }}">
+{% if meta.description %}<meta property="og:description" content="{{ meta.description }}">{% endif %}
+{% if canonical %}<meta property="og:url" content="{{ canonical }}">{% endif %}
+<meta property="og:locale" content="{{ meta.locale or 'ko_KR' }}">
+{% if meta.published_time %}<meta property="article:published_time" content="{{ meta.published_time }}">{% endif %}
+{% if meta.modified_time %}<meta property="article:modified_time" content="{{ meta.modified_time }}">{% endif %}
+{% if meta.image %}<meta property="og:image" content="{{ meta.image }}">
+<meta name="twitter:card" content="summary_large_image">{% else %}<meta name="twitter:card" content="summary">{% endif %}
+{% if site.naver_verification %}<meta name="naver-site-verification" content="{{ site.naver_verification }}">{% endif %}
+{% if site.google_verification %}<meta name="google-site-verification" content="{{ site.google_verification }}">{% endif %}
+<meta name="color-scheme" content="light dark">
+<link rel="alternate" type="application/rss+xml" title="{{ site.name }}" href="{{ site.rss_url }}">
+<link rel="stylesheet" href="/assets/tokens.css">
+<link rel="stylesheet" href="/assets/fonts.css">
+<link rel="stylesheet" href="/assets/site.css">
+<link rel="stylesheet" href="/assets/community.css">
+<script src="/assets/community.js" defer{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %}></script>
+</head>
+<body class="cm">
+<a class="skip" href="#main">본문 바로가기</a>
+<div class="cm-topbar">
+  <div class="cm-inner">
+    <p class="cm-tagline">{{ site.description }}</p>
+    {# 로그인 상태는 화면마다 다르므로 HTML 에 굽지 않는다. community.js 가 /me/bar 로 채운다. JS 가 없으면 「내 계정」 링크만 남는다. #}
+    <nav class="cm-account" aria-label="회원" data-bar="{{ site.account_bar_url }}">
+      {% if site.show_account %}<a href="{{ site.account_url }}">내 계정</a>{% endif %}
+    </nav>
+    <button class="cm-mode" type="button" aria-pressed="false" hidden><span class="visually-hidden">어두운 화면</span><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M13.5 9.8A5.6 5.6 0 0 1 6.2 2.5a5.6 5.6 0 1 0 7.3 7.3Z" fill="currentColor"/></svg></button>
+  </div>
+</div>
+<header class="cm-header">
+  <div class="cm-inner">
+    <a class="cm-brand" href="{{ site.home_url }}">{{ site.name }}</a>
+    {% if site.show_search %}<form class="cm-search" role="search" action="{{ site.search_url }}" method="get">
+      <label class="visually-hidden" for="site-q">사이트 검색</label>
+      <input id="site-q" type="search" name="q" maxlength="100" placeholder="게시판 전체에서 찾기" autocomplete="off" enterkeyhint="search">
+      <button type="submit" aria-label="검색"><svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="7" cy="7" r="4.8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10.6 10.6 14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+    </form>{% endif %}
+  </div>
+  {% if site.menus and site.menus.header %}<nav class="cm-nav" aria-label="게시판"><div class="cm-inner">{% with items = site.menus.header %}{% include "_menu.html" %}{% endwith %}</div></nav>{% endif %}
+</header>
+{% if widgets.header %}<div class="region region-header"><div class="cm-inner">{% for w in widgets.header %}{% include "_widget.html" %}{% endfor %}</div></div>{% endif %}
+{% if widgets.hero %}<div class="region region-hero"><div class="cm-inner">{% for w in widgets.hero %}{% include "_widget.html" %}{% endfor %}</div></div>{% endif %}
+<div class="cm-body cm-inner{% if widgets.sidebar %} has-side{% endif %}">
+<main id="main" class="cm-main {% block main_class %}wrap{% endblock %}">
+{% if widgets.main %}<div class="region region-main">{% for w in widgets.main %}{% include "_widget.html" %}{% endfor %}</div>{% endif %}
+{% block main %}{% endblock %}
+</main>
+{% if widgets.sidebar %}<aside class="region region-sidebar" aria-label="곁가지">{% for w in widgets.sidebar %}{% include "_widget.html" %}{% endfor %}</aside>{% endif %}
+</div>
+<footer class="cm-footer">
+  {% if widgets.footer %}<div class="region region-footer"><div class="cm-inner">{% for w in widgets.footer %}{% include "_widget.html" %}{% endfor %}</div></div>{% endif %}
+  <div class="cm-inner">
+    {% if site.menus and site.menus.footer %}<nav class="footer-nav" aria-label="하단 메뉴">{% with items = site.menus.footer %}{% include "_menu.html" %}{% endwith %}</nav>{% endif %}
+    <p><strong>{{ site.name }}</strong> · <a href="{{ site.rss_url }}">RSS</a></p>
+  </div>
+</footer>
+{% if widgets.popup %}
+<div class="popups">{% for w in widgets.popup %}{% include "widgets/popup.html" %}{% endfor %}</div>
+<script src="/assets/site.js" defer{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %}></script>
+{% endif %}
+</body>
+</html>

@@ -1056,6 +1056,9 @@ pub struct SiteSetArgs {
     /// 회원이 글·댓글을 쓰는 최소 간격(초, 0~3600). 0 이면 끔
     #[arg(long)]
     pub flood_seconds: Option<u32>,
+    /// 공개 화면 스킨: default(기본), community(커뮤니티)
+    #[arg(long)]
+    pub skin: Option<String>,
 }
 
 #[derive(Debug, Subcommand)]

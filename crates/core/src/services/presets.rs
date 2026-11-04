@@ -7,9 +7,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::actor::Actor;
+use crate::error::Error;
 use crate::error::Result;
-use crate::model::{MenuItem, PageStatus};
-use crate::services::{boards, design, menus, pages};
+use crate::model::{MenuItem, PageStatus, SiteSettings};
+use crate::services::{boards, design, menus, pages, settings, widgets};
 use crate::store::Ctx;
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -48,6 +49,14 @@ pub enum Op {
     /// 토큰이 기본값일 때만 덮어쓴다 (부분 JSON).
     #[serde(rename = "tokens.ensure")]
     TokensEnsure { tokens: Value },
+    /// 사이트 설정 중 아직 기본값인 칸만 바꾼다. 값은 `SettingsPatch` 의 칸 (ADR-0081).
+    #[serde(rename = "settings.ensure")]
+    SettingsEnsure {
+        values: serde_json::Map<String, Value>,
+    },
+    /// 놓을 위젯들의 영역·범위가 모두 비어 있을 때만 한꺼번에 놓는다 (ADR-0081).
+    #[serde(rename = "widgets.ensure")]
+    WidgetsEnsure { items: Vec<widgets::NewWidget> },
 }
 
 #[derive(Debug, Clone, Serialize, JsonSchema)]
@@ -114,6 +123,50 @@ async fn apply_op(ctx: &Ctx, actor: &Actor, op: &Op) -> Result<OpResult> {
             let changed =
                 is_default && design::tokens(ctx).await? != crate::design::Tokens::default();
             result("tokens.ensure", "design.tokens", changed)
+        }
+        Op::SettingsEnsure { values } => {
+            let now = serde_json::to_value(settings::site(ctx).await?).map_err(Error::internal)?;
+            let base = serde_json::to_value(SiteSettings::default()).map_err(Error::internal)?;
+            let todo: serde_json::Map<String, Value> = values
+                .iter()
+                .filter(|(k, v)| {
+                    now.get(k.as_str()) == base.get(k.as_str()) && now.get(k.as_str()) != Some(v)
+                })
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect();
+            // 모르는 칸·틀린 모양은 SettingsPatch(deny_unknown_fields)가 걸러 낸다.
+            serde_json::from_value::<settings::SettingsPatch>(Value::Object(values.clone()))
+                .map_err(|e| {
+                    Error::new(crate::error::Code::Validation)
+                        .with_message("error.preset_invalid")
+                        .arg("id", "settings.ensure")
+                        .arg("detail", e.to_string())
+                })?;
+            if !todo.is_empty() {
+                let patch: settings::SettingsPatch =
+                    serde_json::from_value(Value::Object(todo.clone())).map_err(Error::internal)?;
+                settings::update(ctx, actor, patch).await?;
+            }
+            let keys: Vec<&str> = values.keys().map(String::as_str).collect();
+            result("settings.ensure", &keys.join(","), !todo.is_empty())
+        }
+        Op::WidgetsEnsure { items } => {
+            let placed = widgets::list(ctx, actor).await?;
+            let empty = items.iter().all(|i| {
+                !placed
+                    .iter()
+                    .any(|w| w.region == i.region && w.scope == i.scope)
+            });
+            if empty {
+                for item in items {
+                    widgets::place(ctx, actor, item.clone()).await?;
+                }
+            }
+            result(
+                "widgets.ensure",
+                &format!("{}개", items.len()),
+                empty && !items.is_empty(),
+            )
         }
     })
 }

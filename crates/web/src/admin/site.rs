@@ -44,6 +44,7 @@ pub(super) fn routes() -> Router<AppState> {
         .route("/admin/settings", get(settings_page).post(settings_save))
         .route("/admin/design", get(design_page).post(design_save))
         .route("/admin/design/reset", post(design_reset))
+        .route("/admin/design/skin", post(skin_save))
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -1202,6 +1203,7 @@ impl SettingsForm {
             (new != old).then_some(new)
         }
         Ok(SettingsPatch {
+            skin: None,
             name: changed(self.name.clone(), now.name.clone()),
             description: changed(self.description.clone(), now.description.clone()),
             lang: changed(self.lang.trim().to_owned(), now.lang.clone()),
@@ -1475,6 +1477,7 @@ async fn design_page(
     let notice = match q.done.as_str() {
         "saved" => Some("디자인을 저장했습니다. 사이트에 바로 반영됩니다."),
         "reset" => Some("기본값으로 되돌렸습니다."),
+        "skin" => Some("스킨을 바꿨습니다. 사이트에 바로 반영됩니다."),
         _ => None,
     };
     design_render(
@@ -1506,11 +1509,20 @@ async fn design_render(
                 .map(|f| json!({ "id": f.slug, "label": format!("{} (올린 서체)", f.name) })),
         );
     }
+    let skin = settings::site(&state.ctx)
+        .await
+        .map(|s| s.skin)
+        .unwrap_or_default();
+    let skins: Vec<Value> = maru_core::model::SKINS
+        .iter()
+        .map(|(id, label)| json!({ "id": id, "label": label, "current": *id == skin }))
+        .collect();
     let ctx = merge(
         base(state, Some(who), "design").await,
         json!({
             "notice": notice,
             "error": error,
+            "skins": skins,
             "form": form,
             "colors": choices(&COLOR_KEYS),
             "fonts": font_choices,
@@ -1549,6 +1561,33 @@ async fn design_save(
             )
             .await
         }
+        Err(e) => fail(&state, Some(&who), &e).await,
+    }
+}
+
+#[derive(Deserialize)]
+struct SkinForm {
+    #[serde(rename = "_csrf")]
+    csrf: String,
+    skin: String,
+}
+
+/// 스킨은 사이트 설정이다 (ADR-0081). 디자인 화면 맨 위에서 고른다.
+async fn skin_save(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Form(f): Form<SkinForm>,
+) -> Response {
+    let who = match require_post(&state, &headers, &f.csrf).await {
+        Ok(w) => w,
+        Err(r) => return *r,
+    };
+    let patch = SettingsPatch {
+        skin: Some(f.skin),
+        ..Default::default()
+    };
+    match settings::update(&state.ctx, &who.actor, patch).await {
+        Ok(_) => Redirect::to("/admin/design?done=skin").into_response(),
         Err(e) => fail(&state, Some(&who), &e).await,
     }
 }

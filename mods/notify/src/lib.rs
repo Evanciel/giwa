@@ -23,8 +23,8 @@ use maru_core::urls::{self, Target as UrlTarget};
 use maru_core::{Code, Ctx, Error, Result, clock};
 use maru_modules::service::settings_of;
 use maru_modules::{
-    ME_SECTIONS, Manifest, Module, ModuleState, SlotContent, SlotView, ToolDef, module_error,
-    schema_of,
+    ACCOUNT_BAR, ME_SECTIONS, Manifest, Module, ModuleState, SlotContent, SlotView, ToolDef,
+    module_error, schema_of,
 };
 use maru_storage::Db;
 use schemars::JsonSchema;
@@ -885,12 +885,18 @@ impl Module for NotifyModule {
         slot: &str,
         view: &SlotView<'_>,
     ) -> Result<Option<SlotContent>> {
-        if slot != ME_SECTIONS {
-            return Ok(None);
-        }
         let Some(member) = view.viewer.member_id() else {
             return Ok(None);
         };
+        if slot == ACCOUNT_BAR {
+            return Ok(Some(SlotContent {
+                template: "",
+                data: json!({ "label": "알림", "url": HOME, "count": self.unread(member).await? }),
+            }));
+        }
+        if slot != ME_SECTIONS {
+            return Ok(None);
+        }
         let (items, _) = self
             .rows(ctx, view.viewer, member, false, ME_LIMIT, 0)
             .await?;

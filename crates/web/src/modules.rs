@@ -9,7 +9,9 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use maru_core::{Actor, Ctx, Error, Result};
-use maru_modules::{COMMENT_ACTIONS, Host, ME_SECTIONS, ModuleState, POST_FOOTER, SlotView};
+use maru_modules::{
+    ACCOUNT_BAR, COMMENT_ACTIONS, Host, ME_SECTIONS, ModuleState, POST_FOOTER, SlotView,
+};
 use serde_json::{Value, json};
 
 use crate::AppState;
@@ -92,6 +94,23 @@ pub(crate) async fn me_slots(state: &AppState, viewer: &Actor) -> Value {
             .slots(&state.ctx, &[ME_SECTIONS], &slot_view)
             .await,
     )
+}
+
+/// 회원 막대에 모듈이 넣는 항목 (ADR-0081).
+pub(crate) async fn bar_slots(state: &AppState, viewer: &Actor) -> Vec<Value> {
+    let slot_view = SlotView {
+        viewer,
+        post_id: None,
+        comment_ids: &[],
+    };
+    let mut map = state
+        .modules
+        .slots(&state.ctx, &[ACCOUNT_BAR], &slot_view)
+        .await;
+    match map.remove(ACCOUNT_BAR) {
+        Some(Value::Array(items)) => items,
+        _ => Vec::new(),
+    }
 }
 
 #[derive(Clone)]

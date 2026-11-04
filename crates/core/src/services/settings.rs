@@ -8,7 +8,7 @@ use crate::actor::{Actor, Permission};
 use crate::audit::Target;
 use crate::clock;
 use crate::error::{Code, Error, Result};
-use crate::model::{CaptchaMode, SignupMode, SiteSettings};
+use crate::model::{CaptchaMode, SKINS, SignupMode, SiteSettings};
 use crate::services::{moderation, required_text, retention, signals};
 use crate::store::{Ctx, Tx};
 
@@ -66,6 +66,9 @@ pub struct SettingsPatch {
     /// 새 운영 신호를 관리자·소유자에게 메일로
     #[serde(default)]
     pub signal_mail: Option<bool>,
+    /// 공개 화면 스킨: default · community (ADR-0081)
+    #[serde(default)]
+    pub skin: Option<String>,
 }
 
 /// 저장된 값 위에 기본값을 채운다. 모르는 키나 잘못된 값은 기본값으로 둔다.
@@ -216,6 +219,19 @@ pub async fn update(ctx: &Ctx, actor: &Actor, patch: SettingsPatch) -> Result<Si
                 )
         })?;
         changes.push(("captcha", json!(mode)));
+    }
+    if let Some(id) = &patch.skin {
+        let id = id.trim();
+        if !SKINS.iter().any(|(s, _)| *s == id) {
+            return Err(Error::new(Code::Validation)
+                .with_message("error.skin_unknown")
+                .arg("value", id.chars().take(20).collect::<String>())
+                .arg(
+                    "allowed",
+                    SKINS.iter().map(|(s, _)| *s).collect::<Vec<_>>().join(", "),
+                ));
+        }
+        changes.push(("skin", json!(id)));
     }
     for (key, v) in [
         ("naver_verification", &patch.naver_verification),
