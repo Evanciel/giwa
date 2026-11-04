@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM mod_reaction_item WHERE member_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "a66eb7d567479395a38e8f6b859778573f69f2fdaefef2df2c2164c24fbe3dfa"
+}

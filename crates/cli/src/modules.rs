@@ -13,13 +13,16 @@ use crate::{Global, ModuleCmd};
 
 /// 이 바이너리에 든 모듈. 새 공식 모듈은 여기와 [`IDS`] 에 더한다.
 pub(crate) fn registry(db: &Db) -> Result<Arc<Registry>> {
-    let modules: Vec<Arc<dyn Module>> =
-        vec![Arc::new(maru_mod_point::PointModule::new(db.clone()))];
+    let modules: Vec<Arc<dyn Module>> = vec![
+        Arc::new(maru_mod_point::PointModule::new(db.clone())),
+        Arc::new(maru_mod_reaction::ReactionModule::new(db.clone())),
+        Arc::new(maru_mod_scrap::ScrapModule::new(db.clone())),
+    ];
     Ok(Arc::new(Registry::new(modules)?))
 }
 
 /// 데이터 디렉터리를 열기 전에 모르는 명령을 가려내는 데 쓴다.
-const IDS: [&str; 1] = ["point"];
+const IDS: [&str; 3] = ["point", "reaction", "scrap"];
 
 fn usage(detail: impl Into<String>) -> Error {
     Error::new(Code::Usage)

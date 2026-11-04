@@ -507,6 +507,7 @@ async fn post(
     headers: HeaderMap,
     extensions: Extensions,
 ) -> Response {
+    let slot_headers = headers.clone();
     // 조회수: HEAD 는 세지 않는다. 연결 주소만 본다(전달 헤더는 믿지 않는다, rate_limit 과 같다).
     let visit = (method == Method::GET).then(|| Visit {
         ip: extensions
@@ -520,7 +521,10 @@ async fn post(
             .to_owned(),
         headers,
     });
-    let v = post_inner(&state, &board_slug, &post_slug, visit, &q).await;
+    let mut v = post_inner(&state, &board_slug, &post_slug, visit, &q).await;
+    if let Ok(view) = &mut v {
+        crate::modules::add_post_slots(&state, &slot_headers, view).await;
+    }
     render(&state, "post.html", v).await
 }
 

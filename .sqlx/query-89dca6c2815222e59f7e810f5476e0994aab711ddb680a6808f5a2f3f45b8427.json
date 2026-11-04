@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO mod_reaction_meta (key, value) VALUES ('salt', ?)\n             ON CONFLICT (key) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "89dca6c2815222e59f7e810f5476e0994aab711ddb680a6808f5a2f3f45b8427"
+}

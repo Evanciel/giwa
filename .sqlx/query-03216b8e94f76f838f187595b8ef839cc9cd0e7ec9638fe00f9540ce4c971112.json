@@ -1,0 +1,45 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT target_id, kind, COUNT(*) AS \"n!: i64\" FROM mod_reaction_item\n               WHERE target_type = ? AND target_id IN (SELECT value FROM json_each(?))\n               GROUP BY target_id, kind",
+  "describe": {
+    "columns": [
+      {
+        "name": "target_id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_reaction_item",
+            "name": "target_id"
+          }
+        }
+      },
+      {
+        "name": "kind",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_reaction_item",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "name": "n!: i64",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "03216b8e94f76f838f187595b8ef839cc9cd0e7ec9638fe00f9540ce4c971112"
+}

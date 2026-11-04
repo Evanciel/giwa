@@ -23,7 +23,14 @@
     {% for f in m.fields %}
     <div class="stack">
       <label for="mod-{{ m.id }}-{{ f.key }}">{{ f.label }}{% if f.help %} <span class="hint">{{ f.help }}</span>{% endif %}</label>
+      {% if f.kind == "boolean" %}
+      <select id="mod-{{ m.id }}-{{ f.key }}" name="{{ f.key }}">
+        <option value="true"{% if f.value == "true" %} selected{% endif %}>켜기</option>
+        <option value="false"{% if f.value != "true" %} selected{% endif %}>끄기</option>
+      </select>
+      {% else %}
       <input id="mod-{{ m.id }}-{{ f.key }}" name="{{ f.key }}" value="{{ f.value }}"{% if f.kind == "number" %} inputmode="numeric"{% endif %}>
+      {% endif %}
     </div>
     {% endfor %}
     <div><button type="submit" aria-label="{{ m.name }} 설정 저장">설정 저장</button></div>

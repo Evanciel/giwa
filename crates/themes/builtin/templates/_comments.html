@@ -30,6 +30,7 @@
         <a href="{{ c.delete_url }}" rel="nofollow">지우기</a>{% endif %}
         {% if c.accept_url %}<a href="{{ c.accept_url }}" rel="nofollow">{% if c.accepted %}채택 취소{% else %}채택{% endif %}</a>{% endif %}
       </p>
+      {% if slots and slots.comment_actions %}{% for s in slots.comment_actions %}{% include s.template %}{% endfor %}{% endif %}
       {% endif %}
     </li>
     {% endfor %}

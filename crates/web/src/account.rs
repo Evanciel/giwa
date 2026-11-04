@@ -635,6 +635,7 @@ async fn me_page(
             "error_in": error_in,
             "min_password": auth::MIN_PASSWORD_CHARS,
         },
+        "slots": crate::modules::me_slots(state, &who.actor).await,
     });
     render(state, status, "me.html", &ctx).await
 }

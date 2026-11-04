@@ -1,0 +1,13 @@
+{# 내 정보의 스크랩 칸 (ADR-0068). #}
+<section class="me-block" aria-labelledby="me-scrap">
+  <h2 id="me-scrap">스크랩{% if s.data.total %} <span class="count">{{ s.data.total }}</span>{% endif %}</h2>
+  {% if s.data.items %}
+  <ul class="me-posts">
+    {% for p in s.data.items %}<li>
+      {% if p.url %}<a href="{{ p.url }}">{{ p.title }}</a>{% else %}<span class="muted">볼 수 없는 글입니다</span>{% endif %}
+      <span class="hint">{% if p.board %}{{ p.board }} · {% endif %}{{ p.date }}</span>
+    </li>{% endfor %}
+  </ul>
+  {% if s.data.total > s.data.items | length %}<p><a href="{{ s.data.more_url }}">모두 보기</a></p>{% endif %}
+  {% else %}<p class="empty">아직 스크랩한 글이 없습니다.</p>{% endif %}
+</section>

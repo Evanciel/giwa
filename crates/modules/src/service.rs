@@ -235,7 +235,12 @@ pub async fn set_settings(
     };
     let mut next = merged(m.as_ref(), Some(&row));
     next.extend(patch);
-    let checked = fields::validate(&m.settings_fields(), &next, true)?;
+    let defs = m.settings_fields();
+    let mut checked = fields::validate(&defs, &next, true)?;
+    // 칸 검증은 꺼진 값을 저장하지 않는다. 그대로 두면 켜짐이 기본인 칸을 끌 수 없다.
+    for d in defs.iter().filter(|d| d.kind == "boolean") {
+        checked.entry(d.key.clone()).or_insert(Value::Bool(false));
+    }
     m.check_settings(&checked)?;
     let diff = json!({ "before": row.settings, "after": checked });
     row.settings = Value::Object(checked);

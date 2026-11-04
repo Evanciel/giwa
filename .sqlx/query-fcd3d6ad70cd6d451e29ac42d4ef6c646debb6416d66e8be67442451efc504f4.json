@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT post_id, at FROM mod_scrap_item WHERE member_id = ?\n             ORDER BY at DESC, post_id DESC LIMIT ? OFFSET ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "post_id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_scrap_item",
+            "name": "post_id"
+          }
+        }
+      },
+      {
+        "name": "at",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_scrap_item",
+            "name": "at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "fcd3d6ad70cd6d451e29ac42d4ef6c646debb6416d66e8be67442451efc504f4"
+}

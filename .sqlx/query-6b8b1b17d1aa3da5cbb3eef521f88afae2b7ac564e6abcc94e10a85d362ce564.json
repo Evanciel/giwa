@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO mod_reaction_item (target_type, target_id, who, member_id, kind, at)\n                 VALUES (?, ?, ?, ?, ?, ?)\n                 ON CONFLICT (target_type, target_id, who)\n                 DO UPDATE SET kind = excluded.kind, at = excluded.at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "6b8b1b17d1aa3da5cbb3eef521f88afae2b7ac564e6abcc94e10a85d362ce564"
+}

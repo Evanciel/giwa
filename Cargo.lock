@@ -1211,6 +1211,8 @@ dependencies = [
  "image",
  "maru-core",
  "maru-mod-point",
+ "maru-mod-reaction",
+ "maru-mod-scrap",
  "maru-modules",
  "maru-storage",
  "maru-themes",
@@ -1264,6 +1266,37 @@ dependencies = [
  "sqlx",
  "tempfile",
  "tokio",
+]
+
+[[package]]
+name = "maru-mod-reaction"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "axum",
+ "maru-core",
+ "maru-modules",
+ "maru-storage",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sha2 0.11.1",
+ "sqlx",
+]
+
+[[package]]
+name = "maru-mod-scrap"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "axum",
+ "maru-core",
+ "maru-modules",
+ "maru-storage",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sqlx",
 ]
 
 [[package]]

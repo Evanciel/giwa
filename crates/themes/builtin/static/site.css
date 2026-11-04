@@ -588,6 +588,7 @@ main { min-height: 50vh; }
 p.widget-notice_bar { margin: 0; padding-block: calc(var(--space) * 1.25); font-size: var(--fs-sm); text-align: center; }
 p.widget-notice_bar a { color: var(--primary); font-weight: 600; }
 .widget-search { display: flex; gap: var(--space); }
+form.widget-search { flex: 1; min-width: 0; }
 .widget-search input { flex: 1; min-width: 0; padding: .55em .8em; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--fg); font: inherit; }
 .widget-search button { padding: .55em 1em; border: 1px solid var(--fg); border-radius: var(--radius-sm); background: var(--fg); color: var(--bg); font: inherit; cursor: pointer; }
 .widget-banner { list-style: none; margin: 0; padding: 0; }
@@ -631,3 +632,18 @@ p.widget-notice_bar a { color: var(--primary); font-weight: 600; }
 /* 글쓰기 파일 붙이기 (ADR-0065) */
 .write-attach[hidden] { display: none; }
 .write-attach { display: flex; flex-direction: column; gap: calc(var(--space) * .5); }
+
+/* 모듈 화면 자리: 글 아래 줄과 알약 단추 (ADR-0068) */
+.slot-row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space); margin: calc(var(--space) * 4) 0 0; }
+.react-bar { display: flex; flex-wrap: wrap; gap: var(--space); margin: 0; }
+.pill { font: inherit; font-size: var(--fs-sm); color: var(--fg); background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: calc(var(--space) * .75) calc(var(--space) * 1.75); min-height: 2.5rem; cursor: pointer; transition: border-color var(--motion), color var(--motion); }
+.pill:hover { border-color: var(--primary); color: var(--primary); }
+.pill.on { border-color: var(--primary); color: var(--primary); font-weight: 700; box-shadow: inset 0 0 0 1px var(--primary); }
+.pill-count { color: var(--muted); font-variant-numeric: tabular-nums; margin-left: .15em; }
+.pill.on .pill-count { color: inherit; }
+.react-bar.small { margin-top: calc(var(--space) * .75); }
+.react-bar.small .pill { padding: calc(var(--space) * .25) calc(var(--space) * 1.25); min-height: 2rem; font-size: .85rem; }
+.scrap-list li { grid-template-columns: 1fr auto; column-gap: calc(var(--space) * 2); align-items: center; }
+.scrap-list li > a, .scrap-list li > span.muted, .scrap-list li > .hint { grid-column: 1; }
+.scrap-list form { grid-column: 2; grid-row: 1 / span 2; margin: 0; }
+.scrap-list .pill { background: var(--surface); color: var(--fg); border-color: var(--border); font-weight: 400; }

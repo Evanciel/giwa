@@ -1,0 +1,6 @@
+{# 글 아래 반응 단추 (ADR-0068). 스크립트 없이 폼으로 동작한다. #}
+<form class="react-bar" method="post" action="{{ s.data.action }}" aria-label="이 글에 반응하기">
+  {% for k in s.data.kinds %}
+  <button type="submit" name="kind" value="{{ k.id }}" class="pill{% if k.pressed %} on{% endif %}" aria-pressed="{% if k.pressed %}true{% else %}false{% endif %}">{{ k.label }} <span class="pill-count">{{ k.count }}</span></button>
+  {% endfor %}
+</form>

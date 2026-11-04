@@ -20,6 +20,7 @@
     </ul>
     {% else %}<p class="empty">아직 쓴 글이 없습니다.</p>{% endif %}
   </section>
+  {% if slots and slots.me_sections %}{% for s in slots.me_sections %}{% include s.template %}{% endfor %}{% endif %}
 
   <section class="me-block" aria-labelledby="me-profile">
     <h2 id="me-profile">닉네임</h2>

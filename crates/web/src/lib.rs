@@ -168,8 +168,11 @@ async fn rate_limit(State(state): State<AppState>, req: Request, next: Next) -> 
             || path.ends_with("/comments")
             || path.starts_with("/write/")
             || (path.starts_with("/b/") && (path.ends_with("/edit") || path.ends_with("/delete"))));
-    let allowed =
-        state.limiter.check(ip, Bucket::All) && (!login || state.limiter.check(ip, Bucket::Login));
+    // 모듈의 단추(반응·스크랩)는 로그인 시도처럼 좁힐 일은 아니지만 읽기보다는 좁힌다.
+    let action = req.method() == Method::POST && path.starts_with("/m/");
+    let allowed = state.limiter.check(ip, Bucket::All)
+        && (!login || state.limiter.check(ip, Bucket::Login))
+        && (!action || state.limiter.check(ip, Bucket::Action));
     if allowed {
         return next.run(req).await;
     }

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM mod_scrap_item WHERE member_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "7badd08bb5cdaa2f0974fac836e7d19ff4c6d7551f5deae0341aab95b7cecb40"
+}

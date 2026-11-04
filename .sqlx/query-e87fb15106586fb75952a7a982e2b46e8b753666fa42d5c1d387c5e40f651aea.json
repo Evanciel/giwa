@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO mod_scrap_item (member_id, post_id, at) VALUES (?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "e87fb15106586fb75952a7a982e2b46e8b753666fa42d5c1d387c5e40f651aea"
+}

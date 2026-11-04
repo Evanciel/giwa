@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM mod_reaction_item\n                 WHERE target_type = ? AND target_id = ? AND who = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "b379d08233ae07107ced6dc8aa7f79258bf86260cf00ebfbfa335e8ac6379932"
+}

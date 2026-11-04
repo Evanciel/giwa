@@ -16,6 +16,8 @@ pub enum Bucket {
     All,
     /// 로그인 시도 (비밀번호, 로그인 링크 사용)
     Login,
+    /// 모듈의 폼 (반응·스크랩 단추)
+    Action,
 }
 
 impl Bucket {
@@ -23,6 +25,7 @@ impl Bucket {
         match self {
             Self::All => 600,
             Self::Login => 10,
+            Self::Action => 60,
         }
     }
 }

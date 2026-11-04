@@ -1,0 +1,4 @@
+{# 글 아래 스크랩 단추 (ADR-0068). #}
+<form class="react-bar" method="post" action="{{ s.data.action }}">
+  <button type="submit" class="pill{% if s.data.pressed %} on{% endif %}" aria-pressed="{% if s.data.pressed %}true{% else %}false{% endif %}">{% if s.data.pressed %}스크랩함{% else %}스크랩{% endif %}</button>
+</form>

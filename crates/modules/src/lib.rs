@@ -22,6 +22,7 @@ use maru_core::model::AuditEvent;
 use maru_core::services::widgets::WidgetType;
 use maru_core::store::{Extensions, ModuleMigration};
 use maru_core::{Code, Ctx, Error, Result};
+use serde::Serialize;
 use serde_json::{Map, Value};
 
 /// 모듈의 신분과 구독. 바이너리에 내장되므로 정적 값이다 (SPEC §7.1 의 `module.toml` 은 Phase 5 외부 모듈 때).
@@ -59,6 +60,34 @@ pub struct ModuleState {
     pub host: Arc<dyn Host>,
 }
 
+/// 글 본문 아래 (반응·스크랩 단추).
+pub const POST_FOOTER: &str = "post_footer";
+/// 댓글마다. 템플릿에서 지금 댓글은 `c` 다.
+pub const COMMENT_ACTIONS: &str = "comment_actions";
+/// 내 정보 화면의 칸.
+pub const ME_SECTIONS: &str = "me_sections";
+
+/// 화면 자리를 채울 때 모듈이 보는 것.
+pub struct SlotView<'a> {
+    pub viewer: &'a Actor,
+    pub post_id: Option<&'a str>,
+    pub comment_ids: &'a [String],
+}
+
+/// 모듈이 자리에 넣는 것. 템플릿에서 `s.data` 로 읽는다.
+pub struct SlotContent {
+    pub template: &'static str,
+    pub data: Value,
+}
+
+/// 템플릿에 넘기는 자리 하나.
+#[derive(Debug, Clone, Serialize)]
+pub struct SlotItem {
+    pub module: &'static str,
+    pub template: &'static str,
+    pub data: Value,
+}
+
 /// 모듈 라우트가 웹 계층에 맡기는 일.
 #[async_trait]
 pub trait Host: Send + Sync {
@@ -68,6 +97,8 @@ pub trait Host: Send + Sync {
     async fn error(&self, err: &Error) -> Response;
     /// 지금 요청의 사람. 로그인하지 않았으면 손님.
     async fn viewer(&self, headers: &HeaderMap) -> Result<Actor>;
+    /// 공개 화면의 폼은 쿠키 토큰이 없어(화면을 캐시할 수 있게) 출처로 위조 요청을 막는다.
+    fn same_origin(&self, headers: &HeaderMap) -> bool;
 }
 
 /// 모듈. 빠진 것은 기본 구현(없음)으로 둔다.
@@ -135,6 +166,16 @@ pub trait Module: Send + Sync {
     async fn widget_view(&self, _ctx: &Ctx, _kind: &str, _config: &Value) -> Result<Value> {
         Ok(Value::Null)
     }
+
+    /// 화면 자리([`POST_FOOTER`] 등)에 넣을 것. 없으면 `None`.
+    async fn slot(
+        &self,
+        _ctx: &Ctx,
+        _slot: &str,
+        _view: &SlotView<'_>,
+    ) -> Result<Option<SlotContent>> {
+        Ok(None)
+    }
 }
 
 /// 모듈이 자기 문장으로 내는 오류. 문장 카탈로그는 코어 몫이라 키 대신 글자를 싣는다.
@@ -144,7 +185,7 @@ pub fn module_error(code: Code, text: impl Into<String>) -> Error {
         .arg("text", text.into())
 }
 
-pub(crate) fn tool_not_found(id: &str, tool: &str) -> Error {
+pub fn tool_not_found(id: &str, tool: &str) -> Error {
     Error::new(Code::NotFound)
         .with_message("error.module_tool_not_found")
         .arg("module", id)
@@ -198,6 +239,39 @@ impl Registry {
                 Vec::new()
             }
         }
+    }
+
+    /// 켜진 모듈들이 자리에 넣는 것. 한 모듈이 실패해도 화면은 그대로 나간다 (위젯과 같다).
+    pub async fn slots(
+        &self,
+        ctx: &Ctx,
+        names: &[&str],
+        view: &SlotView<'_>,
+    ) -> Map<String, Value> {
+        let enabled = self.enabled(ctx).await;
+        let mut out = Map::new();
+        for name in names {
+            let mut items = Vec::new();
+            for m in &enabled {
+                let id = m.manifest().id;
+                match m.slot(ctx, name, view).await {
+                    Ok(Some(c)) => items.push(SlotItem {
+                        module: id,
+                        template: c.template,
+                        data: c.data,
+                    }),
+                    Ok(None) => {}
+                    Err(e) => {
+                        tracing::warn!(module = id, slot = name, error = ?e, "화면 자리를 못 채웠습니다")
+                    }
+                }
+            }
+            out.insert(
+                (*name).to_owned(),
+                serde_json::to_value(items).unwrap_or(Value::Null),
+            );
+        }
+        out
     }
 
     /// 이 위젯 종류를 가진 켜진 모듈.

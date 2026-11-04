@@ -9,7 +9,7 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use maru_core::{Actor, Ctx, Error, Result};
-use maru_modules::{Host, ModuleState};
+use maru_modules::{COMMENT_ACTIONS, Host, ME_SECTIONS, ModuleState, POST_FOOTER, SlotView};
 use serde_json::{Value, json};
 
 use crate::AppState;
@@ -21,7 +21,11 @@ impl Host for WebHost {
     async fn page(&self, template: &str, title: &str, data: Value) -> Response {
         let site = crate::public::site_json(&self.0).await;
         let name = site["name"].as_str().unwrap_or("Maru");
-        let mut ctx = json!({ "site": site, "meta": { "title": format!("{title} · {name}") } });
+        let noindex = data["noindex"].as_bool().unwrap_or(false);
+        let mut ctx = json!({
+            "site": site,
+            "meta": { "title": format!("{title} · {name}"), "noindex": noindex },
+        });
         if let (Some(c), Value::Object(d)) = (ctx.as_object_mut(), data) {
             c.extend(d);
         }
@@ -36,6 +40,58 @@ impl Host for WebHost {
         let (actor, _) = crate::comments::viewer(&self.0, headers).await?;
         Ok(actor)
     }
+
+    fn same_origin(&self, headers: &HeaderMap) -> bool {
+        crate::comments::same_origin(headers)
+    }
+}
+
+/// 글 화면의 자리를 채운다. 켜진 모듈이 없으면 누구인지 묻지 않는다.
+pub(crate) async fn add_post_slots(state: &AppState, headers: &HeaderMap, view: &mut Value) {
+    if state.modules.enabled(&state.ctx).await.is_empty() {
+        return;
+    }
+    let Some(post_id) = view["post"]["id"].as_str().map(str::to_owned) else {
+        return;
+    };
+    let comment_ids: Vec<String> = view["comments"]["items"]
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|c| c["id"].as_str().map(str::to_owned))
+                .collect()
+        })
+        .unwrap_or_default();
+    let viewer = match crate::comments::viewer(state, headers).await {
+        Ok((actor, _)) => actor,
+        Err(_) => Actor::anonymous([]),
+    };
+    let slot_view = SlotView {
+        viewer: &viewer,
+        post_id: Some(&post_id),
+        comment_ids: &comment_ids,
+    };
+    let slots = state
+        .modules
+        .slots(&state.ctx, &[POST_FOOTER, COMMENT_ACTIONS], &slot_view)
+        .await;
+    view["slots"] = Value::Object(slots);
+}
+
+/// 내 정보 화면의 자리.
+pub(crate) async fn me_slots(state: &AppState, viewer: &Actor) -> Value {
+    let slot_view = SlotView {
+        viewer,
+        post_id: None,
+        comment_ids: &[],
+    };
+    Value::Object(
+        state
+            .modules
+            .slots(&state.ctx, &[ME_SECTIONS], &slot_view)
+            .await,
+    )
 }
 
 #[derive(Clone)]

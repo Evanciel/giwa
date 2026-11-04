@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT target_id, kind FROM mod_reaction_item\n             WHERE target_type = ? AND who = ? AND target_id IN (SELECT value FROM json_each(?))",
+  "describe": {
+    "columns": [
+      {
+        "name": "target_id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_reaction_item",
+            "name": "target_id"
+          }
+        }
+      },
+      {
+        "name": "kind",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_reaction_item",
+            "name": "kind"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "1774cfbc58b0a7954d2bb5228998e20091ea1a6bfbdc4e3a60dd5e405649f562"
+}
