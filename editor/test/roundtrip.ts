@@ -90,6 +90,11 @@ const rich: Record<string, string> = {
   if (r.ok) r.doc.descendants((node) => void (node.type.name === "image" && (attrs = node.attrs)));
   check("사진 크기·캡션 속성", attrs.src === "/media/a.jpg" && attrs.width === 50 && attrs.title === "동해", JSON.stringify(attrs));
   check("사진 크기 다시 쓰기", r.ok && serialize(r.doc) === "![바다](/media/a.jpg#w50 \"동해\")", r.ok ? serialize(r.doc) : "");
+  for (const k of ["quote-mark", "quote-bubble", "quote-note", "quote-frame"]) {
+    const md = `:::${k}\n말은 **짧게**.\n:::`;
+    const q = load(md);
+    check(`인용구 ${k}`, q.ok && q.doc.firstChild?.type.name === "box" && q.doc.firstChild.attrs.kind === k && serialize(q.doc) === md, q.ok ? serialize(q.doc) : "");
+  }
   const g = load(":::gallery\n![a](/a.png)\n:::");
   check("갤러리 상자", g.ok && g.doc.firstChild?.type.name === "box" && g.doc.firstChild.attrs.kind === "gallery");
   // 접기: 새 노드 없이 상자 하나. 첫 문단(요약)이 첫 자식으로 남아야 서버와 같은 뜻이 된다.

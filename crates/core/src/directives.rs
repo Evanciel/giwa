@@ -1,7 +1,7 @@
 //! Maru 확장 문법 (ADR-0034). Markdown 을 pulldown-cmark 에 넘기기 전에 HTML 조각으로 바꾼다.
 //!
 //! - 블록 상자: `:::info` … `:::` (info·tip·warn·danger 강조 상자, center·right 정렬, gallery 사진 격자,
-//!   details 접기 — 첫 문단이 요약, ADR-0041)
+//!   details 접기 — 첫 문단이 요약, ADR-0041, quote-mark·quote-bubble·quote-note·quote-frame 인용구 모양 — GAP E6)
 //! - 글자 꾸밈: `:color[글자]{red}`, `:mark[글자]{yellow}`, `:size[글자]{24}`, `:font[글자]{serif}`
 //!
 //! 에디터(`editor/src/syntax.ts`)와 같은 규칙이어야 한다. 정해진 이름·값만 받고, 나머지는 글자 그대로 둔다.
@@ -17,8 +17,19 @@ use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
 
 use crate::design::is_font_slug;
 
-pub const BOX_KINDS: [&str; 8] = [
-    "info", "tip", "warn", "danger", "center", "right", "gallery", "details",
+pub const BOX_KINDS: [&str; 12] = [
+    "info",
+    "tip",
+    "warn",
+    "danger",
+    "center",
+    "right",
+    "gallery",
+    "details",
+    "quote-mark",
+    "quote-bubble",
+    "quote-note",
+    "quote-frame",
 ];
 
 /// (문법 이름, 클래스 앞머리, 쓸 수 있는 값). 크기의 숫자는 px 기준 단계(rem 으로 그린다),
@@ -54,6 +65,7 @@ fn box_class(kind: &str) -> String {
         "center" | "right" => format!("align-{kind}"),
         "gallery" => "gallery".to_owned(),
         "details" => "fold".to_owned(),
+        k if k.starts_with("quote-") => format!("quote {k}"),
         _ => format!("callout callout-{kind}"),
     }
 }
@@ -66,13 +78,13 @@ pub fn allowed_classes() -> &'static [(&'static str, Vec<String>)] {
 }
 
 fn build_classes() -> Vec<(&'static str, Vec<String>)> {
-    let mut divs = vec!["callout".to_owned()];
+    let mut divs = vec!["callout".to_owned(), "quote".to_owned()];
     // 접기 상자는 div 가 아니라 <details> 로 그린다.
     for k in BOX_KINDS.into_iter().filter(|k| *k != "details") {
         divs.extend(
             box_class(k)
                 .split(' ')
-                .filter(|c| *c != "callout")
+                .filter(|c| *c != "callout" && *c != "quote")
                 .map(str::to_owned),
         );
     }
@@ -650,6 +662,12 @@ mod tests {
         assert!(s.contains("<div class=\"callout callout-tip\">"), "{s}");
         assert!(s.contains("<div class=\"align-center\">"), "{s}");
         assert_eq!(s.matches("</div>").count(), 2, "{s}");
+        // 인용구 모양 (GAP E6)
+        for k in ["quote-mark", "quote-bubble", "quote-note", "quote-frame"] {
+            let s = ex(&format!(":::{k}\n인용\n:::"));
+            assert_eq!(s, format!("<div class=\"quote {k}\">\n\n인용\n\n</div>\n"));
+        }
+        assert!(!ex(":::quote-x\n인용\n:::").contains("<div"));
     }
 
     #[test]

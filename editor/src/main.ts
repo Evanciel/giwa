@@ -136,7 +136,7 @@ const TOOLS: (Tool | "|")[] = [
   { row: "insert", icon: "video", label: "동영상", name: "유튜브·비메오 동영상 넣기", run: (ed) => ed.openVideo(), md: (ed) => ed.openVideo() },
   { row: "insert", icon: "place", label: "장소", name: "장소(이름·주소·지도 링크) 넣기", run: (ed) => ed.openPlace(), md: (ed) => ed.openPlace() },
   { row: "insert", icon: "table", label: "표", name: "표 넣기 (칸 사이는 Tab 으로 이동)", run: cmd(insertTable()), md: (ed) => ed.mdInsert("\n\n| 제목 | 제목 |\n| --- | --- |\n| 내용 | 내용 |\n\n"), enabled: can(insertTable()) },
-  { row: "insert", icon: "quote", label: "인용구", name: "인용", run: cmd(toggleQuote), md: (ed) => ed.mdLines("> "), active: (s) => wrappedIn(s, n.blockquote), enabled: can(toggleQuote) },
+  { row: "insert", icon: "quote", label: "인용구", name: "인용구 (선·큰따옴표·말풍선·메모지·테두리)", run: (ed) => ed.openQuoteMenu(), md: (ed) => ed.openQuoteMenu(), active: (s) => wrappedIn(s, n.blockquote) || !!boxKind(s, "quote") },
   { row: "insert", icon: "rule", label: "구분선", name: "구분선", run: cmd(insertRule), md: (ed) => ed.mdInsert("\n\n---\n\n") },
   { row: "insert", icon: "box", label: "상자", name: "강조 상자 (알림·도움말·주의·경고)", run: (ed) => ed.openBoxMenu("callout"), md: (ed) => ed.openBoxMenu("callout"), active: (s) => !!boxKind(s, "callout") },
   { row: "insert", icon: "template", label: "틀", name: "글 틀 불러오기·저장 (여행기·리뷰·공지·레시피 등)", run: (ed) => void ed.openTemplates(), md: (ed) => void ed.openTemplates() },
@@ -242,6 +242,9 @@ function fontLabel(s: EditorState, mode: Mode): string {
 function sizeBadge(v: string | null): string {
   return v && SIZE_STEPS.includes(v) ? v : "";
 }
+
+/** 인용구 모양 (GAP E6). 기본(왼쪽 선)은 Markdown 인용 `> `, 나머지는 상자다. */
+const QUOTE_ITEMS: [string, string][] = [["quote-mark", "큰따옴표"], ["quote-bubble", "말풍선"], ["quote-note", "메모지"], ["quote-frame", "위아래 선"]];
 
 const BOX_MENU: Record<"callout" | "align", { title: string; none: string; items: [string, string][] }> = {
   callout: { title: "강조 상자", none: "상자 없애기", items: [["info", "알림"], ["tip", "도움말"], ["warn", "주의"], ["danger", "경고"]] },
@@ -1485,6 +1488,26 @@ class Editor {
     this.openMenu(spec.title, [
       ...spec.items.map(([kind, label]) => ({ label, current: cur === kind, run: () => apply(kind) })),
       ...(this.mode === "rich" ? [{ label: spec.none, run: () => apply(null) }] : []),
+    ]);
+  }
+
+  openQuoteMenu() {
+    const rich = this.mode === "rich";
+    const s = this.view.state;
+    const cur = rich ? boxKind(s, "quote") : null;
+    const plain = rich && wrappedIn(s, n.blockquote);
+    this.openMenu("인용구 모양", [
+      {
+        label: "기본 (왼쪽 선)",
+        current: plain,
+        run: () => (rich ? cmd(toggleQuote)(this) : this.mdLines("> ")),
+      },
+      ...QUOTE_ITEMS.map(([kind, label]) => ({
+        label,
+        current: cur === kind,
+        run: () => (rich ? setBox("quote", kind)(this.view.state, this.view.dispatch) : this.mdBox(kind)),
+      })),
+      ...(rich && cur ? [{ label: "인용 모양 없애기", run: () => setBox("quote", null)(this.view.state, this.view.dispatch) }] : []),
     ]);
   }
 

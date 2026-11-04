@@ -406,6 +406,16 @@
 .callout-warn::before { content: "주의"; }
 .callout-danger { --c: #d0342c; }
 .callout-danger::before { content: "경고"; }
+/* 인용구 모양 (GAP E6). 기본 인용(> )은 왼쪽 선, 나머지는 `:::quote-*` 상자 */
+.quote { margin-block: 1.5em; }
+.quote > :first-child { margin-top: 0; }
+.quote > :last-child { margin-bottom: 0; }
+.quote-mark { position: relative; padding: 1.9em 1.5em .3em; text-align: center; font-size: 1.08em; }
+.quote-mark::before { content: "\201C"; position: absolute; top: -.05em; left: 50%; transform: translateX(-50%); font: 700 3em/1 Georgia, "Times New Roman", serif; color: var(--primary, #2f5d50); opacity: .6; }
+.quote-bubble { position: relative; padding: .9em 1.2em; border: 1px solid var(--border, #e4e5e7); border-radius: 14px; background: var(--surface, #fff); }
+.quote-bubble::after { content: ""; position: absolute; left: 1.6em; bottom: -9px; width: 16px; height: 16px; background: var(--surface, #fff); border-right: 1px solid var(--border, #e4e5e7); border-bottom: 1px solid var(--border, #e4e5e7); transform: rotate(45deg); }
+.quote-note { padding: 1em 1.2em; border-radius: 2px; background: color-mix(in srgb, #f2c94c 24%, var(--surface, #fff)); box-shadow: 0 1px 3px rgb(0 0 0 / .14); }
+.quote-frame { padding: 1em 1.4em; border-block: 2px solid currentColor; text-align: center; }
 /* 접기 상자: 편집 중에는 늘 펼쳐 두고, 첫 문단(= 공개 화면의 요약)을 굵게 보인다 (ADR-0041) */
 .fold {
   margin-block: 1.25em;
