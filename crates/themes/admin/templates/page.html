@@ -1,0 +1,45 @@
+{% extends "_base.html" %}
+{% block title %}{{ page.title }} · 페이지{% endblock %}
+{% block content %}
+<p class="write-back"><a href="/admin/pages">← 페이지 목록</a></p>
+<div class="heading-row">
+  <h1>{{ page.title }} <span class="badge badge-{{ page.status }}">{{ page.status_label }}</span></h1>
+  {% if page.status == "published" %}<a href="{{ page.url }}" target="_blank" rel="noopener">사이트에서 보기</a>{% endif %}
+</div>
+
+<form method="post" action="/admin/pages/{{ page.slug }}" class="stack site-form">
+  <input type="hidden" name="_csrf" value="{{ csrf }}">
+  <div class="form-grid">
+    <div class="stack">
+      <label for="p-title">제목</label>
+      <input id="p-title" name="title" value="{{ form.title }}" maxlength="120" required autocomplete="off">
+    </div>
+    <div class="stack">
+      <label for="p-slug">주소 <span class="hint">바꾸면 옛 주소는 열리지 않습니다</span></label>
+      <input id="p-slug" name="slug" value="{{ form.slug }}" maxlength="80" required autocomplete="off" spellcheck="false">
+    </div>
+    <div class="stack">
+      <label for="p-layout">폭</label>
+      <select id="p-layout" name="layout">
+        {% for c in layouts %}<option value="{{ c.id }}"{% if form.layout == c.id %} selected{% endif %}>{{ c.label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="stack">
+      <label for="p-sort">순서 값 <span class="hint">작을수록 앞</span></label>
+      <input id="p-sort" name="sort_order" value="{{ form.sort_order }}" inputmode="numeric" autocomplete="off">
+    </div>
+  </div>
+  <label for="p-body">본문 <span class="hint">마크다운</span></label>
+  <textarea id="p-body" name="body_md" rows="18">{{ form.body_md }}</textarea>
+  <button type="submit">저장</button>
+</form>
+
+<div class="actions site-section">
+  {% for a in page.actions %}
+  <form method="post" action="/admin/pages/{{ page.slug }}/{{ a.id }}" class="inline">
+    <input type="hidden" name="_csrf" value="{{ csrf }}">
+    <button type="submit" class="{% if a.id == 'delete' %}warn{% else %}secondary{% endif %}">{{ a.label }}</button>
+  </form>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,56 @@
+{% extends "_base.html" %}
+{% block title %}회원{% endblock %}
+{% block content %}
+<div class="heading-row">
+  <h1>회원 <span class="count">{{ total }}</span></h1>
+</div>
+<p class="hint">운영자 역할은 소유자·운영자만 줄 수 있습니다. 사용을 멈추면 그 회원의 로그인이 모두 풀리고, 다시 쓸 수 있게 하기 전까지 들어오지 못합니다.</p>
+
+{% if items %}
+<table class="stat-table site-table member-table">
+  <thead><tr><th scope="col">이름</th><th scope="col">메일</th><th scope="col">역할</th><th scope="col">상태</th><th scope="col">가입</th></tr></thead>
+  <tbody>
+  {% for m in items %}
+    <tr>
+      <th scope="row">{{ m.name }}{% if m.me %} <span class="badge">나</span>{% endif %}</th>
+      <td>{{ m.email }}{% if not m.verified %} <span class="badge">메일 미확인</span>{% endif %}</td>
+      <td>
+        {% if m.owner or m.me or m.withdrawn %}{{ m.role_label }}{% else %}
+        <form method="post" action="/admin/members/{{ m.id }}/role" class="inline member-role">
+          <input type="hidden" name="_csrf" value="{{ csrf }}">
+          <input type="hidden" name="page" value="{{ page }}">
+          <select name="role" aria-label="{{ m.name }} 역할">
+            {% for r in roles %}<option value="{{ r.id }}"{% if m.role == r.id %} selected{% endif %}>{{ r.label }}</option>{% endfor %}
+          </select>
+          <button type="submit" class="secondary">바꾸기</button>
+        </form>
+        {% endif %}
+      </td>
+      <td>
+        {% if m.withdrawn %}<span class="badge badge-deleted">탈퇴</span>
+        {% elif m.owner or m.me %}{% if m.active %}사용 중{% else %}멈춤{% endif %}
+        {% else %}
+        <form method="post" action="/admin/members/{{ m.id }}/{% if m.active %}disable{% else %}enable{% endif %}" class="inline">
+          <input type="hidden" name="_csrf" value="{{ csrf }}">
+          <input type="hidden" name="page" value="{{ page }}">
+          {% if m.active %}<button type="submit" class="warn" aria-label="{{ m.name }} 사용 멈추기">사용 멈추기</button>
+          {% else %}<span class="badge badge-pending">멈춤</span> <button type="submit" class="secondary" aria-label="{{ m.name }} 다시 쓰게 하기">다시 쓰게 하기</button>{% endif %}
+        </form>
+        {% endif %}
+      </td>
+      <td>{{ m.joined }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% if pages > 1 %}
+<nav class="pager" aria-label="쪽">
+  {% if page > 1 %}<a href="/admin/members?page={{ page - 1 }}">← 앞 쪽</a>{% endif %}
+  <span>{{ page }} / {{ pages }}</span>
+  {% if page < pages %}<a href="/admin/members?page={{ page + 1 }}">다음 쪽 →</a>{% endif %}
+</nav>
+{% endif %}
+{% else %}
+<p class="empty">회원이 없습니다.</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,88 @@
+{% extends "_base.html" %}
+{% block title %}디자인{% endblock %}
+{% block content %}
+<div class="heading-row">
+  <h1>디자인</h1>
+  <a href="/" target="_blank" rel="noopener">사이트 보기</a>
+</div>
+<p class="hint">색·서체·글자 크기·간격·폭을 바꿉니다. 저장하면 바로 사이트에 반영되고 감사 로그에 남습니다. 글자와 바탕의 대비가 너무 낮으면 저장하지 않습니다.</p>
+
+<form method="post" action="/admin/design" class="stack site-form">
+  <input type="hidden" name="_csrf" value="{{ csrf }}">
+  <fieldset>
+    <legend>색</legend>
+    <table class="stat-table color-table">
+      <thead><tr><th scope="col">쓰임</th><th scope="col">밝은 화면</th><th scope="col">어두운 화면</th></tr></thead>
+      <tbody>
+      {% for c in colors %}
+        <tr>
+          <th scope="row">{{ c.label }} <code>{{ c.id }}</code></th>
+          <td><input type="color" name="color__{{ c.id }}" value="{{ form['color__' ~ c.id] }}" aria-label="밝은 화면 {{ c.label }}"></td>
+          <td><input type="color" name="color_dark__{{ c.id }}" value="{{ form['color_dark__' ~ c.id] }}" aria-label="어두운 화면 {{ c.label }}"></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </fieldset>
+
+  <fieldset>
+    <legend>서체</legend>
+    <div class="form-grid">
+      {% for f in [["body", "본문"], ["heading", "제목"], ["mono", "코드"]] %}
+      <div class="stack">
+        <label for="d-font-{{ f[0] }}">{{ f[1] }}</label>
+        <select id="d-font-{{ f[0] }}" name="font__{{ f[0] }}">
+          {% for o in fonts %}<option value="{{ o.id }}"{% if form['font__' ~ f[0]] == o.id %} selected{% endif %}>{{ o.label }}</option>{% endfor %}
+        </select>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="hint">서체를 더 쓰려면 <a href="/admin/fonts">서체</a> 화면에서 올립니다.</p>
+  </fieldset>
+
+  <fieldset>
+    <legend>크기·간격</legend>
+    <div class="form-grid">
+      {% for n in [["type_scale__base", "본문 글자 크기(px, 14~22)"], ["type_scale__ratio", "제목 크기 비율(1.1~1.5)"], ["radius__sm", "작은 모서리(px)"], ["radius__md", "보통 모서리(px)"], ["radius__lg", "큰 모서리(px)"], ["space__unit", "간격 단위(px, 4~12)"], ["space__section", "구역 사이(px, 24~200)"], ["layout__max_width", "화면 최대 폭(px, 640~1600)"], ["layout__measure", "본문 한 줄 글자 수(28~48)"]] %}
+      <div class="stack">
+        <label for="d-{{ n[0] }}">{{ n[1] }}</label>
+        <input id="d-{{ n[0] }}" name="{{ n[0] }}" value="{{ form[n[0]] }}" inputmode="decimal" autocomplete="off">
+      </div>
+      {% endfor %}
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>배치·움직임</legend>
+    <div class="form-grid">
+      <div class="stack">
+        <label for="d-header">머리글</label>
+        <select id="d-header" name="layout__header">
+          {% for c in headers %}<option value="{{ c.id }}"{% if form.layout__header == c.id %} selected{% endif %}>{{ c.label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="stack">
+        <label for="d-density">촘촘함</label>
+        <select id="d-density" name="layout__density">
+          {% for c in densities %}<option value="{{ c.id }}"{% if form.layout__density == c.id %} selected{% endif %}>{{ c.label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="stack">
+        <label for="d-motion">움직임</label>
+        <select id="d-motion" name="motion__level">
+          {% for c in motions %}<option value="{{ c.id }}"{% if form.motion__level == c.id %} selected{% endif %}>{{ c.label }}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+  </fieldset>
+  <button type="submit">저장</button>
+</form>
+
+<section aria-labelledby="design-reset" class="site-section">
+  <h2 id="design-reset">기본값으로</h2>
+  <form method="post" action="/admin/design/reset" class="inline">
+    <input type="hidden" name="_csrf" value="{{ csrf }}">
+    <button type="submit" class="warn">모든 디자인 값을 기본값으로 되돌리기</button>
+  </form>
+</section>
+{% endblock %}

@@ -1,0 +1,52 @@
+{% extends "_base.html" %}
+{% block title %}페이지{% endblock %}
+{% block content %}
+<div class="heading-row">
+  <h1>페이지 <span class="count">{{ items | length }}</span></h1>
+</div>
+<p class="hint">소개·오시는 길·이용 약관처럼 게시판 밖의 한 장짜리 화면입니다. 주소는 <code>/p/주소</code> 입니다.</p>
+
+{% if items %}
+<table class="stat-table site-table">
+  <thead><tr><th scope="col">제목</th><th scope="col">주소</th><th scope="col">상태</th><th scope="col">고친 때</th><th scope="col"><span class="visually-hidden">동작</span></th></tr></thead>
+  <tbody>
+  {% for p in items %}
+    <tr>
+      <th scope="row">{% if p.status == "deleted" %}{{ p.title }}{% else %}<a href="/admin/pages/{{ p.slug }}">{{ p.title }}</a>{% endif %}</th>
+      <td>{% if p.status == "published" %}<a href="{{ p.url }}" target="_blank" rel="noopener"><code>{{ p.url }}</code></a>{% else %}<code>{{ p.url }}</code>{% endif %}</td>
+      <td><span class="badge badge-{{ p.status }}">{{ p.status_label }}</span></td>
+      <td>{{ p.updated }}</td>
+      <td class="actions">
+        {% for a in p.actions %}
+        <form method="post" action="/admin/pages/{{ p.slug }}/{{ a.id }}" class="inline">
+          <input type="hidden" name="_csrf" value="{{ csrf }}">
+          <button type="submit" class="{% if a.id == 'delete' %}warn{% else %}secondary{% endif %}" aria-label="{{ p.title }} {{ a.label }}">{{ a.label }}</button>
+        </form>
+        {% endfor %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">페이지가 없습니다.</p>
+{% endif %}
+
+<section aria-labelledby="page-new-title" class="site-section">
+  <h2 id="page-new-title">페이지 만들기</h2>
+  <form method="post" action="/admin/pages" class="stack site-form">
+    <input type="hidden" name="_csrf" value="{{ csrf }}">
+    <div class="form-grid">
+      <div class="stack">
+        <label for="p-title">제목</label>
+        <input id="p-title" name="title" value="{{ form.title }}" maxlength="120" required autocomplete="off">
+      </div>
+      <div class="stack">
+        <label for="p-slug">주소 <span class="hint">예: <code>about</code> → <code>/p/about</code></span></label>
+        <input id="p-slug" name="slug" value="{{ form.slug }}" maxlength="80" required autocomplete="off" spellcheck="false">
+      </div>
+    </div>
+    <button type="submit">만들기</button>
+  </form>
+</section>
+{% endblock %}

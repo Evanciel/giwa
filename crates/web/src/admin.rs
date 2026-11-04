@@ -31,6 +31,8 @@ use crate::AppState;
 use crate::error::ApiError;
 use crate::field_form;
 
+mod site;
+
 pub(crate) const SESSION_COOKIE: &str = "maru_session";
 const CSRF_COOKIE: &str = "maru_csrf";
 
@@ -77,6 +79,7 @@ pub fn routes() -> Router<AppState> {
         .route("/admin/slug-check", get(check_slug))
         .route("/admin/categories", post(create_category))
         .route("/admin/assets/{*path}", get(asset))
+        .merge(site::routes())
         .layer(middleware::map_response(admin_headers))
 }
 

@@ -192,6 +192,9 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "error.audit_time" => {
             "{field} 는 RFC3339 시각입니다 (예: 2026-11-04T09:00:00+09:00, 받은 값 {value})."
         }
+        "error.form_number" => "`{field}` 칸에는 숫자를 넣으세요: {value}",
+        "error.form_choice" => "`{field}` 칸의 값 `{value}` 는 고를 수 없습니다.",
+        "error.menu_child_first" => "하위 항목 「{label}」 위에 첫 단계 항목이 있어야 합니다.",
         "error.restore_confirm" => {
             "복원은 지금 데이터를 옮기고 백업으로 바꿉니다. 확인했으면 --yes 를 붙여 다시 실행하세요."
         }

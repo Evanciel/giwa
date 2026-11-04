@@ -1,0 +1,52 @@
+{% extends "_base.html" %}
+{% block title %}게시판{% endblock %}
+{% block content %}
+<div class="heading-row">
+  <h1>게시판 <span class="count">{{ items | length }}</span></h1>
+</div>
+<p class="hint">게시판 이름을 누르면 종류·목록 형태·역할별 권한·여분 칸을 고칩니다.</p>
+
+{% if items %}
+<table class="stat-table site-table">
+  <thead><tr><th scope="col">이름</th><th scope="col">주소</th><th scope="col">종류</th><th scope="col">목록 형태</th><th scope="col">글쓰기</th><th scope="col" class="num">여분 칸</th></tr></thead>
+  <tbody>
+  {% for b in items %}
+    <tr>
+      <th scope="row"><a href="/admin/boards/{{ b.slug }}">{{ b.name }}</a></th>
+      <td><a href="{{ b.url }}" target="_blank" rel="noopener"><code>{{ b.url }}</code></a></td>
+      <td>{{ b.kind }}</td>
+      <td>{{ b.layout }}</td>
+      <td>{{ b.write }}</td>
+      <td class="num">{{ b.fields }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">게시판이 없습니다.</p>
+{% endif %}
+
+<section aria-labelledby="board-new-title" class="site-section">
+  <h2 id="board-new-title">게시판 만들기</h2>
+  <form method="post" action="/admin/boards" class="stack site-form">
+    <input type="hidden" name="_csrf" value="{{ csrf }}">
+    <div class="form-grid">
+      <div class="stack">
+        <label for="b-name">이름</label>
+        <input id="b-name" name="name" value="{{ form.name }}" maxlength="60" required autocomplete="off">
+      </div>
+      <div class="stack">
+        <label for="b-slug">주소 <span class="hint">영문 소문자·숫자·- 만. 예: <code>free</code> → <code>/b/free</code></span></label>
+        <input id="b-slug" name="slug" value="{{ form.slug }}" maxlength="40" required pattern="[a-z0-9][a-z0-9-]*" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="stack">
+        <label for="b-kind">종류</label>
+        <select id="b-kind" name="kind">
+          {% for c in choices.kinds %}<option value="{{ c.id }}"{% if form.kind == c.id %} selected{% endif %}>{{ c.label }}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+    <button type="submit">만들기</button>
+  </form>
+</section>
+{% endblock %}

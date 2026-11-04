@@ -1,0 +1,87 @@
+{% extends "_base.html" %}
+{% block title %}{{ form.name }} · 게시판{% endblock %}
+{% block content %}
+<p class="write-back"><a href="/admin/boards">← 게시판 목록</a></p>
+<div class="heading-row">
+  <h1>{{ form.name }} <code class="slug">{{ form.slug }}</code></h1>
+  <a href="{{ url }}" target="_blank" rel="noopener">사이트에서 보기</a>
+</div>
+
+<form method="post" action="/admin/boards/{{ form.slug }}" class="stack site-form">
+  <input type="hidden" name="_csrf" value="{{ csrf }}">
+  <fieldset>
+    <legend>기본</legend>
+    <div class="form-grid">
+      <div class="stack">
+        <label for="b-name">이름</label>
+        <input id="b-name" name="name" value="{{ form.name }}" maxlength="60" required autocomplete="off">
+      </div>
+      <div class="stack">
+        <label for="b-kind">종류</label>
+        <select id="b-kind" name="kind">
+          {% for c in choices.kinds %}<option value="{{ c.id }}"{% if form.kind == c.id %} selected{% endif %}>{{ c.label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="stack">
+        <label for="b-layout">목록 형태</label>
+        <select id="b-layout" name="layout">
+          {% for c in choices.layouts %}<option value="{{ c.id }}"{% if form.layout == c.id %} selected{% endif %}>{{ c.label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="stack">
+        <label for="b-order">목록 순서</label>
+        <select id="b-order" name="list_order">
+          {% for c in choices.orders %}<option value="{{ c.id }}"{% if form.list_order == c.id %} selected{% endif %}>{{ c.label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="stack">
+        <label for="b-sort">메뉴·목록 순서 값 <span class="hint">작을수록 앞</span></label>
+        <input id="b-sort" name="sort_order" value="{{ form.sort_order }}" inputmode="numeric" autocomplete="off">
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>역할별 권한</legend>
+    <p class="hint">각 일을 할 수 있는 가장 낮은 역할을 고릅니다. 위 역할은 아래 역할의 권한을 모두 가집니다(손님 &lt; 회원 &lt; 편집자 &lt; 운영자 &lt; 소유자).</p>
+    <div class="form-grid">
+      {% for p in [["p_list", "목록 보기", false], ["p_read", "글 읽기", false], ["p_write", "글쓰기", false], ["p_comment", "댓글", true], ["p_reply", "답변글", true], ["p_moderate", "남의 글 관리", false]] %}
+      <div class="stack">
+        <label for="b-{{ p[0] }}">{{ p[1] }}</label>
+        <select id="b-{{ p[0] }}" name="{{ p[0] }}">
+          {% for c in (choices.roles_none if p[2] else choices.roles) %}<option value="{{ c.id }}"{% if form[p[0]] == c.id %} selected{% endif %}>{{ c.label }}</option>{% endfor %}
+        </select>
+      </div>
+      {% endfor %}
+      <div class="stack">
+        <label for="b-capp">댓글 승인</label>
+        <select id="b-capp" name="comment_approval">
+          {% for c in choices.approvals %}<option value="{{ c.id }}"{% if form.comment_approval == c.id %} selected{% endif %}>{{ c.label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="stack">
+        <label for="b-wapp">공개 화면 글쓰기 승인</label>
+        <select id="b-wapp" name="write_approval">
+          {% for c in choices.approvals %}<option value="{{ c.id }}"{% if form.write_approval == c.id %} selected{% endif %}>{{ c.label }}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>여분 칸</legend>
+    <label for="b-fields">정의 JSON <span class="hint">비우면 여분 칸 없음. 예: <code>[{"key":"price","label":"가격","type":"number"}]</code>. 이미 쓴 글의 값은 그대로 남습니다.</span></label>
+    <textarea id="b-fields" name="field_schema" rows="6" spellcheck="false">{{ form.field_schema }}</textarea>
+  </fieldset>
+  <button type="submit">저장</button>
+</form>
+
+<section aria-labelledby="board-danger" class="site-section">
+  <h2 id="board-danger">게시판 지우기</h2>
+  <p class="hint">글이 남아 있으면 지울 수 없습니다. 글을 먼저 옮기거나 지우세요.</p>
+  <form method="post" action="/admin/boards/{{ form.slug }}/delete" class="inline">
+    <input type="hidden" name="_csrf" value="{{ csrf }}">
+    <button type="submit" class="warn">{{ form.name }} 지우기</button>
+  </form>
+</section>
+{% endblock %}

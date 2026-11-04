@@ -386,3 +386,36 @@ pre.diff > span { display: block; padding: 0 .75rem; }
 .backup-table th[scope="row"] { overflow-wrap: anywhere; }
 .restore-help pre { overflow-x: auto; padding: .75rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
 @media (max-width: 640px) { .backup-table td:nth-child(2) { display: none; } .backup-table thead th:nth-child(2) { display: none; } }
+
+/* 사이트 구조·회원·설정·디자인 (ADR-0064) */
+.site-section { margin-top: 2rem; }
+.site-form fieldset { margin: 0 0 1rem; padding: .4rem 1rem 1rem; border: 1px solid var(--border); border-radius: var(--radius); min-inline-size: 0; }
+.site-form legend { padding: 0 .35rem; font-weight: 700; }
+.site-form .choice { display: flex; align-items: baseline; flex-wrap: wrap; gap: .1rem .45rem; margin-top: .6rem; font-weight: 400; cursor: pointer; }
+.site-form .choice input { width: auto; align-self: center; }
+.site-form > button[type=submit] { align-self: flex-start; }
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 0 1rem; }
+.site-table td, .site-table th { vertical-align: middle; }
+.site-table td.actions { display: flex; flex-wrap: wrap; gap: .4rem; }
+code.slug { font-size: .875rem; font-weight: 400; color: var(--muted); }
+input.short { max-width: 10rem; }
+.menu-table input, .menu-table select { width: 100%; min-width: 0; }
+.menu-table input.menu-order { width: 4.5rem; }
+.menu-table input[type=checkbox] { width: auto; }
+.color-table input[type=color] { width: 3.5rem; height: 2.25rem; padding: .15rem; }
+.member-role { display: flex; gap: .4rem; align-items: center; }
+.member-role select { width: auto; }
+.menu-child { display: inline-flex; align-items: center; gap: .35rem; font-weight: 400; }
+.menu-child span { display: none; }
+@media (max-width: 640px) {
+  .menu-table thead { display: none; }
+  .menu-table tr { display: grid; grid-template-columns: 6.5rem 1fr; gap: .35rem .5rem; padding: .6rem 0; border-bottom: 1px solid var(--border); }
+  .menu-table td { padding: 0; border: 0; }
+  .menu-table input.menu-order { width: 100%; }
+  .menu-table .menu-child span { display: inline; }
+  .member-table thead { display: none; }
+  .member-table tr { display: block; padding: .75rem 0; border-bottom: 1px solid var(--border); }
+  .member-table th, .member-table td { display: block; padding: .15rem 0; border: 0; overflow-wrap: anywhere; }
+  .member-table button { white-space: nowrap; }
+  .site-table:not(.member-table) td:nth-child(4), .site-table:not(.member-table) thead th:nth-child(4) { display: none; }
+}

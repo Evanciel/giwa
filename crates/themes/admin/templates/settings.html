@@ -1,0 +1,87 @@
+{% extends "_base.html" %}
+{% block title %}설정{% endblock %}
+{% block content %}
+<div class="heading-row">
+  <h1>설정</h1>
+</div>
+
+<form method="post" action="/admin/settings" class="stack site-form">
+  <input type="hidden" name="_csrf" value="{{ csrf }}">
+  <fieldset>
+    <legend>사이트</legend>
+    <div class="form-grid">
+      <div class="stack">
+        <label for="s-name">이름</label>
+        <input id="s-name" name="name" value="{{ form.name }}" maxlength="80" required autocomplete="off">
+      </div>
+      <div class="stack">
+        <label for="s-lang">언어 <span class="hint">예: <code>ko</code></span></label>
+        <input id="s-lang" name="lang" value="{{ form.lang }}" maxlength="20" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="stack">
+        <label for="s-tz">시간대 <span class="hint">UTC 기준 분. 한국은 540</span></label>
+        <input id="s-tz" name="tz_offset_min" value="{{ form.tz_offset_min }}" inputmode="numeric" autocomplete="off">
+      </div>
+    </div>
+    <label for="s-desc">소개 <span class="hint">검색 결과·공유 미리보기에 쓰입니다(300자까지)</span></label>
+    <textarea id="s-desc" name="description" rows="3" maxlength="300">{{ form.description }}</textarea>
+  </fieldset>
+
+  <fieldset>
+    <legend>글 화면</legend>
+    <div class="form-grid">
+      <div class="stack">
+        <label for="s-ppp">한 쪽에 보일 글 수</label>
+        <input id="s-ppp" name="posts_per_page" value="{{ form.posts_per_page }}" inputmode="numeric" autocomplete="off">
+      </div>
+      <div class="stack">
+        <label for="s-toc">목차를 보일 최소 제목 수 <span class="hint">0 이면 끔</span></label>
+        <input id="s-toc" name="toc_min_headings" value="{{ form.toc_min_headings }}" inputmode="numeric" autocomplete="off">
+      </div>
+    </div>
+    <label class="choice"><input type="checkbox" name="show_views" value="1"{% if form.show_views %} checked{% endif %}> 조회수 보이기 <span class="choice-hint">꺼도 세기는 계속합니다</span></label>
+    <label class="choice"><input type="checkbox" name="show_search" value="1"{% if form.show_search %} checked{% endif %}> 머리글에 검색 칸 보이기</label>
+  </fieldset>
+
+  <fieldset>
+    <legend>회원</legend>
+    <p class="hint">이 칸들은 회원 관리 권한이 있어야 바꿀 수 있습니다.</p>
+    <div class="form-grid">
+      <div class="stack">
+        <label for="s-signup">회원 가입</label>
+        <select id="s-signup" name="signup">
+          {% for c in signup_modes %}<option value="{{ c.id }}"{% if form.signup == c.id %} selected{% endif %}>{{ c.label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="stack">
+        <label for="s-captcha">사람 확인 질문</label>
+        <select id="s-captcha" name="captcha">
+          {% for c in captcha_modes %}<option value="{{ c.id }}"{% if form.captcha == c.id %} selected{% endif %}>{{ c.label }}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+    <label class="choice"><input type="checkbox" name="signup_verify" value="1"{% if form.signup_verify %} checked{% endif %}> 가입 뒤 메일 링크를 눌러야 로그인</label>
+  </fieldset>
+
+  <fieldset>
+    <legend>검색 엔진 소유 확인</legend>
+    <div class="form-grid">
+      <div class="stack">
+        <label for="s-naver">네이버 서치어드바이저 값</label>
+        <input id="s-naver" name="naver_verification" value="{{ form.naver_verification }}" maxlength="100" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="stack">
+        <label for="s-google">구글 서치 콘솔 값</label>
+        <input id="s-google" name="google_verification" value="{{ form.google_verification }}" maxlength="100" autocomplete="off" spellcheck="false">
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>방문자 통계</legend>
+    <label for="s-stats">며칠 남길지 <span class="hint">30~3650</span></label>
+    <input id="s-stats" name="stats_retention_days" value="{{ form.stats_retention_days }}" inputmode="numeric" autocomplete="off" class="short">
+  </fieldset>
+  <button type="submit">저장</button>
+</form>
+{% endblock %}
