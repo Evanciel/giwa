@@ -28,12 +28,15 @@ pub const SERVE_LOCK: &str = "serve.lock";
 /// 백업에 넣는 맨 위 이름. 복원은 이것 말고는 풀지 않는다.
 const ENTRIES: [&str; 5] = ["manifest.json", "maru.db", "config.toml", "media", "themes"];
 /// 비밀 빼기: 남에게 줄 사본에서 지우는 것.
-const STRIP: [&str; 5] = [
+const STRIP: [&str; 8] = [
     "DELETE FROM sessions",
     "DELETE FROM login_tickets",
     "DELETE FROM tokens",
     "DELETE FROM mail_outbox",
     "UPDATE members SET password_hash = NULL",
+    "DELETE FROM member_totp",
+    "DELETE FROM member_recovery_codes",
+    "DELETE FROM totp_challenges",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

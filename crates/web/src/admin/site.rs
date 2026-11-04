@@ -1040,6 +1040,7 @@ async fn members_page(
                 "active": m.status == MemberStatus::Active,
                 "withdrawn": m.withdrawn_at.is_some(),
                 "verified": m.email_verified_at.is_some(),
+                "two_factor": v.two_factor,
                 "joined": maru_core::clock::display_datetime(&m.created_at, tz),
             })
         })
@@ -1050,6 +1051,7 @@ async fn members_page(
         "role" => Some("역할을 바꿨습니다."),
         "disable" => Some("사용을 멈췄습니다. 그 회원의 로그인이 모두 풀렸습니다."),
         "enable" => Some("다시 쓸 수 있게 했습니다."),
+        "totp_reset" => Some("2단계 인증을 껐습니다. 그 회원은 이제 비밀번호만으로 로그인합니다."),
         _ => None,
     };
     let ctx = merge(
@@ -1061,6 +1063,7 @@ async fn members_page(
             "page": page,
             "pages": pages,
             "roles": choices(&[("member", "회원"), ("editor", "편집자"), ("admin", "운영자")]),
+            "can_reset_totp": who.actor.has(maru_core::actor::Permission::SiteAdmin),
         }),
     );
     render(&state, StatusCode::OK, "members.html", &ctx)
@@ -1088,9 +1091,16 @@ async fn member_action(
     };
     let (ctx, actor) = (&state.ctx, &who.actor);
     let res = match action.as_str() {
-        "role" => members::set_role(ctx, actor, &id, &f.role).await,
-        "disable" => members::set_status(ctx, actor, &id, MemberStatus::Disabled).await,
-        "enable" => members::set_status(ctx, actor, &id, MemberStatus::Active).await,
+        "role" => members::set_role(ctx, actor, &id, &f.role).await.map(drop),
+        "disable" => members::set_status(ctx, actor, &id, MemberStatus::Disabled)
+            .await
+            .map(drop),
+        "enable" => members::set_status(ctx, actor, &id, MemberStatus::Active)
+            .await
+            .map(drop),
+        "totp_reset" => maru_core::services::totp::reset(ctx, actor, &id)
+            .await
+            .map(drop),
         _ => return fail(&state, Some(&who), &Error::new(Code::NotFound)).await,
     };
     let page = f.page.unwrap_or(1).max(1).to_string();

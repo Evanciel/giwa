@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT member_id, secret, enabled_at, last_step, created_at\n         FROM member_totp WHERE member_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "member_id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "member_totp",
+            "name": "member_id"
+          }
+        }
+      },
+      {
+        "name": "secret",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "member_totp",
+            "name": "secret"
+          }
+        }
+      },
+      {
+        "name": "enabled_at",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "member_totp",
+            "name": "enabled_at"
+          }
+        }
+      },
+      {
+        "name": "last_step",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "member_totp",
+            "name": "last_step"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "member_totp",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "bd5f4b4b934af17429c23bee26631635c21f92c2976a1ce33b9f85730e797974"
+}

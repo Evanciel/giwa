@@ -126,7 +126,11 @@ async fn signup_verify_then_login() {
     assert_eq!(err.code(), Code::Unauthorized);
 
     let raw = last_link(&e.ctx, "moon@example.test", members::VERIFY_PATH).await;
-    let new = members::verify_email(&e.ctx, &raw).await.unwrap();
+    let new = members::verify_email(&e.ctx, &raw)
+        .await
+        .unwrap()
+        .session()
+        .unwrap();
     assert!(new.member.email_verified_at.is_some());
     assert_eq!(who(&e.ctx, &new.secret).await.member.display_name, "달빛");
     // 링크는 한 번만
@@ -141,6 +145,8 @@ async fn signup_verify_then_login() {
     assert!(auth::peek_link(&e.ctx, &raw).await.is_err());
     let s = auth::login_password(&e.ctx, "moon@example.test", PW)
         .await
+        .unwrap()
+        .session()
         .unwrap();
     let me = who(&e.ctx, &s.secret).await;
     assert_eq!(me.actor.rank(), maru_core::actor::rank::MEMBER);
@@ -213,6 +219,8 @@ async fn reset_password_flow() {
         .unwrap();
     let old = auth::login_password(&e.ctx, "moon@example.test", PW)
         .await
+        .unwrap()
+        .session()
         .unwrap();
 
     // 없는 계정도 같은 답, 편지는 없다
@@ -253,6 +261,8 @@ async fn reset_password_flow() {
     );
     let new = members::reset_password(&e.ctx, &raw, "brand-new-password")
         .await
+        .unwrap()
+        .session()
         .unwrap();
     assert!(
         auth::signed_in(&e.ctx, &old.secret)
@@ -293,6 +303,8 @@ async fn profile_password_and_withdraw() {
         .unwrap();
     let s = auth::login_password(&e.ctx, "moon@example.test", PW)
         .await
+        .unwrap()
+        .session()
         .unwrap();
     let me = who(&e.ctx, &s.secret).await;
 
@@ -389,6 +401,8 @@ async fn admin_status_and_role() {
         .unwrap();
     let s = auth::login_password(&e.ctx, "moon@example.test", PW)
         .await
+        .unwrap()
+        .session()
         .unwrap();
     let local = Actor::local();
 

@@ -50,6 +50,9 @@ argon2 = "0.6.0"
 time = { version = "0.3.55", features = ["formatting", "parsing", "macros"] }
 toml = "1.1.8"
 sha2 = "0.11.1"
+# TOTP (RFC 6238) 의 HMAC-SHA1. 표준이 SHA-1 을 정하고 인증 앱 대부분이 SHA-1 만 받는다 (ADR-0072)
+hmac = "0.13.0"
+sha1 = "0.11.0"
 getrandom = "0.4.3"
 hex = "0.4.3"
 # 백업 파일(.tar.gz) 만들기·풀기 (ADR-0063)

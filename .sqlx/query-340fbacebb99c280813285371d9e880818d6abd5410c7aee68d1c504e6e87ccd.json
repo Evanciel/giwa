@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE member_totp SET last_step = ? WHERE member_id = ? AND last_step < ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "340fbacebb99c280813285371d9e880818d6abd5410c7aee68d1c504e6e87ccd"
+}

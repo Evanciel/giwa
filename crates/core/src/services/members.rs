@@ -18,8 +18,8 @@ use crate::error::{Code, Error, Result};
 use crate::model::{
     CaptchaMode, Listing, Member, MemberStatus, PageReq, SignupMode, TicketPurpose,
 };
-use crate::services::auth::{self, NewSession, SignedIn};
-use crate::services::{mail, settings, tokens};
+use crate::services::auth::{self, Login, NewSession, SignedIn};
+use crate::services::{mail, settings, tokens, totp};
 use crate::store::{Ctx, Tx};
 
 pub const VERIFY_HOURS: i64 = 24;
@@ -66,6 +66,8 @@ pub struct MemberView {
     #[serde(flatten)]
     pub member: Member,
     pub roles: Vec<String>,
+    /// 2단계 인증을 켰는지 (ADR-0072)
+    pub two_factor: bool,
 }
 
 /// 가입한다. 비밀번호 해시 계산이 무거우므로 웹은 동시에 부르는 수를 제한한다.
@@ -169,7 +171,8 @@ pub(crate) async fn queue_verify(
 }
 
 /// 메일 인증 링크를 쓴다. 인증하면 바로 로그인 세션을 만든다(링크가 로그인 링크와 같은 힘을 갖는다).
-pub async fn verify_email(ctx: &Ctx, raw: &str) -> Result<NewSession> {
+/// 2단계 인증을 켠 회원이면 세션 대신 코드 확인 단계.
+pub async fn verify_email(ctx: &Ctx, raw: &str) -> Result<Login> {
     let mut tx = Tx::begin(ctx).await?;
     let ticket = tx
         .use_ticket(&tokens::hash(raw), TicketPurpose::Verify, &clock::now())
@@ -192,9 +195,9 @@ pub async fn verify_email(ctx: &Ctx, raw: &str) -> Result<NewSession> {
         json!({}),
     )
     .await?;
-    let new = auth::start_session(&mut tx, member, "verify").await?;
+    let login = auth::finish_login(&mut tx, member, "verify").await?;
     tx.commit().await?;
-    Ok(new)
+    Ok(login)
 }
 
 /// 인증 링크가 쓸 수 있는지 (확인 단추를 보이기 전). 메일 미리보기가 GET 으로 링크를 열어도 쓰이지 않게 한다.
@@ -250,7 +253,8 @@ pub async fn peek_reset(ctx: &Ctx, raw: &str) -> Result<Member> {
 }
 
 /// 재설정 링크로 새 비밀번호를 정한다. 다른 세션은 모두 끊고 새 세션을 돌려준다.
-pub async fn reset_password(ctx: &Ctx, raw: &str, password: &str) -> Result<NewSession> {
+/// 2단계 인증을 켠 회원이면 비밀번호는 바뀌고 세션 대신 코드 확인 단계 (메일만으로는 들어오지 못한다).
+pub async fn reset_password(ctx: &Ctx, raw: &str, password: &str) -> Result<Login> {
     let hash = auth::hash_password(password)?;
     let mut tx = Tx::begin(ctx).await?;
     let ticket = tx
@@ -276,9 +280,9 @@ pub async fn reset_password(ctx: &Ctx, raw: &str, password: &str) -> Result<NewS
         json!({ "password": "changed" }),
     )
     .await?;
-    let new = auth::start_session(&mut tx, member, "reset").await?;
+    let login = auth::finish_login(&mut tx, member, "reset").await?;
     tx.commit().await?;
-    Ok(new)
+    Ok(login)
 }
 
 #[derive(Debug, Clone, Default, Deserialize, JsonSchema)]
@@ -363,6 +367,7 @@ pub async fn withdraw(ctx: &Ctx, who: &SignedIn, password: &str) -> Result<()> {
     tx.update_member(&member).await?;
     tx.clear_member_roles(&member.id).await?;
     tx.delete_member_sessions(&member.id).await?;
+    tx.delete_member_totp(&member.id).await?;
     for p in [
         TicketPurpose::Login,
         TicketPurpose::Verify,
@@ -518,10 +523,15 @@ async fn view(ctx: &Ctx, member: Member) -> Result<MemberView> {
         .into_iter()
         .map(|r| r.name)
         .collect();
-    Ok(MemberView { member, roles })
+    let two_factor = totp::is_enabled(ctx, &member.id).await?;
+    Ok(MemberView {
+        member,
+        roles,
+        two_factor,
+    })
 }
 
-async fn find(ctx: &Ctx, who: &str) -> Result<Member> {
+pub(crate) async fn find(ctx: &Ctx, who: &str) -> Result<Member> {
     let found = if who.contains('@') {
         match auth::check_email(who) {
             Ok(e) => ctx.store.member_by_email(&e).await?,

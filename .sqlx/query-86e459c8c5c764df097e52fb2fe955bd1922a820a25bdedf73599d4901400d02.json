@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO member_totp (member_id, secret, enabled_at, last_step, created_at)\n             VALUES (?, ?, ?, ?, ?)\n             ON CONFLICT (member_id) DO UPDATE SET secret = excluded.secret,\n                 enabled_at = excluded.enabled_at, last_step = excluded.last_step,\n                 created_at = excluded.created_at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "86e459c8c5c764df097e52fb2fe955bd1922a820a25bdedf73599d4901400d02"
+}

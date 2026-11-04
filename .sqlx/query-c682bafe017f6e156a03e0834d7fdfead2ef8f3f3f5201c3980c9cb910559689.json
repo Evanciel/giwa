@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM totp_challenges WHERE member_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "c682bafe017f6e156a03e0834d7fdfead2ef8f3f3f5201c3980c9cb910559689"
+}

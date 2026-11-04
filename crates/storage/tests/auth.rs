@@ -277,6 +277,8 @@ async fn password_login_and_change_drop_other_sessions() {
     assert_eq!(wrong.message(), unknown.message());
     let ok = auth::login_password(&e.ctx, "OWNER@example.test", "시험용-비밀번호-1234")
         .await
+        .unwrap()
+        .session()
         .unwrap();
     let who = auth::signed_in(&e.ctx, &ok.secret).await.unwrap().unwrap();
     auth::logout(&e.ctx, &who).await.unwrap();

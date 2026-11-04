@@ -413,7 +413,7 @@ async fn login(
         return fail(&state, None, &Error::internal("login gate closed")).await;
     };
     match auth::login_password(&state.ctx, &f.email, &f.password).await {
-        Ok(new) => with_session(&state, &new, safe_next(&f.next)),
+        Ok(login) => crate::account::finish_login(&state, &login, safe_next(&f.next)),
         Err(e) if e.code() == Code::Unauthorized => {
             login_page(
                 &state,

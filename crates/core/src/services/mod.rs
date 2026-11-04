@@ -26,6 +26,7 @@ pub mod stats;
 pub mod tags;
 pub mod templates;
 pub mod tokens;
+pub mod totp;
 pub mod views;
 pub mod widgets;
 

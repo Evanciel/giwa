@@ -926,6 +926,32 @@ pub struct LoginTicket {
     pub used_at: Option<String>,
 }
 
+/// 회원의 TOTP 비밀 (ADR-0072). 비밀이 들어 있어 직렬화하지 않는다.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemberTotp {
+    pub member_id: Id,
+    /// base32 (RFC 4648, 패딩 없음)
+    pub secret: String,
+    /// 없으면 설정 중 (코드를 아직 확인하지 않음)
+    pub enabled_at: Option<String>,
+    /// 마지막으로 받은 코드의 30초 순번. 이보다 큰 순번만 받는다.
+    pub last_step: i64,
+    pub created_at: String,
+}
+
+/// 비밀번호를 확인한 뒤 TOTP 코드를 기다리는 로그인.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TotpChallenge {
+    pub id: Id,
+    pub token_hash: String,
+    pub member_id: Id,
+    /// 앞 단계 (`password`, `reset`, `verify`). 감사의 로그인 방법에 붙는다.
+    pub method: String,
+    pub attempts: i64,
+    pub created_at: String,
+    pub expires_at: String,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum MailStatus {

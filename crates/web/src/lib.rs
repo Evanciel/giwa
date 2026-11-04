@@ -160,8 +160,9 @@ async fn rate_limit(State(state): State<AppState>, req: Request, next: Next) -> 
             || path.starts_with("/admin/link/")
             || matches!(
                 path,
-                "/login" | "/signup" | "/forgot" | "/me/password" | "/me/withdraw"
+                "/login" | "/login/totp" | "/signup" | "/forgot" | "/me/password" | "/me/withdraw"
             )
+            || path.starts_with("/me/totp/")
             || path.starts_with("/reset/")
             || path.starts_with("/verify/")
             || path.starts_with("/c/")

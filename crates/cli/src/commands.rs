@@ -2268,6 +2268,9 @@ async fn member_cmd(g: &Global, cmd: MemberCmd) -> Out {
                         v.roles.join(","),
                         member_flags(&v.member)
                     ));
+                    if v.two_factor {
+                        human.push_str("  2단계");
+                    }
                 }
                 Ok((to_value(&list)?, human))
             }
@@ -2282,6 +2285,24 @@ async fn member_cmd(g: &Global, cmd: MemberCmd) -> Out {
             ),
             MemberCmd::Role { who, role } => {
                 member_out(members::set_role(&ctx, &actor, &who, &role).await?)
+            }
+            MemberCmd::TotpReset { who } => {
+                let (m, removed) = maru_core::services::totp::reset(&ctx, &actor, &who).await?;
+                let human = if removed {
+                    format!(
+                        "{} 의 2단계 인증을 껐습니다. 이제 비밀번호만으로 로그인합니다.",
+                        m.email
+                    )
+                } else {
+                    format!(
+                        "{} 은 2단계 인증이 꺼져 있습니다. 바꾼 것이 없습니다.",
+                        m.email
+                    )
+                };
+                Ok((
+                    json!({ "member_id": m.id, "email": m.email, "reset": removed }),
+                    human,
+                ))
             }
         }
     }
@@ -2311,7 +2332,7 @@ fn member_out(v: members::MemberView) -> Out {
         v.member.email,
         v.roles.join(","),
         member_flags(&v.member)
-    );
+    ) + if v.two_factor { "  2단계" } else { "" };
     Ok((to_value(&v)?, human))
 }
 

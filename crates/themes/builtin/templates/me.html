@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{# 내 정보: 닉네임·비밀번호·내 글·로그아웃·탈퇴 (GAP M3). 폼마다 세션 CSRF 값. #}
+{# 내 정보: 닉네임·비밀번호·2단계 인증·내 글·로그아웃·탈퇴 (GAP M3·M16). 폼마다 세션 CSRF 값. #}
 {% block main_class %}wrap account-wrap{% endblock %}
 {% block main %}
 <section class="account me" aria-labelledby="me-title">
@@ -46,6 +46,64 @@
       <input id="password2" type="password" name="password2" minlength="{{ me.min_password }}" autocomplete="new-password" required>
       <button type="submit">비밀번호 바꾸기</button>
     </form>
+  </section>
+
+  <section class="me-block" id="me-totp" aria-labelledby="me-totp-title">
+    <h2 id="me-totp-title">2단계 인증</h2>
+    {% if me.error_in == "totp" %}<p class="form-error" role="alert">{{ me.error }}</p>{% endif %}
+    {% if me.totp.codes %}
+    <div class="totp-codes" role="region" aria-labelledby="totp-codes-title">
+      <h3 id="totp-codes-title">복구 코드</h3>
+      <p class="hint">휴대폰을 잃었을 때 코드 대신 하나씩 넣습니다. 한 번 쓴 코드는 다시 쓸 수 없고, <strong>이 화면을 벗어나면 다시 볼 수 없습니다.</strong> 안전한 곳에 적어 두세요.</p>
+      <ol class="code-list">{% for c in me.totp.codes %}<li><code>{{ c }}</code></li>{% endfor %}</ol>
+    </div>
+    {% endif %}
+    {% if me.totp.enabled %}
+    <p>켜져 있습니다. 로그인할 때 비밀번호 다음에 인증 앱의 코드를 넣습니다. <span class="hint">남은 복구 코드 {{ me.totp.recovery_left }}개</span></p>
+    <details class="totp-more">
+      <summary>복구 코드 새로 만들기</summary>
+      <form class="account-form" method="post" action="/me/totp/recovery">
+        <input type="hidden" name="_csrf" value="{{ me.csrf }}">
+        <label for="totp-recovery-code">지금 인증 코드</label>
+        <input id="totp-recovery-code" type="text" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="20" required>
+        <button type="submit" class="secondary">새로 만들기</button>
+      </form>
+    </details>
+    <details class="totp-more">
+      <summary>2단계 인증 끄기</summary>
+      <form class="account-form" method="post" action="/me/totp/disable">
+        <input type="hidden" name="_csrf" value="{{ me.csrf }}">
+        <label for="totp-off-code">지금 인증 코드 또는 복구 코드</label>
+        <input id="totp-off-code" type="text" name="code" autocomplete="one-time-code" maxlength="20" required>
+        <button type="submit" class="danger">끄기</button>
+      </form>
+    </details>
+    {% elif me.totp.setup %}
+    <ol class="totp-steps">
+      <li>휴대폰의 인증 앱(OTP 앱)에서 「키 직접 입력」을 고르고 아래 키를 넣습니다. 종류는 「시간 기준」입니다.
+        <p class="totp-secret"><code>{{ me.totp.setup.secret }}</code></p>
+        <p class="hint">이 기기에 인증 앱이 있으면 <a href="{{ me.totp.setup.uri }}">링크로 바로 넣기</a>.</p>
+      </li>
+      <li>앱이 보여 주는 6자리 코드를 넣고 켭니다.
+        <form class="account-form inline" method="post" action="/me/totp/enable">
+          <input type="hidden" name="_csrf" value="{{ me.csrf }}">
+          <label class="visually-hidden" for="totp-code">인증 코드</label>
+          <input id="totp-code" type="text" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="10" required>
+          <button type="submit">확인하고 켜기</button>
+        </form>
+      </li>
+    </ol>
+    <form method="post" action="/me/totp/disable">
+      <input type="hidden" name="_csrf" value="{{ me.csrf }}">
+      <button type="submit" class="secondary">설정 그만두기</button>
+    </form>
+    {% else %}
+    <p class="hint">비밀번호가 새어 나가도 휴대폰의 인증 앱 코드 없이는 들어올 수 없게 합니다.</p>
+    <form method="post" action="/me/totp/start">
+      <input type="hidden" name="_csrf" value="{{ me.csrf }}">
+      <button type="submit" class="secondary">2단계 인증 켜기</button>
+    </form>
+    {% endif %}
   </section>
 
   <section class="me-block" aria-labelledby="me-session">

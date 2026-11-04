@@ -4,6 +4,7 @@
 //! - 세션·로그인 링크 원문은 응답으로 한 번만 내보내고 SHA-256 해시만 저장한다.
 //! - 로그인 링크는 10분, 1회. 사용 처리는 한 문장 UPDATE 라 동시에 눌러도 한 번만 성공한다.
 //! - 비밀번호 변경·회원 비활성은 그 회원의 모든 세션을 지운다.
+//! - 2단계 인증을 켠 회원은 비밀번호·메일 링크 뒤에 코드를 더 받는다(`Login::Totp`, ADR-0072). 운영자 로그인 링크는 거치지 않는다.
 
 use std::sync::OnceLock;
 
@@ -19,7 +20,7 @@ use crate::clock;
 use crate::error::{Code, Error, Result};
 use crate::model::{LoginTicket, Member, MemberStatus, Session, TicketPurpose};
 use crate::services::boards::Created;
-use crate::services::{required_text, tokens};
+use crate::services::{required_text, tokens, totp};
 use crate::store::{Ctx, Tx};
 
 pub const SESSION_DAYS: i64 = 14;
@@ -42,6 +43,23 @@ pub struct IssuedLink {
     pub url: String,
     pub expires_at: String,
     pub member: Member,
+}
+
+/// 로그인 결과. 2단계 인증을 켠 회원은 세션 대신 코드 확인 단계를 받는다.
+#[derive(Debug, Clone)]
+pub enum Login {
+    Session(NewSession),
+    Totp(totp::Pending),
+}
+
+impl Login {
+    /// 세션이 바로 만들어졌으면 그것.
+    pub fn session(self) -> Option<NewSession> {
+        match self {
+            Self::Session(s) => Some(s),
+            Self::Totp(_) => None,
+        }
+    }
 }
 
 /// 로그인한 사람.
@@ -224,7 +242,7 @@ pub async fn consume_link(ctx: &Ctx, raw: &str) -> Result<NewSession> {
 
 /// 비밀번호로 로그인한다. 실패 사유는 구분하지 않는다.
 /// 비밀번호가 맞아도 메일 인증 전이면(가입 인증이 켜졌을 때) 인증 편지를 다시 쌓고 `error.email_unverified`.
-pub async fn login_password(ctx: &Ctx, email: &str, password: &str) -> Result<NewSession> {
+pub async fn login_password(ctx: &Ctx, email: &str, password: &str) -> Result<Login> {
     let member = match check_email(email) {
         Ok(e) => ctx.store.member_by_email(&e).await?,
         Err(_) => None,
@@ -255,9 +273,9 @@ pub async fn login_password(ctx: &Ctx, email: &str, password: &str) -> Result<Ne
             return Err(Error::new(Code::Forbidden).with_message("error.email_unverified"));
         }
     }
-    let new = start_session(&mut tx, member, "password").await?;
+    let login = finish_login(&mut tx, member, "password").await?;
     tx.commit().await?;
-    Ok(new)
+    Ok(login)
 }
 
 /// 쿠키 값으로 로그인 상태를 찾는다. 만료·비활성이면 `None`.
@@ -371,6 +389,18 @@ pub(crate) fn hash_raw(password: &str) -> Result<String> {
         .to_string())
 }
 
+/// 세션을 만들거나, 2단계 인증을 켠 회원이면 코드 확인 단계를 만든다.
+pub(crate) async fn finish_login(tx: &mut Tx, member: Member, method: &str) -> Result<Login> {
+    if tx
+        .member_totp(&member.id)
+        .await?
+        .is_some_and(|t| t.enabled_at.is_some())
+    {
+        return Ok(Login::Totp(totp::challenge(tx, &member, method).await?));
+    }
+    Ok(Login::Session(start_session(tx, member, method).await?))
+}
+
 pub(crate) async fn start_session(tx: &mut Tx, member: Member, method: &str) -> Result<NewSession> {
     let raw = new_secret()?;
     let now = clock::now();
@@ -407,7 +437,7 @@ async fn active_member(ctx: &Ctx, id: &str) -> Result<Option<Member>> {
 }
 
 /// 로그인 링크 발급은 운영자(로컬 CLI, 사람 owner)만. 에이전트 토큰은 admin 스코프여도 안 된다.
-fn require_operator(actor: &Actor) -> Result<()> {
+pub(crate) fn require_operator(actor: &Actor) -> Result<()> {
     actor.require(Permission::SiteAdmin)?;
     if matches!(actor.kind(), ActorKind::Agent { .. }) {
         return Err(actor.denied(Permission::SiteAdmin));

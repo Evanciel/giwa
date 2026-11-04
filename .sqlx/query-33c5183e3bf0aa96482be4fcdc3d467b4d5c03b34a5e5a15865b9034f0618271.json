@@ -1,0 +1,98 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, token_hash, member_id, method, attempts, created_at, expires_at\n             FROM totp_challenges WHERE token_hash = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "totp_challenges",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "token_hash",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "totp_challenges",
+            "name": "token_hash"
+          }
+        }
+      },
+      {
+        "name": "member_id",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "totp_challenges",
+            "name": "member_id"
+          }
+        }
+      },
+      {
+        "name": "method",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "totp_challenges",
+            "name": "method"
+          }
+        }
+      },
+      {
+        "name": "attempts",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "totp_challenges",
+            "name": "attempts"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "totp_challenges",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "name": "expires_at",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "totp_challenges",
+            "name": "expires_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "33c5183e3bf0aa96482be4fcdc3d467b4d5c03b34a5e5a15865b9034f0618271"
+}

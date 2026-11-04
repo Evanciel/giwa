@@ -1,4 +1,5 @@
 //! 공개 사이트의 회원 화면 (GAP M1·M2·M3, ADR-0051): 로그인·가입·비밀번호 찾기·메일 인증·내 정보.
+//! 2단계 인증(GAP M16, ADR-0072): 코드 확인 화면(`/login/totp`)과 내 정보의 켜기·끄기·복구 코드.
 //!
 //! - 테마 틀(`account.html`·`me.html`)로 그린다. 세션 쿠키·CSRF 는 관리 화면과 같다(`admin.rs`).
 //! - 인증·재설정 링크는 GET 으로 열면 확인 단추만 보인다. 메일 미리보기가 링크를 열어도 쓰이지 않는다.
@@ -14,9 +15,9 @@ use axum::routing::{get, post};
 use maru_core::actor::Permission;
 use maru_core::clock;
 use maru_core::model::{CaptchaMode, PageReq, PostStatus, SignupMode};
-use maru_core::services::auth::{self, SignedIn};
+use maru_core::services::auth::{self, Login, SignedIn};
 use maru_core::services::members::{self, ProfilePatch, SignupInput};
-use maru_core::services::{captcha, posts, settings};
+use maru_core::services::{captcha, posts, settings, totp};
 use maru_core::urls::{self, Target};
 use maru_core::{Code, Error};
 use serde::Deserialize;
@@ -24,13 +25,17 @@ use serde_json::{Value, json};
 
 use crate::AppState;
 use crate::admin::{
-    SESSION_COOKIE, current, encode, is_secret, pre_csrf, pre_csrf_ok, session_csrf_ok, set_cookie,
-    with_session,
+    SESSION_COOKIE, cookie, current, encode, is_secret, pre_csrf, pre_csrf_ok, session_csrf_ok,
+    set_cookie, with_session,
 };
+
+/// 코드를 기다리는 로그인의 값. 주소에 넣지 않고 5분짜리 쿠키로만 건넨다.
+const TOTP_COOKIE: &str = "maru_totp";
 
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/login", get(login_form).post(login))
+        .route("/login/totp", get(totp_form).post(totp_submit))
         .route("/logout", post(logout))
         .route("/signup", get(signup_form).post(signup))
         .route("/forgot", get(forgot_form).post(forgot))
@@ -40,6 +45,7 @@ pub fn routes() -> Router<AppState> {
         .route("/me/profile", post(profile))
         .route("/me/password", post(password))
         .route("/me/withdraw", post(withdraw))
+        .route("/me/totp/{action}", post(totp_action))
         .layer(middleware::map_response(account_headers))
 }
 
@@ -212,7 +218,7 @@ async fn login(
         return crate::error::page(&state, &Error::internal("login gate closed")).await;
     };
     match auth::login_password(&state.ctx, &f.email, &f.password).await {
-        Ok(new) => with_session(&state, &new, next_or_me(&f.next)),
+        Ok(login) => finish_login(&state, &login, next_or_me(&f.next)),
         Err(e) if matches!(e.code(), Code::Unauthorized | Code::Forbidden) => {
             let status =
                 StatusCode::from_u16(e.code().http_status()).unwrap_or(StatusCode::UNAUTHORIZED);
@@ -225,6 +231,120 @@ async fn login(
                 Some(e.message()),
             )
             .await
+        }
+        Err(e) => crate::error::page(&state, &e).await,
+    }
+}
+
+/// 세션을 붙이거나, 2단계 인증을 켠 회원이면 코드 확인 화면으로 보낸다.
+pub(crate) fn finish_login(state: &AppState, login: &Login, next: &str) -> Response {
+    match login {
+        Login::Session(new) => with_session(state, new, next),
+        Login::Totp(p) => {
+            let mut res =
+                Redirect::to(&format!("/login/totp?next={}", encode(next))).into_response();
+            let age = totp::CHALLENGE_MINUTES * 60;
+            res.headers_mut().append(
+                header::SET_COOKIE,
+                set_cookie(state, TOTP_COOKIE, &p.secret, Some(age)),
+            );
+            res
+        }
+    }
+}
+
+fn clear_totp(state: &AppState, mut res: Response) -> Response {
+    res.headers_mut().append(
+        header::SET_COOKIE,
+        set_cookie(state, TOTP_COOKIE, "", Some(0)),
+    );
+    res
+}
+
+async fn totp_expired(state: &AppState, headers: &HeaderMap, message: Option<String>) -> Response {
+    let res = login_page(
+        state,
+        headers,
+        StatusCode::UNAUTHORIZED,
+        "",
+        "",
+        Some(message.unwrap_or_else(|| {
+            Error::new(Code::Unauthorized)
+                .with_message("error.totp_expired")
+                .message()
+        })),
+    )
+    .await;
+    clear_totp(state, res)
+}
+
+async fn totp_page(
+    state: &AppState,
+    headers: &HeaderMap,
+    status: StatusCode,
+    next: &str,
+    error: Option<String>,
+) -> Response {
+    page(
+        state,
+        headers,
+        status,
+        "2단계 인증",
+        json!({ "view": "totp", "next": next_or_me(next), "error": error }),
+    )
+    .await
+}
+
+async fn totp_form(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<NextQuery>,
+) -> Response {
+    let raw = cookie(&headers, TOTP_COOKIE).unwrap_or_default();
+    match totp::peek_challenge(&state.ctx, &raw).await {
+        Ok(true) => totp_page(&state, &headers, StatusCode::OK, &q.next, None).await,
+        Ok(false) => totp_expired(&state, &headers, None).await,
+        Err(e) => crate::error::page(&state, &e).await,
+    }
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct TotpForm {
+    #[serde(default, rename = "_csrf")]
+    csrf: String,
+    #[serde(default)]
+    code: String,
+    #[serde(default)]
+    next: String,
+}
+
+async fn totp_submit(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Form(f): Form<TotpForm>,
+) -> Response {
+    if !pre_csrf_ok(&headers, &f.csrf) {
+        return csrf_failed(&state, &headers).await;
+    }
+    let raw = cookie(&headers, TOTP_COOKIE).unwrap_or_default();
+    match totp::finish(&state.ctx, &raw, &f.code).await {
+        Ok(new) => clear_totp(&state, with_session(&state, &new, next_or_me(&f.next))),
+        Err(e) if e.code() == Code::Unauthorized => {
+            // 아직 쓸 수 있으면 다시 묻고, 끝났으면(만료·횟수 다 씀) 처음부터.
+            match totp::peek_challenge(&state.ctx, &raw).await {
+                Ok(true) => {
+                    totp_page(
+                        &state,
+                        &headers,
+                        StatusCode::UNAUTHORIZED,
+                        &f.next,
+                        Some(e.message()),
+                    )
+                    .await
+                }
+                Ok(false) => totp_expired(&state, &headers, Some(e.message())).await,
+                Err(e) => crate::error::page(&state, &e).await,
+            }
         }
         Err(e) => crate::error::page(&state, &e).await,
     }
@@ -514,7 +634,7 @@ async fn reset(
         return crate::error::page(&state, &Error::internal("login gate closed")).await;
     };
     match members::reset_password(&state.ctx, &token, &f.password).await {
-        Ok(new) => with_session(&state, &new, "/me?done=password"),
+        Ok(login) => finish_login(&state, &login, "/me?done=password"),
         Err(e) if e.code() == Code::Validation => {
             reset_page(
                 &state,
@@ -567,7 +687,7 @@ async fn verify(
         return link_invalid(&state, &headers).await;
     }
     match members::verify_email(&state.ctx, &token).await {
-        Ok(new) => with_session(&state, &new, "/me?done=verified"),
+        Ok(login) => finish_login(&state, &login, "/me?done=verified"),
         Err(e) if e.code() == Code::Unauthorized => link_invalid(&state, &headers).await,
         Err(e) => crate::error::page(&state, &e).await,
     }
@@ -604,6 +724,8 @@ async fn me(
         "profile" => Some("닉네임을 바꿨습니다."),
         "password" => Some("비밀번호를 바꿨습니다. 다른 기기의 로그인은 모두 끊었습니다."),
         "verified" => Some("메일 인증이 끝났습니다. 환영합니다."),
+        "totp_start" => Some("인증 앱에 아래 값을 넣고, 앱이 보여 주는 6자리 코드로 확인하세요."),
+        "totp_off" => Some("2단계 인증을 껐습니다."),
         _ => None,
     };
     me_page(&state, &who, StatusCode::OK, done, None).await
@@ -616,7 +738,33 @@ async fn me_page(
     notice: Option<&str>,
     error: Option<(&str, String)>,
 ) -> Response {
+    me_page_with(state, who, status, notice, error, None).await
+}
+
+/// `codes` 는 방금 만든 복구 코드 (한 번만 보인다).
+async fn me_page_with(
+    state: &AppState,
+    who: &SignedIn,
+    status: StatusCode,
+    notice: Option<&str>,
+    error: Option<(&str, String)>,
+    codes: Option<Vec<String>>,
+) -> Response {
     let site = settings::site(&state.ctx).await.unwrap_or_default();
+    let two_factor = match totp::status(&state.ctx, who).await {
+        Ok(t) => t,
+        Err(e) => return crate::error::page(state, &e).await,
+    };
+    let setup = two_factor.setup.as_ref().map(|s| {
+        let grouped = s
+            .secret
+            .as_bytes()
+            .chunks(4)
+            .map(|c| String::from_utf8_lossy(c).into_owned())
+            .collect::<Vec<_>>()
+            .join(" ");
+        json!({ "secret": grouped, "uri": s.uri })
+    });
     let posts = my_posts(state, who, site.tz_offset_min).await;
     let (error_in, error) = error.map_or((None, None), |(k, m)| (Some(k), Some(m)));
     let ctx = json!({
@@ -634,6 +782,12 @@ async fn me_page(
             "error": error,
             "error_in": error_in,
             "min_password": auth::MIN_PASSWORD_CHARS,
+            "totp": {
+                "enabled": two_factor.enabled,
+                "setup": setup,
+                "recovery_left": two_factor.recovery_left,
+                "codes": codes,
+            },
         },
         "slots": crate::modules::me_slots(state, &who.actor).await,
     });
@@ -816,6 +970,94 @@ async fn withdraw(
                 StatusCode::BAD_REQUEST,
                 None,
                 Some(("withdraw", e.message())),
+            )
+            .await
+        }
+        Err(e) => crate::error::page(&state, &e).await,
+    }
+}
+
+// ---- 2단계 인증 ----
+
+#[derive(Debug, Default, Deserialize)]
+struct CodeForm {
+    #[serde(default, rename = "_csrf")]
+    csrf: String,
+    #[serde(default)]
+    code: String,
+}
+
+/// `/me/totp/{start,enable,disable,recovery}`
+async fn totp_action(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(action): Path<String>,
+    Form(f): Form<CodeForm>,
+) -> Response {
+    let who = match require(&state, &headers).await {
+        Ok(w) => w,
+        Err(res) => return *res,
+    };
+    if !session_csrf_ok(&who, &f.csrf) {
+        return csrf_failed(&state, &headers).await;
+    }
+    let ctx = &state.ctx;
+    let res = match action.as_str() {
+        "start" => totp::start(ctx, &who)
+            .await
+            .map(|_| Redirect::to("/me?done=totp_start#me-totp").into_response()),
+        "enable" => match totp::enable(ctx, &who, &f.code).await {
+            Ok(done) => {
+                // 다른 기기의 로그인은 끊겼다. 새 세션으로 그리고 쿠키를 바꾼다.
+                let fresh = SignedIn {
+                    actor: who.actor.clone(),
+                    session: done.session.session.clone(),
+                    member: done.session.member.clone(),
+                };
+                let mut res = me_page_with(
+                    &state,
+                    &fresh,
+                    StatusCode::OK,
+                    Some("2단계 인증을 켰습니다. 다른 기기의 로그인은 모두 끊었습니다."),
+                    None,
+                    Some(done.recovery_codes),
+                )
+                .await;
+                let age = auth::SESSION_DAYS * 24 * 60 * 60;
+                res.headers_mut().append(
+                    header::SET_COOKIE,
+                    set_cookie(&state, SESSION_COOKIE, &done.session.secret, Some(age)),
+                );
+                Ok(res)
+            }
+            Err(e) => Err(e),
+        },
+        "disable" => totp::disable(ctx, &who, &f.code)
+            .await
+            .map(|()| Redirect::to("/me?done=totp_off").into_response()),
+        "recovery" => match totp::regenerate(ctx, &who, &f.code).await {
+            Ok(codes) => Ok(me_page_with(
+                &state,
+                &who,
+                StatusCode::OK,
+                Some("복구 코드를 새로 만들었습니다. 이전 코드는 이제 쓸 수 없습니다."),
+                None,
+                Some(codes),
+            )
+            .await),
+            Err(e) => Err(e),
+        },
+        _ => return crate::error::page(&state, &Error::new(Code::NotFound)).await,
+    };
+    match res {
+        Ok(r) => r,
+        Err(e) if matches!(e.code(), Code::Unauthorized | Code::Conflict) => {
+            me_page(
+                &state,
+                &who,
+                StatusCode::BAD_REQUEST,
+                None,
+                Some(("totp", e.message())),
             )
             .await
         }

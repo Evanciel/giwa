@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{# 로그인·가입·비밀번호 찾기·재설정·메일 인증·안내 (account.view). 폼은 스크립트 없이 동작한다. #}
+{# 로그인·2단계 인증·가입·비밀번호 찾기·재설정·메일 인증·안내 (account.view). 폼은 스크립트 없이 동작한다. #}
 {% block main_class %}wrap account-wrap{% endblock %}
 {% block main %}
 <section class="account" aria-labelledby="account-title">
@@ -16,6 +16,20 @@
     <button type="submit">로그인</button>
   </form>
   <p class="account-links"><a href="/forgot">비밀번호 찾기</a>{% if signup_open %}<span aria-hidden="true">·</span><a href="/signup">회원 가입</a>{% endif %}</p>
+
+{% elif account.view == "totp" %}
+  <h1 id="account-title">2단계 인증</h1>
+  <p class="account-lead">인증 앱이 보여 주는 6자리 코드를 넣으세요. 앱을 쓸 수 없으면 복구 코드 하나를 넣어도 됩니다.</p>
+  {% if account.error %}<p class="form-error" role="alert">{{ account.error }}</p>{% endif %}
+  <form class="account-form" method="post" action="/login/totp">
+    <input type="hidden" name="_csrf" value="{{ account.csrf }}">
+    <input type="hidden" name="next" value="{{ account.next }}">
+    <label for="code">인증 코드</label>
+    <input id="code" type="text" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="20" required autofocus aria-describedby="code-hint">
+    <p id="code-hint" class="hint">코드는 30초마다 바뀝니다. 5분 안에 넣어야 하고, 5번 틀리면 처음부터 다시 로그인합니다.</p>
+    <button type="submit">확인</button>
+  </form>
+  <p class="account-links"><a href="/login">처음부터 다시 로그인</a></p>
 
 {% elif account.view == "signup" %}
   <h1 id="account-title">회원 가입</h1>

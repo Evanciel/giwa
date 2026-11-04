@@ -148,6 +148,8 @@ pub enum MemberCmd {
     Enable { who: String },
     /// 역할을 하나로 정한다: member, editor, admin
     Role { who: String, role: String },
+    /// 2단계 인증을 끈다 (인증 앱과 복구 코드를 모두 잃었을 때). 꺼져 있으면 아무 일 없음
+    TotpReset { who: String },
 }
 
 #[derive(Debug, Subcommand)]

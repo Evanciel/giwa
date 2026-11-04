@@ -4,7 +4,7 @@
 <div class="heading-row">
   <h1>회원 <span class="count">{{ total }}</span></h1>
 </div>
-<p class="hint">운영자 역할은 소유자·운영자만 줄 수 있습니다. 사용을 멈추면 그 회원의 로그인이 모두 풀리고, 다시 쓸 수 있게 하기 전까지 들어오지 못합니다.</p>
+<p class="hint">운영자 역할은 소유자·운영자만 줄 수 있습니다. 사용을 멈추면 그 회원의 로그인이 모두 풀리고, 다시 쓸 수 있게 하기 전까지 들어오지 못합니다.{% if can_reset_totp %} 인증 앱과 복구 코드를 모두 잃은 회원은 「2단계 끄기」로 비밀번호만으로 들어오게 할 수 있습니다.{% endif %}</p>
 
 {% if items %}
 <table class="stat-table site-table member-table">
@@ -12,7 +12,7 @@
   <tbody>
   {% for m in items %}
     <tr>
-      <th scope="row">{{ m.name }}{% if m.me %} <span class="badge">나</span>{% endif %}</th>
+      <th scope="row">{{ m.name }}{% if m.me %} <span class="badge">나</span>{% endif %}{% if m.two_factor %} <span class="badge" title="2단계 인증을 켰습니다">2단계</span>{% endif %}</th>
       <td>{{ m.email }}{% if not m.verified %} <span class="badge">메일 미확인</span>{% endif %}</td>
       <td>
         {% if m.owner or m.me or m.withdrawn %}{{ m.role_label }}{% else %}
@@ -35,6 +35,13 @@
           <input type="hidden" name="page" value="{{ page }}">
           {% if m.active %}<button type="submit" class="warn" aria-label="{{ m.name }} 사용 멈추기">사용 멈추기</button>
           {% else %}<span class="badge badge-pending">멈춤</span> <button type="submit" class="secondary" aria-label="{{ m.name }} 다시 쓰게 하기">다시 쓰게 하기</button>{% endif %}
+        </form>
+        {% endif %}
+        {% if m.two_factor and can_reset_totp and not m.withdrawn %}
+        <form method="post" action="/admin/members/{{ m.id }}/totp_reset" class="inline">
+          <input type="hidden" name="_csrf" value="{{ csrf }}">
+          <input type="hidden" name="page" value="{{ page }}">
+          <button type="submit" class="secondary" aria-label="{{ m.name }} 2단계 인증 끄기">2단계 끄기</button>
         </form>
         {% endif %}
       </td>

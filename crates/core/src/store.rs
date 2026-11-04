@@ -15,11 +15,12 @@ use crate::actor::Actor;
 use crate::audit::{AuditRecord, Target};
 use crate::blobs::Blobs;
 use crate::error::{Error, Result};
+use crate::model::MemberTotp;
 use crate::model::{
     Attachment, AuditEntry, Board, Category, Comment, CommentStatus, Font, FontFile, Listing,
     LoginTicket, MailOut, MailStatus, Media, Member, MenuLink, Page, PageReq, PageStatus, Post,
     PostStatus, PostTemplate, Revision, Role, Session, StatBatch, StatDay, StatPage, StatReferrer,
-    Tag, TicketPurpose, Token, Widget,
+    Tag, TicketPurpose, Token, TotpChallenge, Widget,
 };
 
 /// 댓글 관리 목록 조건. 비어 있는 조건은 거르지 않는다.
@@ -245,6 +246,15 @@ pub trait Store: Send + Sync {
     async fn member_roles(&self, member_id: &str) -> Result<Vec<Role>>;
     async fn session_by_hash(&self, hash: &str) -> Result<Option<Session>>;
     async fn ticket_by_hash(&self, hash: &str) -> Result<Option<LoginTicket>>;
+    /// 회원의 TOTP (ADR-0072)
+    async fn member_totp(&self, member_id: &str) -> Result<Option<MemberTotp>>;
+    /// 쓰지 않은 복구 코드 수
+    async fn recovery_codes_left(&self, member_id: &str) -> Result<i64>;
+    async fn totp_challenge_by_hash(&self, hash: &str) -> Result<Option<TotpChallenge>>;
+    /// 틀린 횟수를 하나 올리고 새 횟수를 돌려준다. 감사 대상이 아닌 시스템 기록.
+    async fn bump_totp_challenge(&self, id: &str) -> Result<i64>;
+    /// 횟수를 다 쓴 확인 단계를 버린다. 시스템 기록.
+    async fn delete_totp_challenge(&self, id: &str) -> Result<()>;
     /// 새것부터. `status` 가 없으면 전부
     async fn mails(&self, status: Option<MailStatus>, limit: i64) -> Result<Vec<MailOut>>;
     async fn mail_by_id(&self, id: &str) -> Result<Option<MailOut>>;
@@ -437,6 +447,20 @@ pub trait WriteTx: Send {
     async fn insert_session(&mut self, s: &Session) -> Result<()>;
     async fn delete_session(&mut self, id: &str) -> Result<u64>;
     async fn delete_member_sessions(&mut self, member_id: &str) -> Result<u64>;
+    async fn member_totp(&mut self, member_id: &str) -> Result<Option<MemberTotp>>;
+    /// 넣거나 통째로 바꾼다.
+    async fn put_member_totp(&mut self, t: &MemberTotp) -> Result<()>;
+    /// `last_step` 이 `step` 보다 작을 때만 올린다. 올렸으면 `true` (같은 코드를 동시에 두 번 써도 한 번만).
+    async fn advance_totp_step(&mut self, member_id: &str, step: i64) -> Result<bool>;
+    /// TOTP·복구 코드·확인 단계를 모두 지운다. 지운 TOTP 가 있었으면 `true`.
+    async fn delete_member_totp(&mut self, member_id: &str) -> Result<bool>;
+    /// 복구 코드를 통째로 바꾼다.
+    async fn replace_recovery_codes(&mut self, member_id: &str, hashes: &[String]) -> Result<()>;
+    /// 쓰지 않은 코드를 사용 처리한다. 했으면 `true`.
+    async fn use_recovery_code(&mut self, member_id: &str, hash: &str, now: &str) -> Result<bool>;
+    async fn insert_totp_challenge(&mut self, c: &TotpChallenge) -> Result<()>;
+    /// 지웠으면 `true`. 확인 단계는 지우면서 써서 동시에 두 번 성공하지 않는다.
+    async fn take_totp_challenge(&mut self, id: &str) -> Result<bool>;
 
     async fn media_by_id(&mut self, id: &str) -> Result<Option<Media>>;
     async fn insert_media(&mut self, m: &Media) -> Result<()>;

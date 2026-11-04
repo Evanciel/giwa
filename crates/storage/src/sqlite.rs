@@ -3,12 +3,13 @@
 use async_trait::async_trait;
 use maru_core::actor::{AuthorType, Permission, Scope};
 use maru_core::audit::AuditRecord;
+use maru_core::model::MemberTotp;
 use maru_core::model::{
     Attachment, AuditEntry, AuditEvent, Board, BoardPolicy, Category, Comment, CommentStatus, Font,
     FontFile, Listing, LoginTicket, MailOut, MailStatus, Media, MediaVariant, Member, MemberStatus,
     ModuleFailure, ModuleRow, Page, PageReq, PageStatus, Post, PostKind, PostStatus, PostTemplate,
     Revision, Role, Session, StatBatch, StatDay, StatPage, StatReferrer, Tag, TicketPurpose, Token,
-    Widget,
+    TotpChallenge, Widget,
 };
 use maru_core::store::{
     AuditFilter, CommentQuery, MenuRow, ModuleMigration, PopularQuery, PostFilter, PublishedQuery,
@@ -1305,6 +1306,59 @@ impl Store for SqliteStore {
         }))
     }
 
+    async fn member_totp(&self, member_id: &str) -> Result<Option<MemberTotp>> {
+        member_totp(&self.db.read, member_id).await
+    }
+
+    async fn recovery_codes_left(&self, member_id: &str) -> Result<i64> {
+        sqlx::query_scalar!(
+            "SELECT count(*) FROM member_recovery_codes WHERE member_id = ? AND used_at IS NULL",
+            member_id
+        )
+        .fetch_one(&self.db.read)
+        .await
+        .map_err(db_error)
+    }
+
+    async fn totp_challenge_by_hash(&self, hash: &str) -> Result<Option<TotpChallenge>> {
+        let row = sqlx::query!(
+            "SELECT id, token_hash, member_id, method, attempts, created_at, expires_at
+             FROM totp_challenges WHERE token_hash = ?",
+            hash
+        )
+        .fetch_optional(&self.db.read)
+        .await
+        .map_err(db_error)?;
+        Ok(row.map(|r| TotpChallenge {
+            id: r.id,
+            token_hash: r.token_hash,
+            member_id: r.member_id,
+            method: r.method,
+            attempts: r.attempts,
+            created_at: r.created_at,
+            expires_at: r.expires_at,
+        }))
+    }
+
+    async fn bump_totp_challenge(&self, id: &str) -> Result<i64> {
+        let n = sqlx::query_scalar!(
+            "UPDATE totp_challenges SET attempts = attempts + 1 WHERE id = ? RETURNING attempts",
+            id
+        )
+        .fetch_optional(&self.db.write)
+        .await
+        .map_err(db_error)?;
+        Ok(n.unwrap_or(i64::MAX))
+    }
+
+    async fn delete_totp_challenge(&self, id: &str) -> Result<()> {
+        sqlx::query!("DELETE FROM totp_challenges WHERE id = ?", id)
+            .execute(&self.db.write)
+            .await
+            .map_err(db_error)?;
+        Ok(())
+    }
+
     async fn ticket_by_hash(&self, hash: &str) -> Result<Option<LoginTicket>> {
         let row = sqlx::query!(
             "SELECT id, token_hash, member_id, purpose, created_at, expires_at, used_at
@@ -1342,7 +1396,12 @@ impl Store for SqliteStore {
         .await
         .map_err(db_error)?
         .rows_affected();
-        Ok(a + b)
+        let c = sqlx::query!("DELETE FROM totp_challenges WHERE expires_at <= ?", now)
+            .execute(&self.db.write)
+            .await
+            .map_err(db_error)?
+            .rows_affected();
+        Ok(a + b + c)
     }
 
     async fn media_by_id(&self, id: &str) -> Result<Option<Media>> {
@@ -2679,6 +2738,130 @@ impl WriteTx for SqliteWriteTx {
         )
     }
 
+    async fn member_totp(&mut self, member_id: &str) -> Result<Option<MemberTotp>> {
+        member_totp(&mut *self.tx, member_id).await
+    }
+
+    async fn put_member_totp(&mut self, t: &MemberTotp) -> Result<()> {
+        sqlx::query!(
+            "INSERT INTO member_totp (member_id, secret, enabled_at, last_step, created_at)
+             VALUES (?, ?, ?, ?, ?)
+             ON CONFLICT (member_id) DO UPDATE SET secret = excluded.secret,
+                 enabled_at = excluded.enabled_at, last_step = excluded.last_step,
+                 created_at = excluded.created_at",
+            t.member_id,
+            t.secret,
+            t.enabled_at,
+            t.last_step,
+            t.created_at
+        )
+        .execute(&mut *self.tx)
+        .await
+        .map_err(db_error)?;
+        Ok(())
+    }
+
+    async fn advance_totp_step(&mut self, member_id: &str, step: i64) -> Result<bool> {
+        Ok(sqlx::query!(
+            "UPDATE member_totp SET last_step = ? WHERE member_id = ? AND last_step < ?",
+            step,
+            member_id,
+            step
+        )
+        .execute(&mut *self.tx)
+        .await
+        .map_err(db_error)?
+        .rows_affected()
+            == 1)
+    }
+
+    async fn delete_member_totp(&mut self, member_id: &str) -> Result<bool> {
+        sqlx::query!(
+            "DELETE FROM member_recovery_codes WHERE member_id = ?",
+            member_id
+        )
+        .execute(&mut *self.tx)
+        .await
+        .map_err(db_error)?;
+        sqlx::query!("DELETE FROM totp_challenges WHERE member_id = ?", member_id)
+            .execute(&mut *self.tx)
+            .await
+            .map_err(db_error)?;
+        Ok(
+            sqlx::query!("DELETE FROM member_totp WHERE member_id = ?", member_id)
+                .execute(&mut *self.tx)
+                .await
+                .map_err(db_error)?
+                .rows_affected()
+                == 1,
+        )
+    }
+
+    async fn replace_recovery_codes(&mut self, member_id: &str, hashes: &[String]) -> Result<()> {
+        sqlx::query!(
+            "DELETE FROM member_recovery_codes WHERE member_id = ?",
+            member_id
+        )
+        .execute(&mut *self.tx)
+        .await
+        .map_err(db_error)?;
+        for h in hashes {
+            let id = clock::new_id();
+            sqlx::query!(
+                "INSERT INTO member_recovery_codes (id, member_id, code_hash) VALUES (?, ?, ?)",
+                id,
+                member_id,
+                h
+            )
+            .execute(&mut *self.tx)
+            .await
+            .map_err(db_error)?;
+        }
+        Ok(())
+    }
+
+    async fn use_recovery_code(&mut self, member_id: &str, hash: &str, now: &str) -> Result<bool> {
+        Ok(sqlx::query!(
+            "UPDATE member_recovery_codes SET used_at = ?
+             WHERE member_id = ? AND code_hash = ? AND used_at IS NULL",
+            now,
+            member_id,
+            hash
+        )
+        .execute(&mut *self.tx)
+        .await
+        .map_err(db_error)?
+        .rows_affected()
+            == 1)
+    }
+
+    async fn insert_totp_challenge(&mut self, c: &TotpChallenge) -> Result<()> {
+        sqlx::query!(
+            "INSERT INTO totp_challenges (id, token_hash, member_id, method, attempts, created_at, expires_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?)",
+            c.id,
+            c.token_hash,
+            c.member_id,
+            c.method,
+            c.attempts,
+            c.created_at,
+            c.expires_at
+        )
+        .execute(&mut *self.tx)
+        .await
+        .map_err(db_error)?;
+        Ok(())
+    }
+
+    async fn take_totp_challenge(&mut self, id: &str) -> Result<bool> {
+        Ok(sqlx::query!("DELETE FROM totp_challenges WHERE id = ?", id)
+            .execute(&mut *self.tx)
+            .await
+            .map_err(db_error)?
+            .rows_affected()
+            == 1)
+    }
+
     async fn media_by_id(&mut self, id: &str) -> Result<Option<Media>> {
         media_by_id(&mut *self.tx, id).await
     }
@@ -3235,6 +3418,27 @@ impl TryFrom<MemberRow> for Member {
             updated_at: r.updated_at,
         })
     }
+}
+
+async fn member_totp<'e>(
+    e: impl SqliteExecutor<'e>,
+    member_id: &str,
+) -> Result<Option<MemberTotp>> {
+    let row = sqlx::query!(
+        "SELECT member_id, secret, enabled_at, last_step, created_at
+         FROM member_totp WHERE member_id = ?",
+        member_id
+    )
+    .fetch_optional(e)
+    .await
+    .map_err(db_error)?;
+    Ok(row.map(|r| MemberTotp {
+        member_id: r.member_id,
+        secret: r.secret,
+        enabled_at: r.enabled_at,
+        last_step: r.last_step,
+        created_at: r.created_at,
+    }))
 }
 
 fn purpose(s: &str) -> Result<TicketPurpose> {
