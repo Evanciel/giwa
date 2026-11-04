@@ -569,3 +569,6 @@
   .write-foot .me-status { flex: 1 1 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .write-foot .me-view { flex-wrap: nowrap; margin-left: auto; }
 }
+/* 사진 돌리기·자르기, 찾기·바꾸기 (GAP E23) */
+.me-crop-preview { display: block; max-width: 100%; height: auto; margin: .4rem 0; border: 1px solid var(--border, #dcdcd7); background: repeating-conic-gradient(#eee 0 25%, #fff 0 50%) 0 0 / 16px 16px; }
+.me-crop-size, .me-find-count { color: var(--muted, #5c626d); font-size: .85em; font-variant-numeric: tabular-nums; }

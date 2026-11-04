@@ -303,6 +303,64 @@ fn media_upload_serve_and_preview_through_all_paths() {
     );
     assert_eq!(list.json()["data"]["total"], 2);
 
+    // 돌리기·자르기 (ADR-0077): 새 미디어(201), 원본은 그대로. 돌린 뒤 크기 밖은 400.
+    let path = format!(
+        "/api/v1/media/{}/transform",
+        rest_media["id"].as_str().unwrap()
+    );
+    let json_auth = [
+        ("Authorization", bearer.as_str()),
+        ("Content-Type", "application/json"),
+    ];
+    let res = http(
+        &bind,
+        "POST",
+        &path,
+        &json_auth,
+        br#"{"rotate":90,"crop":{"x":0,"y":5,"width":20,"height":20}}"#,
+    );
+    assert_eq!(res.status, 201, "{}", res.text());
+    let edited = res.json()["data"].clone();
+    assert_ne!(edited["id"], rest_media["id"]);
+    assert_eq!(
+        (edited["width"].as_u64(), edited["height"].as_u64()),
+        (Some(20), Some(20))
+    );
+    assert_eq!(edited["mime"], "image/png");
+    assert_eq!(
+        http(&bind, "GET", rest_media["url"].as_str().unwrap(), &[], b"").status,
+        200
+    );
+    let res = http(
+        &bind,
+        "POST",
+        &path,
+        &json_auth,
+        br#"{"rotate":90,"crop":{"x":0,"y":0,"width":30,"height":20}}"#,
+    );
+    assert_eq!(res.status, 400, "{}", res.text());
+    let res = http(&bind, "POST", &path, &json_auth, br#"{"rotate":45}"#);
+    assert_eq!(res.status, 400, "{}", res.text());
+    let res = http(
+        &bind,
+        "POST",
+        &path,
+        &[("Content-Type", "application/json")],
+        br#"{"rotate":90}"#,
+    );
+    assert_eq!(res.status, 401, "{}", res.text());
+    let cli = maru(
+        &data,
+        &[
+            "media",
+            "transform",
+            edited["id"].as_str().unwrap(),
+            "--rotate",
+            "180",
+        ],
+    );
+    assert_eq!(cli["ok"], true, "{cli}");
+
     // 10MB 를 넘는다고 선언한 본문은 받기 전에 머리만 보고 막는다.
     // (본문까지 보내면 Windows 는 서버가 끊을 때 응답을 버리므로 머리만 보낸다.)
     let mut s = TcpStream::connect(&bind).unwrap();
@@ -454,7 +512,7 @@ fn media_upload_serve_and_preview_through_all_paths() {
 
     // 세 경로가 모두 같은 표에 남는다.
     let all = maru(&data, &["media", "list"]);
-    assert_eq!(all["data"]["total"], 3);
+    assert_eq!(all["data"]["total"], 5);
 
     // 지우면 파일도 사라진다.
     let id = rest_media["id"].as_str().unwrap();

@@ -182,6 +182,12 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "error.media_type" => "이미지 파일(jpg, png, gif, webp)만 올릴 수 있습니다: {name}",
         "error.media_too_large" => "파일이 너무 큽니다. {max}MB 이하만 올릴 수 있습니다.",
         "error.media_decode" => "이미지를 읽지 못했습니다. 파일이 깨졌거나 너무 큽니다: {detail}",
+        "error.media_rotate" => "돌리기는 0·90·180·270도만 됩니다 (받은 값: {value}).",
+        "error.media_crop_arg" => "--crop 은 `x,y,가로,세로` 네 개의 0 이상 정수입니다.",
+        "error.media_edit_empty" => "돌릴 각도나 자를 영역을 하나 이상 주세요.",
+        "error.media_crop" => {
+            "자를 영역이 사진({width}×{height}) 밖으로 나갑니다. 돌린 뒤의 크기 기준입니다."
+        }
         "error.template_not_found" => "템플릿을 찾을 수 없습니다: {name}",
         "error.json_body" => "요청 본문 JSON 이 올바르지 않습니다: {detail}",
         "error.post_status" => "알 수 없는 글 상태입니다: {value}",

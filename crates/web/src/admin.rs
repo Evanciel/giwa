@@ -54,6 +54,7 @@ pub fn routes() -> Router<AppState> {
         .route("/admin/posts/{id}", get(edit_form).post(save))
         .route("/admin/posts/{id}/{action}", post(action))
         .route("/admin/media", post(upload).layer(crate::upload_limit()))
+        .route("/admin/media/{id}/transform", post(transform_media))
         .route(
             "/admin/files",
             post(upload_file).layer(crate::upload_limit()),
@@ -1996,6 +1997,25 @@ async fn upload(
         alt_text: q.alt,
     };
     let m = crate::upload_media(&state, who.actor, input).await?;
+    Ok((StatusCode::CREATED, Json(Success::new(m))).into_response())
+}
+
+/// 에디터의 「사진 돌리기·자르기」 (GAP E23). REST `/api/v1/media/{id}/transform` 와 같은 서비스.
+async fn transform_media(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    body: Result<Json<media::Transform>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let who = json_session(&state, &headers).await?;
+    let Json(t) = body.map_err(|e| {
+        ApiError(
+            Error::new(Code::Validation)
+                .with_message("error.json_body")
+                .arg("detail", e.body_text()),
+        )
+    })?;
+    let m = crate::transform_media(&state, who.actor, id, t).await?;
     Ok((StatusCode::CREATED, Json(Success::new(m))).into_response())
 }
 

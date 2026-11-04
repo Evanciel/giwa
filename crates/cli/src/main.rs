@@ -567,6 +567,16 @@ pub enum MediaCmd {
     Show { id: String },
     /// 대체 텍스트를 바꾼다. 빈 문자열이면 지운다
     Alt { id: String, text: String },
+    /// 돌리거나 잘라 새 미디어로 둔다. 원본은 그대로 남는다. 먼저 돌리고, 돌린 사진 기준으로 자른다
+    Transform {
+        id: String,
+        /// 시계 방향 각도: 0·90·180·270
+        #[arg(long, default_value_t = 0)]
+        rotate: u16,
+        /// 남길 영역 `x,y,가로,세로` (픽셀)
+        #[arg(long)]
+        crop: Option<String>,
+    },
     /// 기록과 파일을 지운다. 본문에서 쓰던 곳은 깨진다
     Delete { id: String },
 }

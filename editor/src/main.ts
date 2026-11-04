@@ -35,6 +35,9 @@ import {
   linkRange,
   markActive,
   removeLink,
+  findAll,
+  replaceAll,
+  replaceText,
   selectedImage,
   setImageAlt,
   setImageAttrs,
@@ -245,6 +248,26 @@ function sizeBadge(v: string | null): string {
 
 /** 인용구 모양 (GAP E6). 기본(왼쪽 선)은 Markdown 인용 `> `, 나머지는 상자다. */
 const QUOTE_ITEMS: [string, string][] = [["quote-mark", "큰따옴표"], ["quote-bubble", "말풍선"], ["quote-note", "메모지"], ["quote-frame", "위아래 선"]];
+
+/** 올린 원본 사진 주소(`/media/2026/11/<id>.jpg`)의 미디어 ID. 축소본·바깥 주소는 없다. */
+function mediaIdOf(src: string): string | null {
+  const m = /^\/media\/\d{4}\/\d{2}\/([0-9a-z]+)\.(?:jpg|png)$/.exec(src);
+  return m ? m[1] : null;
+}
+
+/** 자르기 비율 (가로/세로). null 은 자르지 않음. */
+const CROP_RATIOS: [string, number | null][] = [["원본", null], ["1:1", 1], ["4:3", 4 / 3], ["3:4", 3 / 4], ["16:9", 16 / 9]];
+
+/** 가운데를 기준으로 비율에 맞게 남길 영역 (돌린 뒤 크기 기준). */
+function centerCrop(w: number, h: number, ratio: number): { x: number; y: number; width: number; height: number } {
+  let cw = w;
+  let ch = Math.round(w / ratio);
+  if (ch > h) {
+    ch = h;
+    cw = Math.min(w, Math.round(h * ratio));
+  }
+  return { x: Math.floor((w - cw) / 2), y: Math.floor((h - ch) / 2), width: cw, height: ch };
+}
 
 const BOX_MENU: Record<"callout" | "align", { title: string; none: string; items: [string, string][] }> = {
   callout: { title: "강조 상자", none: "상자 없애기", items: [["info", "알림"], ["tip", "도움말"], ["warn", "주의"], ["danger", "경고"]] },
@@ -724,6 +747,7 @@ class Editor {
           btn(title ? "캡션 고치기" : "캡션", () => this.openCaption()),
           btn(alt ? "대체 텍스트 ✓" : "대체 텍스트", () => this.openAlt()),
           btn("갤러리로 묶기", () => setBox("gallery", "gallery")(this.view.state, this.view.dispatch), !!boxKind(s, "gallery")),
+          ...(mediaIdOf(image.node.attrs.src as string) ? [btn("돌리기·자르기", () => this.openImageEdit())] : []),
         );
         this.bubble.setAttribute("aria-label", "사진");
       }
@@ -1551,9 +1575,148 @@ class Editor {
     this.openMenu("더보기", [
       { label: "코드 블록", current: rich && blockActive(s, n.code_block), run: () => (rich ? toggleCodeBlock(this.view.state, this.view.dispatch) : this.mdFence()) },
       { label: "각주", run: () => (rich ? insertFootnote(this.view.state, this.view.dispatch) : this.mdFootnote()) },
+      { label: "찾기·바꾸기", run: () => void setTimeout(() => this.openFindReplace()) },
       { label: "갤러리 (사진 여러 장을 격자로)", current: rich && !!boxKind(s, "gallery"), run: () => (rich ? setBox("gallery", "gallery")(this.view.state, this.view.dispatch) : this.mdBox("gallery")) },
       { label: "접기 상자 (첫 줄이 질문, 나머지는 눌러야 보임)", current: rich && !!boxKind(s, "details"), run: () => (rich ? setBox("details", "details")(this.view.state, this.view.dispatch) : this.mdBox("details")) },
     ]);
+  }
+
+  /** 사진 돌리기·자르기 (GAP E23). 서버가 새 사진을 만들고, 본문의 그 사진만 새 주소로 바꾼다. 원본은 남는다. */
+  openImageEdit() {
+    const sel = selectedImage(this.view.state);
+    const src = sel ? (sel.node.attrs.src as string) : "";
+    const id = mediaIdOf(src);
+    if (!sel || !id) return;
+    const at = sel.from;
+    let turn = 0;
+    let ratio: number | null = null;
+    const img = new Image();
+    const canvas = el("canvas", { class: "me-crop-preview", "aria-label": "고친 사진 미리보기" });
+    const size = el("span", { class: "me-crop-size", "aria-live": "polite" });
+    const dims = () => {
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+      return turn % 2 ? [h, w] : [w, h];
+    };
+    const plan = () => {
+      const [w, h] = dims();
+      return ratio ? centerCrop(w, h, ratio) : { x: 0, y: 0, width: w, height: h };
+    };
+    const draw = () => {
+      if (!img.naturalWidth) return;
+      const [w, h] = dims();
+      const c = plan();
+      const scale = Math.min(1, 320 / Math.max(c.width, c.height));
+      canvas.width = Math.max(1, Math.round(c.width * scale));
+      canvas.height = Math.max(1, Math.round(c.height * scale));
+      const g = canvas.getContext("2d");
+      if (!g) return;
+      g.setTransform(scale, 0, 0, scale, -c.x * scale, -c.y * scale);
+      g.translate(w / 2, h / 2);
+      g.rotate((turn * Math.PI) / 2);
+      g.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+      size.textContent = `${c.width} × ${c.height}`;
+    };
+    img.addEventListener("load", draw);
+    img.src = src;
+    const rot = (d: number) => () => {
+      turn = (turn + d + 4) % 4;
+      draw();
+    };
+    const ratios = el("span", { class: "me-chips", role: "group", "aria-label": "자르기 비율" });
+    const chips: HTMLButtonElement[] = [];
+    for (const [label, r] of CROP_RATIOS) {
+      const b = el("button", { type: "button", "aria-pressed": String(r === null) }, label);
+      b.addEventListener("click", () => {
+        ratio = r;
+        chips.forEach((c) => c.setAttribute("aria-pressed", String(c === b)));
+        draw();
+      });
+      chips.push(b);
+      ratios.append(b);
+    }
+    const left = el("button", { type: "button", title: "왼쪽으로 돌리기" }, "⟲ 왼쪽");
+    left.addEventListener("click", rot(-1));
+    const right = el("button", { type: "button", title: "오른쪽으로 돌리기" }, "⟳ 오른쪽");
+    right.addEventListener("click", rot(1));
+    const ok = el("button", { type: "submit" }, "새 사진으로 바꾸기");
+    const close = el("button", { type: "button", class: "secondary" }, "닫기");
+    close.addEventListener("click", () => {
+      this.closePop();
+      this.focusEditor();
+    });
+    const turns = el("span", { class: "me-chips", role: "group", "aria-label": "돌리기" });
+    turns.append(left, right);
+    this.pop.replaceChildren(el("span", { class: "me-menu-title" }, "사진 돌리기·자르기 (원본은 그대로 남습니다)"), canvas, size, turns, ratios, ok, close);
+    this.popSticky = false;
+    this.popSync = null;
+    this.popApply = () => {
+      if (!img.naturalWidth) return "사진을 아직 읽는 중입니다.";
+      const c = plan();
+      const [w, h] = dims();
+      const body = { rotate: turn * 90, crop: c.width === w && c.height === h ? null : c };
+      if (!body.rotate && !body.crop) return "돌리거나 자를 비율을 고르세요.";
+      this.say("새 사진을 만드는 중…");
+      void fetch(`/admin/media/${id}/transform`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json", "X-CSRF-Token": this.csrf },
+        body: JSON.stringify(body),
+      })
+        .then(async (res) => {
+          const j = (await res.json().catch(() => ({}))) as { ok?: boolean; data?: { url: string }; error?: { message?: string } };
+          if (!res.ok || !j.ok || !j.data) throw new Error(j.error?.message ?? "사진을 고치지 못했습니다.");
+          return j.data.url;
+        })
+        .then(
+          (url) => {
+            const node = this.view.state.doc.nodeAt(at);
+            if (node?.type.name === "image" && node.attrs.src === src) {
+              this.view.dispatch(this.view.state.tr.setNodeMarkup(at, undefined, { ...node.attrs, src: url }));
+            }
+            this.say("새 사진으로 바꿨습니다. 원본은 미디어에 그대로 있습니다.");
+          },
+          (e: Error) => this.say(e.message, true),
+        );
+      return null;
+    };
+    this.pop.hidden = false;
+    right.focus();
+  }
+
+  /** 찾기·바꾸기 (GAP E23). 서식 모드는 글자만, Markdown 모드는 원문 전체에서 바꾼다. 한 번에 되돌릴 수 있다. */
+  openFindReplace() {
+    const find = el("input", { id: "me-find", type: "text", placeholder: "찾을 말", autocomplete: "off" });
+    const repl = el("input", { id: "me-replace", type: "text", placeholder: "바꿀 말 (비우면 지움)", autocomplete: "off" });
+    const count = el("span", { class: "me-find-count", "aria-live": "polite" });
+    const hits = () => (this.mode === "rich" ? findAll(this.view.state.doc, find.value).length : replaceText(this.textarea.value, find.value, "")[1]);
+    find.addEventListener("input", () => {
+      count.textContent = find.value ? `${hits()}곳` : "";
+    });
+    const ok = el("button", { type: "submit" }, "모두 바꾸기");
+    const close = el("button", { type: "button", class: "secondary" }, "닫기");
+    close.addEventListener("click", () => {
+      this.closePop();
+      this.focusEditor();
+    });
+    this.pop.replaceChildren(el("label", { for: "me-find" }, "찾기"), find, el("label", { for: "me-replace" }, "바꾸기"), repl, count, ok, close);
+    this.popSticky = false;
+    this.popSync = null;
+    this.popApply = () => {
+      const q = find.value;
+      if (!q) return "찾을 말을 적어 주세요.";
+      const n = hits();
+      if (!n) return `'${q}' 을(를) 찾지 못했습니다.`;
+      if (this.mode === "rich") replaceAll(q, repl.value)(this.view.state, this.view.dispatch);
+      else {
+        const [text] = replaceText(this.textarea.value, q, repl.value);
+        this.replaceSource(0, this.textarea.value.length, text, 0, 0);
+      }
+      this.say(`${n}곳을 바꿨습니다.`);
+      return null;
+    };
+    this.pop.hidden = false;
+    find.focus();
   }
 
   openCaption() {

@@ -1826,6 +1826,23 @@ mod design_tests {
 
 // ---- media ----
 
+/// `x,y,가로,세로`
+fn parse_crop(s: &str) -> Option<media::Crop> {
+    let n: Vec<u32> = s
+        .split(',')
+        .map(|p| p.trim().parse().ok())
+        .collect::<Option<_>>()?;
+    match n[..] {
+        [x, y, width, height] => Some(media::Crop {
+            x,
+            y,
+            width,
+            height,
+        }),
+        _ => None,
+    }
+}
+
 async fn media_cmd(g: &Global, cmd: MediaCmd) -> Out {
     let (ctx, _config, db) = open(g).await?;
     let actor = actor(&ctx).await?;
@@ -1879,6 +1896,19 @@ async fn media_cmd(g: &Global, cmd: MediaCmd) -> Out {
         MediaCmd::Delete { id } => {
             let m = media::delete(&ctx, &actor, &id).await?;
             media_out(&m, "지웠습니다")
+        }
+        MediaCmd::Transform { id, rotate, crop } => {
+            let crop = match crop.as_deref().map(parse_crop) {
+                Some(Some(c)) => Some(c),
+                Some(None) => {
+                    return Err(maru_core::Error::new(maru_core::Code::Validation)
+                        .with_message("error.media_crop_arg")
+                        .next("maru media transform <ID> --crop 0,0,800,600"));
+                }
+                None => None,
+            };
+            let m = media::transform(&ctx, &actor, &id, media::Transform { rotate, crop }).await?;
+            media_out(&m, "새 미디어로 만들었습니다 (원본은 그대로)")
         }
     };
     db.close().await;

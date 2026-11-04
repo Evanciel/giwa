@@ -447,6 +447,25 @@ pub(crate) async fn upload_media(
         .map_err(maru_core::Error::internal)?
 }
 
+/// 사진 돌리기·자르기 (GAP E23). 업로드처럼 CPU 를 써서 같은 문을 지난다.
+pub(crate) async fn transform_media(
+    state: &AppState,
+    actor: Actor,
+    id: String,
+    t: media::Transform,
+) -> Result<Media> {
+    let _permit = state
+        .upload_gate
+        .acquire()
+        .await
+        .map_err(maru_core::Error::internal)?;
+    let ctx = state.ctx.clone();
+    let handle = tokio::runtime::Handle::current();
+    tokio::task::spawn_blocking(move || handle.block_on(media::transform(&ctx, &actor, &id, t)))
+        .await
+        .map_err(maru_core::Error::internal)?
+}
+
 /// 그림·첨부 업로드 경로의 상한. 요청 머리(Content-Length)만 보고도 413 으로 막고(tower-http),
 /// 추출 상한(axum)도 같은 값으로 올린다. 전체 상한은 서체(20MB) 때문에 더 크다.
 pub(crate) fn upload_limit() -> (RequestBodyLimitLayer, axum::extract::DefaultBodyLimit) {

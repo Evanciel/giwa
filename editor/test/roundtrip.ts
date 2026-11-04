@@ -5,7 +5,7 @@
 import { readFileSync } from "fs";
 import { EditorState, TextSelection } from "prosemirror-state";
 
-import { setBox } from "../src/commands";
+import { findAll, replaceAll, replaceText, setBox } from "../src/commands";
 import { load, parse, serialize } from "../src/markdown";
 import { videoEmbed } from "../src/syntax";
 import { splitTags } from "../src/tags";
@@ -94,6 +94,17 @@ const rich: Record<string, string> = {
     const md = `:::${k}\n말은 **짧게**.\n:::`;
     const q = load(md);
     check(`인용구 ${k}`, q.ok && q.doc.firstChild?.type.name === "box" && q.doc.firstChild.attrs.kind === k && serialize(q.doc) === md, q.ok ? serialize(q.doc) : "");
+  }
+  {
+    const r = load("가나 **가나다** 다\n\n[가나](/x)");
+    if (r.ok) {
+      const st = EditorState.create({ doc: r.doc });
+      check("찾기", findAll(st.doc, "가나").length === 3);
+      let next = st;
+      replaceAll("가나", "라")(st, (tr) => void (next = st.apply(tr)));
+      check("모두 바꾸기 (꾸밈 유지)", serialize(next.doc) === "라 **라다** 다\n\n[라](/x)", serialize(next.doc));
+    } else check("찾기 문서", false);
+    check("원문 바꾸기", JSON.stringify(replaceText("a b a", "a", "c")) === JSON.stringify(["c b c", 2]));
   }
   const g = load(":::gallery\n![a](/a.png)\n:::");
   check("갤러리 상자", g.ok && g.doc.firstChild?.type.name === "box" && g.doc.firstChild.attrs.kind === "gallery");

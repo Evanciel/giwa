@@ -1,4 +1,4 @@
-//! 미디어 업로드 (SPEC §13 업로드 규칙, ADR-0032).
+//! 미디어 업로드 (SPEC §13 업로드 규칙, ADR-0032). 사진 돌리기·자르기는 새 미디어로 둔다 (GAP E23, ADR-0077).
 //!
 //! 내용 스니핑과 확장자 화이트리스트를 둘 다 통과해야 하고, 원본은 그대로 두지 않고 다시 인코딩한다.
 //! 다시 인코딩하면 EXIF(촬영 위치 등)와 이미지 뒤에 덧붙인 데이터가 사라진다.
@@ -11,7 +11,8 @@ use image::imageops::FilterType;
 use image::metadata::Orientation;
 use image::{DynamicImage, ImageDecoder, ImageFormat, ImageReader, Limits};
 use schemars::JsonSchema;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use serde_json::json;
 
 use crate::actor::{Actor, Permission};
 use crate::audit::{self, Target};
@@ -47,6 +48,27 @@ pub struct Upload {
 pub struct MediaPatch {
     /// 빈 문자열이면 지운다.
     pub alt_text: Option<String>,
+}
+
+/// 사진 돌리기·자르기 (GAP E23). 먼저 돌리고, 돌린 사진의 픽셀 기준으로 자른다.
+#[derive(Debug, Clone, Default, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Transform {
+    /// 시계 방향 각도: 0·90·180·270
+    #[serde(default)]
+    pub rotate: u16,
+    /// 남길 영역. 없으면 자르지 않는다
+    #[serde(default)]
+    pub crop: Option<Crop>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Crop {
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
 }
 
 /// 저장 형식. GIF 는 첫 장만 PNG 로, 투명도 없는 WebP 는 JPEG 로 바꾼다 (ADR-0032).
@@ -100,7 +122,79 @@ pub(crate) fn is_image(filename: &str) -> bool {
 pub(crate) async fn store(ctx: &Ctx, actor: &Actor, input: Upload) -> Result<Media> {
     let alt_text = alt(input.alt_text)?;
     let p = process(&input.filename, &input.bytes)?;
+    save(ctx, actor, p, alt_text, "media.upload", None).await
+}
 
+/// 사진을 돌리거나 잘라 **새 미디어**로 둔다. 원본 기록·파일은 그대로 남아 본문의 옛 링크도 산다.
+/// 대체 텍스트는 원본 것을 이어받는다. 같은 요청을 다시 보내면 미디어가 하나 더 생긴다.
+pub async fn transform(ctx: &Ctx, actor: &Actor, id: &str, t: Transform) -> Result<Media> {
+    actor.require(Permission::PostUpload)?;
+    let quarter = match t.rotate {
+        0 => 0,
+        90 => 1,
+        180 => 2,
+        270 => 3,
+        _ => {
+            return Err(Error::new(Code::Validation)
+                .with_message("error.media_rotate")
+                .arg("value", t.rotate.to_string()));
+        }
+    };
+    if quarter == 0 && t.crop.is_none() {
+        return Err(Error::new(Code::Validation).with_message("error.media_edit_empty"));
+    }
+    let before = ctx
+        .store
+        .media_by_id(id)
+        .await?
+        .ok_or_else(|| not_found(id))?;
+    let bytes = ctx
+        .blobs
+        .get(&before.path)
+        .await?
+        .ok_or_else(|| not_found(id))?;
+    let ext = before.path.rsplit_once('.').map_or("png", |(_, e)| e);
+    let (img, _) = decode(&format!("original.{ext}"), &bytes)?;
+    let img = edit(img, quarter, t.crop)?;
+    let out = if before.mime == "image/jpeg" {
+        Out::Jpeg
+    } else {
+        Out::Png
+    };
+    let p = finish(&img, out)?;
+    let from = json!({ "from": id, "rotate": t.rotate, "crop": t.crop });
+    save(ctx, actor, p, before.alt_text, "media.edit", Some(from)).await
+}
+
+fn edit(img: DynamicImage, quarter: u8, crop: Option<Crop>) -> Result<DynamicImage> {
+    let img = match quarter {
+        1 => img.rotate90(),
+        2 => img.rotate180(),
+        3 => img.rotate270(),
+        _ => img,
+    };
+    let Some(c) = crop else { return Ok(img) };
+    let fits = c.width > 0
+        && c.height > 0
+        && u64::from(c.x) + u64::from(c.width) <= u64::from(img.width())
+        && u64::from(c.y) + u64::from(c.height) <= u64::from(img.height());
+    if !fits {
+        return Err(Error::new(Code::Validation)
+            .with_message("error.media_crop")
+            .arg("width", img.width().to_string())
+            .arg("height", img.height().to_string()));
+    }
+    Ok(img.crop_imm(c.x, c.y, c.width, c.height))
+}
+
+async fn save(
+    ctx: &Ctx,
+    actor: &Actor,
+    p: Processed,
+    alt_text: Option<String>,
+    action: &'static str,
+    extra: Option<serde_json::Value>,
+) -> Result<Media> {
     let id = clock::new_id();
     let now = clock::now();
     // 시각 형식은 `YYYY-MM-DDT…` 고정 자릿수다 (clock).
@@ -138,13 +232,12 @@ pub(crate) async fn store(ctx: &Ctx, actor: &Actor, input: Upload) -> Result<Med
         };
         let mut tx = Tx::begin(ctx).await?;
         tx.insert_media(&media).await?;
-        tx.audit(
-            actor,
-            "media.upload",
-            Target::new("media", &media.id),
-            audit::diff(None, Some(&media)),
-        )
-        .await?;
+        let mut diff = audit::diff(None, Some(&media));
+        if let (Some(e), Some(obj)) = (extra.clone(), diff.as_object_mut()) {
+            obj.insert("edit".into(), e);
+        }
+        tx.audit(actor, action, Target::new("media", &media.id), diff)
+            .await?;
         tx.commit().await?;
         Ok(media)
     }
@@ -308,6 +401,17 @@ fn undecodable(e: image::ImageError) -> Error {
 
 /// 검사 → 디코딩 → 방향 보정 → 다시 인코딩 → 축소본. CPU 를 쓰는 동기 함수다.
 fn process(filename: &str, bytes: &[u8]) -> Result<Processed> {
+    let (img, format) = decode(filename, bytes)?;
+    let out = match format {
+        ImageFormat::Jpeg => Out::Jpeg,
+        ImageFormat::WebP if !img.color().has_alpha() => Out::Jpeg,
+        _ => Out::Png,
+    };
+    finish(&img, out)
+}
+
+/// 크기·확장자·내용 검사 뒤 디코딩하고 방향(EXIF)을 바로잡는다.
+fn decode(filename: &str, bytes: &[u8]) -> Result<(DynamicImage, ImageFormat)> {
     if bytes.len() > MAX_BYTES {
         return Err(Error::new(Code::Validation)
             .with_message("error.media_too_large")
@@ -338,13 +442,12 @@ fn process(filename: &str, bytes: &[u8]) -> Result<Processed> {
     let orientation = decoder.orientation().unwrap_or(Orientation::NoTransforms);
     let mut img = DynamicImage::from_decoder(decoder).map_err(undecodable)?;
     img.apply_orientation(orientation);
+    Ok((img, format))
+}
 
-    let out = match format {
-        ImageFormat::Jpeg => Out::Jpeg,
-        ImageFormat::WebP if !img.color().has_alpha() => Out::Jpeg,
-        _ => Out::Png,
-    };
-    let original = encode(&img, out)?;
+/// 다시 인코딩한 원본과 축소본.
+fn finish(img: &DynamicImage, out: Out) -> Result<Processed> {
+    let original = encode(img, out)?;
     let mut variants = Vec::new();
     for w in VARIANT_WIDTHS {
         if img.width() > w {
@@ -488,6 +591,43 @@ mod tests {
         let p = process("a.jpg", &bytes).unwrap();
         let tail = b"<script>";
         assert!(!p.original.bytes.windows(tail.len()).any(|w| w == tail));
+    }
+
+    #[test]
+    fn edit_rotates_then_crops_inside_the_rotated_image() {
+        let img = DynamicImage::ImageRgb8(RgbImage::new(300, 200));
+        let r = edit(img.clone(), 1, None).unwrap();
+        assert_eq!((r.width(), r.height()), (200, 300));
+        let crop = Crop {
+            x: 10,
+            y: 20,
+            width: 190,
+            height: 280,
+        };
+        let c = edit(img.clone(), 1, Some(crop)).unwrap();
+        assert_eq!((c.width(), c.height()), (190, 280));
+        // 돌리기 전 크기로는 맞지만 돌린 뒤에는 밖이다
+        let wide = Crop {
+            x: 0,
+            y: 0,
+            width: 300,
+            height: 10,
+        };
+        assert!(edit(img.clone(), 0, Some(wide)).is_ok());
+        assert_eq!(
+            edit(img.clone(), 1, Some(wide))
+                .err()
+                .unwrap()
+                .message_key(),
+            "error.media_crop"
+        );
+        let empty = Crop {
+            x: 0,
+            y: 0,
+            width: 0,
+            height: 5,
+        };
+        assert!(edit(img, 0, Some(empty)).is_err());
     }
 
     #[test]

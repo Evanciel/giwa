@@ -183,7 +183,7 @@ export function setImageAlt(alt: string): Command {
 }
 
 /** 선택한 그림의 속성(대체 텍스트·캡션·크기)을 바꾸고 그림을 계속 고른 상태로 둔다. */
-export function setImageAttrs(patch: { alt?: string; title?: string | null; width?: number | null }): Command {
+export function setImageAttrs(patch: { src?: string; alt?: string; title?: string | null; width?: number | null }): Command {
   return (state, dispatch) => {
     const sel = selectedImage(state);
     if (!sel) return false;
@@ -348,6 +348,49 @@ export function setBox(group: BoxGroup, kind: string | null): Command {
     }
     return wrapIn(n.box, { kind })(state, dispatch);
   };
+}
+
+// ---- 찾기·바꾸기 (GAP E23) ----
+// 글자 노드 하나 안에서만 찾는다 (굵게 등 꾸밈 경계를 넘는 말은 찾지 않는다). 대소문자를 가린다.
+
+/** 문서에서 `query` 가 나오는 곳 (앞에서부터). */
+export function findAll(doc: Node, query: string): { from: number; to: number }[] {
+  const out: { from: number; to: number }[] = [];
+  if (!query) return out;
+  doc.descendants((node, pos) => {
+    if (!node.isText) return true;
+    const text = node.text ?? "";
+    for (let i = text.indexOf(query); i >= 0; i = text.indexOf(query, i + query.length)) {
+      out.push({ from: pos + i, to: pos + i + query.length });
+    }
+    return false;
+  });
+  return out;
+}
+
+/** 모두 바꾼다. 꾸밈(굵게·링크 등)은 그 자리의 것을 이어받는다. 한 번에 되돌릴 수 있다. */
+export function replaceAll(query: string, replacement: string): Command {
+  return (state, dispatch) => {
+    const hits = findAll(state.doc, query);
+    if (!hits.length) return false;
+    if (dispatch) {
+      const tr = state.tr;
+      for (const h of hits.reverse()) {
+        const marks = state.doc.resolve(h.from + 1).marks();
+        if (replacement) tr.replaceWith(h.from, h.to, schema.text(replacement, marks));
+        else tr.delete(h.from, h.to);
+      }
+      dispatch(tr.scrollIntoView());
+    }
+    return true;
+  };
+}
+
+/** Markdown 원문에서 모두 바꾼 글과 바꾼 수. */
+export function replaceText(src: string, query: string, replacement: string): [string, number] {
+  if (!query) return [src, 0];
+  const parts = src.split(query);
+  return [parts.join(replacement), parts.length - 1];
 }
 
 // ---- 표 ----

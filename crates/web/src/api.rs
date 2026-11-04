@@ -106,6 +106,7 @@ pub fn routes() -> Router<AppState> {
             "/media/{id}",
             get(get_media).patch(update_media).delete(delete_media),
         )
+        .route("/media/{id}/transform", post(transform_media))
         .route(
             "/files",
             get(list_files)
@@ -860,6 +861,18 @@ async fn update_media(
         StatusCode::OK,
         media::update(&state.ctx, &actor, &id, patch).await?,
     ))
+}
+
+/// `POST /media/{id}/transform` `{"rotate":90,"crop":{"x":0,"y":0,"width":100,"height":100}}` → 새 미디어 (201).
+async fn transform_media(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(id): Path<String>,
+    body: Result<Json<media::Transform>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let Json(t) = body.map_err(bad_json)?;
+    let m = crate::transform_media(&state, actor, id, t).await?;
+    Ok(ok(StatusCode::CREATED, m))
 }
 
 async fn delete_media(

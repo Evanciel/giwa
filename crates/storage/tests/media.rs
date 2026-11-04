@@ -8,7 +8,7 @@ use image::{DynamicImage, ImageFormat, Rgb, RgbImage};
 use maru_core::actor::{Actor, Scope};
 use maru_core::model::PageReq;
 use maru_core::services::anonymous_actor;
-use maru_core::services::media::{self, MediaPatch, Upload};
+use maru_core::services::media::{self, Crop, MediaPatch, Transform, Upload};
 use maru_core::{Code, Ctx};
 use maru_storage::{DataDir, Db, FsBlobs, SqliteStore};
 
@@ -168,5 +168,88 @@ async fn permissions_follow_scopes() {
             .unwrap_err()
             .code(),
         Code::Unauthorized
+    );
+}
+
+/// 돌리기·자르기는 새 사진을 만들고 원본은 그대로 둔다 (ADR-0077).
+#[tokio::test]
+async fn transform_makes_a_new_media_and_keeps_the_original() {
+    let e = env().await;
+    let local = Actor::local();
+    let m = media::upload(&e.ctx, &local, upload("가로.jpg", jpeg(1200, 800)))
+        .await
+        .unwrap();
+    let t = Transform {
+        rotate: 90,
+        crop: Some(Crop {
+            x: 100,
+            y: 200,
+            width: 600,
+            height: 400,
+        }),
+    };
+    let edited = media::transform(&e.ctx, &local, &m.id, t).await.unwrap();
+    assert_ne!(edited.id, m.id);
+    assert_eq!((edited.width, edited.height), (600, 400));
+    assert_eq!(edited.mime, "image/jpeg");
+    assert_eq!(edited.alt_text.as_deref(), Some("파란 사각형"));
+    // 원본 행·파일이 남는다.
+    let original = media::get(&e.ctx, &local, &m.id).await.unwrap();
+    assert_eq!((original.width, original.height), (1200, 800));
+    assert!(e.dir.media_dir().join(&original.path).exists());
+    assert!(e.dir.media_dir().join(&edited.path).exists());
+    let list = media::list(&e.ctx, &local, PageReq::default())
+        .await
+        .unwrap();
+    assert_eq!(list.total, 2);
+    assert_eq!(
+        audit_actions(&e.db).await,
+        vec!["media.upload", "media.edit"]
+    );
+
+    // 돌린 뒤 크기(800×1200) 밖으로 자르면 거절하고 아무것도 남기지 않는다.
+    let bad = Transform {
+        rotate: 90,
+        crop: Some(Crop {
+            x: 0,
+            y: 0,
+            width: 1200,
+            height: 800,
+        }),
+    };
+    let err = media::transform(&e.ctx, &local, &m.id, bad)
+        .await
+        .unwrap_err();
+    assert_eq!(err.code(), Code::Validation);
+    for rotate in [45, 360] {
+        let err = media::transform(&e.ctx, &local, &m.id, Transform { rotate, crop: None })
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), Code::Validation, "{rotate}");
+    }
+    let empty = Transform {
+        rotate: 0,
+        crop: None,
+    };
+    let err = media::transform(&e.ctx, &local, &m.id, empty)
+        .await
+        .unwrap_err();
+    assert_eq!(err.code(), Code::Validation);
+    // 읽기만 하는 토큰은 못 한다.
+    let reader = Actor::agent("t".into(), &[Scope::Read], None);
+    let t = Transform {
+        rotate: 180,
+        crop: None,
+    };
+    let err = media::transform(&e.ctx, &reader, &m.id, t)
+        .await
+        .unwrap_err();
+    assert_eq!(err.code(), Code::Forbidden);
+    assert_eq!(
+        media::list(&e.ctx, &local, PageReq::default())
+            .await
+            .unwrap()
+            .total,
+        2
     );
 }
