@@ -1642,6 +1642,8 @@ async fn site(g: &Global, cmd: SiteCmd) -> Out {
                 signup: args.signup,
                 signup_verify: args.signup_verify,
                 captcha: args.captcha,
+                banned_words: args.banned_words,
+                flood_seconds: args.flood_seconds,
             };
             settings::update(&ctx, &actor, patch).await
         }

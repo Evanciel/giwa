@@ -38,6 +38,8 @@ pub struct ModuleInfo {
     pub tools: Vec<ToolInfo>,
     pub widgets: Vec<String>,
     pub events: Vec<String>,
+    /// 모듈이 가진 관리 화면
+    pub admin_url: Option<String>,
     /// 실패 보관함·재시도 대기에 있는 이벤트 수
     pub failures: i64,
 }
@@ -88,6 +90,7 @@ async fn info(ctx: &Ctx, module: &dyn Module, row: Option<&ModuleRow>) -> Result
         enabled: row.is_some_and(|r| r.enabled),
         settings: merged(module, row),
         settings_fields: module.settings_fields(),
+        admin_url: module.admin_url().map(str::to_owned),
         tools: module
             .tools()
             .into_iter()

@@ -16,7 +16,7 @@ use crate::error::{Code, Error, Result};
 use crate::model::{
     Approval, Board, CaptchaMode, Comment, CommentAuthor, CommentStatus, Listing, PageReq, Post,
 };
-use crate::services::{auth, captcha, members, posts, settings};
+use crate::services::{auth, captcha, members, moderation, posts, settings};
 use crate::store::{CommentQuery, Ctx, Tx};
 
 pub const MAX_BODY_CHARS: usize = 2000;
@@ -195,6 +195,9 @@ pub async fn create(ctx: &Ctx, actor: &Actor, input: NewComment) -> Result<Comme
     }
     posts::check_unlocked(actor, &board, &post)?;
     let body = check_body(&input.body)?;
+    moderation::check_text(&site, actor, &[&body])?;
+    moderation::check_flood(ctx, &site, actor).await?;
+    moderation::check_same_comment(ctx, &site, actor, &body).await?;
 
     let (actor_type, author_id, guest_name, guest_pw_hash) = match actor.kind() {
         ActorKind::Anonymous => {
@@ -364,6 +367,7 @@ pub async fn update(
     authorize(actor, &board, &before, guest_password)?;
     posts::check_unlocked(actor, &board, &post)?;
     let body = check_body(body)?;
+    moderation::check_text(&settings::site(ctx).await?, actor, &[&body])?;
     if body == before.body {
         return one(ctx, before).await;
     }

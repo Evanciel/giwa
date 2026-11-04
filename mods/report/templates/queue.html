@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{# 신고함 (ADR-0071). 게시판을 관리할 수 있는 사람만 본다. 오래된 신고가 위로 온다. #}
+{% block main_class %}wrap account-wrap{% endblock %}
+{% block main %}
+<section class="account me" aria-labelledby="report-queue-title">
+  <h1 id="report-queue-title">신고함{% if total %} <span class="count">{{ total }}</span>{% endif %}</h1>
+  <nav class="post-actions" aria-label="신고 상태">
+    <a href="/m/report"{% if status == "open" %} aria-current="page"{% endif %}>처리 전</a>
+    <a href="/m/report?status=upheld"{% if status == "upheld" %} aria-current="page"{% endif %}>가림</a>
+    <a href="/m/report?status=dismissed"{% if status == "dismissed" %} aria-current="page"{% endif %}>기각</a>
+  </nav>
+  {% if items %}
+  <ul class="report-list">
+    {% for r in items %}<li>
+      <p class="report-head">
+        <strong>{% if r.target_type == "post" %}글{% else %}댓글{% endif %} · 신고 {{ r.count }}건</strong>
+        {% if r.auto_hidden %}<span class="badge-hidden">자동으로 가림</span>{% elif not r.public %}<span class="badge-hidden">공개 안 됨</span>{% endif %}
+      </p>
+      {% if r.title %}
+      <p class="hint">{{ r.author }} · {% if r.url %}<a href="{{ r.url }}">{{ r.title }}</a>{% else %}{{ r.title }}{% endif %} · {{ r.first_at }}</p>
+      <blockquote class="report-quote"><p>{{ r.excerpt }}</p></blockquote>
+      {% else %}<p class="muted">지워진 대상입니다.</p>{% endif %}
+      <ul class="report-reasons">
+        {% for why in r.reasons %}<li>{{ why.label }}{% if why.note %}: {{ why.note }}{% endif %}</li>{% endfor %}
+      </ul>
+      {% if status == "open" %}
+      <div class="report-resolve">
+        <form method="post" action="/m/report/resolve">
+          <input type="hidden" name="target_type" value="{{ r.target_type }}">
+          <input type="hidden" name="target_id" value="{{ r.target_id }}">
+          <input type="hidden" name="action" value="uphold">
+          <button type="submit" class="pill">가리기</button>
+        </form>
+        <form method="post" action="/m/report/resolve">
+          <input type="hidden" name="target_type" value="{{ r.target_type }}">
+          <input type="hidden" name="target_id" value="{{ r.target_id }}">
+          <input type="hidden" name="action" value="dismiss">
+          <button type="submit" class="pill">기각{% if r.auto_hidden %}하고 되살리기{% endif %}</button>
+        </form>
+      </div>
+      {% endif %}
+    </li>{% endfor %}
+  </ul>
+  {% if prev or next %}
+  <nav class="post-actions" aria-label="쪽 나눔">
+    {% if prev %}<a href="{{ base }}&amp;page={{ prev }}" rel="prev">이전</a>{% endif %}
+    {% if next %}<a href="{{ base }}&amp;page={{ next }}" rel="next">다음</a>{% endif %}
+  </nav>
+  {% endif %}
+  {% else %}<p class="empty">{% if status == "open" %}처리할 신고가 없습니다.{% else %}없습니다.{% endif %}</p>{% endif %}
+</section>
+{% endblock %}

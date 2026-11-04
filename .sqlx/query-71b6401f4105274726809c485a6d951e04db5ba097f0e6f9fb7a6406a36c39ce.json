@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT body, created_at FROM comments\n         WHERE author_id = ? ORDER BY created_at DESC LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "body",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "comments",
+            "name": "body"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "comments",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "71b6401f4105274726809c485a6d951e04db5ba097f0e6f9fb7a6406a36c39ce"
+}

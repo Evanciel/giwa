@@ -252,6 +252,10 @@ pub trait Store: Send + Sync {
     async fn update_mail(&self, m: &MailOut) -> Result<()>;
 
     async fn comment_by_id(&self, id: &str) -> Result<Option<Comment>>;
+    /// 회원이 마지막으로 글이나 댓글을 쓴 때 (도배 방지, ADR-0071)
+    async fn last_member_write(&self, member_id: &str) -> Result<Option<String>>;
+    /// 회원의 마지막 댓글 (본문, 쓴 때)
+    async fn last_member_comment(&self, member_id: &str) -> Result<Option<(String, String)>>;
     /// 글의 댓글, 쓴 순서. `statuses` 에 든 상태만.
     async fn comments_of_post(
         &self,

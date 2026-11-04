@@ -16,6 +16,7 @@ pub mod mail;
 pub mod media;
 pub mod members;
 pub mod menus;
+pub mod moderation;
 pub mod pages;
 pub mod posts;
 pub mod presets;

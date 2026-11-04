@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM mod_report_hidden WHERE target_type = ? AND target_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "7f2623a522c8c2ae109129abc29a2d36ff824bfd75998940cf23b86075707e2f"
+}

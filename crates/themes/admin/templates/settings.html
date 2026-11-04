@@ -78,6 +78,14 @@
   </fieldset>
 
   <fieldset>
+    <legend>금지어·도배 방지</legend>
+    <label for="s-banned">금지어 <span class="hint">한 줄에 하나. 띄어쓰기나 기호를 끼워도 걸러냅니다. 관리자는 걸리지 않습니다.</span></label>
+    <textarea id="s-banned" name="banned_words" rows="4">{{ form.banned_words }}</textarea>
+    <label for="s-flood">회원이 글·댓글을 쓰는 최소 간격 <span class="hint">초, 0~3600. 0 이면 끕니다.</span></label>
+    <input id="s-flood" name="flood_seconds" value="{{ form.flood_seconds }}" inputmode="numeric" autocomplete="off" class="short">
+  </fieldset>
+
+  <fieldset>
     <legend>방문자 통계</legend>
     <label for="s-stats">며칠 남길지 <span class="hint">30~3650</span></label>
     <input id="s-stats" name="stats_retention_days" value="{{ form.stats_retention_days }}" inputmode="numeric" autocomplete="off" class="short">

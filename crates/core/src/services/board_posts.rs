@@ -15,7 +15,8 @@ use crate::error::{Code, Error, Result};
 use crate::model::{Approval, Board, CaptchaMode, PageReq, Post, PostKind, PostStatus};
 use crate::services::comments::{self, GuestAuthor};
 use crate::services::{
-    auth, captcha, categories, files, media, members, posts, required_text, settings, tags,
+    auth, captcha, categories, files, media, members, moderation, posts, required_text, settings,
+    tags,
 };
 use crate::store::{AuditFilter, Ctx, Tx};
 
@@ -134,6 +135,8 @@ pub async fn write(ctx: &Ctx, actor: &Actor, input: BoardWrite) -> Result<Post> 
     let rules = rules(&board, site.captcha);
     let title = required_text("title", &input.title, posts::MAX_TITLE)?;
     let body_md = posts::check_body(input.body_md)?;
+    moderation::check_text(&site, actor, &[&title, &body_md])?;
+    moderation::check_flood(ctx, &site, actor).await?;
 
     let (author_id, guest_name, guest_pw_hash) = match actor.kind() {
         ActorKind::Anonymous => {
@@ -317,6 +320,11 @@ pub async fn edit(
     let mut after = before.clone();
     after.title = required_text("title", &input.title, posts::MAX_TITLE)?;
     after.body_md = posts::check_body(input.body_md)?;
+    moderation::check_text(
+        &settings::site(ctx).await?,
+        actor,
+        &[&after.title, &after.body_md],
+    )?;
     after.category_id = match input.category.as_deref().filter(|c| !c.is_empty()) {
         Some(c) => categories::resolve(&mut *tx, &e.board, c)
             .await?

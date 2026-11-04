@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM mod_report_item WHERE reporter_id = ? AND status = 'open'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "474726c661517b1258b59f2eb95ad1669db3a54d33dc08eaf88b819ae8d6cbb8"
+}

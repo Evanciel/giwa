@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE mod_report_item SET reporter_id = ?, note = NULL WHERE reporter_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "7088fc2edf43e98b367d8f5ef7afc148ead71b24fd0877c9382275b5485d9793"
+}

@@ -125,6 +125,12 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "error.mail_local_only" => {
             "편지 본문에는 1회용 링크가 들어 있어 이 컴퓨터의 `maru mail` 로만 볼 수 있습니다."
         }
+        "error.banned_word" => "금지어 「{word}」가 들어 있어 저장할 수 없습니다.",
+        "error.banned_word_long" => "금지어는 {max}자까지 적을 수 있습니다.",
+        "error.banned_words_many" => "금지어는 {max}개까지 둘 수 있습니다.",
+        "error.flood" => "너무 빨리 쓰고 있습니다. {seconds}초 뒤에 다시 쓰세요.",
+        "error.flood_seconds" => "쓰기 간격은 0~3600초입니다: {value}",
+        "error.same_comment" => "바로 앞에 쓴 댓글과 같습니다.",
         "error.comments_closed" => "이 게시판은 댓글을 받지 않습니다.",
         "error.comment_agent" => {
             "에이전트 토큰으로는 댓글을 쓰지 않습니다. 승인·숨기기·스팸 처리만 할 수 있습니다."

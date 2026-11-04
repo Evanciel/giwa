@@ -9,7 +9,7 @@ use crate::audit::Target;
 use crate::clock;
 use crate::error::{Code, Error, Result};
 use crate::model::{CaptchaMode, SignupMode, SiteSettings};
-use crate::services::required_text;
+use crate::services::{moderation, required_text};
 use crate::store::{Ctx, Tx};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
@@ -50,6 +50,10 @@ pub struct SettingsPatch {
     /// 방문자 통계를 며칠 남길지 (30~3650)
     #[serde(default)]
     pub stats_retention_days: Option<u32>,
+    /// 금지어. 줄바꿈이나 쉼표로 나눈다. 빈 글이면 모두 지운다
+    pub banned_words: Option<String>,
+    /// 회원이 글·댓글을 쓰는 최소 간격(초, 0~3600). 0 이면 끔
+    pub flood_seconds: Option<u32>,
 }
 
 /// 저장된 값 위에 기본값을 채운다. 모르는 키나 잘못된 값은 기본값으로 둔다.
@@ -126,6 +130,19 @@ pub async fn update(ctx: &Ctx, actor: &Actor, patch: SettingsPatch) -> Result<Si
                 .arg("value", n.to_string()));
         }
         changes.push(("stats_retention_days", json!(n)));
+    }
+    if let Some(raw) = &patch.banned_words {
+        actor.require(Permission::MemberManage)?;
+        changes.push(("banned_words", json!(moderation::parse_words(raw)?)));
+    }
+    if let Some(n) = patch.flood_seconds {
+        actor.require(Permission::MemberManage)?;
+        if n > moderation::MAX_FLOOD_SECONDS {
+            return Err(Error::new(Code::Validation)
+                .with_message("error.flood_seconds")
+                .arg("value", n.to_string()));
+        }
+        changes.push(("flood_seconds", json!(n)));
     }
     if let Some(m) = &patch.signup {
         actor.require(Permission::MemberManage)?;

@@ -18,6 +18,7 @@
   <p class="hint">{{ m.description }} (v{{ m.version }}){% if m.widgets %} 위젯: {% for w in m.widgets %}<code>{{ w }}</code>{% if not loop.last %}, {% endif %}{% endfor %}.{% endif %}{% if m.tools %} 툴: {% for t in m.tools %}<code>{{ t }}</code>{% if not loop.last %}, {% endif %}{% endfor %}.{% endif %}</p>
 
   {% if m.installed and m.fields %}
+  {% if m.admin_url and m.enabled %}<p><a href="{{ m.admin_url }}">이 모듈의 관리 화면</a></p>{% endif %}
   <form method="post" action="/admin/modules/{{ m.id }}/settings" class="stack">
     <input type="hidden" name="_csrf" value="{{ csrf }}">
     {% for f in m.fields %}

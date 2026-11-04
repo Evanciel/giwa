@@ -83,6 +83,38 @@ pub(crate) async fn by_id<'e>(e: impl SqliteExecutor<'e>, id: &str) -> Result<Op
     .transpose()
 }
 
+pub(crate) async fn last_member_write<'e>(
+    e: impl SqliteExecutor<'e>,
+    member_id: &str,
+) -> Result<Option<String>> {
+    sqlx::query_scalar!(
+        r#"SELECT MAX(at) AS "at?: String" FROM (
+               SELECT MAX(created_at) AS at FROM comments WHERE author_id = ?1
+               UNION ALL
+               SELECT MAX(created_at) AS at FROM posts WHERE author_id = ?1
+           )"#,
+        member_id
+    )
+    .fetch_one(e)
+    .await
+    .map_err(db_error)
+}
+
+pub(crate) async fn last_member_comment<'e>(
+    e: impl SqliteExecutor<'e>,
+    member_id: &str,
+) -> Result<Option<(String, String)>> {
+    let row = sqlx::query!(
+        "SELECT body, created_at FROM comments
+         WHERE author_id = ? ORDER BY created_at DESC LIMIT 1",
+        member_id
+    )
+    .fetch_optional(e)
+    .await
+    .map_err(db_error)?;
+    Ok(row.map(|r| (r.body, r.created_at)))
+}
+
 pub(crate) async fn of_post<'e>(
     e: impl SqliteExecutor<'e>,
     post_id: &str,

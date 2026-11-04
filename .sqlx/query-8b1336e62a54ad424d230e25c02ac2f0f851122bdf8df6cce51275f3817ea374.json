@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT MAX(at) AS \"at?: String\" FROM (\n               SELECT MAX(created_at) AS at FROM comments WHERE author_id = ?1\n               UNION ALL\n               SELECT MAX(created_at) AS at FROM posts WHERE author_id = ?1\n           )",
+  "describe": {
+    "columns": [
+      {
+        "name": "at?: String",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "8b1336e62a54ad424d230e25c02ac2f0f851122bdf8df6cce51275f3817ea374"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE mod_report_item SET status = ?, resolved_at = ?, resolved_by = ?\n             WHERE target_type = ? AND target_id = ? AND status = 'open'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "84c7707043e4fa0d4bd6185c62dabe4e4aa5bf5880b7f8c530494cb75cc5fd7c"
+}

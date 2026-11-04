@@ -1,0 +1,2 @@
+{# 댓글의 신고 (ADR-0071). `c` 는 _comments.html 의 댓글이다. #}
+{% if s.data.by_id[c.id] %}<p class="comment-actions report-actions"><a href="{{ s.data.by_id[c.id] }}" rel="nofollow">신고</a></p>{% endif %}

@@ -39,6 +39,11 @@ pub fn parse(s: &str) -> Option<OffsetDateTime> {
     OffsetDateTime::parse(s, &Rfc3339).ok()
 }
 
+/// 그 시각에서 지금까지 흐른 초.
+pub fn seconds_since(s: &str) -> Option<i64> {
+    parse(s).map(|t| (OffsetDateTime::now_utc() - t).whole_seconds())
+}
+
 /// 화면용 날짜 `2026. 11. 2.` (한국 표기). `offset_minutes` 는 사이트 시간대(기본 +540).
 pub fn display_date(s: &str, offset_minutes: i32) -> String {
     let Some(t) = parse(s) else {

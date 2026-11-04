@@ -1,0 +1,52 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT target_type AS \"target_type!: String\", target_id AS \"target_id!: String\",\n                      COUNT(*) AS \"n!: i64\", MIN(at) AS \"first_at!: String\"\n               FROM mod_report_item WHERE status = ?\n               GROUP BY target_type, target_id\n               ORDER BY MIN(at) LIMIT ? OFFSET ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "target_type!: String",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_report_item",
+            "name": "target_type"
+          }
+        }
+      },
+      {
+        "name": "target_id!: String",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_report_item",
+            "name": "target_id"
+          }
+        }
+      },
+      {
+        "name": "n!: i64",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": "Expression"
+      },
+      {
+        "name": "first_at!: String",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "2ca5688bb82e01c07f930dfd5676922303fe1527a79e452f08062ee50cd184ff"
+}

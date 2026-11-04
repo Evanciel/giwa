@@ -317,7 +317,7 @@ async fn create(
         Err(e)
             if matches!(
                 e.code(),
-                Code::Validation | Code::Forbidden | Code::NotFound
+                Code::Validation | Code::Forbidden | Code::NotFound | Code::RateLimited
             ) =>
         {
             let status =
@@ -418,7 +418,7 @@ async fn edit(
         Err(err)
             if matches!(
                 err.code(),
-                Code::Validation | Code::Forbidden | Code::NotFound
+                Code::Validation | Code::Forbidden | Code::NotFound | Code::RateLimited
             ) =>
         {
             let status =

@@ -96,6 +96,7 @@ async fn show(
                 "fields": fields,
                 "tools": m.tools.iter().map(|t| &t.name).collect::<Vec<_>>(),
                 "widgets": m.widgets,
+                "admin_url": m.admin_url,
                 "failures": m.failures,
             })
         })

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR IGNORE INTO mod_report_hidden (target_type, target_id, at) VALUES (?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "eb38b587b7e11e6627ae1ec213190d15fd11649df39393a1dcfd67f332900ea8"
+}

@@ -736,6 +736,12 @@ pub struct SiteSettings {
     /// 방문자 통계를 며칠 남길지 (30~3650, ADR-0061)
     #[serde(default = "default_stats_retention_days")]
     pub stats_retention_days: u32,
+    /// 공개 글·댓글에 쓸 수 없는 말 (ADR-0071)
+    #[serde(default)]
+    pub banned_words: Vec<String>,
+    /// 회원이 글·댓글을 쓰는 최소 간격(초). 0 이면 끔 (ADR-0071)
+    #[serde(default)]
+    pub flood_seconds: u32,
 }
 
 /// 사람 확인 질문 (자체 캡차, ADR-0052). 비회원 댓글·회원 가입 폼에 낸다.
@@ -817,6 +823,8 @@ impl Default for SiteSettings {
             signup_verify: true,
             captcha: CaptchaMode::Guest,
             stats_retention_days: default_stats_retention_days(),
+            banned_words: Vec::new(),
+            flood_seconds: 0,
         }
     }
 }

@@ -1138,6 +1138,10 @@ struct SettingsForm {
     google_verification: String,
     #[serde(default)]
     stats_retention_days: String,
+    #[serde(default)]
+    banned_words: String,
+    #[serde(default)]
+    flood_seconds: String,
 }
 
 fn on(b: bool) -> Option<String> {
@@ -1162,6 +1166,8 @@ impl SettingsForm {
             naver_verification: s.naver_verification.clone(),
             google_verification: s.google_verification.clone(),
             stats_retention_days: s.stats_retention_days.to_string(),
+            banned_words: s.banned_words.join("\n"),
+            flood_seconds: s.flood_seconds.to_string(),
         }
     }
 
@@ -1202,6 +1208,14 @@ impl SettingsForm {
             stats_retention_days: changed(
                 number("stats_retention_days", &self.stats_retention_days)?,
                 now.stats_retention_days,
+            ),
+            banned_words: changed(
+                self.banned_words.replace("\r\n", "\n").trim().to_owned(),
+                now.banned_words.join("\n"),
+            ),
+            flood_seconds: changed(
+                number("flood_seconds", &self.flood_seconds)?,
+                now.flood_seconds,
             ),
         })
     }

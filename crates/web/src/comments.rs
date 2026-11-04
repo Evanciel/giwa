@@ -154,7 +154,7 @@ async fn create(
         Err(e)
             if matches!(
                 e.code(),
-                Code::Validation | Code::Forbidden | Code::NotFound
+                Code::Validation | Code::Forbidden | Code::NotFound | Code::RateLimited
             ) =>
         {
             let status =

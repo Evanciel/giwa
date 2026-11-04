@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT reason, note FROM mod_report_item\n                 WHERE target_type = ? AND target_id = ? AND status = ? ORDER BY at",
+  "describe": {
+    "columns": [
+      {
+        "name": "reason",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_report_item",
+            "name": "reason"
+          }
+        }
+      },
+      {
+        "name": "note",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_report_item",
+            "name": "note"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "cb54beabd0f2239ec15e1ee846b2979a07a51871384bfc90af366799cb714dc5"
+}

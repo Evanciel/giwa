@@ -1194,6 +1194,14 @@ impl Store for SqliteStore {
         crate::comments::by_id(&self.db.read, id).await
     }
 
+    async fn last_member_write(&self, member_id: &str) -> Result<Option<String>> {
+        crate::comments::last_member_write(&self.db.read, member_id).await
+    }
+
+    async fn last_member_comment(&self, member_id: &str) -> Result<Option<(String, String)>> {
+        crate::comments::last_member_comment(&self.db.read, member_id).await
+    }
+
     async fn comments_of_post(
         &self,
         post_id: &str,

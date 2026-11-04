@@ -998,6 +998,12 @@ pub struct SiteSetArgs {
     /// 비회원 댓글·회원 가입에 확인 질문을 낼지: off, guest
     #[arg(long)]
     pub captcha: Option<String>,
+    /// 금지어. 쉼표로 나눈다. 빈 값이면 모두 지운다
+    #[arg(long)]
+    pub banned_words: Option<String>,
+    /// 회원이 글·댓글을 쓰는 최소 간격(초, 0~3600). 0 이면 끔
+    #[arg(long)]
+    pub flood_seconds: Option<u32>,
 }
 
 #[derive(Debug, Subcommand)]

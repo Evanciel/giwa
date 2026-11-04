@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR IGNORE INTO mod_report_item\n                 (id, target_type, target_id, reporter_id, reason, note, status, at)\n             VALUES (?, ?, ?, ?, ?, ?, 'open', ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "e60e0394efa9da4ff00d2ae968b18cf4f52fdb79fb702664233bec29b49ddac7"
+}

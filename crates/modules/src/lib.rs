@@ -153,6 +153,11 @@ pub trait Module: Send + Sync {
         Ok(())
     }
 
+    /// 모듈이 가진 관리 화면 주소. 모듈 관리 화면에서 잇는다.
+    fn admin_url(&self) -> Option<&'static str> {
+        None
+    }
+
     fn widget_types(&self) -> Vec<WidgetType> {
         Vec::new()
     }
