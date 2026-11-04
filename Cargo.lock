@@ -1210,6 +1210,8 @@ dependencies = [
  "clap",
  "image",
  "maru-core",
+ "maru-mod-point",
+ "maru-modules",
  "maru-storage",
  "maru-themes",
  "maru-web",
@@ -1248,6 +1250,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "maru-mod-point"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "axum",
+ "maru-core",
+ "maru-modules",
+ "maru-storage",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "maru-modules"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "axum",
+ "maru-core",
+ "schemars",
+ "serde",
+ "serde_json",
+ "tracing",
+]
+
+[[package]]
 name = "maru-storage"
 version = "0.1.0"
 dependencies = [
@@ -1283,10 +1315,12 @@ dependencies = [
 name = "maru-web"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "axum",
  "futures-core",
  "hex",
  "maru-core",
+ "maru-modules",
  "maru-themes",
  "serde",
  "serde_json",

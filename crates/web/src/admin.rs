@@ -31,6 +31,7 @@ use crate::AppState;
 use crate::error::ApiError;
 use crate::field_form;
 
+mod modules;
 mod site;
 
 pub(crate) const SESSION_COOKIE: &str = "maru_session";
@@ -80,6 +81,7 @@ pub fn routes() -> Router<AppState> {
         .route("/admin/categories", post(create_category))
         .route("/admin/assets/{*path}", get(asset))
         .merge(site::routes())
+        .merge(modules::routes())
         .layer(middleware::map_response(admin_headers))
 }
 
@@ -2464,6 +2466,7 @@ async fn widgets_render(
         Ok(l) => l,
         Err(e) => return fail(state, Some(who), &e).await,
     };
+    let all_types = widgets::all_types(&state.ctx).await;
     let regions = WIDGET_REGIONS
         .iter()
         .map(|r| {
@@ -2474,7 +2477,9 @@ async fn widgets_render(
                     json!({
                         "id": w.id,
                         "kind": w.kind,
-                        "kind_name": widgets::kind_name(&w.kind),
+                        "kind_name": all_types.iter().find(|t| t.id == w.kind).map_or(w.kind.as_str(), |t| t.name),
+                        // 모듈이 꺼졌거나 지워지면 공개 화면에서 조용히 빠진다 (SPEC §7.3).
+                        "orphan": !all_types.iter().any(|t| t.id == w.kind),
                         "title": w.title,
                         "scope": w.scope,
                         "enabled": w.enabled,
@@ -2485,8 +2490,8 @@ async fn widgets_render(
             json!({ "id": r, "label": region_label(r), "items": items })
         })
         .collect::<Vec<_>>();
-    let types = widgets::types()
-        .into_iter()
+    let types = all_types
+        .iter()
         .map(|t| json!({ "id": t.id, "name": t.name, "description": t.description }))
         .collect::<Vec<_>>();
     let ctx = merge(

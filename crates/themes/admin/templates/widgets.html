@@ -13,7 +13,7 @@
   <ol class="widget-rows">
   {% for w in r.items %}
     <li class="widget-row{% if not w.enabled %} is-off{% endif %}">
-      <p class="widget-row-head"><strong>{{ w.kind_name }}</strong>{% if w.title %} 「{{ w.title }}」{% endif %} <span class="badge">{{ w.scope }}</span>{% if not w.enabled %} <span class="badge">꺼짐</span>{% endif %}</p>
+      <p class="widget-row-head"><strong>{{ w.kind_name }}</strong>{% if w.title %} 「{{ w.title }}」{% endif %} <span class="badge">{{ w.scope }}</span>{% if not w.enabled %} <span class="badge">꺼짐</span>{% endif %}{% if w.orphan %} <span class="badge">모듈이 꺼져 있어 보이지 않습니다</span>{% endif %}</p>
       <p class="widget-row-config"><code>{{ w.config }}</code></p>
       {% set first = loop.first %}{% set last = loop.last %}
       <div class="actions">

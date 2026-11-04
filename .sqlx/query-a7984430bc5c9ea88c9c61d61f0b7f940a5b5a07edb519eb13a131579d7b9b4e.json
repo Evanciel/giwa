@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE modules SET cursor = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "a7984430bc5c9ea88c9c61d61f0b7f940a5b5a07edb519eb13a131579d7b9b4e"
+}

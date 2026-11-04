@@ -49,6 +49,8 @@ pub async fn run(g: &Global, command: Command) -> ExitCode {
         Command::Widget(cmd) => widget_cmd(g, cmd).await,
         Command::Stats(args) => stats_cmd(g, args).await,
         Command::Audit(AuditCmd::List(args)) => audit_list(g, args).await,
+        Command::Module(cmd) => crate::modules::module_cmd(g, cmd).await,
+        Command::External(args) => crate::modules::external(g, args).await,
         Command::Backup(args) => backup_cmd(g, args).await,
         Command::Restore(args) => restore_cmd(g, args).await,
         Command::Site(cmd) => site(g, cmd).await,
@@ -72,7 +74,7 @@ pub async fn run(g: &Global, command: Command) -> ExitCode {
     }
 }
 
-type Out = Result<(Value, String)>;
+pub(crate) type Out = Result<(Value, String)>;
 
 /// `--quiet` 일 때도 꼭 내보낼 값: 다시 볼 수 없는 토큰 원문과 로그인 링크.
 fn essentials(data: &Value) -> Vec<String> {
@@ -88,15 +90,18 @@ fn essentials(data: &Value) -> Vec<String> {
 }
 
 /// 로컬 CLI 는 운영자다. `MARU_TOKEN` 이 있으면 그 토큰의 스코프로 제한한다 (Q2).
-async fn actor(ctx: &Ctx) -> Result<Actor> {
+pub(crate) async fn actor(ctx: &Ctx) -> Result<Actor> {
     match std::env::var("MARU_TOKEN") {
         Ok(t) if !t.trim().is_empty() => tokens::authenticate(ctx, t.trim()).await,
         _ => Ok(Actor::local()),
     }
 }
 
-async fn open(g: &Global) -> Result<(Ctx, Config, Db)> {
-    maru_storage::open(&DataDir::new(&g.data)).await
+/// 데이터 디렉터리를 연다. 코어가 모듈(위젯 종류 등)을 물을 수 있게 레지스트리를 붙인다.
+pub(crate) async fn open(g: &Global) -> Result<(Ctx, Config, Db)> {
+    let (mut ctx, config, db) = maru_storage::open(&DataDir::new(&g.data)).await?;
+    ctx.extensions = crate::modules::registry(&db)?;
+    Ok((ctx, config, db))
 }
 
 fn to_value<T: serde::Serialize>(v: &T) -> Result<Value> {
@@ -124,6 +129,7 @@ async fn init(g: &Global, args: InitArgs) -> Out {
         store: Arc::new(maru_storage::SqliteStore::new(db.clone())),
         blobs: Arc::new(maru_storage::FsBlobs::new(dir.media_dir())),
         site_url: config.site_url.clone(),
+        extensions: maru_core::store::no_extensions(),
     };
     let local = Actor::local();
     let applied = presets::apply(&ctx, &local, &preset).await?;
@@ -259,7 +265,9 @@ async fn serve_inner(g: &Global, args: ServeArgs) -> Result<()> {
     } else {
         None
     };
-    let (ctx, config, db) = maru_storage::open(&dir).await?;
+    let (ctx, config, db) = open(g).await?;
+    let modules = crate::modules::registry(&db)?;
+    maru_modules::service::upgrade_enabled(&ctx, &modules).await?;
     let bind = args.bind.unwrap_or(config.bind);
     let addr: SocketAddr = bind.parse().map_err(|_| {
         Error::new(Code::Validation)
@@ -285,14 +293,18 @@ async fn serve_inner(g: &Global, args: ServeArgs) -> Result<()> {
     let url = format!("http://{local}");
 
     let theme_dir = dir.themes_dir().join("default");
-    let theme = maru_themes::Theme::new(theme_dir.is_dir().then_some(theme_dir));
+    let theme = maru_themes::Theme::with_templates(
+        theme_dir.is_dir().then_some(theme_dir),
+        modules.iter().flat_map(|m| m.templates()).collect(),
+    );
     // 편지는 지금 파일로만 남긴다 (SMTP 는 ADR-0051 승인 뒤).
     let mailer = maru_storage::mailer::FileMailer::new(dir.mail_dir(), &config.site_url);
     let mail_dir = mailer.dir().display().to_string();
     let archiver = maru_storage::backup::FsArchiver::new(dir.clone(), db.clone());
     let state = maru_web::AppState::new(ctx, theme)
         .with_mailer(Arc::new(mailer))
-        .with_archiver(Arc::new(archiver));
+        .with_archiver(Arc::new(archiver))
+        .with_modules(modules);
     let started = json!({
         "url": url,
         "bind": local.to_string(),
@@ -1354,7 +1366,12 @@ async fn restore_cmd(g: &Global, args: RestoreArgs) -> Out {
     let dir = DataDir::new(&g.data);
     let report = maru_storage::backup::restore(&dir, &args.file).await?;
     // 옛 백업이면 여기서 최신 스키마로 올라간다.
-    let (_ctx, _config, db) = open(g).await?;
+    let (ctx, _config, db) = open(g).await?;
+    // 백업의 VACUUM 이 감사 기록 순번을 바꿀 수 있어 모듈 커서를 끝으로 옮긴다 (ADR-0066).
+    let last = ctx.store.audit_last_seq().await?;
+    for row in ctx.store.module_rows().await? {
+        ctx.store.module_cursor_set(&row.id, last).await?;
+    }
     let (schema, _) = db.schema_versions().await?;
     db.close().await;
     let human = format!(
@@ -1484,9 +1501,15 @@ async fn stats_cmd(g: &Global, args: StatsArgs) -> Out {
 }
 
 async fn widget_cmd(g: &Global, cmd: WidgetCmd) -> Out {
-    // 종류 목록은 데이터 디렉터리 없이도 본다.
+    // 종류 목록은 데이터 디렉터리 없이도 본다 (켜진 모듈의 종류는 있을 때만).
     if let WidgetCmd::Types = cmd {
-        return widget_types();
+        if !DataDir::new(&g.data).is_initialized() {
+            return widget_types(widgets::types());
+        }
+        let (ctx, _config, db) = open(g).await?;
+        let types = widgets::all_types(&ctx).await;
+        db.close().await;
+        return widget_types(types);
     }
     let (ctx, _config, db) = open(g).await?;
     let res = widget_run(&ctx, cmd).await;
@@ -1497,7 +1520,7 @@ async fn widget_cmd(g: &Global, cmd: WidgetCmd) -> Out {
 async fn widget_run(ctx: &Ctx, cmd: WidgetCmd) -> Out {
     let actor = actor(ctx).await?;
     match cmd {
-        WidgetCmd::Types => widget_types(),
+        WidgetCmd::Types => widget_types(widgets::all_types(ctx).await),
         WidgetCmd::List => {
             let list = widgets::list(ctx, &actor).await?;
             let human = if list.is_empty() {
@@ -1558,8 +1581,7 @@ async fn widget_run(ctx: &Ctx, cmd: WidgetCmd) -> Out {
     }
 }
 
-fn widget_types() -> Out {
-    let types = widgets::types();
+fn widget_types(types: Vec<widgets::WidgetType>) -> Out {
     let human = types
         .iter()
         .map(|t| format!("{} — {}: {}", t.id, t.name, t.description))

@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT balance FROM mod_point_balance WHERE member_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "balance",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_point_balance",
+            "name": "balance"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "82bc6e4548c658bff35ba5ac3cad9c968cb39f800a3e182d835da64fd245fae6"
+}

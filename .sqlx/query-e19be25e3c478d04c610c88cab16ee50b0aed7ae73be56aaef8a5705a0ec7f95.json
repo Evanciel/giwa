@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO mod_point_balance (member_id, balance) VALUES (?, ?)\n                 ON CONFLICT (member_id) DO UPDATE SET balance = balance + excluded.balance",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "e19be25e3c478d04c610c88cab16ee50b0aed7ae73be56aaef8a5705a0ec7f95"
+}

@@ -1,7 +1,8 @@
 //! 위젯 배치 (GAP S1, ADR-0059). 영역(`WIDGET_REGIONS`)과 화면 범위를 골라 놓는다.
 //!
-//! 종류는 지금 core 안의 고정 목록이다. 종류마다 설정 구조체가 있어 모르는 칸을 거부하고
-//! 기본값을 채운 모양(정규화)으로 저장한다. 화면 값(글 목록 등)은 web 이 만들고 테마가 그린다.
+//! 코어 종류는 고정 목록이고, 모듈 종류는 `ctx.extensions` 로 묻는다 (ADR-0066). 종류마다 설정
+//! 구조체가 있어 모르는 칸을 거부하고 기본값을 채운 모양(정규화)으로 저장한다. 화면 값(글 목록 등)은
+//! web 이 만들고 테마가 그린다.
 //! Phase 3 에서 쓰기가 changeset op 로 감싸진다 (ADR-0023).
 
 use schemars::JsonSchema;
@@ -236,6 +237,13 @@ pub fn types() -> Vec<WidgetType> {
         .collect()
 }
 
+/// 코어 종류에 켜진 모듈의 종류를 더한 목록 (ADR-0066).
+pub async fn all_types(ctx: &Ctx) -> Vec<WidgetType> {
+    let mut out = types();
+    out.extend(ctx.extensions.widget_types(ctx).await);
+    out
+}
+
 /// 한국어 표시 이름. 모르는 종류면 id 그대로.
 pub fn kind_name(kind: &str) -> &str {
     KINDS
@@ -354,7 +362,7 @@ fn check_pair(kind: &str, region: &str) -> Result<()> {
 
 pub async fn place(ctx: &Ctx, actor: &Actor, input: NewWidget) -> Result<Widget> {
     actor.require(Permission::DesignEdit)?;
-    let kind = check_kind(&input.kind)?;
+    let kind = check_kind(ctx, &input.kind).await?;
     let region = check_region(&input.region)?;
     check_pair(&kind, &region)?;
     let scope = check_scope(&input.scope)?;
@@ -473,9 +481,10 @@ fn not_found(id: &str) -> Error {
         .next("maru widget list")
 }
 
-fn check_kind(kind: &str) -> Result<String> {
+async fn check_kind(ctx: &Ctx, kind: &str) -> Result<String> {
     let k = kind.trim();
-    if KINDS.iter().any(|(id, ..)| *id == k) {
+    let extra = ctx.extensions.widget_types(ctx).await;
+    if KINDS.iter().any(|(id, ..)| *id == k) || extra.iter().any(|t| t.id == k) {
         return Ok(k.to_owned());
     }
     Err(Error::new(Code::Validation)
@@ -486,6 +495,7 @@ fn check_kind(kind: &str) -> Result<String> {
             KINDS
                 .iter()
                 .map(|(id, ..)| *id)
+                .chain(extra.iter().map(|t| t.id))
                 .collect::<Vec<_>>()
                 .join(", "),
         )
@@ -610,6 +620,15 @@ fn short_text(kind: &str, field: &str, v: &str, max: usize, required: bool) -> R
 
 /// 종류에 맞는 설정인지 보고 기본값을 채운 모양으로 돌려준다.
 async fn check_config(ctx: &Ctx, kind: &str, config: Value) -> Result<Value> {
+    // 코어 목록에 없으면 모듈 몫이다. 모듈이 꺼져 있으면 모르는 종류로 친다.
+    if !KINDS.iter().any(|(id, ..)| *id == kind) {
+        // 설정을 안 적었으면 빈 값으로 넘겨 모듈이 기본값을 채우게 한다.
+        let config = if config.is_null() { json!({}) } else { config };
+        return match ctx.extensions.check_widget(ctx, kind, config).await {
+            Some(r) => r,
+            None => check_kind(ctx, kind).await.map(|_| Value::Null),
+        };
+    }
     let v = match kind {
         "latest_posts" => {
             let mut c: LatestPostsConfig = parse(kind, config)?;

@@ -13,6 +13,8 @@ workspace = true
 [dependencies]
 maru-core.workspace = true
 maru-themes.workspace = true
+maru-modules.workspace = true
+async-trait.workspace = true
 axum.workspace = true
 tokio.workspace = true
 futures-core.workspace = true

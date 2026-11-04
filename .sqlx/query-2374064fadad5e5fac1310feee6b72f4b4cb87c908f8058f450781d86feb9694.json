@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM module_event_failures WHERE module = ? AND event_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "2374064fadad5e5fac1310feee6b72f4b4cb87c908f8058f450781d86feb9694"
+}

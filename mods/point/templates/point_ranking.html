@@ -1,0 +1,8 @@
+{# 포인트 순위 위젯. 좁은 곁가지에서도 한 줄로 줄어든다. #}
+{% if w.data.rows %}
+<ol class="widget-lines numbered">
+  {% for r in w.data.rows %}
+  <li><span class="rank" aria-hidden="true">{{ r.rank }}</span><span class="subject">{{ r.name }} <span class="date">Lv.{{ r.level }}</span></span><span class="date">{{ r.balance }}점</span></li>
+  {% endfor %}
+</ol>
+{% else %}<p class="widget-empty">아직 포인트를 받은 회원이 없습니다.</p>{% endif %}

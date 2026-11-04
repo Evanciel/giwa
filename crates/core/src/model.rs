@@ -608,6 +608,48 @@ pub struct AuditEntry {
     pub at: String,
 }
 
+/// 모듈 상태 한 줄 (ADR-0066). 줄이 있으면 설치된 것이다.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct ModuleRow {
+    pub id: String,
+    pub enabled: bool,
+    pub version: String,
+    /// 기본값과 달리 저장한 설정
+    pub settings: serde_json::Value,
+    /// 이 모듈이 여기까지 받은 감사 기록 순번
+    pub cursor: i64,
+    pub installed_at: String,
+    pub updated_at: String,
+}
+
+/// 모듈이 처리하지 못한 이벤트 (ADR-0066).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ModuleFailure {
+    pub module: String,
+    pub event_id: String,
+    pub action: String,
+    pub attempts: i64,
+    pub last_error: String,
+    pub next_at: String,
+    /// 재시도를 멈췄다
+    pub gave_up: bool,
+    pub first_at: String,
+}
+
+/// 모듈에 넘기는 이벤트: 감사 기록 한 줄 (ADR-0066). `seq` 는 적힌 순서.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct AuditEvent {
+    pub seq: i64,
+    pub id: String,
+    pub actor_type: String,
+    pub actor_id: Option<String>,
+    pub action: String,
+    pub target_type: String,
+    pub target_id: Option<String>,
+    pub diff: serde_json::Value,
+    pub at: String,
+}
+
 /// 하루 방문 집계 (ADR-0061). `day` 는 한국 시간 `YYYY-MM-DD`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct StatDay {

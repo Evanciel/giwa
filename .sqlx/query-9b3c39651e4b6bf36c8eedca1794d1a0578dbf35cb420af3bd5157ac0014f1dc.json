@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT version FROM module_migrations WHERE module = ? AND version = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "version",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "module_migrations",
+            "name": "version"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "9b3c39651e4b6bf36c8eedca1794d1a0578dbf35cb420af3bd5157ac0014f1dc"
+}

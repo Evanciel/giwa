@@ -196,6 +196,13 @@ pub fn lookup(key: &str) -> Option<&'static str> {
             "파일 올리기 역할은 회원 이상이거나 none 이어야 합니다: {value}. 손님 업로드는 받지 않습니다."
         }
         "error.upload_quota" => "파일은 하루에 {max}개까지 올릴 수 있습니다. 내일 다시 시도하세요.",
+        "error.module_message" => "{text}",
+        "error.module_not_found" => "모듈을 찾을 수 없습니다: {id}",
+        "error.module_disabled" => "모듈이 켜져 있지 않습니다: {id}",
+        "error.module_tool_not_found" => "{module} 모듈에 없는 툴입니다: {tool}",
+        "error.module_remove_confirm" => {
+            "제거하면 {id} 모듈의 데이터가 사라집니다. --purge --yes 를 함께 적으세요. 데이터를 남기려면 disable 을 쓰세요."
+        }
         "error.form_number" => "`{field}` 칸에는 숫자를 넣으세요: {value}",
         "error.form_choice" => "`{field}` 칸의 값 `{value}` 는 고를 수 없습니다.",
         "error.menu_child_first" => "하위 항목 「{label}」 위에 첫 단계 항목이 있어야 합니다.",

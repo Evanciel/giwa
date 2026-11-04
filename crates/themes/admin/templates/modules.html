@@ -1,0 +1,62 @@
+{% extends "_base.html" %}
+{% block title %}모듈{% endblock %}
+{% block content %}
+<div class="heading-row">
+  <h1>모듈 <span class="count">{{ items | length }}</span></h1>
+</div>
+<p class="hint">코어 밖의 기능입니다. 켜면 표가 만들어지고 화면·위젯·이벤트가 붙습니다. 꺼도 데이터는 남고, 제거하면 그 모듈의 데이터만 사라집니다. 글·회원 같은 코어 데이터는 그대로입니다.</p>
+
+{% for m in items %}
+<section class="site-section module-card" aria-labelledby="mod-{{ m.id }}">
+  <div class="heading-row">
+    <h2 id="mod-{{ m.id }}">{{ m.name }} <code>{{ m.id }}</code> <span class="badge">{% if m.enabled %}켜짐{% elif m.installed %}꺼짐{% else %}설치 안 됨{% endif %}</span>{% if m.failures %} <span class="badge">실패 {{ m.failures }}</span>{% endif %}</h2>
+    <form method="post" action="/admin/modules/{{ m.id }}/{% if m.enabled %}disable{% else %}enable{% endif %}" class="inline">
+      <input type="hidden" name="_csrf" value="{{ csrf }}">
+      <button type="submit" class="{% if m.enabled %}secondary{% endif %}" aria-label="{{ m.name }} {% if m.enabled %}끄기{% else %}켜기{% endif %}">{% if m.enabled %}끄기{% else %}켜기{% endif %}</button>
+    </form>
+  </div>
+  <p class="hint">{{ m.description }} (v{{ m.version }}){% if m.widgets %} 위젯: {% for w in m.widgets %}<code>{{ w }}</code>{% if not loop.last %}, {% endif %}{% endfor %}.{% endif %}{% if m.tools %} 툴: {% for t in m.tools %}<code>{{ t }}</code>{% if not loop.last %}, {% endif %}{% endfor %}.{% endif %}</p>
+
+  {% if m.installed and m.fields %}
+  <form method="post" action="/admin/modules/{{ m.id }}/settings" class="stack">
+    <input type="hidden" name="_csrf" value="{{ csrf }}">
+    {% for f in m.fields %}
+    <div class="stack">
+      <label for="mod-{{ m.id }}-{{ f.key }}">{{ f.label }}{% if f.help %} <span class="hint">{{ f.help }}</span>{% endif %}</label>
+      <input id="mod-{{ m.id }}-{{ f.key }}" name="{{ f.key }}" value="{{ f.value }}"{% if f.kind == "number" %} inputmode="numeric"{% endif %}>
+    </div>
+    {% endfor %}
+    <div><button type="submit" aria-label="{{ m.name }} 설정 저장">설정 저장</button></div>
+  </form>
+  {% endif %}
+
+  {% if m.installed %}
+  <form method="post" action="/admin/modules/{{ m.id }}/remove" class="stack module-remove">
+    <input type="hidden" name="_csrf" value="{{ csrf }}">
+    <label for="mod-{{ m.id }}-confirm">제거 <span class="hint">이 모듈의 데이터를 지웁니다. 되돌릴 수 없으니 먼저 백업하세요. 확인 칸에 <code>{{ m.id }}</code> 를 적으세요</span></label>
+    <div class="module-remove-row">
+      <input id="mod-{{ m.id }}-confirm" name="confirm" autocomplete="off">
+      <button type="submit" class="warn" aria-label="{{ m.name }} 제거">제거</button>
+    </div>
+  </form>
+  {% endif %}
+</section>
+{% else %}
+<p class="hint">이 바이너리에 든 모듈이 없습니다.</p>
+{% endfor %}
+
+{% if failures %}
+<section class="site-section" aria-labelledby="mod-fail">
+  <h2 id="mod-fail">처리하지 못한 이벤트</h2>
+  <p class="hint">모듈이 이벤트를 처리하다 실패한 기록입니다. 5번까지 다시 시도하고, 그래도 안 되면 「멈춤」으로 남습니다.</p>
+  <table class="stat-table">
+    <thead><tr><th scope="col">모듈</th><th scope="col">동작</th><th scope="col" class="num">시도</th><th scope="col">오류</th><th scope="col">상태</th></tr></thead>
+    <tbody>
+    {% for f in failures %}
+      <tr><th scope="row"><code>{{ f.module }}</code></th><td><code>{{ f.action }}</code></td><td class="num">{{ f.attempts }}</td><td>{{ f.last_error }}</td><td>{% if f.gave_up %}멈춤{% else %}재시도 대기{% endif %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+{% endblock %}

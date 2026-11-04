@@ -70,6 +70,9 @@ async fn view(
 ) -> Result<Option<Value>> {
     let ctx = &state.ctx;
     let mut more_url = Value::Null;
+    // 모듈 위젯만 채운다 (ADR-0066).
+    let mut template = Value::Null;
+    let mut module_label = None;
     let data = match w.kind.as_str() {
         "latest_posts" => {
             let c: LatestPostsConfig = cfg(w)?;
@@ -201,7 +204,21 @@ async fn view(
                 "key": format!("{}:{}", w.id, w.updated_at),
             })
         }
-        _ => return Ok(None),
+        // 코어 종류가 아니면 켜진 모듈의 것이다. 꺼진 모듈의 위젯은 조용히 빠진다 (SPEC §7.3).
+        _ => {
+            let Some(owner) = state.modules.widget_owner(ctx, &w.kind).await else {
+                return Ok(None);
+            };
+            template = json!(format!("mod/{}/{}.html", owner.manifest().id, w.kind));
+            module_label = owner
+                .widget_types()
+                .into_iter()
+                .find(|t| t.id == w.kind)
+                .map(|t| t.name);
+            let v = owner.widget_view(ctx, &w.kind, &w.config).await?;
+            more_url = v.get("more_url").cloned().unwrap_or(Value::Null);
+            v
+        }
     };
     Ok(Some(json!({
         "id": w.id,
@@ -209,7 +226,8 @@ async fn view(
         "region": w.region,
         "title": w.title,
         // 제목이 없을 때 영역 이름(aria-label)으로 쓴다
-        "label": if w.title.is_empty() { widgets::kind_name(&w.kind) } else { w.title.as_str() },
+        "label": if w.title.is_empty() { module_label.unwrap_or(widgets::kind_name(&w.kind)) } else { w.title.as_str() },
+        "template": template,
         "more_url": more_url,
         "data": data,
     })))

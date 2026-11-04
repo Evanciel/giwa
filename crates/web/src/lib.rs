@@ -11,6 +11,7 @@ mod error;
 mod etag;
 mod feeds;
 mod field_form;
+mod modules;
 mod public;
 mod ratelimit;
 mod widgets;
@@ -34,6 +35,7 @@ use maru_core::services::stats::{self, StatCounter};
 use maru_core::services::views::{self, ViewCounter};
 use maru_core::services::{auth, fonts, media, posts};
 use maru_core::{Code, Ctx, Error, Result};
+use maru_modules::Registry;
 use maru_themes::{Admin, Theme};
 use tokio::net::TcpListener;
 use tokio::sync::Semaphore;
@@ -57,6 +59,8 @@ const SCHEDULE_EVERY: Duration = Duration::from_secs(20);
 const MAIL_EVERY: Duration = Duration::from_secs(5);
 /// 모은 조회수를 DB 에 더하는 주기 (ADR-0049). 조회마다 쓰지 않는다.
 const VIEWS_EVERY: Duration = Duration::from_secs(20);
+/// 모듈 이벤트를 넘기는 주기.
+const MODULES_EVERY: Duration = Duration::from_secs(2);
 /// argon2 를 동시에 계산하는 최대 수.
 const LOGIN_CONCURRENCY: usize = 2;
 /// 이미지 디코딩·인코딩을 동시에 하는 최대 수.
@@ -78,6 +82,8 @@ pub struct AppState {
     pub mailer: Option<Arc<dyn Mailer>>,
     /// 백업 파일 보관소 (ADR-0063). 없으면 백업 경로가 「쓸 수 없음」으로 답한다.
     pub archiver: Option<Arc<dyn Archiver>>,
+    /// 이 바이너리에 든 모듈 (ADR-0066). 켜짐은 DB 에 있다.
+    pub modules: Arc<Registry>,
 }
 
 impl AppState {
@@ -93,7 +99,13 @@ impl AppState {
             stats: Arc::new(StatCounter::new()),
             mailer: None,
             archiver: None,
+            modules: Arc::new(Registry::default()),
         }
+    }
+
+    pub fn with_modules(mut self, modules: Arc<Registry>) -> Self {
+        self.modules = modules;
+        self
     }
 
     pub fn with_mailer(mut self, mailer: Arc<dyn Mailer>) -> Self {
@@ -121,6 +133,7 @@ pub fn router(state: AppState) -> Router {
         .merge(account::routes())
         .merge(comments::routes())
         .merge(board_write::routes())
+        .merge(modules::routes(&state))
         .nest("/api/v1", api::routes())
         .layer(middleware::from_fn_with_state(state.clone(), rate_limit))
         .layer(middleware::from_fn_with_state(state.clone(), count_visit))
@@ -204,6 +217,7 @@ pub async fn serve(
     let scheduled = tokio::spawn(schedule_loop(state.clone()));
     let counted = tokio::spawn(views_loop(state.clone()));
     let mailed = tokio::spawn(mail_loop(state.clone()));
+    let delivered = tokio::spawn(modules_loop(state.clone()));
     let res = axum::serve(
         listener,
         router(state.clone()).into_make_service_with_connect_info::<SocketAddr>(),
@@ -215,8 +229,25 @@ pub async fn serve(
     scheduled.abort();
     counted.abort();
     mailed.abort();
+    delivered.abort();
     flush_views(&state).await;
     res
+}
+
+/// 밀린 이벤트를 모듈에 넘긴다 (ADR-0066). 모듈이 없으면 아무것도 하지 않는다.
+async fn modules_loop(state: AppState) {
+    if state.modules.iter().next().is_none() {
+        return;
+    }
+    let mut tick = tokio::time::interval(MODULES_EVERY);
+    loop {
+        tick.tick().await;
+        match maru_modules::delivery::deliver_once(&state.ctx, &state.modules).await {
+            Ok(0) => {}
+            Ok(n) => tracing::debug!(events = n, "모듈 이벤트 배달"),
+            Err(e) => tracing::warn!(error = ?e, "모듈 이벤트 배달 실패, 다음 주기에 다시 시도"),
+        }
+    }
 }
 
 /// 쌓인 편지를 주기마다 배달한다. 전송 방식이 없으면 아무것도 하지 않는다.

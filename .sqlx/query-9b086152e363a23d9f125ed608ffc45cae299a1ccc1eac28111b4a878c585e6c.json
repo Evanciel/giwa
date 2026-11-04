@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO module_event_failures\n                (module, event_id, action, attempts, last_error, next_at, gave_up, first_at)\n             VALUES (?, ?, ?, ?, ?, ?, ?, ?)\n             ON CONFLICT (module, event_id) DO UPDATE SET attempts = excluded.attempts,\n                last_error = excluded.last_error, next_at = excluded.next_at, gave_up = excluded.gave_up",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 8
+    },
+    "nullable": []
+  },
+  "hash": "9b086152e363a23d9f125ed608ffc45cae299a1ccc1eac28111b4a878c585e6c"
+}

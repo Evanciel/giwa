@@ -1,0 +1,98 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, enabled AS \"enabled: bool\", version, settings, cursor, installed_at, updated_at\n               FROM modules WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "modules",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "enabled: bool",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "modules",
+            "name": "enabled"
+          }
+        }
+      },
+      {
+        "name": "version",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "modules",
+            "name": "version"
+          }
+        }
+      },
+      {
+        "name": "settings",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "modules",
+            "name": "settings"
+          }
+        }
+      },
+      {
+        "name": "cursor",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "modules",
+            "name": "cursor"
+          }
+        }
+      },
+      {
+        "name": "installed_at",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "modules",
+            "name": "installed_at"
+          }
+        }
+      },
+      {
+        "name": "updated_at",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "modules",
+            "name": "updated_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "dbba867b8c28b7a5f9147df7ff7ba0fb3605e156081cd272cb355ce32648f0d0"
+}

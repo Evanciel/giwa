@@ -2,6 +2,6 @@
 {% if w.kind == "notice_bar" %}{% include "widgets/notice_bar.html" %}{% else %}
 <section class="widget widget-{{ w.kind }}"{% if w.title %} aria-labelledby="w-{{ w.id }}"{% else %} aria-label="{{ w.label }}"{% endif %}>
   {% if w.title %}<div class="widget-head"><h2 class="widget-title" id="w-{{ w.id }}">{{ w.title }}</h2>{% if w.more_url %}<a class="widget-more" href="{{ w.more_url }}">더 보기<span class="visually-hidden"> — {{ w.title }}</span></a>{% endif %}</div>{% endif %}
-  {% include "widgets/" ~ w.kind ~ ".html" %}
+  {% include w.template or "widgets/" ~ w.kind ~ ".html" %}
 </section>
 {% endif %}

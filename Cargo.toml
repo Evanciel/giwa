@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/*"]
+members = ["crates/*", "mods/*"]
 
 [workspace.package]
 version = "0.1.0"
@@ -14,6 +14,8 @@ maru-core = { path = "crates/core" }
 maru-storage = { path = "crates/storage" }
 maru-themes = { path = "crates/themes" }
 maru-web = { path = "crates/web" }
+maru-modules = { path = "crates/modules" }
+maru-mod-point = { path = "mods/point" }
 
 # 웹
 axum = "0.8.9"

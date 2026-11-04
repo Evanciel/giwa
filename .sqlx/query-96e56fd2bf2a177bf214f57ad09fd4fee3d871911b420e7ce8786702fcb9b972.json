@@ -1,0 +1,110 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT module, event_id, action, attempts, last_error, next_at,\n                      gave_up AS \"gave_up: bool\", first_at\n               FROM module_event_failures\n               WHERE module = ? AND gave_up = 0 AND next_at <= ?\n               ORDER BY next_at LIMIT 50",
+  "describe": {
+    "columns": [
+      {
+        "name": "module",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "module_event_failures",
+            "name": "module"
+          }
+        }
+      },
+      {
+        "name": "event_id",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "module_event_failures",
+            "name": "event_id"
+          }
+        }
+      },
+      {
+        "name": "action",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "module_event_failures",
+            "name": "action"
+          }
+        }
+      },
+      {
+        "name": "attempts",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "module_event_failures",
+            "name": "attempts"
+          }
+        }
+      },
+      {
+        "name": "last_error",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "module_event_failures",
+            "name": "last_error"
+          }
+        }
+      },
+      {
+        "name": "next_at",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "module_event_failures",
+            "name": "next_at"
+          }
+        }
+      },
+      {
+        "name": "gave_up: bool",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "module_event_failures",
+            "name": "gave_up"
+          }
+        }
+      },
+      {
+        "name": "first_at",
+        "ordinal": 7,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "module_event_failures",
+            "name": "first_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "96e56fd2bf2a177bf214f57ad09fd4fee3d871911b420e7ce8786702fcb9b972"
+}

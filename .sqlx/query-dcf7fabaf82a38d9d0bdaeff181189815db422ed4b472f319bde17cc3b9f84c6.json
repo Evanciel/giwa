@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO module_migrations (module, version, name, applied_at) VALUES (?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "dcf7fabaf82a38d9d0bdaeff181189815db422ed4b472f319bde17cc3b9f84c6"
+}

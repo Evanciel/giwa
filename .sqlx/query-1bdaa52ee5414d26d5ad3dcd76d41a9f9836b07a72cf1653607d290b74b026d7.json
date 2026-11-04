@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO audit_log (id, actor_type, actor_id, action, target_type, target_id, diff, at)\n         VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 8
+    },
+    "nullable": []
+  },
+  "hash": "1bdaa52ee5414d26d5ad3dcd76d41a9f9836b07a72cf1653607d290b74b026d7"
+}

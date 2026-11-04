@@ -1,0 +1,122 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT rowid AS \"seq!: i64\", id AS \"id!: String\", actor_type AS \"actor_type!: String\",\n                      actor_id AS \"actor_id?: String\", action AS \"action!: String\",\n                      target_type AS \"target_type!: String\", target_id AS \"target_id?: String\",\n                      diff AS \"diff!: String\", at AS \"at!: String\"\n               FROM audit_log\n               WHERE rowid > ? AND rowid <= ? AND action IN (SELECT value FROM json_each(?))\n               ORDER BY rowid LIMIT ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "seq!: i64",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "audit_log",
+            "name": "rowid"
+          }
+        }
+      },
+      {
+        "name": "id!: String",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "audit_log",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "actor_type!: String",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "audit_log",
+            "name": "actor_type"
+          }
+        }
+      },
+      {
+        "name": "actor_id?: String",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "audit_log",
+            "name": "actor_id"
+          }
+        }
+      },
+      {
+        "name": "action!: String",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "audit_log",
+            "name": "action"
+          }
+        }
+      },
+      {
+        "name": "target_type!: String",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "audit_log",
+            "name": "target_type"
+          }
+        }
+      },
+      {
+        "name": "target_id?: String",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "audit_log",
+            "name": "target_id"
+          }
+        }
+      },
+      {
+        "name": "diff!: String",
+        "ordinal": 7,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "audit_log",
+            "name": "diff"
+          }
+        }
+      },
+      {
+        "name": "at!: String",
+        "ordinal": 8,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "audit_log",
+            "name": "at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "8ee572d3557cecca0a0d5e6a1eb7a3eaebf02cc0bdec9cd07418fad9f18912bf"
+}

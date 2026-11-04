@@ -26,6 +26,7 @@ async fn env(upload: &str) -> Env {
         store: Arc::new(SqliteStore::new(db.clone())),
         blobs: Arc::new(FsBlobs::new(dir.media_dir())),
         site_url: "http://127.0.0.1:8080".into(),
+        extensions: maru_core::store::no_extensions(),
     };
     boards::create(
         &ctx,

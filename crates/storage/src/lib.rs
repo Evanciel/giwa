@@ -32,6 +32,7 @@ pub async fn open(dir: &DataDir) -> Result<(Ctx, Config, Db)> {
         store: Arc::new(SqliteStore::new(db.clone())),
         blobs: Arc::new(FsBlobs::new(dir.media_dir())),
         site_url: config.site_url.clone(),
+        extensions: maru_core::store::no_extensions(),
     };
     Ok((ctx, config, db))
 }

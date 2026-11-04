@@ -419,3 +419,9 @@ input.short { max-width: 10rem; }
   .member-table button { white-space: nowrap; }
   .site-table:not(.member-table) td:nth-child(4), .site-table:not(.member-table) thead th:nth-child(4) { display: none; }
 }
+
+/* 모듈 (ADR-0066) */
+.module-card h2 code { font-weight: 400; font-size: .85em; }
+.module-remove { margin-top: 1rem; padding-top: .75rem; border-top: 1px solid var(--border); }
+.module-remove-row { display: flex; gap: .5rem; flex-wrap: wrap; }
+.module-remove-row input { flex: 1 1 10rem; min-width: 0; }

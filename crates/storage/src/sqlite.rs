@@ -4,18 +4,19 @@ use async_trait::async_trait;
 use maru_core::actor::{AuthorType, Permission, Scope};
 use maru_core::audit::AuditRecord;
 use maru_core::model::{
-    Attachment, AuditEntry, Board, BoardPolicy, Category, Comment, CommentStatus, Font, FontFile,
-    Listing, LoginTicket, MailOut, MailStatus, Media, MediaVariant, Member, MemberStatus, Page,
-    PageReq, PageStatus, Post, PostKind, PostStatus, PostTemplate, Revision, Role, Session,
-    StatBatch, StatDay, StatPage, StatReferrer, Tag, TicketPurpose, Token, Widget,
+    Attachment, AuditEntry, AuditEvent, Board, BoardPolicy, Category, Comment, CommentStatus, Font,
+    FontFile, Listing, LoginTicket, MailOut, MailStatus, Media, MediaVariant, Member, MemberStatus,
+    ModuleFailure, ModuleRow, Page, PageReq, PageStatus, Post, PostKind, PostStatus, PostTemplate,
+    Revision, Role, Session, StatBatch, StatDay, StatPage, StatReferrer, Tag, TicketPurpose, Token,
+    Widget,
 };
 use maru_core::store::{
-    AuditFilter, CommentQuery, MenuRow, PopularQuery, PostFilter, PublishedQuery, SearchQuery,
-    SearchRef, Store, WriteTx,
+    AuditFilter, CommentQuery, MenuRow, ModuleMigration, PopularQuery, PostFilter, PublishedQuery,
+    SearchQuery, SearchRef, Store, WriteTx,
 };
 use maru_core::{Code, Error, Result, clock, slug, urls};
 use serde_json::Value;
-use sqlx::{Sqlite, SqliteExecutor, Transaction};
+use sqlx::{Sqlite, SqliteConnection, SqliteExecutor, Transaction};
 
 use crate::db::Db;
 
@@ -439,6 +440,27 @@ async fn post_by_id<'e>(e: impl SqliteExecutor<'e>, id: &str) -> Result<Option<P
     .transpose()
 }
 
+/// 감사 기록 한 줄을 이 연결(트랜잭션)에 쓴다. 모듈이 자기 트랜잭션에 함께 남길 때도 쓴다.
+pub async fn insert_audit(conn: &mut SqliteConnection, rec: &AuditRecord) -> Result<()> {
+    let diff = json(&rec.diff)?;
+    sqlx::query!(
+        "INSERT INTO audit_log (id, actor_type, actor_id, action, target_type, target_id, diff, at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        rec.id,
+        rec.actor_type,
+        rec.actor_id,
+        rec.action,
+        rec.target_type,
+        rec.target_id,
+        diff,
+        rec.at
+    )
+    .execute(&mut *conn)
+    .await
+    .map_err(db_error)?;
+    Ok(())
+}
+
 #[async_trait]
 impl Store for SqliteStore {
     async fn begin_write(&self) -> Result<Box<dyn WriteTx>> {
@@ -449,6 +471,306 @@ impl Store for SqliteStore {
             .await
             .map_err(db_error)?;
         Ok(Box::new(SqliteWriteTx { tx }))
+    }
+
+    async fn module_rows(&self) -> Result<Vec<ModuleRow>> {
+        sqlx::query!(
+            r#"SELECT id, enabled AS "enabled: bool", version, settings, cursor, installed_at, updated_at
+               FROM modules ORDER BY id"#
+        )
+        .fetch_all(&self.db.read)
+        .await
+        .map_err(db_error)?
+        .into_iter()
+        .map(|r| {
+            Ok(ModuleRow {
+                id: r.id,
+                enabled: r.enabled,
+                version: r.version,
+                settings: serde_json::from_str(&r.settings).map_err(Error::internal)?,
+                cursor: r.cursor,
+                installed_at: r.installed_at,
+                updated_at: r.updated_at,
+            })
+        })
+        .collect()
+    }
+
+    async fn module_row(&self, id: &str) -> Result<Option<ModuleRow>> {
+        let r = sqlx::query!(
+            r#"SELECT id, enabled AS "enabled: bool", version, settings, cursor, installed_at, updated_at
+               FROM modules WHERE id = ?"#,
+            id
+        )
+        .fetch_optional(&self.db.read)
+        .await
+        .map_err(db_error)?;
+        r.map(|r| {
+            Ok(ModuleRow {
+                id: r.id,
+                enabled: r.enabled,
+                version: r.version,
+                settings: serde_json::from_str(&r.settings).map_err(Error::internal)?,
+                cursor: r.cursor,
+                installed_at: r.installed_at,
+                updated_at: r.updated_at,
+            })
+        })
+        .transpose()
+    }
+
+    async fn module_apply(&self, id: &str, migrations: &[ModuleMigration]) -> Result<Vec<i64>> {
+        let mut applied = Vec::new();
+        for m in migrations {
+            let mut tx = self
+                .db
+                .write
+                .begin_with("BEGIN IMMEDIATE")
+                .await
+                .map_err(db_error)?;
+            let done = sqlx::query!(
+                "SELECT version FROM module_migrations WHERE module = ? AND version = ?",
+                id,
+                m.version
+            )
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(db_error)?;
+            if done.is_some() {
+                continue;
+            }
+            sqlx::raw_sql(sqlx::AssertSqlSafe(m.up))
+                .execute(&mut *tx)
+                .await
+                .map_err(db_error)?;
+            let now = maru_core::clock::now();
+            sqlx::query!(
+                "INSERT INTO module_migrations (module, version, name, applied_at) VALUES (?, ?, ?, ?)",
+                id,
+                m.version,
+                m.name,
+                now
+            )
+            .execute(&mut *tx)
+            .await
+            .map_err(db_error)?;
+            tx.commit().await.map_err(db_error)?;
+            applied.push(m.version);
+        }
+        Ok(applied)
+    }
+
+    async fn module_revert(&self, id: &str, migrations: &[ModuleMigration]) -> Result<Vec<i64>> {
+        let mut reverted = Vec::new();
+        for m in migrations.iter().rev() {
+            let mut tx = self
+                .db
+                .write
+                .begin_with("BEGIN IMMEDIATE")
+                .await
+                .map_err(db_error)?;
+            let done = sqlx::query!(
+                "SELECT version FROM module_migrations WHERE module = ? AND version = ?",
+                id,
+                m.version
+            )
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(db_error)?;
+            if done.is_none() {
+                continue;
+            }
+            sqlx::raw_sql(sqlx::AssertSqlSafe(m.down))
+                .execute(&mut *tx)
+                .await
+                .map_err(db_error)?;
+            sqlx::query!(
+                "DELETE FROM module_migrations WHERE module = ? AND version = ?",
+                id,
+                m.version
+            )
+            .execute(&mut *tx)
+            .await
+            .map_err(db_error)?;
+            tx.commit().await.map_err(db_error)?;
+            reverted.push(m.version);
+        }
+        Ok(reverted)
+    }
+
+    async fn module_cursor_set(&self, id: &str, seq: i64) -> Result<()> {
+        sqlx::query!("UPDATE modules SET cursor = ? WHERE id = ?", seq, id)
+            .execute(&self.db.write)
+            .await
+            .map_err(db_error)?;
+        Ok(())
+    }
+
+    async fn audit_last_seq(&self) -> Result<i64> {
+        let r = sqlx::query!(r#"SELECT COALESCE(MAX(rowid), 0) AS "seq!: i64" FROM audit_log"#)
+            .fetch_one(&self.db.read)
+            .await
+            .map_err(db_error)?;
+        Ok(r.seq)
+    }
+
+    async fn audit_after(
+        &self,
+        after: i64,
+        upto: i64,
+        actions: &[&str],
+        limit: i64,
+    ) -> Result<Vec<AuditEvent>> {
+        let list = json(&actions)?;
+        sqlx::query!(
+            r#"SELECT rowid AS "seq!: i64", id AS "id!: String", actor_type AS "actor_type!: String",
+                      actor_id AS "actor_id?: String", action AS "action!: String",
+                      target_type AS "target_type!: String", target_id AS "target_id?: String",
+                      diff AS "diff!: String", at AS "at!: String"
+               FROM audit_log
+               WHERE rowid > ? AND rowid <= ? AND action IN (SELECT value FROM json_each(?))
+               ORDER BY rowid LIMIT ?"#,
+            after,
+            upto,
+            list,
+            limit
+        )
+        .fetch_all(&self.db.read)
+        .await
+        .map_err(db_error)?
+        .into_iter()
+        .map(|r| {
+            Ok(AuditEvent {
+                seq: r.seq,
+                id: r.id,
+                actor_type: r.actor_type,
+                actor_id: r.actor_id,
+                action: r.action,
+                target_type: r.target_type,
+                target_id: r.target_id,
+                diff: serde_json::from_str(&r.diff).map_err(Error::internal)?,
+                at: r.at,
+            })
+        })
+        .collect()
+    }
+
+    async fn audit_event(&self, id: &str) -> Result<Option<AuditEvent>> {
+        let r = sqlx::query!(
+            r#"SELECT rowid AS "seq!: i64", id AS "id!: String", actor_type AS "actor_type!: String",
+                      actor_id AS "actor_id?: String", action AS "action!: String",
+                      target_type AS "target_type!: String", target_id AS "target_id?: String",
+                      diff AS "diff!: String", at AS "at!: String"
+               FROM audit_log WHERE id = ?"#,
+            id
+        )
+        .fetch_optional(&self.db.read)
+        .await
+        .map_err(db_error)?;
+        r.map(|r| {
+            Ok(AuditEvent {
+                seq: r.seq,
+                id: r.id,
+                actor_type: r.actor_type,
+                actor_id: r.actor_id,
+                action: r.action,
+                target_type: r.target_type,
+                target_id: r.target_id,
+                diff: serde_json::from_str(&r.diff).map_err(Error::internal)?,
+                at: r.at,
+            })
+        })
+        .transpose()
+    }
+
+    async fn module_failure_put(&self, f: &ModuleFailure) -> Result<()> {
+        sqlx::query!(
+            "INSERT INTO module_event_failures
+                (module, event_id, action, attempts, last_error, next_at, gave_up, first_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT (module, event_id) DO UPDATE SET attempts = excluded.attempts,
+                last_error = excluded.last_error, next_at = excluded.next_at, gave_up = excluded.gave_up",
+            f.module,
+            f.event_id,
+            f.action,
+            f.attempts,
+            f.last_error,
+            f.next_at,
+            f.gave_up,
+            f.first_at
+        )
+        .execute(&self.db.write)
+        .await
+        .map_err(db_error)?;
+        Ok(())
+    }
+
+    async fn module_failure_delete(&self, module: &str, event_id: &str) -> Result<()> {
+        sqlx::query!(
+            "DELETE FROM module_event_failures WHERE module = ? AND event_id = ?",
+            module,
+            event_id
+        )
+        .execute(&self.db.write)
+        .await
+        .map_err(db_error)?;
+        Ok(())
+    }
+
+    async fn module_failures(&self, module: Option<&str>) -> Result<Vec<ModuleFailure>> {
+        let module = module.unwrap_or("");
+        let rows = sqlx::query!(
+            r#"SELECT module, event_id, action, attempts, last_error, next_at,
+                      gave_up AS "gave_up: bool", first_at
+               FROM module_event_failures WHERE (? = '' OR module = ?)
+               ORDER BY first_at DESC LIMIT 100"#,
+            module,
+            module
+        )
+        .fetch_all(&self.db.read)
+        .await
+        .map_err(db_error)?;
+        Ok(rows
+            .into_iter()
+            .map(|r| ModuleFailure {
+                module: r.module,
+                event_id: r.event_id,
+                action: r.action,
+                attempts: r.attempts,
+                last_error: r.last_error,
+                next_at: r.next_at,
+                gave_up: r.gave_up,
+                first_at: r.first_at,
+            })
+            .collect())
+    }
+
+    async fn module_failures_due(&self, module: &str, now: &str) -> Result<Vec<ModuleFailure>> {
+        let rows = sqlx::query!(
+            r#"SELECT module, event_id, action, attempts, last_error, next_at,
+                      gave_up AS "gave_up: bool", first_at
+               FROM module_event_failures
+               WHERE module = ? AND gave_up = 0 AND next_at <= ?
+               ORDER BY next_at LIMIT 50"#,
+            module,
+            now
+        )
+        .fetch_all(&self.db.read)
+        .await
+        .map_err(db_error)?;
+        Ok(rows
+            .into_iter()
+            .map(|r| ModuleFailure {
+                module: r.module,
+                event_id: r.event_id,
+                action: r.action,
+                attempts: r.attempts,
+                last_error: r.last_error,
+                next_at: r.next_at,
+                gave_up: r.gave_up,
+                first_at: r.first_at,
+            })
+            .collect())
     }
 
     async fn role_by_name(&self, name: &str) -> Result<Option<Role>> {
@@ -1649,18 +1971,27 @@ async fn write_post_tags(
 #[async_trait]
 impl WriteTx for SqliteWriteTx {
     async fn insert_audit(&mut self, rec: &AuditRecord) -> Result<()> {
-        let diff = json(&rec.diff)?;
+        insert_audit(&mut self.tx, rec).await
+    }
+
+    async fn commit(self: Box<Self>) -> Result<()> {
+        self.tx.commit().await.map_err(db_error)
+    }
+
+    async fn upsert_module(&mut self, row: &ModuleRow) -> Result<()> {
+        let settings = json(&row.settings)?;
         sqlx::query!(
-            "INSERT INTO audit_log (id, actor_type, actor_id, action, target_type, target_id, diff, at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            rec.id,
-            rec.actor_type,
-            rec.actor_id,
-            rec.action,
-            rec.target_type,
-            rec.target_id,
-            diff,
-            rec.at
+            "INSERT INTO modules (id, enabled, version, settings, cursor, installed_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT (id) DO UPDATE SET enabled = excluded.enabled, version = excluded.version,
+                settings = excluded.settings, cursor = excluded.cursor, updated_at = excluded.updated_at",
+            row.id,
+            row.enabled,
+            row.version,
+            settings,
+            row.cursor,
+            row.installed_at,
+            row.updated_at
         )
         .execute(&mut *self.tx)
         .await
@@ -1668,8 +1999,16 @@ impl WriteTx for SqliteWriteTx {
         Ok(())
     }
 
-    async fn commit(self: Box<Self>) -> Result<()> {
-        self.tx.commit().await.map_err(db_error)
+    async fn delete_module(&mut self, id: &str) -> Result<()> {
+        sqlx::query!("DELETE FROM module_event_failures WHERE module = ?", id)
+            .execute(&mut *self.tx)
+            .await
+            .map_err(db_error)?;
+        sqlx::query!("DELETE FROM modules WHERE id = ?", id)
+            .execute(&mut *self.tx)
+            .await
+            .map_err(db_error)?;
+        Ok(())
     }
 
     async fn board_by_id(&mut self, id: &str) -> Result<Option<Board>> {

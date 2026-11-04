@@ -30,6 +30,11 @@ pub fn hours_ago(hours: i64) -> String {
 }
 
 /// 저장된 시각이나 사용자가 준 RFC3339 시각을 읽는다.
+/// 지금부터 `minutes` 분 뒤.
+pub fn minutes_later(minutes: i64) -> String {
+    format(OffsetDateTime::now_utc() + time::Duration::minutes(minutes))
+}
+
 pub fn parse(s: &str) -> Option<OffsetDateTime> {
     OffsetDateTime::parse(s, &Rfc3339).ok()
 }

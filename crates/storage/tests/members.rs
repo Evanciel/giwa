@@ -34,6 +34,7 @@ async fn env(signup: &str, verify: bool) -> Env {
         store: Arc::new(SqliteStore::new(db.clone())),
         blobs: Arc::new(FsBlobs::new(dir.media_dir())),
         site_url: "http://127.0.0.1:8080".into(),
+        extensions: maru_core::store::no_extensions(),
     };
     auth::ensure_owner(&ctx, &Actor::local(), "owner@example.test", "운영자")
         .await

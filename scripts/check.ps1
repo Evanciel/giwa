@@ -35,7 +35,8 @@ $forbidden = [ordered]@{
     "maru-core"    = @("sqlx", "axum", "minijinja", "tokio", "maru-storage", "maru-web", "maru-themes")
     "maru-storage" = @("axum", "minijinja", "maru-web", "maru-themes")
     "maru-themes"  = @("sqlx", "axum", "maru-storage", "maru-web")
-    "maru-web"     = @("sqlx", "maru-storage")
+    "maru-web"     = @("sqlx", "maru-storage", "maru-mod-point")
+    "maru-modules" = @("sqlx", "maru-storage", "maru-web", "maru-themes")
 }
 Write-Host "[check] deps" -ForegroundColor Cyan
 foreach ($crate in $forbidden.Keys) {
@@ -77,6 +78,11 @@ if (Test-Path "crates/storage/migrations") {
             Remove-Item "$checkDb*" -Force -ErrorAction SilentlyContinue
             $env:DATABASE_URL = "sqlite:" + ($checkDb -replace "\\", "/")
             Step "sqlx-db" { cmd /c "sqlx database create && sqlx migrate run --source crates/storage/migrations" }
+            # 모듈 표도 있어야 모듈의 쿼리 매크로를 검증한다 (ADR-0066).
+            foreach ($moduleMigrations in (Get-ChildItem "mods/*/migrations" -Directory -ErrorAction SilentlyContinue)) {
+                $source = $moduleMigrations.FullName
+                Step "sqlx-db($($moduleMigrations.Parent.Name))" { cmd /c "sqlx migrate run --ignore-missing --source `"$source`"" }
+            }
             Step "sqlx-prepare" { cargo sqlx prepare --workspace --check }
             Remove-Item Env:DATABASE_URL
         }

@@ -7,7 +7,7 @@ use axum::http::StatusCode;
 use axum::http::header::AUTHORIZATION;
 use axum::http::request::Parts;
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, post};
+use axum::routing::{get, patch, post};
 use axum::{Json, Router};
 use maru_core::model::{MenuItem, PageReq, PageStatus, PostStatus};
 use maru_core::output::Success;
@@ -16,6 +16,7 @@ use maru_core::services::{
     members, menus, pages, posts, search, settings, stats, tags, templates, tokens, views, widgets,
 };
 use maru_core::{Actor, Code, Error};
+use maru_modules::service as modules;
 use serde::Deserialize;
 
 use crate::AppState;
@@ -66,6 +67,12 @@ pub fn routes() -> Router<AppState> {
                 .delete(remove_widget),
         )
         .route("/audit", get(list_audit))
+        .route("/modules", get(list_modules))
+        .route("/modules/failures", get(module_failures))
+        .route("/modules/{id}", get(show_module).delete(remove_module))
+        .route("/modules/{id}/settings", patch(set_module_settings))
+        .route("/modules/{id}/{action}", post(module_action))
+        .route("/modules/{id}/tools/{tool}", post(call_module_tool))
         .route("/backups", get(list_backups).post(create_backup))
         .route(
             "/backups/{name}",
@@ -609,8 +616,8 @@ pub(crate) fn csv_response(s: &stats::StatsSummary) -> Response {
         .into_response()
 }
 
-async fn widget_types() -> Result<Response, ApiError> {
-    Ok(ok(StatusCode::OK, widgets::types()))
+async fn widget_types(State(state): State<AppState>) -> Result<Response, ApiError> {
+    Ok(ok(StatusCode::OK, widgets::all_types(&state.ctx).await))
 }
 
 async fn list_widgets(
@@ -1248,5 +1255,114 @@ async fn preview(
     Ok(ok(
         StatusCode::OK,
         posts::preview(&state.ctx, &actor, input)?,
+    ))
+}
+
+// ---- 모듈 (ADR-0066) ----
+
+async fn list_modules(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+) -> Result<Response, ApiError> {
+    Ok(ok(
+        StatusCode::OK,
+        modules::list(&state.ctx, &actor, &state.modules).await?,
+    ))
+}
+
+async fn show_module(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(id): Path<String>,
+) -> Result<Response, ApiError> {
+    Ok(ok(
+        StatusCode::OK,
+        modules::show(&state.ctx, &actor, &state.modules, &id).await?,
+    ))
+}
+
+async fn module_failures(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+) -> Result<Response, ApiError> {
+    Ok(ok(
+        StatusCode::OK,
+        modules::failures(&state.ctx, &actor, &state.modules, None).await?,
+    ))
+}
+
+/// `POST /modules/{id}/enable`, `POST /modules/{id}/disable`.
+async fn module_action(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path((id, action)): Path<(String, String)>,
+) -> Result<Response, ApiError> {
+    let (ctx, reg) = (&state.ctx, state.modules.as_ref());
+    let out = match action.as_str() {
+        "enable" => modules::enable(ctx, &actor, reg, &id).await?,
+        "disable" => modules::disable(ctx, &actor, reg, &id).await?,
+        _ => return Err(ApiError(Error::new(Code::NotFound))),
+    };
+    Ok(ok(StatusCode::OK, out))
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct RemoveModuleQuery {
+    #[serde(default)]
+    purge: bool,
+}
+
+/// 데이터를 지우므로 `?purge=true` 를 함께 보내야 한다.
+async fn remove_module(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(id): Path<String>,
+    Query(q): Query<RemoveModuleQuery>,
+) -> Result<Response, ApiError> {
+    if !q.purge {
+        return Err(ApiError(
+            Error::new(Code::Validation)
+                .with_message("error.module_remove_confirm")
+                .arg("id", id),
+        ));
+    }
+    Ok(ok(
+        StatusCode::OK,
+        modules::remove(&state.ctx, &actor, &state.modules, &id).await?,
+    ))
+}
+
+async fn set_module_settings(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(id): Path<String>,
+    body: Result<Json<serde_json::Map<String, serde_json::Value>>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let Json(patch) = body.map_err(bad_json)?;
+    Ok(ok(
+        StatusCode::OK,
+        modules::set_settings(&state.ctx, &actor, &state.modules, &id, patch).await?,
+    ))
+}
+
+async fn call_module_tool(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path((id, tool)): Path<(String, String)>,
+    body: Bytes,
+) -> Result<Response, ApiError> {
+    // 본문이 비면 빈 입력.
+    let input = if body.iter().all(u8::is_ascii_whitespace) {
+        serde_json::json!({})
+    } else {
+        serde_json::from_slice(&body).map_err(|e| {
+            Error::new(Code::Validation)
+                .with_message("error.json_body")
+                .arg("detail", e.to_string())
+        })?
+    };
+    Ok(ok(
+        StatusCode::OK,
+        modules::call_tool(&state.ctx, &actor, &state.modules, &id, &tool, input).await?,
     ))
 }

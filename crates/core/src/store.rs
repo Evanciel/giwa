@@ -8,6 +8,9 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use serde_json::Value;
 
+use crate::model::{AuditEvent, ModuleFailure, ModuleRow};
+use crate::services::widgets::WidgetType;
+
 use crate::actor::Actor;
 use crate::audit::{AuditRecord, Target};
 use crate::blobs::Blobs;
@@ -36,6 +39,44 @@ pub struct Ctx {
     pub blobs: Arc<dyn Blobs>,
     /// 절대 URL 의 기준 (`config.toml`). 끝에 `/` 가 없다.
     pub site_url: String,
+    /// 코어 밖(모듈)이 더하는 것 (ADR-0066). 모듈이 없으면 [`no_extensions`].
+    pub extensions: Arc<dyn Extensions>,
+}
+
+/// 코어가 모듈에게 묻는 일. 코어는 모듈을 모르고 이 트레이트만 안다 (ADR-0066).
+#[async_trait]
+pub trait Extensions: Send + Sync {
+    /// 켜진 모듈의 위젯 종류.
+    async fn widget_types(&self, ctx: &Ctx) -> Vec<WidgetType>;
+    /// 모듈 위젯의 설정을 검사한다. 그런 종류가 없으면 `None`.
+    async fn check_widget(&self, ctx: &Ctx, kind: &str, config: Value) -> Option<Result<Value>>;
+}
+
+struct NoExtensions;
+
+#[async_trait]
+impl Extensions for NoExtensions {
+    async fn widget_types(&self, _ctx: &Ctx) -> Vec<WidgetType> {
+        Vec::new()
+    }
+
+    async fn check_widget(&self, _ctx: &Ctx, _kind: &str, _config: Value) -> Option<Result<Value>> {
+        None
+    }
+}
+
+/// 모듈 없이 쓰는 컨텍스트의 `extensions`.
+pub fn no_extensions() -> Arc<dyn Extensions> {
+    Arc::new(NoExtensions)
+}
+
+/// 모듈 마이그레이션 하나 (ADR-0066). 내용은 바이너리에 든다.
+#[derive(Debug, Clone, Copy)]
+pub struct ModuleMigration {
+    pub version: i64,
+    pub name: &'static str,
+    pub up: &'static str,
+    pub down: &'static str,
 }
 
 /// 감사 로그 조건 (ADR-0062). 빈 값은 따지지 않는다. `action` 은 그 이름 자신과 `action.…`.
@@ -136,6 +177,32 @@ pub struct PostFilter {
 pub trait Store: Send + Sync {
     /// `BEGIN IMMEDIATE`. 다른 쓰기가 끝날 때까지 기다린다.
     async fn begin_write(&self) -> Result<Box<dyn WriteTx>>;
+
+    // ---- 모듈 (ADR-0066) ----
+    async fn module_rows(&self) -> Result<Vec<ModuleRow>>;
+    async fn module_row(&self, id: &str) -> Result<Option<ModuleRow>>;
+    /// 아직 안 적용한 마이그레이션을 차례로 적용하고 그 버전을 돌려준다.
+    async fn module_apply(&self, id: &str, migrations: &[ModuleMigration]) -> Result<Vec<i64>>;
+    /// 적용한 마이그레이션을 거꾸로 되돌리고 그 버전을 돌려준다.
+    async fn module_revert(&self, id: &str, migrations: &[ModuleMigration]) -> Result<Vec<i64>>;
+    async fn module_cursor_set(&self, id: &str, seq: i64) -> Result<()>;
+    /// 감사 기록의 마지막 순번. 없으면 0.
+    async fn audit_last_seq(&self) -> Result<i64>;
+    /// `after` 초과 `upto` 이하에서 이 동작들만 적힌 순서대로.
+    async fn audit_after(
+        &self,
+        after: i64,
+        upto: i64,
+        actions: &[&str],
+        limit: i64,
+    ) -> Result<Vec<AuditEvent>>;
+    async fn audit_event(&self, id: &str) -> Result<Option<AuditEvent>>;
+    async fn module_failure_put(&self, failure: &ModuleFailure) -> Result<()>;
+    async fn module_failure_delete(&self, module: &str, event_id: &str) -> Result<()>;
+    /// 빈 모듈이면 전체. 최근 것부터.
+    async fn module_failures(&self, module: Option<&str>) -> Result<Vec<ModuleFailure>>;
+    /// 지금 다시 시도할 것.
+    async fn module_failures_due(&self, module: &str, now: &str) -> Result<Vec<ModuleFailure>>;
 
     async fn role_by_name(&self, name: &str) -> Result<Option<Role>>;
     async fn token_by_hash(&self, hash: &str) -> Result<Option<Token>>;
@@ -272,6 +339,10 @@ pub trait Store: Send + Sync {
 pub trait WriteTx: Send {
     async fn insert_audit(&mut self, rec: &AuditRecord) -> Result<()>;
     async fn commit(self: Box<Self>) -> Result<()>;
+
+    async fn upsert_module(&mut self, row: &ModuleRow) -> Result<()>;
+    /// 상태 줄과 실패 기록을 지운다.
+    async fn delete_module(&mut self, id: &str) -> Result<()>;
 
     async fn board_by_id(&mut self, id: &str) -> Result<Option<Board>>;
     async fn board_by_slug(&mut self, slug: &str) -> Result<Option<Board>>;

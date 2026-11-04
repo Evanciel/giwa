@@ -27,6 +27,14 @@ pub struct Theme {
 impl Theme {
     /// `user_dir` 는 `<data>/themes/<이름>`. 없거나 비어 있으면 내장 테마만 쓴다.
     pub fn new(user_dir: Option<PathBuf>) -> Self {
+        Self::with_templates(user_dir, Vec::new())
+    }
+
+    /// 모듈 템플릿 `(이름, 내용)` 을 더한다 (ADR-0066). 사용자 테마의 같은 이름이 먼저다.
+    pub fn with_templates(
+        user_dir: Option<PathBuf>,
+        extra: Vec<(&'static str, &'static str)>,
+    ) -> Self {
         let user_dir = user_dir.filter(|d| compatible(d));
         let mut env = Environment::new();
         env.set_undefined_behavior(UndefinedBehavior::Chainable);
@@ -36,6 +44,9 @@ impl Theme {
         env.set_loader(move |name| {
             if let Some(text) = dir.as_deref().and_then(|d| read_user(d, "templates", name)) {
                 return Ok(Some(text));
+            }
+            if let Some((_, text)) = extra.iter().find(|(n, _)| *n == name) {
+                return Ok(Some((*text).to_owned()));
             }
             Ok(Builtin::get(&format!("templates/{name}"))
                 .and_then(|f| String::from_utf8(f.data.into_owned()).ok()))

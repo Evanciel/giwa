@@ -2,6 +2,7 @@
 
 mod commands;
 mod doctor;
+mod modules;
 mod output;
 
 use std::path::PathBuf;
@@ -74,6 +75,12 @@ enum Command {
     /// 감사 로그 (누가 언제 무엇을 바꿨나)
     #[command(subcommand)]
     Audit(AuditCmd),
+    /// 모듈 (켜기·끄기·제거·설정·실패 보관함)
+    #[command(subcommand)]
+    Module(ModuleCmd),
+    /// 모듈 툴: `maru <모듈> <툴> --칸 값`
+    #[command(external_subcommand)]
+    External(Vec<String>),
     /// 백업 파일 만들기·목록 (DB·media·themes·config 를 .tar.gz 하나로)
     Backup(BackupArgs),
     /// 백업 파일로 되살린다 (서버를 끈 뒤)
@@ -586,6 +593,34 @@ pub struct MediaUploadArgs {
 }
 
 #[derive(Debug, Subcommand)]
+pub enum ModuleCmd {
+    /// 이 바이너리에 든 모듈과 상태
+    List,
+    /// 모듈 하나의 설정·툴·위젯
+    Show { id: String },
+    /// 표를 만들고 켠다. 꺼져 있던 동안의 일은 소급하지 않는다 (여러 번 실행해도 안전)
+    Enable { id: String },
+    /// 끈다. 데이터는 남는다
+    Disable { id: String },
+    /// 모듈의 데이터를 지운다. `--purge --yes` 를 함께 적어야 한다
+    Remove {
+        id: String,
+        #[arg(long)]
+        purge: bool,
+    },
+    /// 설정을 바꾼다: `--field post=20`
+    Set {
+        id: String,
+        #[arg(long)]
+        field: Vec<String>,
+    },
+    /// 처리하지 못한 이벤트
+    Failures { id: Option<String> },
+    /// 밀린 이벤트를 지금 넘긴다 (서버가 켜져 있으면 2초마다 저절로 한다)
+    Deliver,
+}
+
+#[derive(Debug, Subcommand)]
 pub enum BoardCmd {
     /// 게시판 목록
     List,
@@ -1078,9 +1113,11 @@ fn main() -> ExitCode {
         Err(e) => return output::clap_error(e, json),
     };
     // 모든 명령은 비대화형이다. 확인이 필요한 명령은 묻지 않고 `--yes` 가 없으면 다음 명령을 안내한다.
+    // 모듈 툴 명령은 clap 이 뒤쪽 인자를 읽지 않으므로 --json 을 여기서 살린다.
+    let external = matches!(cli.command, Some(Command::External(_)));
     let g = Global {
         data: cli.data,
-        json: cli.json,
+        json: cli.json || (external && json),
         yes: cli.yes,
         quiet: cli.quiet,
     };

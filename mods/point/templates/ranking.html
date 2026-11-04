@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block main %}
+<h1 class="page-title">포인트 순위</h1>
+{% if rows %}
+<ol class="widget-lines numbered point-ranking">
+  {% for r in rows %}
+  <li><span class="rank" aria-hidden="true">{{ r.rank }}</span><span class="subject">{{ r.name }} <span class="date">Lv.{{ r.level }}</span></span><span class="date">{{ r.balance }}점</span></li>
+  {% endfor %}
+</ol>
+{% else %}
+<p class="empty">아직 포인트를 받은 회원이 없습니다.</p>
+{% endif %}
+{% endblock %}

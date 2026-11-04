@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM module_migrations WHERE module = ? AND version = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "6bd158114f6d1ad3227e6a8cac547b6c6ecc7960bbc255d796c5d31974bdf7f8"
+}

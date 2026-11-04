@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT amount, reason, at FROM mod_point_ledger\n             WHERE member_id = ? ORDER BY at DESC, id DESC LIMIT ? OFFSET ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "amount",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_point_ledger",
+            "name": "amount"
+          }
+        }
+      },
+      {
+        "name": "reason",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_point_ledger",
+            "name": "reason"
+          }
+        }
+      },
+      {
+        "name": "at",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_point_ledger",
+            "name": "at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "7eba6f0a146d18e5663a775818dc715f23c68f63b01af57977f43cc1def36ad9"
+}

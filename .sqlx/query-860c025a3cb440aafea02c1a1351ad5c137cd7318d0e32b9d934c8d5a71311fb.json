@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR IGNORE INTO mod_point_ledger (id, member_id, amount, reason, source, at)\n             VALUES (?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "860c025a3cb440aafea02c1a1351ad5c137cd7318d0e32b9d934c8d5a71311fb"
+}
