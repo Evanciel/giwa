@@ -740,6 +740,9 @@ async fn account_bar(State(state): State<AppState>, headers: HeaderMap) -> Respo
                 "label": d["label"].as_str()?,
                 "url": d["url"].as_str()?,
                 "count": d["count"].as_i64().unwrap_or(0),
+                "member_action": d.get("member_action").filter(|a| {
+                    a["label"].is_string() && a["url"].as_str().is_some_and(|u| u.starts_with('/'))
+                }),
             }))
         })
         .collect();

@@ -327,6 +327,7 @@ async fn board_inner(state: &AppState, slug: &str, q: PageQuery) -> Result<Value
     if board.kind == "wiki" {
         out["wiki"] = json!(wiki::index_of(&state.ctx, &board).await?);
     }
+    crate::modules::add_list_slots(state, &mut out).await;
     Ok(out)
 }
 

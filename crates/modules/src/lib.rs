@@ -69,12 +69,17 @@ pub const ME_SECTIONS: &str = "me_sections";
 /// 공개 화면 윗줄 회원 막대 (`/me/bar`, ADR-0081). 템플릿은 쓰지 않고 `data` 의
 /// `{label, url, count}` 만 JSON 으로 나간다.
 pub const ACCOUNT_BAR: &str = "account_bar";
+/// 게시판 목록의 글마다 붙는 작은 표시 (ADR-0082). 템플릿은 쓰지 않고 `data` 의
+/// `{label, by_id: {글 ID: 수}}` 를 목록 템플릿이 읽는다. 공개 목록은 캐시하므로 보는 사람과 무관한 값만.
+pub const POST_LIST: &str = "post_list";
 
 /// 화면 자리를 채울 때 모듈이 보는 것.
 pub struct SlotView<'a> {
     pub viewer: &'a Actor,
     pub post_id: Option<&'a str>,
     pub comment_ids: &'a [String],
+    /// 목록 화면(`post_list`)의 글 ID
+    pub post_ids: &'a [String],
 }
 
 /// 모듈이 자리에 넣는 것. 템플릿에서 `s.data` 로 읽는다.

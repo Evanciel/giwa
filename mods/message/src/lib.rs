@@ -730,7 +730,13 @@ impl Module for MessageModule {
         if slot == ACCOUNT_BAR {
             return Ok(Some(SlotContent {
                 template: "",
-                data: json!({ "label": "쪽지", "url": HOME, "count": self.unread(member).await? }),
+                data: json!({
+                    "label": "쪽지",
+                    "url": HOME,
+                    "count": self.unread(member).await?,
+                    // 회원 이름을 누르면 나오는 메뉴 (ADR-0082). 받는 사람 이름을 뒤에 붙인다.
+                    "member_action": { "label": "쪽지 보내기", "url": format!("{HOME}/new?to=") },
+                }),
             }));
         }
         if slot != ME_SECTIONS {

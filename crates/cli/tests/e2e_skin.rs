@@ -301,6 +301,95 @@ fn community_preset_skin_and_account_bar() {
         .unwrap();
     assert_eq!(msg["count"], 1, "{v}");
 
+    // 회원 이름 메뉴 (ADR-0082): 쪽지 모듈만 member_action 을 준다. 받는 이름을 붙이면 쓰기 화면.
+    assert_eq!(msg["member_action"]["label"], "쪽지 보내기", "{v}");
+    assert_eq!(msg["member_action"]["url"], "/m/message/new?to=");
+    let note = v["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|i| i["label"] == "알림")
+        .unwrap();
+    assert!(note["member_action"].is_null(), "{v}");
+    let compose = http(
+        &bind,
+        "GET",
+        "/m/message/new?to=%EB%8B%AC%EB%B9%9B",
+        &[("Cookie", &sun)],
+        "",
+    );
+    assert_eq!(compose.status, 200);
+    assert!(compose.body.contains("value=\"달빛\""), "{}", compose.body);
+
+    // 목록의 추천 수와 회원 이름 표지. 목록 HTML 은 모두에게 같다(손님이 봐도 같은 수).
+    maru(&data, &["module", "enable", "reaction"]);
+    let post = maru(
+        &data,
+        &[
+            "post",
+            "new",
+            "--board",
+            "free",
+            "--title",
+            "추천 받을 글",
+            "--body",
+            "본문",
+            "--publish",
+        ],
+    );
+    let id = post["id"].as_str().unwrap().to_owned();
+    let board = http(&bind, "GET", "/b/free", &[], "");
+    assert!(!board.body.contains("reaction-count"), "아직 추천 없음");
+    // 회원이 쓴 댓글의 이름에 표지가 붙는다 (메뉴는 community.js 가 그린다).
+    let url = board
+        .body
+        .split("class=\"title\" href=\"")
+        .nth(1)
+        .unwrap()
+        .split('"')
+        .next()
+        .unwrap()
+        .to_owned();
+    let res = http(
+        &bind,
+        "POST",
+        &format!("{url}/comments"),
+        &[FORM, ("Cookie", &moon), ("Sec-Fetch-Site", "same-origin")],
+        &form(&[("body", "좋은 글이네요")]),
+    );
+    assert_eq!(res.status, 303, "{}", res.body);
+    let page = http(&bind, "GET", &url, &[], "");
+    assert!(page.body.contains("data-member=\"달빛\""), "{}", page.body);
+    for who in [&sun, &moon] {
+        let res = http(
+            &bind,
+            "POST",
+            &format!("/m/reaction/post/{id}"),
+            &[FORM, ("Cookie", who), ("Sec-Fetch-Site", "same-origin")],
+            &form(&[("kind", "up")]),
+        );
+        assert_eq!(res.status, 303, "{}", res.body);
+    }
+    let board = http(&bind, "GET", "/b/free", &[], "");
+    assert!(
+        board
+            .body
+            .contains("class=\"reaction-count\" aria-label=\"추천 2\">추천 2<"),
+        "{}",
+        board.body
+    );
+    // 한 사람은 한 반응: 비추천으로 바꾸면 추천이 하나 줄고, 비추천은 목록 수에 더하지 않는다.
+    let res = http(
+        &bind,
+        "POST",
+        &format!("/m/reaction/post/{id}"),
+        &[FORM, ("Cookie", &sun), ("Sec-Fetch-Site", "same-origin")],
+        &form(&[("kind", "down")]),
+    );
+    assert_eq!(res.status, 303);
+    let board = http(&bind, "GET", "/b/free", &[], "");
+    assert!(board.body.contains(">추천 1<"), "{}", board.body);
+
     // 스킨을 되돌리면 기본 틀
     maru(&data, &["site", "set", "--skin", "default"]);
     let home = http(&bind, "GET", "/", &[], "");

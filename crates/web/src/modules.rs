@@ -10,7 +10,7 @@ use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use maru_core::{Actor, Ctx, Error, Result};
 use maru_modules::{
-    ACCOUNT_BAR, COMMENT_ACTIONS, Host, ME_SECTIONS, ModuleState, POST_FOOTER, SlotView,
+    ACCOUNT_BAR, COMMENT_ACTIONS, Host, ME_SECTIONS, ModuleState, POST_FOOTER, POST_LIST, SlotView,
 };
 use serde_json::{Value, json};
 
@@ -73,10 +73,39 @@ pub(crate) async fn add_post_slots(state: &AppState, headers: &HeaderMap, view: 
         viewer: &viewer,
         post_id: Some(&post_id),
         comment_ids: &comment_ids,
+        post_ids: &[],
     };
     let slots = state
         .modules
         .slots(&state.ctx, &[POST_FOOTER, COMMENT_ACTIONS], &slot_view)
+        .await;
+    view["slots"] = Value::Object(slots);
+}
+
+/// 게시판 목록의 자리 (ADR-0082). 공개 목록 HTML 은 모두에게 같아 손님으로 묻는다.
+pub(crate) async fn add_list_slots(state: &AppState, view: &mut Value) {
+    if state.modules.enabled(&state.ctx).await.is_empty() {
+        return;
+    }
+    let post_ids: Vec<String> = ["notices", "posts"]
+        .iter()
+        .filter_map(|k| view[*k].as_array())
+        .flatten()
+        .filter_map(|p| p["id"].as_str().map(str::to_owned))
+        .collect();
+    if post_ids.is_empty() {
+        return;
+    }
+    let viewer = Actor::anonymous([]);
+    let slot_view = SlotView {
+        viewer: &viewer,
+        post_id: None,
+        comment_ids: &[],
+        post_ids: &post_ids,
+    };
+    let slots = state
+        .modules
+        .slots(&state.ctx, &[POST_LIST], &slot_view)
         .await;
     view["slots"] = Value::Object(slots);
 }
@@ -87,6 +116,7 @@ pub(crate) async fn me_slots(state: &AppState, viewer: &Actor) -> Value {
         viewer,
         post_id: None,
         comment_ids: &[],
+        post_ids: &[],
     };
     Value::Object(
         state
@@ -102,6 +132,7 @@ pub(crate) async fn bar_slots(state: &AppState, viewer: &Actor) -> Vec<Value> {
         viewer,
         post_id: None,
         comment_ids: &[],
+        post_ids: &[],
     };
     let mut map = state
         .modules

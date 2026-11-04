@@ -23,8 +23,8 @@ use maru_core::urls::{self, Target as UrlTarget};
 use maru_core::{Code, Ctx, Error, Result, clock};
 use maru_modules::service::settings_of;
 use maru_modules::{
-    COMMENT_ACTIONS, Manifest, Module, ModuleState, POST_FOOTER, SlotContent, SlotView, ToolDef,
-    module_error, schema_of,
+    COMMENT_ACTIONS, Manifest, Module, ModuleState, POST_FOOTER, POST_LIST, SlotContent, SlotView,
+    ToolDef, module_error, schema_of,
 };
 use maru_storage::Db;
 use schemars::JsonSchema;
@@ -596,6 +596,32 @@ impl Module for ReactionModule {
                         "action": format!("/m/reaction/post/{post_id}"),
                         "kinds": map.remove(post_id).unwrap_or_default(),
                     }),
+                }))
+            }
+            POST_LIST => {
+                if view.post_ids.is_empty() {
+                    return Ok(None);
+                }
+                let settings = settings_of(ctx, self).await?;
+                // 목록엔 첫 종류(기본은 추천)의 수만 둔다. 추천·비추천을 더하면 뜻이 흐려진다.
+                let kinds = kinds_of(&settings);
+                let Some(&(first, label)) = kinds.first() else {
+                    return Ok(None);
+                };
+                // 목록은 모두에게 같은 HTML 이라 누른 사람은 보지 않는다.
+                let map = self
+                    .counts("post", view.post_ids, &kinds[..1], None)
+                    .await?;
+                let by_id: Map<String, Value> = map
+                    .into_iter()
+                    .filter_map(|(id, ks)| {
+                        let n = ks.iter().find(|k| k.id == first).map_or(0, |k| k.count);
+                        (n > 0).then(|| (id, json!(n)))
+                    })
+                    .collect();
+                Ok(Some(SlotContent {
+                    template: "",
+                    data: json!({ "label": label, "by_id": by_id }),
                 }))
             }
             COMMENT_ACTIONS => {

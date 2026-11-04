@@ -44,6 +44,13 @@
 .cm-brand:hover { color: var(--primary); }
 .cm-search { flex: 0 1 30rem; margin-left: auto; display: flex; align-items: center; border: 2px solid var(--primary); border-radius: 999px; background: var(--bg); }
 .cm-search input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--fg); font: inherit; font-size: var(--fs-sm); padding: calc(var(--space) * 1) 0 calc(var(--space) * 1) calc(var(--space) * 2); outline: none; }
+/* 회원 이름 메뉴 (ADR-0082) */
+.cm-member { border: 0; padding: 0; background: none; color: inherit; font: inherit; cursor: pointer; text-decoration: underline dotted color-mix(in srgb, currentColor 45%, transparent); text-underline-offset: .2em; }
+.cm-member[aria-expanded="true"] { color: var(--primary); }
+.cm-member-menu { position: fixed; z-index: 30; display: grid; min-width: 8rem; padding: calc(var(--space) * .5); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: 0 6px 18px rgb(0 0 0 / .14); }
+.cm-member-menu[hidden] { display: none; }
+.cm-member-menu a { padding: calc(var(--space) * .75) calc(var(--space) * 1); border-radius: var(--radius-sm); color: var(--fg); font-size: var(--fs-sm); font-weight: 500; text-decoration: none; white-space: nowrap; }
+.cm-member-menu a:hover, .cm-member-menu a:focus-visible { background: var(--cm-row-hover); color: var(--primary); }
 .cm-search input::placeholder { color: var(--muted); opacity: 1; }
 .cm-search:focus-within { box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 30%, transparent); }
 .cm-search button { display: grid; place-items: center; border: 0; background: none; color: var(--primary); padding: calc(var(--space) * .75) calc(var(--space) * 1.5); cursor: pointer; }
