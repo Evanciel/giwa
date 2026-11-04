@@ -569,6 +569,24 @@ main { min-height: 50vh; }
 .field-choices legend { inline-size: 100%; margin-block-end: calc(var(--space) * 0.5); }
 .req { color: var(--primary); }
 
+/* 상담 버튼 (ADR-0080): 어디로 가는지 늘 보이게. 떠 있으면 오른쪽 아래 */
+.consult { display: grid; gap: calc(var(--space) * .75); justify-items: start; }
+.consult-button { display: inline-flex; align-items: center; gap: .4em; padding: calc(var(--space) * 1.25) calc(var(--space) * 2.25); border-radius: 999px; background: var(--primary); color: var(--surface); font-weight: 700; text-decoration: none; }
+.consult-button:hover { filter: brightness(1.08); }
+.consult-kakao .consult-button { background: #fee500; color: #191600; }
+.consult-notice { margin: 0; color: var(--muted); font-size: .8rem; line-height: 1.5; }
+.consult-floating { position: fixed; right: 1rem; bottom: 1rem; z-index: 20; max-width: min(18rem, calc(100vw - 2rem)); justify-items: end; text-align: right; }
+.consult-floating { gap: calc(var(--space) * .4); }
+.consult-floating .consult-button { box-shadow: 0 4px 14px rgb(0 0 0 / .18); }
+.consult-floating .consult-notice { background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: calc(var(--space) * .3) calc(var(--space) * 1); font-size: .75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.widget:has(> .consult-floating) { position: static; }
+
+/* 광고 자리 (ADR-0079). 「광고」 표시는 늘 보인다 */
+.ad-slot { display: grid; gap: calc(var(--space) * .5); min-width: 0; }
+.ad-label { margin: 0; color: var(--muted); font-size: .72rem; letter-spacing: .04em; }
+.ad-house img { display: block; width: 100%; height: auto; border-radius: var(--radius-sm); }
+.ad-unit { display: block; min-height: 90px; }
+
 /* 위젯 영역 (ADR-0059). 곁가지가 있으면 두 단, 좁은 화면은 한 단. */
 .with-sidebar { display: grid; grid-template-columns: minmax(0, 1fr) 17rem; gap: calc(var(--space) * 5); align-items: start; }
 .with-sidebar > main.wrap { width: auto; margin-inline: 0; }

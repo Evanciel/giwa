@@ -1210,6 +1210,8 @@ dependencies = [
  "clap",
  "image",
  "maru-core",
+ "maru-mod-ads",
+ "maru-mod-consult",
  "maru-mod-message",
  "maru-mod-notify",
  "maru-mod-point",
@@ -1255,6 +1257,30 @@ dependencies = [
  "time",
  "ulid",
  "unicode-normalization",
+]
+
+[[package]]
+name = "maru-mod-ads"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "maru-core",
+ "maru-modules",
+ "schemars",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "maru-mod-consult"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "maru-core",
+ "maru-modules",
+ "schemars",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

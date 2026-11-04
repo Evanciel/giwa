@@ -22,6 +22,8 @@ maru-mod-message = { path = "mods/message" }
 maru-mod-notify = { path = "mods/notify" }
 maru-mod-poll = { path = "mods/poll" }
 maru-mod-scrap = { path = "mods/scrap" }
+maru-mod-ads = { path = "mods/ads" }
+maru-mod-consult = { path = "mods/consult" }
 
 # 웹
 axum = "0.8.9"

@@ -144,6 +144,7 @@ async fn load_site(state: &AppState) -> Result<Site> {
 pub(crate) struct Counted;
 
 pub(crate) async fn render(state: &AppState, name: &str, ctx: Result<Value>) -> Response {
+    let mut nonce = None;
     let rendered = match ctx {
         Ok(mut v) => {
             // 위젯 (ADR-0059): 화면 종류와 게시판·페이지 주소로 범위를 고른다.
@@ -156,8 +157,15 @@ pub(crate) async fn render(state: &AppState, name: &str, ctx: Result<Value>) -> 
                 _ => Screen::Other,
             };
             let regions = crate::widgets::regions(state, screen).await;
+            // 광고 코드처럼 바뀌는 도메인을 쓰는 위젯은 이 화면에만 nonce 정책을 건다 (ADR-0079).
+            if wants_strict_csp(&regions) {
+                nonce = maru_core::services::auth::new_secret()
+                    .ok()
+                    .map(|s| s[..32].to_owned());
+            }
             if let Some(o) = v.as_object_mut() {
                 o.insert("widgets".into(), regions);
+                o.insert("csp_nonce".into(), json!(nonce));
             }
             state.theme.render(name, &v)
         }
@@ -167,10 +175,35 @@ pub(crate) async fn render(state: &AppState, name: &str, ctx: Result<Value>) -> 
         Ok(html) => {
             let mut res = Html(html).into_response();
             res.extensions_mut().insert(Counted);
+            if let Some(n) = nonce
+                && let Ok(v) = header::HeaderValue::from_str(&strict_csp(&n))
+            {
+                res.headers_mut().insert(header::CONTENT_SECURITY_POLICY, v);
+            }
             res
         }
         Err(e) => error::page(state, &e).await,
     }
+}
+
+/// 영역 중 위젯 값에 `csp: "strict"` 가 있는가.
+fn wants_strict_csp(regions: &Value) -> bool {
+    regions.as_object().is_some_and(|o| {
+        o.values()
+            .filter_map(Value::as_array)
+            .flatten()
+            .any(|w| w["data"]["csp"] == "strict")
+    })
+}
+
+/// 구글 애드센스 도움말이 권하는 strict CSP 에 우리 `frame-ancestors` 를 더한 것.
+/// 광고 코드의 도메인은 바뀌므로 주소 목록 대신 nonce 와 `'strict-dynamic'` 으로 믿는다.
+/// 이 화면의 모든 `<script>` 는 `csp_nonce` 를 단다.
+fn strict_csp(nonce: &str) -> String {
+    format!(
+        "object-src 'none'; script-src 'nonce-{nonce}' 'unsafe-inline' 'unsafe-eval' 'strict-dynamic' https: http:; \
+         base-uri 'none'; frame-ancestors 'self'"
+    )
 }
 
 async fn home(State(state): State<AppState>, Query(q): Query<PageQuery>) -> Response {

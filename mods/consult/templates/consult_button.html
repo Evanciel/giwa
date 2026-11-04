@@ -1,0 +1,9 @@
+{# 상담 버튼 위젯 (ADR-0080). 외부로 무엇이 가는지 단추 아래에 늘 적는다. 떠 있는 단추는 갈 곳만 한 줄로. #}
+<div class="consult consult-{{ w.data.channel }}{% if w.data.floating %} consult-floating{% endif %}">
+  <a class="consult-button" href="{{ w.data.href }}"{% if w.data.external %} rel="noopener noreferrer"{% endif %} aria-describedby="consult-{{ w.id }}">{{ w.data.label }}</a>
+  {% if w.data.floating %}
+  <p class="consult-notice" id="consult-{{ w.id }}"><span aria-hidden="true">{{ w.data.short }}{% if w.data.note %} · {{ w.data.note }}{% endif %}</span><span class="visually-hidden">{{ w.data.notice }}{% if w.data.note %} {{ w.data.note }}{% endif %}</span></p>
+  {% else %}
+  <p class="consult-notice" id="consult-{{ w.id }}">{{ w.data.notice }}{% if w.data.note %} {{ w.data.note }}{% endif %}</p>
+  {% endif %}
+</div>
