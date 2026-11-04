@@ -17,6 +17,7 @@ maru-web = { path = "crates/web" }
 maru-modules = { path = "crates/modules" }
 maru-mod-point = { path = "mods/point" }
 maru-mod-reaction = { path = "mods/reaction" }
+maru-mod-notify = { path = "mods/notify" }
 maru-mod-scrap = { path = "mods/scrap" }
 
 # 웹

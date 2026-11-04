@@ -277,6 +277,15 @@ pub async fn signed_in(ctx: &Ctx, raw: &str) -> Result<Option<SignedIn>> {
     let Some(member) = active_member(ctx, &session.member_id).await? else {
         return Ok(None);
     };
+    Ok(Some(SignedIn {
+        actor: member_actor(ctx, &member).await?,
+        session,
+        member,
+    }))
+}
+
+/// 회원의 지금 역할로 만든 행위자. 받는 사람이 글을 볼 수 있는지 따질 때도 쓴다.
+pub async fn member_actor(ctx: &Ctx, member: &Member) -> Result<Actor> {
     let roles = ctx.store.member_roles(&member.id).await?;
     let rank = roles
         .iter()
@@ -284,11 +293,7 @@ pub async fn signed_in(ctx: &Ctx, raw: &str) -> Result<Option<SignedIn>> {
         .max()
         .unwrap_or(crate::actor::rank::GUEST);
     let perms: Vec<Permission> = roles.into_iter().flat_map(|r| r.permissions).collect();
-    Ok(Some(SignedIn {
-        actor: Actor::human(member.id.clone(), perms, rank),
-        session,
-        member,
-    }))
+    Ok(Actor::human(member.id.clone(), perms, rank))
 }
 
 pub async fn logout(ctx: &Ctx, who: &SignedIn) -> Result<()> {

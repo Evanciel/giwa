@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE mod_notify_item SET read_at = ? WHERE member_id = ? AND read_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "e6b975b3a71c3eb076aa74b0eec4dd3632f3c36150364c9263f09739d2f25d93"
+}

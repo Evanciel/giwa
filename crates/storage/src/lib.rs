@@ -5,7 +5,7 @@ pub mod blobs;
 mod comments;
 pub mod data_dir;
 pub mod db;
-mod mail;
+pub mod mail;
 pub mod mailer;
 mod search;
 pub mod sqlite;

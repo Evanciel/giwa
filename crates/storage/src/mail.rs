@@ -39,7 +39,7 @@ impl TryFrom<Row> for MailOut {
     }
 }
 
-pub(crate) async fn queue(tx: &mut Transaction<'static, Sqlite>, m: &MailOut) -> Result<bool> {
+pub async fn queue(tx: &mut Transaction<'static, Sqlite>, m: &MailOut) -> Result<bool> {
     let status = m.status.as_str();
     let done = sqlx::query!(
         "INSERT INTO mail_outbox (id, idem_key, to_addr, subject, body, status, attempts,

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO mod_notify_pref (member_id, mail) VALUES (?, ?)\n             ON CONFLICT (member_id) DO UPDATE SET mail = excluded.mail",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "6e53581381ec83c40fe0a7cd9935642e14bbc1fdd8bc9d08ebdf93caf28543c3"
+}

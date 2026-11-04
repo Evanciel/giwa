@@ -1210,6 +1210,7 @@ dependencies = [
  "clap",
  "image",
  "maru-core",
+ "maru-mod-notify",
  "maru-mod-point",
  "maru-mod-reaction",
  "maru-mod-scrap",
@@ -1249,6 +1250,21 @@ dependencies = [
  "time",
  "ulid",
  "unicode-normalization",
+]
+
+[[package]]
+name = "maru-mod-notify"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "axum",
+ "maru-core",
+ "maru-modules",
+ "maru-storage",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sqlx",
 ]
 
 [[package]]

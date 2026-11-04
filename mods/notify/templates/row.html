@@ -1,0 +1,9 @@
+{# 알림 한 줄. 누르면 POST 로 읽음이 되고 원본으로 간다 (ADR-0069). #}
+<li class="notify{% if n.unread %} unread{% endif %}">
+  <form method="post" action="/m/notify/open/{{ n.id }}">
+    <button type="submit" class="notify-open">
+      {% if n.unread %}<span class="notify-new">새 알림</span> {% endif %}<span class="notify-text">{{ n.text }}</span>
+      <span class="hint">{% if n.title %}{{ n.title }} · {% endif %}{{ n.date }}</span>
+    </button>
+  </form>
+</li>

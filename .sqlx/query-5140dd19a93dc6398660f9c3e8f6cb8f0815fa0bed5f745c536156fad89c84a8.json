@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR IGNORE INTO mod_notify_item\n                 (id, member_id, kind, source, post_id, comment_id, at)\n             VALUES (?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "5140dd19a93dc6398660f9c3e8f6cb8f0815fa0bed5f745c536156fad89c84a8"
+}

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{# 내 알림 (ADR-0069). #}
+{% block main_class %}wrap account-wrap{% endblock %}
+{% block main %}
+<section class="account me" aria-labelledby="notify-title">
+  <h1 id="notify-title">알림{% if unread %} <span class="count" aria-label="새 알림 {{ unread }}개">{{ unread }}</span>{% endif %}</h1>
+  {% if items %}
+  {% if unread %}
+  <form method="post" action="/m/notify/read-all" class="notify-actions">
+    <button type="submit" class="pill">모두 읽음으로</button>
+  </form>
+  {% endif %}
+  <ul class="notify-list">
+    {% for n in items %}{% include "mod/notify/row.html" %}{% endfor %}
+  </ul>
+  {% if prev or next %}
+  <nav class="post-actions" aria-label="쪽 나눔">
+    {% if prev %}<a href="/m/notify?page={{ prev }}" rel="prev">이전</a>{% endif %}
+    {% if next %}<a href="/m/notify?page={{ next }}" rel="next">다음</a>{% endif %}
+  </nav>
+  {% endif %}
+  {% else %}
+  <p class="empty">아직 알림이 없습니다. 내 글에 댓글이나 답글이 달리면 여기에 모입니다.</p>
+  {% endif %}
+  {% if site_mail %}
+  <form method="post" action="/m/notify/prefs" class="notify-prefs">
+    <label><input type="checkbox" name="mail" value="on"{% if mail_on %} checked{% endif %}> 메일로도 받기</label>
+    <button type="submit" class="pill">저장</button>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}

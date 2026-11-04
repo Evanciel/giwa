@@ -645,5 +645,19 @@ form.widget-search { flex: 1; min-width: 0; }
 .react-bar.small .pill { padding: calc(var(--space) * .25) calc(var(--space) * 1.25); min-height: 2rem; font-size: .85rem; }
 .scrap-list li { grid-template-columns: 1fr auto; column-gap: calc(var(--space) * 2); align-items: center; }
 .scrap-list li > a, .scrap-list li > span.muted, .scrap-list li > .hint { grid-column: 1; }
+.notify-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space); }
+.notify form { margin: 0; }
+.account .notify-open { display: grid; gap: calc(var(--space) * .25); width: 100%; font: inherit; text-align: left; color: var(--fg); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: calc(var(--space) * 1.25) calc(var(--space) * 1.5); cursor: pointer; min-height: 44px; }
+.account .notify-open:hover { border-color: var(--primary); background: var(--surface); }
+.account .notify-actions .pill:hover, .account .notify-prefs .pill:hover { background: var(--surface); color: var(--primary); border-color: var(--primary); }
+.account h1 .count, .me-block h2 .count { color: var(--primary); font-variant-numeric: tabular-nums; }
+.account .notify.unread .notify-open { border-color: var(--primary); box-shadow: inset 3px 0 0 var(--primary); }
+.notify-new { color: var(--primary); font-size: var(--fs-sm); font-weight: 700; }
+.notify-text { overflow-wrap: anywhere; }
+.notify.unread .notify-text { font-weight: 600; }
+.notify-actions { margin: 0 0 var(--space); }
+.account .notify-actions .pill, .account .notify-prefs .pill { background: var(--surface); color: var(--fg); border-color: var(--border); font-weight: 400; }
+.notify-prefs label { display: inline-flex; align-items: center; gap: calc(var(--space) * .75); }
+.notify-prefs { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space); margin-top: calc(var(--space) * 3); }
 .scrap-list form { grid-column: 2; grid-row: 1 / span 2; margin: 0; }
 .scrap-list .pill { background: var(--surface); color: var(--fg); border-color: var(--border); font-weight: 400; }

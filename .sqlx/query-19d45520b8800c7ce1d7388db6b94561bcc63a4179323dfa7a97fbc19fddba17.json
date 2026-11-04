@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT mail FROM mod_notify_pref WHERE member_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "mail",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_notify_pref",
+            "name": "mail"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "19d45520b8800c7ce1d7388db6b94561bcc63a4179323dfa7a97fbc19fddba17"
+}

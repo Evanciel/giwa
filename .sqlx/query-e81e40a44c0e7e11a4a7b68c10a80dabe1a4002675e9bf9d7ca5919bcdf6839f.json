@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM mod_notify_item WHERE member_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "e81e40a44c0e7e11a4a7b68c10a80dabe1a4002675e9bf9d7ca5919bcdf6839f"
+}
