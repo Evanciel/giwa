@@ -45,6 +45,8 @@ pub async fn conditional(req: Request, next: Next) -> Response {
         let mut not_modified = Response::new(Body::empty());
         *not_modified.status_mut() = StatusCode::NOT_MODIFIED;
         copy_validators(&parts.headers, not_modified.headers_mut());
+        // 응답 표시(예: 방문 통계의 공개 화면 표시)는 304 에도 남긴다.
+        *not_modified.extensions_mut() = parts.extensions;
         return not_modified;
     }
     Response::from_parts(parts, Body::from(bytes))

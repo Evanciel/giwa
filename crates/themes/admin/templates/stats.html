@@ -1,0 +1,59 @@
+{% extends "_base.html" %}
+{% block title %}방문자 통계{% endblock %}
+{% block content %}
+<div class="heading-row">
+  <h1>방문자 통계</h1>
+  <a class="button secondary" href="/admin/stats.csv?days={{ days }}" download>CSV 내려받기</a>
+</div>
+<p class="hint">쿠키 없이 날마다 셉니다. 같은 사람은 하루에 한 번 방문자로 칩니다. 봇, 추적 거부(DNT·GPC), 운영자·편집자는 빼고, 주소의 쿼리 문자열과 들어온 곳의 경로는 남기지 않습니다. <code>maru stats --json</code> 으로도 봅니다.</p>
+
+<nav class="stat-ranges" aria-label="기간">
+  {% for n in ranges %}<a href="/admin/stats?days={{ n }}"{% if n == days %} aria-current="page"{% endif %}>최근 {{ n }}일</a>{% endfor %}
+</nav>
+
+<dl class="stat-totals">
+  <div><dt>기간</dt><dd>{{ s.from }} ~ {{ s.to }}</dd></div>
+  <div><dt>조회</dt><dd class="num">{{ s.views }}</dd></div>
+  <div><dt>방문자</dt><dd class="num">{{ s.visitors }}</dd></div>
+</dl>
+
+<section aria-labelledby="stat-daily">
+  <h2 id="stat-daily">날짜별</h2>
+  <table class="stat-table">
+    <thead><tr><th scope="col">날짜</th><th scope="col" class="num">조회</th><th scope="col" class="bar-col"><span class="visually-hidden">조회 막대</span></th><th scope="col" class="num">방문자</th></tr></thead>
+    <tbody>
+    {% for d in rows %}
+      <tr><th scope="row">{{ d.day }}</th><td class="num">{{ d.views }}</td><td class="bar-col"><meter min="0" max="{{ max }}" value="{{ d.views }}" aria-label="{{ d.day }} 조회 {{ d.views }}"></meter></td><td class="num">{{ d.visitors }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section aria-labelledby="stat-pages">
+  <h2 id="stat-pages">많이 본 화면</h2>
+  {% if s.pages %}
+  <table class="stat-table">
+    <thead><tr><th scope="col">화면</th><th scope="col" class="num">조회</th><th scope="col" class="num">방문자</th></tr></thead>
+    <tbody>
+    {% for p in s.pages %}
+      <tr><th scope="row"><a href="{{ p.path }}" target="_blank" rel="noopener">{{ p.title or p.path }}</a>{% if p.title %} <code>{{ p.path }}</code>{% endif %}</th><td class="num">{{ p.views }}</td><td class="num">{{ p.visitors }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="hint">아직 기록이 없습니다.</p>{% endif %}
+</section>
+
+<section aria-labelledby="stat-refs">
+  <h2 id="stat-refs">들어온 곳</h2>
+  {% if s.referrers %}
+  <table class="stat-table">
+    <thead><tr><th scope="col">사이트</th><th scope="col" class="num">횟수</th></tr></thead>
+    <tbody>
+    {% for r in s.referrers %}
+      <tr><th scope="row">{{ r.host }}</th><td class="num">{{ r.visits }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="hint">다른 사이트에서 들어온 기록이 없습니다. 주소를 직접 치거나 즐겨찾기로 온 방문은 여기 없습니다.</p>{% endif %}
+</section>
+{% endblock %}

@@ -15,7 +15,8 @@ use crate::error::{Error, Result};
 use crate::model::{
     Attachment, Board, Category, Comment, CommentStatus, Font, FontFile, LoginTicket, MailOut,
     MailStatus, Media, Member, MenuLink, Page, PageStatus, Post, PostStatus, PostTemplate,
-    Revision, Role, Session, Tag, TicketPurpose, Token, Widget,
+    Revision, Role, Session, StatBatch, StatDay, StatPage, StatReferrer, Tag, TicketPurpose, Token,
+    Widget,
 };
 
 /// 댓글 관리 목록 조건. 비어 있는 조건은 거르지 않는다.
@@ -231,6 +232,16 @@ pub trait Store: Send + Sync {
     /// 모아 둔 조회수를 한 트랜잭션으로 더한다. 통계라 감사 대상이 아니고 `updated_at` 도 그대로다 (ADR-0049).
     /// 그 사이 지워진 글은 건너뛴다.
     async fn add_views(&self, counts: &[(String, i64)]) -> Result<()>;
+    /// 모아 둔 방문 통계를 날짜별 표에 한 트랜잭션으로 더한다 (ADR-0061).
+    async fn add_stats(&self, batch: &StatBatch) -> Result<()>;
+    /// `before_day` 보다 앞선 날의 통계를 지운다.
+    async fn purge_stats(&self, before_day: &str) -> Result<()>;
+    /// `from`~`to`(포함) 중 기록이 있는 날, 날짜 순.
+    async fn stat_days(&self, from: &str, to: &str) -> Result<Vec<StatDay>>;
+    /// 기간의 화면별 합, 조회 → 방문자 → 경로 순.
+    async fn stat_pages(&self, from: &str, to: &str, limit: u32) -> Result<Vec<StatPage>>;
+    /// 기간의 들어온 곳별 합, 많은 순.
+    async fn stat_referrers(&self, from: &str, to: &str, limit: u32) -> Result<Vec<StatReferrer>>;
     /// 같은 게시판의 바로 앞(더 오래된)·뒤(더 새) 공개 글. 순서는 `published_at`, 같으면 `id`.
     async fn neighbor_posts(&self, post: &Post) -> Result<(Option<Post>, Option<Post>)>;
     /// 관련 글: 겹치는 태그 수 → 같은 분류 → 같은 게시판 → 최신 순. 비밀글·공지·자기 자신은 뺀다.

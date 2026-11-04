@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM stat_referrers WHERE day < ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "6ed26c3bdc75c245c03f7c98fa23385892b32b86a2831012ea5b9c239be6bbf4"
+}

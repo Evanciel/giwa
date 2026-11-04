@@ -22,12 +22,14 @@ use std::time::Duration;
 
 use axum::Router;
 use axum::extract::{ConnectInfo, Request, State};
-use axum::http::{HeaderValue, Method, StatusCode, header};
+use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, header};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use maru_core::Actor;
+use maru_core::actor::Permission;
 use maru_core::model::Media;
 use maru_core::services::mail::{self, Mailer};
+use maru_core::services::stats::{self, StatCounter};
 use maru_core::services::views::{self, ViewCounter};
 use maru_core::services::{auth, fonts, media, posts};
 use maru_core::{Code, Ctx, Error, Result};
@@ -69,6 +71,8 @@ pub struct AppState {
     pub upload_gate: Arc<Semaphore>,
     /// 조회수 계수기. 서버를 끌 때 남은 수를 반영한다.
     pub views: Arc<ViewCounter>,
+    /// 방문자 통계 계수기 (ADR-0061). 조회수와 같은 주기에 반영한다.
+    pub stats: Arc<StatCounter>,
     /// 편지 전송 방식. 없으면 편지는 편지함에 쌓이기만 한다.
     pub mailer: Option<Arc<dyn Mailer>>,
 }
@@ -83,6 +87,7 @@ impl AppState {
             login_gate: Arc::new(Semaphore::new(LOGIN_CONCURRENCY)),
             upload_gate: Arc::new(Semaphore::new(UPLOAD_CONCURRENCY)),
             views: Arc::new(ViewCounter::new()),
+            stats: Arc::new(StatCounter::new()),
             mailer: None,
         }
     }
@@ -102,6 +107,7 @@ pub fn router(state: AppState) -> Router {
         .merge(board_write::routes())
         .nest("/api/v1", api::routes())
         .layer(middleware::from_fn_with_state(state.clone(), rate_limit))
+        .layer(middleware::from_fn_with_state(state.clone(), count_visit))
         .with_state(state)
         .layer(middleware::map_response(security_headers))
         .layer(RequestBodyLimitLayer::new(BODY_LIMIT))
@@ -229,13 +235,87 @@ async fn views_loop(state: AppState) {
     }
 }
 
-/// 남은 조회수를 지금 반영한다. 서버를 강제로 멈출 때도 부른다.
+/// 남은 조회수와 방문자 통계를 지금 반영한다. 서버를 강제로 멈출 때도 부른다.
 pub async fn flush_views(state: &AppState) {
     match views::flush(&state.ctx, &state.views).await {
         Ok(0) => {}
         Ok(n) => tracing::debug!(posts = n, "조회수 반영"),
         Err(e) => tracing::warn!(error = ?e, "조회수 반영 실패, 다음 주기에 다시 시도"),
     }
+    match stats::flush(&state.ctx, &state.stats).await {
+        Ok(0) => {}
+        Ok(n) => tracing::debug!(days = n, "방문자 통계 반영"),
+        Err(e) => tracing::warn!(error = ?e, "방문자 통계 반영 실패, 다음 주기에 다시 시도"),
+    }
+}
+
+/// 이 앞으로 시작하는 경로는 공개 화면이 아니다 (통계에서 미리 거른다).
+const NOT_PAGES: [&str; 7] = [
+    "/admin",
+    "/api/",
+    "/assets/",
+    "/media/",
+    "/files/",
+    "/fonts/",
+    "/__preview",
+];
+
+/// 공개 화면 방문을 통계에 센다 (ADR-0061). `render` 가 표시를 단 200·304 응답만 센다.
+async fn count_visit(State(state): State<AppState>, req: Request, next: Next) -> Response {
+    let path = req.uri().path();
+    if req.method() != Method::GET || NOT_PAGES.iter().any(|p| path.starts_with(p)) {
+        return next.run(req).await;
+    }
+    let path = path.to_owned();
+    let headers = req.headers().clone();
+    let ip = req
+        .extensions()
+        .get::<ConnectInfo<SocketAddr>>()
+        .map(|c| c.0.ip().to_string())
+        .unwrap_or_default();
+    let res = next.run(req).await;
+    if res.extensions().get::<public::Counted>().is_some()
+        && matches!(res.status(), StatusCode::OK | StatusCode::NOT_MODIFIED)
+    {
+        record_visit(&state, &path, &headers, &ip).await;
+    }
+    res
+}
+
+/// 봇·추적 거부(`DNT`·`Sec-GPC`)·미리 읽기·발행 권한이 있는 사람은 빼고 센다.
+async fn record_visit(state: &AppState, path: &str, headers: &HeaderMap, ip: &str) {
+    let h = |name: &str| {
+        headers
+            .get(name)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or_default()
+    };
+    let ua = h("user-agent");
+    let prefetch = [h("sec-purpose"), h("purpose")]
+        .iter()
+        .any(|v| v.to_ascii_lowercase().contains("prefetch"));
+    if views::is_bot(ua) || h("dnt").trim() == "1" || h("sec-gpc").trim() == "1" || prefetch {
+        return;
+    }
+    if admin::viewer(state, headers)
+        .await
+        .is_some_and(|a| a.has(Permission::PostPublish))
+    {
+        return;
+    }
+    let site_host = state
+        .ctx
+        .site_url
+        .split_once("://")
+        .map_or("", |(_, rest)| rest.split('/').next().unwrap_or_default());
+    let own = [h("host"), site_host];
+    state.stats.record(&stats::Hit {
+        path,
+        referrer: h("referer"),
+        own_hosts: &own,
+        ip,
+        user_agent: ua,
+    });
 }
 
 /// 예약 시각이 지난 글을 발행한다. 서버를 켤 때 한 번, 그 뒤로 주기마다.

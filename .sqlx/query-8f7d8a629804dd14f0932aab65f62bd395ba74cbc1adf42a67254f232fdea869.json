@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO stat_referrers (day, host, visits) VALUES (?, ?, ?)\n                 ON CONFLICT (day, host) DO UPDATE SET visits = visits + excluded.visits",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "8f7d8a629804dd14f0932aab65f62bd395ba74cbc1adf42a67254f232fdea869"
+}

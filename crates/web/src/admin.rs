@@ -65,6 +65,8 @@ pub fn routes() -> Router<AppState> {
         .route("/admin/fonts/{slug}/license", post(font_license))
         .route("/admin/fonts/{slug}/{action}", post(font_action))
         .route("/admin/templates", get(list_templates).post(save_template))
+        .route("/admin/stats", get(stats_page))
+        .route("/admin/stats.csv", get(stats_csv))
         .route("/admin/widgets", get(widgets_page).post(widget_place))
         .route("/admin/widgets/{id}/{action}", post(widget_action))
         .route("/admin/preview", post(preview))
@@ -2053,6 +2055,60 @@ fn json_body_error(e: JsonRejection) -> ApiError {
 }
 
 // ---- 위젯 (ADR-0059) ----
+
+#[derive(Debug, Default, Deserialize)]
+struct StatsPageQuery {
+    #[serde(default)]
+    days: Option<u32>,
+}
+
+/// 방문자 통계 (ADR-0061). 기간은 7·30·90일 단추, 다른 값도 받는다(1~366).
+async fn stats_page(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<StatsPageQuery>,
+) -> Response {
+    use maru_core::services::stats;
+    let who = match require(&state, &headers, "/admin/stats").await {
+        Ok(w) => w,
+        Err(r) => return *r,
+    };
+    let s = match stats::summary(&state.ctx, &who.actor, &stats::StatsQuery { days: q.days }).await
+    {
+        Ok(s) => s,
+        Err(e) => return fail(&state, Some(&who), &e).await,
+    };
+    let days = s.daily.len();
+    let max = s.daily.iter().map(|d| d.views).max().unwrap_or(0).max(1);
+    let ctx = merge(
+        base(&state, Some(&who), "stats").await,
+        json!({
+            "s": s,
+            "days": days,
+            "max": max,
+            // 최근 날이 위로
+            "rows": s.daily.iter().rev().collect::<Vec<_>>(),
+            "ranges": [7, 30, 90],
+        }),
+    );
+    render(&state, StatusCode::OK, "stats.html", &ctx)
+}
+
+async fn stats_csv(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<StatsPageQuery>,
+) -> Response {
+    use maru_core::services::stats;
+    let who = match require(&state, &headers, "/admin/stats").await {
+        Ok(w) => w,
+        Err(r) => return *r,
+    };
+    match stats::summary(&state.ctx, &who.actor, &stats::StatsQuery { days: q.days }).await {
+        Ok(s) => crate::api::csv_response(&s),
+        Err(e) => fail(&state, Some(&who), &e).await,
+    }
+}
 
 #[derive(Debug, Default, Deserialize)]
 struct WidgetsQuery {

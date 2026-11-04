@@ -137,6 +137,10 @@ async fn load_site(state: &AppState) -> Result<Site> {
     Ok(Site { settings, json })
 }
 
+/// 공개 화면을 그렸다는 응답 표시. 방문자 통계가 이 응답만 센다 (ADR-0061).
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Counted;
+
 pub(crate) async fn render(state: &AppState, name: &str, ctx: Result<Value>) -> Response {
     let rendered = match ctx {
         Ok(mut v) => {
@@ -158,7 +162,11 @@ pub(crate) async fn render(state: &AppState, name: &str, ctx: Result<Value>) -> 
         Err(e) => Err(e),
     };
     match rendered {
-        Ok(html) => Html(html).into_response(),
+        Ok(html) => {
+            let mut res = Html(html).into_response();
+            res.extensions_mut().insert(Counted);
+            res
+        }
         Err(e) => error::page(state, &e).await,
     }
 }

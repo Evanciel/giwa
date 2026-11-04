@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO stat_pages (day, path, views, visitors) VALUES (?, ?, ?, ?)\n                 ON CONFLICT (day, path) DO UPDATE SET views = views + excluded.views,\n                     visitors = visitors + excluded.visitors",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "aef1de62023539ea68545354680373c0fd3aa508f2a748a0205e278a2e7ae0b4"
+}

@@ -185,6 +185,8 @@ pub fn lookup(key: &str) -> Option<&'static str> {
             "위젯 범위는 all, home, boards, board:<주소>, page:<주소> 중 하나입니다: {value}"
         }
         "error.widget_config" => "`{kind}` 위젯 설정이 올바르지 않습니다: {reason}",
+        "error.stats_days" => "통계 기간은 1~{max}일입니다.",
+        "error.stats_retention" => "통계 보존 기간은 30~3650일입니다 (받은 값 {value}).",
         "error.widget_popup_region" => {
             "팝업은 popup 영역에만, popup 영역에는 팝업만 놓을 수 있습니다 (종류 {kind}, 영역 {region})."
         }

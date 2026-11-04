@@ -13,7 +13,7 @@ use maru_core::model::{MenuItem, PageReq, PageStatus, PostStatus};
 use maru_core::output::Success;
 use maru_core::services::{
     anonymous_actor, boards, categories, comments, design, files, fonts, media, members, menus,
-    pages, posts, search, settings, tags, templates, tokens, views, widgets,
+    pages, posts, search, settings, stats, tags, templates, tokens, views, widgets,
 };
 use maru_core::{Actor, Code, Error};
 use serde::Deserialize;
@@ -65,6 +65,8 @@ pub fn routes() -> Router<AppState> {
                 .patch(configure_widget)
                 .delete(remove_widget),
         )
+        .route("/stats", get(get_stats))
+        .route("/stats.csv", get(get_stats_csv))
         .route("/settings", get(get_settings).patch(update_settings))
         .route("/design/tokens", get(get_tokens).patch(update_tokens))
         .route("/fonts", get(list_fonts).post(add_font))
@@ -504,6 +506,45 @@ async fn put_menu(
 }
 
 /// 위젯 종류와 설정 모양 (ADR-0059). 정적인 설명이라 권한이 필요 없다.
+async fn get_stats(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Query(q): Query<stats::StatsQuery>,
+) -> Result<Response, ApiError> {
+    Ok(ok(
+        StatusCode::OK,
+        stats::summary(&state.ctx, &actor, &q).await?,
+    ))
+}
+
+async fn get_stats_csv(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Query(q): Query<stats::StatsQuery>,
+) -> Result<Response, ApiError> {
+    let s = stats::summary(&state.ctx, &actor, &q).await?;
+    Ok(csv_response(&s))
+}
+
+/// 통계 CSV 내려받기 응답 (관리 화면과 같이 쓴다).
+pub(crate) fn csv_response(s: &stats::StatsSummary) -> Response {
+    let name = format!(
+        "attachment; filename=\"maru-stats-{}-{}.csv\"",
+        s.from, s.to
+    );
+    (
+        [
+            (
+                axum::http::header::CONTENT_TYPE,
+                "text/csv; charset=utf-8".to_owned(),
+            ),
+            (axum::http::header::CONTENT_DISPOSITION, name),
+        ],
+        stats::csv(s),
+    )
+        .into_response()
+}
+
 async fn widget_types() -> Result<Response, ApiError> {
     Ok(ok(StatusCode::OK, widgets::types()))
 }

@@ -69,6 +69,8 @@ enum Command {
     /// 위젯 (최신 글·인기 글·글 상자 등을 영역에 놓기)
     #[command(subcommand)]
     Widget(WidgetCmd),
+    /// 방문자 통계 (쿠키 없는 날짜별 집계)
+    Stats(StatsArgs),
     /// 사이트 이름·설명·시간대 등
     #[command(subcommand)]
     Site(SiteCmd),
@@ -770,6 +772,16 @@ pub struct MenuSetArgs {
     pub clear: bool,
 }
 
+#[derive(Debug, Args)]
+pub struct StatsArgs {
+    /// 오늘까지 며칠 (1~366, 기본 30)
+    #[arg(long)]
+    pub days: Option<u32>,
+    /// 이 파일에 CSV 로도 쓴다 (UTF-8 BOM, 엑셀용)
+    #[arg(long)]
+    pub csv: Option<PathBuf>,
+}
+
 #[derive(Debug, Subcommand)]
 pub enum WidgetCmd {
     /// 놓을 수 있는 위젯 종류와 설정 모양 (`--json` 이면 JSON Schema)
@@ -833,6 +845,8 @@ pub struct WidgetConfigureArgs {
 }
 
 #[derive(Debug, Subcommand)]
+// 명령 줄에서 한 번 만드는 값이라 크기 차이는 상관없다.
+#[allow(clippy::large_enum_variant)]
 pub enum SiteCmd {
     /// 사이트 설정 보기
     Show,
@@ -869,6 +883,9 @@ pub struct SiteSetArgs {
     /// 공개 화면 머리글에 검색 칸을 보일지 (true/false)
     #[arg(long)]
     pub show_search: Option<bool>,
+    /// 방문자 통계를 며칠 남길지 (30~3650)
+    #[arg(long)]
+    pub stats_retention_days: Option<u32>,
     /// 회원 가입: off(받지 않음), open(누구나)
     #[arg(long)]
     pub signup: Option<String>,

@@ -47,6 +47,9 @@ pub struct SettingsPatch {
     /// 사람 확인 질문: off · guest (회원 관리 권한 필요)
     #[serde(default)]
     pub captcha: Option<String>,
+    /// 방문자 통계를 며칠 남길지 (30~3650)
+    #[serde(default)]
+    pub stats_retention_days: Option<u32>,
 }
 
 /// 저장된 값 위에 기본값을 채운다. 모르는 키나 잘못된 값은 기본값으로 둔다.
@@ -115,6 +118,14 @@ pub async fn update(ctx: &Ctx, actor: &Actor, patch: SettingsPatch) -> Result<Si
     }
     if let Some(b) = patch.show_search {
         changes.push(("show_search", json!(b)));
+    }
+    if let Some(n) = patch.stats_retention_days {
+        if !(30..=3650).contains(&n) {
+            return Err(Error::new(Code::Validation)
+                .with_message("error.stats_retention")
+                .arg("value", n.to_string()));
+        }
+        changes.push(("stats_retention_days", json!(n)));
     }
     if let Some(m) = &patch.signup {
         actor.require(Permission::MemberManage)?;

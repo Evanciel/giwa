@@ -6,7 +6,8 @@ use maru_core::audit::AuditRecord;
 use maru_core::model::{
     Attachment, Board, BoardPolicy, Category, Comment, CommentStatus, Font, FontFile, LoginTicket,
     MailOut, MailStatus, Media, MediaVariant, Member, MemberStatus, Page, PageStatus, Post,
-    PostKind, PostStatus, PostTemplate, Revision, Role, Session, Tag, TicketPurpose, Token, Widget,
+    PostKind, PostStatus, PostTemplate, Revision, Role, Session, StatBatch, StatDay, StatPage,
+    StatReferrer, Tag, TicketPurpose, Token, Widget,
 };
 use maru_core::store::{
     CommentQuery, MenuRow, PopularQuery, PostFilter, PublishedQuery, SearchQuery, SearchRef, Store,
@@ -1171,6 +1172,141 @@ impl Store for SqliteStore {
             .map_err(db_error)?;
         }
         tx.commit().await.map_err(db_error)
+    }
+
+    async fn add_stats(&self, batch: &StatBatch) -> Result<()> {
+        let mut tx = self
+            .db
+            .write
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .map_err(db_error)?;
+        for d in &batch.days {
+            sqlx::query!(
+                "INSERT INTO stat_days (day, views, visitors) VALUES (?, ?, ?)
+                 ON CONFLICT (day) DO UPDATE SET views = views + excluded.views,
+                     visitors = visitors + excluded.visitors",
+                d.day,
+                d.views,
+                d.visitors
+            )
+            .execute(&mut *tx)
+            .await
+            .map_err(db_error)?;
+        }
+        for (day, p) in &batch.pages {
+            sqlx::query!(
+                "INSERT INTO stat_pages (day, path, views, visitors) VALUES (?, ?, ?, ?)
+                 ON CONFLICT (day, path) DO UPDATE SET views = views + excluded.views,
+                     visitors = visitors + excluded.visitors",
+                day,
+                p.path,
+                p.views,
+                p.visitors
+            )
+            .execute(&mut *tx)
+            .await
+            .map_err(db_error)?;
+        }
+        for (day, r) in &batch.referrers {
+            sqlx::query!(
+                "INSERT INTO stat_referrers (day, host, visits) VALUES (?, ?, ?)
+                 ON CONFLICT (day, host) DO UPDATE SET visits = visits + excluded.visits",
+                day,
+                r.host,
+                r.visits
+            )
+            .execute(&mut *tx)
+            .await
+            .map_err(db_error)?;
+        }
+        tx.commit().await.map_err(db_error)
+    }
+
+    async fn purge_stats(&self, before_day: &str) -> Result<()> {
+        let mut tx = self
+            .db
+            .write
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .map_err(db_error)?;
+        sqlx::query!("DELETE FROM stat_days WHERE day < ?", before_day)
+            .execute(&mut *tx)
+            .await
+            .map_err(db_error)?;
+        sqlx::query!("DELETE FROM stat_pages WHERE day < ?", before_day)
+            .execute(&mut *tx)
+            .await
+            .map_err(db_error)?;
+        sqlx::query!("DELETE FROM stat_referrers WHERE day < ?", before_day)
+            .execute(&mut *tx)
+            .await
+            .map_err(db_error)?;
+        tx.commit().await.map_err(db_error)
+    }
+
+    async fn stat_days(&self, from: &str, to: &str) -> Result<Vec<StatDay>> {
+        let rows = sqlx::query!(
+            r#"SELECT day AS "day!", views AS "views!", visitors AS "visitors!"
+               FROM stat_days WHERE day BETWEEN ? AND ? ORDER BY day"#,
+            from,
+            to
+        )
+        .fetch_all(self.db.read_pool())
+        .await
+        .map_err(db_error)?;
+        Ok(rows
+            .into_iter()
+            .map(|r| StatDay {
+                day: r.day,
+                views: r.views,
+                visitors: r.visitors,
+            })
+            .collect())
+    }
+
+    async fn stat_pages(&self, from: &str, to: &str, limit: u32) -> Result<Vec<StatPage>> {
+        let rows = sqlx::query!(
+            r#"SELECT path AS "path!", SUM(views) AS "views!: i64", SUM(visitors) AS "visitors!: i64"
+               FROM stat_pages WHERE day BETWEEN ? AND ?
+               GROUP BY path ORDER BY 2 DESC, 3 DESC, path LIMIT ?"#,
+            from,
+            to,
+            limit
+        )
+        .fetch_all(self.db.read_pool())
+        .await
+        .map_err(db_error)?;
+        Ok(rows
+            .into_iter()
+            .map(|r| StatPage {
+                path: r.path,
+                title: String::new(),
+                views: r.views,
+                visitors: r.visitors,
+            })
+            .collect())
+    }
+
+    async fn stat_referrers(&self, from: &str, to: &str, limit: u32) -> Result<Vec<StatReferrer>> {
+        let rows = sqlx::query!(
+            r#"SELECT host AS "host!", SUM(visits) AS "visits!: i64"
+               FROM stat_referrers WHERE day BETWEEN ? AND ?
+               GROUP BY host ORDER BY 2 DESC, host LIMIT ?"#,
+            from,
+            to,
+            limit
+        )
+        .fetch_all(self.db.read_pool())
+        .await
+        .map_err(db_error)?;
+        Ok(rows
+            .into_iter()
+            .map(|r| StatReferrer {
+                host: r.host,
+                visits: r.visits,
+            })
+            .collect())
     }
 
     async fn neighbor_posts(&self, post: &Post) -> Result<(Option<Post>, Option<Post>)> {

@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT day AS \"day!\", views AS \"views!\", visitors AS \"visitors!\"\n               FROM stat_days WHERE day BETWEEN ? AND ? ORDER BY day",
+  "describe": {
+    "columns": [
+      {
+        "name": "day!",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "stat_days",
+            "name": "day"
+          }
+        }
+      },
+      {
+        "name": "views!",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "stat_days",
+            "name": "views"
+          }
+        }
+      },
+      {
+        "name": "visitors!",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "stat_days",
+            "name": "visitors"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "f8f679c7061d49ab26db0457989947db3e9183c0c859a0ce897c56aaa65ac74c"
+}

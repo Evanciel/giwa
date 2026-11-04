@@ -589,6 +589,39 @@ pub struct MenuItem {
 /// `popup` 은 팝업 종류 전용 자리다 (ADR-0060).
 pub const WIDGET_REGIONS: [&str; 6] = ["header", "hero", "main", "sidebar", "footer", "popup"];
 
+/// 하루 방문 집계 (ADR-0061). `day` 는 한국 시간 `YYYY-MM-DD`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct StatDay {
+    pub day: String,
+    pub views: i64,
+    pub visitors: i64,
+}
+
+/// 화면 하나의 집계. `title` 은 요약할 때 글·페이지·게시판 이름을 붙인 것(모르면 빈 값).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct StatPage {
+    pub path: String,
+    #[serde(default)]
+    pub title: String,
+    pub views: i64,
+    pub visitors: i64,
+}
+
+/// 들어온 곳(Referer 호스트) 하나의 집계.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct StatReferrer {
+    pub host: String,
+    pub visits: i64,
+}
+
+/// 한 번에 더할 통계. 화면·들어온 곳은 (날, 값).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StatBatch {
+    pub days: Vec<StatDay>,
+    pub pages: Vec<(String, StatPage)>,
+    pub referrers: Vec<(String, StatReferrer)>,
+}
+
 /// 영역에 놓인 위젯 하나. `config` 는 종류마다 정해진 모양으로 core 가 검사·정규화한 값이다.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Widget {
@@ -639,6 +672,9 @@ pub struct SiteSettings {
     /// 사람 확인 질문을 누구에게 낼지 (GAP M10, ADR-0052)
     #[serde(default)]
     pub captcha: CaptchaMode,
+    /// 방문자 통계를 며칠 남길지 (30~3650, ADR-0061)
+    #[serde(default = "default_stats_retention_days")]
+    pub stats_retention_days: u32,
 }
 
 /// 사람 확인 질문 (자체 캡차, ADR-0052). 비회원 댓글·회원 가입 폼에 낸다.
@@ -695,6 +731,10 @@ fn default_toc_min_headings() -> u32 {
     3
 }
 
+fn default_stats_retention_days() -> u32 {
+    400
+}
+
 fn default_true() -> bool {
     true
 }
@@ -715,6 +755,7 @@ impl Default for SiteSettings {
             signup: SignupMode::Off,
             signup_verify: true,
             captcha: CaptchaMode::Guest,
+            stats_retention_days: default_stats_retention_days(),
         }
     }
 }

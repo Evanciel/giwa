@@ -14,7 +14,7 @@ use maru_core::services::posts::{self, NewPost};
 use maru_core::services::tokens::{self, NewToken};
 use maru_core::services::{
     anonymous_actor, auth, categories, comments, design, files, fonts, mail, media, members, menus,
-    pages, presets, search, settings, tags, templates, views, widgets,
+    pages, presets, search, settings, stats, tags, templates, views, widgets,
 };
 use maru_core::urls::{self, Target};
 use maru_core::{Actor, Code, Ctx, Error, Result};
@@ -25,8 +25,8 @@ use crate::output;
 use crate::{
     BoardCmd, CategoryCmd, Command, CommentCmd, DesignCmd, FileCmd, FontCmd, Global, InitArgs,
     LoginLinkArgs, MailCmd, MediaCmd, MemberCmd, MenuCmd, MenuSetArgs, PageCmd, PostCmd,
-    PostListArgs, PostNewArgs, SearchArgs, SearchCmd, ServeArgs, SiteCmd, TagCmd, TemplateCmd,
-    TokenCmd, TokenCreateArgs, WidgetCmd,
+    PostListArgs, PostNewArgs, SearchArgs, SearchCmd, ServeArgs, SiteCmd, StatsArgs, TagCmd,
+    TemplateCmd, TokenCmd, TokenCreateArgs, WidgetCmd,
 };
 
 pub async fn run(g: &Global, command: Command) -> ExitCode {
@@ -45,6 +45,7 @@ pub async fn run(g: &Global, command: Command) -> ExitCode {
         Command::Page(cmd) => page(g, cmd).await,
         Command::Menu(cmd) => menu(g, cmd).await,
         Command::Widget(cmd) => widget_cmd(g, cmd).await,
+        Command::Stats(args) => stats_cmd(g, args).await,
         Command::Site(cmd) => site(g, cmd).await,
         Command::Design(cmd) => design_cmd(g, cmd).await,
         Command::Font(cmd) => font_cmd(g, cmd).await,
@@ -1263,6 +1264,54 @@ fn menu_human(location: &str, items: &[MenuItem]) -> String {
 
 // ---- widget ----
 
+async fn stats_cmd(g: &Global, args: StatsArgs) -> Out {
+    let (ctx, _config, db) = open(g).await?;
+    let res = async {
+        let actor = actor(&ctx).await?;
+        stats::summary(&ctx, &actor, &stats::StatsQuery { days: args.days }).await
+    }
+    .await;
+    db.close().await;
+    let s = res?;
+    if let Some(path) = &args.csv {
+        std::fs::write(path, stats::csv(&s)).map_err(|e| {
+            Error::new(Code::Validation)
+                .with_message("error.io")
+                .arg("path", path.display().to_string())
+                .with_source(e)
+        })?;
+    }
+    let mut human = format!(
+        "{} ~ {}  조회 {}  방문자 {}",
+        s.from, s.to, s.views, s.visitors
+    );
+    if !s.pages.is_empty() {
+        human.push_str("\n많이 본 화면:");
+        for p in s.pages.iter().take(10) {
+            human.push_str(&format!(
+                "\n  {:>6}  {}{}",
+                p.views,
+                p.path,
+                if p.title.is_empty() {
+                    String::new()
+                } else {
+                    format!(" 「{}」", p.title)
+                }
+            ));
+        }
+    }
+    if !s.referrers.is_empty() {
+        human.push_str("\n들어온 곳:");
+        for r in s.referrers.iter().take(10) {
+            human.push_str(&format!("\n  {:>6}  {}", r.visits, r.host));
+        }
+    }
+    if let Some(path) = &args.csv {
+        human.push_str(&format!("\nCSV: {}", path.display()));
+    }
+    Ok((to_value(&s)?, human))
+}
+
 async fn widget_cmd(g: &Global, cmd: WidgetCmd) -> Out {
     // 종류 목록은 데이터 디렉터리 없이도 본다.
     if let WidgetCmd::Types = cmd {
@@ -1396,6 +1445,7 @@ async fn site(g: &Global, cmd: SiteCmd) -> Out {
                 toc_min_headings: args.toc_min_headings,
                 show_views: args.show_views,
                 show_search: args.show_search,
+                stats_retention_days: args.stats_retention_days,
                 signup: args.signup,
                 signup_verify: args.signup_verify,
                 captcha: args.captcha,

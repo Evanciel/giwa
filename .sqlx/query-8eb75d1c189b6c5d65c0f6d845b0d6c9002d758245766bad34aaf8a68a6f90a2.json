@@ -1,0 +1,40 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT path AS \"path!\", SUM(views) AS \"views!: i64\", SUM(visitors) AS \"visitors!: i64\"\n               FROM stat_pages WHERE day BETWEEN ? AND ?\n               GROUP BY path ORDER BY 2 DESC, 3 DESC, path LIMIT ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "path!",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "stat_pages",
+            "name": "path"
+          }
+        }
+      },
+      {
+        "name": "views!: i64",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": "Expression"
+      },
+      {
+        "name": "visitors!: i64",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "8eb75d1c189b6c5d65c0f6d845b0d6c9002d758245766bad34aaf8a68a6f90a2"
+}

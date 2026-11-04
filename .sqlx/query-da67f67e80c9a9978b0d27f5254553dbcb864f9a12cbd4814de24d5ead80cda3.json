@@ -1,0 +1,33 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT host AS \"host!\", SUM(visits) AS \"visits!: i64\"\n               FROM stat_referrers WHERE day BETWEEN ? AND ?\n               GROUP BY host ORDER BY 2 DESC, host LIMIT ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "host!",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "stat_referrers",
+            "name": "host"
+          }
+        }
+      },
+      {
+        "name": "visits!: i64",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "da67f67e80c9a9978b0d27f5254553dbcb864f9a12cbd4814de24d5ead80cda3"
+}
