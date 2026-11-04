@@ -33,7 +33,7 @@ use maru_core::services::backups::Archiver;
 use maru_core::services::mail::{self, Mailer};
 use maru_core::services::stats::{self, StatCounter};
 use maru_core::services::views::{self, ViewCounter};
-use maru_core::services::{auth, fonts, media, posts};
+use maru_core::services::{auth, fonts, media, posts, retention};
 use maru_core::{Code, Ctx, Error, Result};
 use maru_modules::Registry;
 use maru_themes::{Admin, Theme};
@@ -391,8 +391,28 @@ async fn schedule_loop(state: AppState) {
 
 async fn purge_loop(state: AppState) {
     let mut tick = tokio::time::interval(PURGE_EVERY);
+    let mut retained_day = None;
     loop {
         tick.tick().await;
+        // 보존 정리(휴면·편지·모듈 기록)는 하루 한 번. 서버를 켠 뒤 첫 바퀴에도 한다 (ADR-0073).
+        let day = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs() / 86_400);
+        if retained_day != Some(day) {
+            match retention::run(&state.ctx, &Actor::local()).await {
+                Ok(r) => {
+                    retained_day = Some(day);
+                    tracing::info!(
+                        notified = r.notified,
+                        dormant = r.dormant,
+                        mails = r.mails_removed,
+                        modules = r.module_removed,
+                        "보존 정리"
+                    );
+                }
+                Err(e) => tracing::warn!(error = ?e, "보존 정리 실패"),
+            }
+        }
         match auth::purge_expired(&state.ctx).await {
             Ok(n) if n > 0 => tracing::info!(removed = n, "만료된 세션·링크 정리"),
             Ok(_) => {}

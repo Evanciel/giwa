@@ -13,7 +13,7 @@
   {% for m in items %}
     <tr>
       <th scope="row">{{ m.name }}{% if m.me %} <span class="badge">나</span>{% endif %}{% if m.two_factor %} <span class="badge" title="2단계 인증을 켰습니다">2단계</span>{% endif %}</th>
-      <td>{{ m.email }}{% if not m.verified %} <span class="badge">메일 미확인</span>{% endif %}</td>
+      <td>{% if m.dormant %}<span class="badge" title="오래 로그인하지 않아 메일 주소를 따로 보관합니다. 다시 로그인하면 돌아옵니다.">휴면</span> 메일 따로 보관{% else %}{{ m.email }}{% if not m.verified %} <span class="badge">메일 미확인</span>{% endif %}{% endif %}</td>
       <td>
         {% if m.owner or m.me or m.withdrawn %}{{ m.role_label }}{% else %}
         <form method="post" action="/admin/members/{{ m.id }}/role" class="inline member-role">
@@ -45,7 +45,7 @@
         </form>
         {% endif %}
       </td>
-      <td>{{ m.joined }}</td>
+      <td>{{ m.joined }}{% if m.last_login %}<br><span class="hint">로그인 {{ m.last_login }}</span>{% endif %}</td>
     </tr>
   {% endfor %}
   </tbody>

@@ -162,6 +162,10 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "mail.exists.body" => {
             "누군가 이 메일 주소로 {site}에 가입하려고 했습니다. 이 주소는 이미 가입돼 있습니다.\n\n비밀번호가 생각나지 않으면 아래 링크에서 다시 정하세요. 1시간 안에 한 번만 쓸 수 있습니다.\n\n{link}\n\n직접 하신 일이 아니라면 이 메일은 지우셔도 됩니다.\n"
         }
+        "mail.dormant_notice.subject" => "[{site}] 계정이 30일 뒤 휴면으로 바뀝니다",
+        "mail.dormant_notice.body" => {
+            "{name} 님, {site}에 오랫동안 로그인하지 않으셨습니다.\n\n{days}일 동안 로그인하지 않은 계정은 휴면으로 바뀌고, 메일 주소를 다른 곳에 따로 보관합니다. 30일 안에 로그인하시면 그대로 쓰실 수 있고, 휴면이 된 뒤에도 로그인하면 바로 돌아옵니다.\n\n{link}\n"
+        }
         "mail.reset.subject" => "[{site}] 비밀번호 다시 정하기",
         "mail.reset.body" => {
             "{name} 님, 비밀번호를 다시 정하려면 아래 링크를 누르세요. 1시간 안에 한 번만 쓸 수 있습니다.\n\n{link}\n\n요청한 적이 없다면 이 메일은 지우셔도 됩니다. 비밀번호는 그대로입니다.\n"
@@ -225,6 +229,8 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         }
         "error.stats_days" => "통계 기간은 1~{max}일입니다.",
         "error.stats_retention" => "통계 보존 기간은 30~3650일입니다 (받은 값 {value}).",
+        "error.dormant_days" => "휴면 기간은 0(끔) 또는 180~3650일입니다 (받은 값 {value}).",
+        "error.mail_retention" => "편지 보존 기간은 7~3650일입니다 (받은 값 {value}).",
         "error.widget_popup_region" => {
             "팝업은 popup 영역에만, popup 영역에는 팝업만 놓을 수 있습니다 (종류 {kind}, 영역 {region})."
         }

@@ -1,0 +1,117 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT m.id AS \"id!\", COALESCE(d.email, m.email) AS \"email!: String\",\n                  m.display_name AS \"display_name!\", m.password_hash, m.status AS \"status!\",\n                  m.email_verified_at, m.withdrawn_at, m.created_at AS \"created_at!\",\n                  m.updated_at AS \"updated_at!\"\n           FROM members m LEFT JOIN member_dormant d ON d.member_id = m.id\n           WHERE m.email = ? OR d.email = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "members",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "email!: String",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "name": "display_name!",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "members",
+            "name": "display_name"
+          }
+        }
+      },
+      {
+        "name": "password_hash",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "members",
+            "name": "password_hash"
+          }
+        }
+      },
+      {
+        "name": "status!",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "members",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "name": "email_verified_at",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "members",
+            "name": "email_verified_at"
+          }
+        }
+      },
+      {
+        "name": "withdrawn_at",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "members",
+            "name": "withdrawn_at"
+          }
+        }
+      },
+      {
+        "name": "created_at!",
+        "ordinal": 7,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "members",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "name": "updated_at!",
+        "ordinal": 8,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "members",
+            "name": "updated_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "3c1465a36c4620ada9e4d9f8a1108e030a32e2ca9b195d52f1419dd5b8591a6b"
+}

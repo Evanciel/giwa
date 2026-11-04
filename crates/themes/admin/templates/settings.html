@@ -90,6 +90,14 @@
     <label for="s-stats">며칠 남길지 <span class="hint">30~3650</span></label>
     <input id="s-stats" name="stats_retention_days" value="{{ form.stats_retention_days }}" inputmode="numeric" autocomplete="off" class="short">
   </fieldset>
+
+  <fieldset>
+    <legend>개인정보 보유기간</legend>
+    <label for="s-dormant">휴면으로 바꿀 미접속 날수 <span class="hint">0 이면 끕니다. 켜려면 180~3650. 30일 전에 메일로 알리고, 휴면이 되면 메일 주소를 따로 보관합니다. 다시 로그인하면 바로 돌아옵니다. 운영진은 빠집니다.</span></label>
+    <input id="s-dormant" name="dormant_days" value="{{ form.dormant_days }}" inputmode="numeric" autocomplete="off" class="short">
+    <label for="s-mail-keep">보낸 메일을 남길 날수 <span class="hint">7~3650. 지난 메일은 하루 한 번 지웁니다.</span></label>
+    <input id="s-mail-keep" name="mail_retention_days" value="{{ form.mail_retention_days }}" inputmode="numeric" autocomplete="off" class="short">
+  </fieldset>
   <button type="submit">저장</button>
 </form>
 {% endblock %}

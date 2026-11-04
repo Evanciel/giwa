@@ -1041,7 +1041,9 @@ async fn members_page(
                 "withdrawn": m.withdrawn_at.is_some(),
                 "verified": m.email_verified_at.is_some(),
                 "two_factor": v.two_factor,
+                "dormant": v.dormant,
                 "joined": maru_core::clock::display_datetime(&m.created_at, tz),
+                "last_login": v.last_login_at.as_deref().map(|t| maru_core::clock::display_datetime(t, tz)),
             })
         })
         .collect::<Vec<_>>();
@@ -1152,6 +1154,10 @@ struct SettingsForm {
     banned_words: String,
     #[serde(default)]
     flood_seconds: String,
+    #[serde(default)]
+    dormant_days: String,
+    #[serde(default)]
+    mail_retention_days: String,
 }
 
 fn on(b: bool) -> Option<String> {
@@ -1178,6 +1184,8 @@ impl SettingsForm {
             stats_retention_days: s.stats_retention_days.to_string(),
             banned_words: s.banned_words.join("\n"),
             flood_seconds: s.flood_seconds.to_string(),
+            dormant_days: s.dormant_days.to_string(),
+            mail_retention_days: s.mail_retention_days.to_string(),
         }
     }
 
@@ -1226,6 +1234,14 @@ impl SettingsForm {
             flood_seconds: changed(
                 number("flood_seconds", &self.flood_seconds)?,
                 now.flood_seconds,
+            ),
+            dormant_days: changed(
+                number("dormant_days", &self.dormant_days)?,
+                now.dormant_days,
+            ),
+            mail_retention_days: changed(
+                number("mail_retention_days", &self.mail_retention_days)?,
+                now.mail_retention_days,
             ),
         })
     }

@@ -3,7 +3,6 @@
 use async_trait::async_trait;
 use maru_core::actor::{AuthorType, Permission, Scope};
 use maru_core::audit::AuditRecord;
-use maru_core::model::MemberTotp;
 use maru_core::model::{
     Attachment, AuditEntry, AuditEvent, Board, BoardPolicy, Category, Comment, CommentStatus, Font,
     FontFile, Listing, LoginTicket, MailOut, MailStatus, Media, MediaVariant, Member, MemberStatus,
@@ -11,6 +10,7 @@ use maru_core::model::{
     Revision, Role, Session, StatBatch, StatDay, StatPage, StatReferrer, Tag, TicketPurpose, Token,
     TotpChallenge, Widget,
 };
+use maru_core::model::{MemberActivity, MemberTotp};
 use maru_core::store::{
     AuditFilter, CommentQuery, MenuRow, ModuleMigration, PopularQuery, PostFilter, PublishedQuery,
     SearchQuery, SearchRef, Store, WriteTx,
@@ -1177,6 +1177,89 @@ impl Store for SqliteStore {
         .fetch_one(&self.db.read)
         .await
         .map_err(db_error)
+    }
+
+    async fn member_activity(&self, member_id: &str) -> Result<MemberActivity> {
+        let row = sqlx::query!(
+            r#"SELECT m.last_login_at AS "last_login_at?: String", d.dormant_at AS "dormant_at?: String"
+               FROM members m LEFT JOIN member_dormant d ON d.member_id = m.id
+               WHERE m.id = ?"#,
+            member_id
+        )
+        .fetch_optional(&self.db.read)
+        .await
+        .map_err(db_error)?;
+        Ok(row
+            .map(|r| MemberActivity {
+                last_login_at: r.last_login_at,
+                dormant_at: r.dormant_at,
+            })
+            .unwrap_or_default())
+    }
+
+    async fn members_to_notify(&self, seen_before: &str, limit: i64) -> Result<Vec<Member>> {
+        sqlx::query_as!(
+            MemberRow,
+            "SELECT m.id, m.email, m.display_name, m.password_hash, m.status, m.email_verified_at,
+                    m.withdrawn_at, m.created_at, m.updated_at
+             FROM members m
+             WHERE m.status = 'active' AND m.withdrawn_at IS NULL
+               AND COALESCE(m.last_login_at, m.created_at) < ?
+               AND NOT EXISTS (SELECT 1 FROM member_dormant d WHERE d.member_id = m.id)
+               AND NOT EXISTS (SELECT 1 FROM member_roles mr JOIN roles r ON r.id = mr.role_id
+                               WHERE mr.member_id = m.id AND r.rank > 10)
+               AND m.dormant_notice_at IS NULL
+             ORDER BY m.id LIMIT ?",
+            seen_before,
+            limit
+        )
+        .fetch_all(&self.db.read)
+        .await
+        .map_err(db_error)?
+        .into_iter()
+        .map(Member::try_from)
+        .collect()
+    }
+
+    async fn members_to_sleep(
+        &self,
+        seen_before: &str,
+        noticed_before: &str,
+        limit: i64,
+    ) -> Result<Vec<Member>> {
+        sqlx::query_as!(
+            MemberRow,
+            "SELECT m.id, m.email, m.display_name, m.password_hash, m.status, m.email_verified_at,
+                    m.withdrawn_at, m.created_at, m.updated_at
+             FROM members m
+             WHERE m.status = 'active' AND m.withdrawn_at IS NULL
+               AND COALESCE(m.last_login_at, m.created_at) < ?
+               AND NOT EXISTS (SELECT 1 FROM member_dormant d WHERE d.member_id = m.id)
+               AND NOT EXISTS (SELECT 1 FROM member_roles mr JOIN roles r ON r.id = mr.role_id
+                               WHERE mr.member_id = m.id AND r.rank > 10)
+               AND m.dormant_notice_at IS NOT NULL AND m.dormant_notice_at < ?
+             ORDER BY m.id LIMIT ?",
+            seen_before,
+            noticed_before,
+            limit
+        )
+        .fetch_all(&self.db.read)
+        .await
+        .map_err(db_error)?
+        .into_iter()
+        .map(Member::try_from)
+        .collect()
+    }
+
+    async fn purge_mails(&self, before: &str) -> Result<u64> {
+        Ok(sqlx::query!(
+            "DELETE FROM mail_outbox WHERE status != 'queued' AND created_at < ?",
+            before
+        )
+        .execute(&self.db.write)
+        .await
+        .map_err(db_error)?
+        .rows_affected())
     }
 
     async fn mails(&self, status: Option<MailStatus>, limit: i64) -> Result<Vec<MailOut>> {
@@ -2565,9 +2648,13 @@ impl WriteTx for SqliteWriteTx {
     async fn update_member(&mut self, m: &Member) -> Result<()> {
         let status = m.status.as_str();
         sqlx::query!(
-            "UPDATE members SET email = ?, display_name = ?, password_hash = ?, status = ?,
+            "UPDATE members SET
+                    email = CASE WHEN EXISTS (SELECT 1 FROM member_dormant WHERE member_id = ?)
+                                 THEN email ELSE ? END,
+                    display_name = ?, password_hash = ?, status = ?,
                     email_verified_at = ?, withdrawn_at = ?, updated_at = ?
              WHERE id = ?",
+            m.id,
             m.email,
             m.display_name,
             m.password_hash,
@@ -2736,6 +2823,79 @@ impl WriteTx for SqliteWriteTx {
                 .map_err(db_error)?
                 .rows_affected(),
         )
+    }
+
+    async fn touch_login(&mut self, member_id: &str, now: &str) -> Result<()> {
+        sqlx::query!(
+            "UPDATE members SET last_login_at = ?, dormant_notice_at = NULL WHERE id = ?",
+            now,
+            member_id
+        )
+        .execute(&mut *self.tx)
+        .await
+        .map_err(db_error)?;
+        Ok(())
+    }
+
+    async fn mark_dormant_notice(&mut self, member_id: &str, now: &str) -> Result<()> {
+        sqlx::query!(
+            "UPDATE members SET dormant_notice_at = ? WHERE id = ?",
+            now,
+            member_id
+        )
+        .execute(&mut *self.tx)
+        .await
+        .map_err(db_error)?;
+        Ok(())
+    }
+
+    async fn make_dormant(&mut self, member_id: &str, now: &str) -> Result<bool> {
+        let moved = sqlx::query!(
+            "INSERT INTO member_dormant (member_id, email, dormant_at)
+             SELECT id, email, ? FROM members
+             WHERE id = ? AND email NOT LIKE '%@invalid'
+               AND NOT EXISTS (SELECT 1 FROM member_dormant WHERE member_id = ?)",
+            now,
+            member_id,
+            member_id
+        )
+        .execute(&mut *self.tx)
+        .await
+        .map_err(db_error)?
+        .rows_affected();
+        if moved == 0 {
+            return Ok(false);
+        }
+        sqlx::query!(
+            "UPDATE members SET email = 'dormant+' || lower(id) || '@invalid', dormant_notice_at = NULL
+             WHERE id = ?",
+            member_id
+        )
+        .execute(&mut *self.tx)
+        .await
+        .map_err(db_error)?;
+        Ok(true)
+    }
+
+    async fn wake_member(&mut self, member_id: &str) -> Result<Option<String>> {
+        let email = sqlx::query_scalar!(
+            "SELECT email FROM member_dormant WHERE member_id = ?",
+            member_id
+        )
+        .fetch_optional(&mut *self.tx)
+        .await
+        .map_err(db_error)?;
+        if let Some(e) = &email {
+            sqlx::query!("DELETE FROM member_dormant WHERE member_id = ?", member_id)
+                .execute(&mut *self.tx)
+                .await
+                .map_err(db_error)?;
+            sqlx::query!("UPDATE members SET email = ? WHERE id = ?", e, member_id)
+                .execute(&mut *self.tx)
+                .await
+                .map_err(db_error)?;
+        }
+        Ok(email)
     }
 
     async fn member_totp(&mut self, member_id: &str) -> Result<Option<MemberTotp>> {
@@ -3478,9 +3638,13 @@ async fn member_by_name<'e>(e: impl SqliteExecutor<'e>, name: &str) -> Result<Op
 async fn member_by_email<'e>(e: impl SqliteExecutor<'e>, email: &str) -> Result<Option<Member>> {
     sqlx::query_as!(
         MemberRow,
-        "SELECT id, email, display_name, password_hash, status, email_verified_at, withdrawn_at,
-                    created_at, updated_at
-         FROM members WHERE email = ?",
+        r#"SELECT m.id AS "id!", COALESCE(d.email, m.email) AS "email!: String",
+                  m.display_name AS "display_name!", m.password_hash, m.status AS "status!",
+                  m.email_verified_at, m.withdrawn_at, m.created_at AS "created_at!",
+                  m.updated_at AS "updated_at!"
+           FROM members m LEFT JOIN member_dormant d ON d.member_id = m.id
+           WHERE m.email = ? OR d.email = ?"#,
+        email,
         email
     )
     .fetch_optional(e)

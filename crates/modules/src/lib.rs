@@ -139,6 +139,11 @@ pub trait Module: Send + Sync {
         Ok(())
     }
 
+    /// 보존 정리 (ADR-0073). 서버가 하루 한 번, `maru privacy run` 이 바로 부른다. 지운 수를 돌려준다.
+    async fn purge(&self, _ctx: &Ctx) -> Result<u64> {
+        Ok(0)
+    }
+
     fn settings_fields(&self) -> Vec<FieldDef> {
         Vec::new()
     }
@@ -301,5 +306,18 @@ impl Extensions for Registry {
     async fn check_widget(&self, ctx: &Ctx, kind: &str, config: Value) -> Option<Result<Value>> {
         let owner = self.widget_owner(ctx, kind).await?;
         Some(owner.check_widget(ctx, kind, config).await)
+    }
+
+    async fn purge(&self, ctx: &Ctx) -> u64 {
+        let mut removed = 0;
+        for m in self.enabled(ctx).await {
+            match m.purge(ctx).await {
+                Ok(n) => removed += n,
+                Err(e) => {
+                    tracing::warn!(module = %m.manifest().id, error = ?e, "모듈 보존 정리 실패")
+                }
+            }
+        }
+        removed
     }
 }

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE members SET last_login_at = ?, dormant_notice_at = NULL WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "63b3cf69b08ddb25a8722c01e274b8b86f59dcabf1fc82c88c6a9901197d6411"
+}

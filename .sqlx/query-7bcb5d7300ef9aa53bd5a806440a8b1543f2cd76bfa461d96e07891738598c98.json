@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT m.last_login_at AS \"last_login_at?: String\", d.dormant_at AS \"dormant_at?: String\"\n               FROM members m LEFT JOIN member_dormant d ON d.member_id = m.id\n               WHERE m.id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "last_login_at?: String",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "members",
+            "name": "last_login_at"
+          }
+        }
+      },
+      {
+        "name": "dormant_at?: String",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "member_dormant",
+            "name": "dormant_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      true
+    ]
+  },
+  "hash": "7bcb5d7300ef9aa53bd5a806440a8b1543f2cd76bfa461d96e07891738598c98"
+}

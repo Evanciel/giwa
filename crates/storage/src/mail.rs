@@ -40,6 +40,10 @@ impl TryFrom<Row> for MailOut {
 }
 
 pub async fn queue(tx: &mut Transaction<'static, Sqlite>, m: &MailOut) -> Result<bool> {
+    // 탈퇴·휴면 회원의 자리표시 주소에는 쌓지 않는다 (ADR-0073). 모듈이 만든 편지도 여기를 지난다.
+    if m.to_addr.ends_with("@invalid") {
+        return Ok(false);
+    }
     let status = m.status.as_str();
     let done = sqlx::query!(
         "INSERT INTO mail_outbox (id, idem_key, to_addr, subject, body, status, attempts,

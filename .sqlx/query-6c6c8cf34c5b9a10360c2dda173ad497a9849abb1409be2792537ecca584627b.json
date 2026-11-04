@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE members SET email = 'dormant+' || lower(id) || '@invalid', dormant_notice_at = NULL\n             WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "6c6c8cf34c5b9a10360c2dda173ad497a9849abb1409be2792537ecca584627b"
+}

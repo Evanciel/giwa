@@ -105,6 +105,9 @@ enum Command {
     /// 보낼 편지함 (가입 인증·비밀번호 찾기 메일). 1회용 링크가 들어 있어 이 컴퓨터에서만 본다
     #[command(subcommand)]
     Mail(MailCmd),
+    /// 개인정보 보유기간: 휴면 전환·지난 메일·모듈 기록 정리 (서버가 하루 한 번 한다)
+    #[command(subcommand)]
+    Privacy(PrivacyCmd),
     /// 관리 화면 로그인 링크를 만든다 (10분, 1회용)
     LoginLink(LoginLinkArgs),
     /// 설치 상태를 점검한다 (데이터, DB, 포트, 운영자, 테마)
@@ -173,6 +176,12 @@ pub enum CommentCmd {
     Spam { id: String },
     /// 지운다 (본문을 비우고 자리만 남긴다)
     Delete { id: String },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum PrivacyCmd {
+    /// 지금 정리한다 (여러 번 해도 안전하다)
+    Run,
 }
 
 #[derive(Debug, Subcommand)]
@@ -991,6 +1000,12 @@ pub struct SiteSetArgs {
     /// 방문자 통계를 며칠 남길지 (30~3650)
     #[arg(long)]
     pub stats_retention_days: Option<u32>,
+    /// 이 날수 동안 로그인하지 않은 회원을 휴면으로 (0 = 끔, 180~3650)
+    #[arg(long)]
+    pub dormant_days: Option<u32>,
+    /// 보냈거나 실패한 메일을 남길 날수 (7~3650)
+    #[arg(long)]
+    pub mail_retention_days: Option<u32>,
     /// 회원 가입: off(받지 않음), open(누구나)
     #[arg(long)]
     pub signup: Option<String>,

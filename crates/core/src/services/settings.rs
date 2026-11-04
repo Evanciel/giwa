@@ -9,7 +9,7 @@ use crate::audit::Target;
 use crate::clock;
 use crate::error::{Code, Error, Result};
 use crate::model::{CaptchaMode, SignupMode, SiteSettings};
-use crate::services::{moderation, required_text};
+use crate::services::{moderation, required_text, retention};
 use crate::store::{Ctx, Tx};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
@@ -54,6 +54,12 @@ pub struct SettingsPatch {
     pub banned_words: Option<String>,
     /// 회원이 글·댓글을 쓰는 최소 간격(초, 0~3600). 0 이면 끔
     pub flood_seconds: Option<u32>,
+    /// 휴면으로 바꿀 미접속 날수 (0 = 끔, 180~3650). 회원 관리 권한 필요
+    #[serde(default)]
+    pub dormant_days: Option<u32>,
+    /// 보냈거나 실패한 편지를 남길 날수 (7~3650). 회원 관리 권한 필요
+    #[serde(default)]
+    pub mail_retention_days: Option<u32>,
 }
 
 /// 저장된 값 위에 기본값을 채운다. 모르는 키나 잘못된 값은 기본값으로 둔다.
@@ -143,6 +149,24 @@ pub async fn update(ctx: &Ctx, actor: &Actor, patch: SettingsPatch) -> Result<Si
                 .arg("value", n.to_string()));
         }
         changes.push(("flood_seconds", json!(n)));
+    }
+    if let Some(n) = patch.dormant_days {
+        actor.require(Permission::MemberManage)?;
+        if n != 0 && !(retention::MIN_DORMANT_DAYS..=retention::MAX_DAYS).contains(&n) {
+            return Err(Error::new(Code::Validation)
+                .with_message("error.dormant_days")
+                .arg("value", n.to_string()));
+        }
+        changes.push(("dormant_days", json!(n)));
+    }
+    if let Some(n) = patch.mail_retention_days {
+        actor.require(Permission::MemberManage)?;
+        if !(retention::MIN_MAIL_DAYS..=retention::MAX_DAYS).contains(&n) {
+            return Err(Error::new(Code::Validation)
+                .with_message("error.mail_retention")
+                .arg("value", n.to_string()));
+        }
+        changes.push(("mail_retention_days", json!(n)));
     }
     if let Some(m) = &patch.signup {
         actor.require(Permission::MemberManage)?;

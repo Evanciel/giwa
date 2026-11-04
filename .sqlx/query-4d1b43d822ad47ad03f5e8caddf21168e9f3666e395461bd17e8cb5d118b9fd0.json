@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE members SET\n                    email = CASE WHEN EXISTS (SELECT 1 FROM member_dormant WHERE member_id = ?)\n                                 THEN email ELSE ? END,\n                    display_name = ?, password_hash = ?, status = ?,\n                    email_verified_at = ?, withdrawn_at = ?, updated_at = ?\n             WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 9
+    },
+    "nullable": []
+  },
+  "hash": "4d1b43d822ad47ad03f5e8caddf21168e9f3666e395461bd17e8cb5d118b9fd0"
+}

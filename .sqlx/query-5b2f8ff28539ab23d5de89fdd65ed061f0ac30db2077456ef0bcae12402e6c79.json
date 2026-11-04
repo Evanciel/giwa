@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, email, display_name, password_hash, status, email_verified_at, withdrawn_at,\n                    created_at, updated_at\n         FROM members WHERE email = ?",
+  "query": "SELECT m.id, m.email, m.display_name, m.password_hash, m.status, m.email_verified_at,\n                    m.withdrawn_at, m.created_at, m.updated_at\n             FROM members m\n             WHERE m.status = 'active' AND m.withdrawn_at IS NULL\n               AND COALESCE(m.last_login_at, m.created_at) < ?\n               AND NOT EXISTS (SELECT 1 FROM member_dormant d WHERE d.member_id = m.id)\n               AND NOT EXISTS (SELECT 1 FROM member_roles mr JOIN roles r ON r.id = mr.role_id\n                               WHERE mr.member_id = m.id AND r.rank > 10)\n               AND m.dormant_notice_at IS NULL\n             ORDER BY m.id LIMIT ?",
   "describe": {
     "columns": [
       {
@@ -104,7 +104,7 @@
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 2
     },
     "nullable": [
       false,
@@ -118,5 +118,5 @@
       false
     ]
   },
-  "hash": "26dfc41fa763e6fc399d820e10a1c3fd3acd1e43627fee51724bf90ac4854eae"
+  "hash": "5b2f8ff28539ab23d5de89fdd65ed061f0ac30db2077456ef0bcae12402e6c79"
 }

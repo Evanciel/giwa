@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM mail_outbox WHERE status != 'queued' AND created_at < ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "f8ce9c6e343e85b183e6142772c0a644687a4a457d9dc5c57379a32578d79cea"
+}

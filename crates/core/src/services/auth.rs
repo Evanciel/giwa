@@ -401,9 +401,25 @@ pub(crate) async fn finish_login(tx: &mut Tx, member: Member, method: &str) -> R
     Ok(Login::Session(start_session(tx, member, method).await?))
 }
 
-pub(crate) async fn start_session(tx: &mut Tx, member: Member, method: &str) -> Result<NewSession> {
+pub(crate) async fn start_session(
+    tx: &mut Tx,
+    mut member: Member,
+    method: &str,
+) -> Result<NewSession> {
     let raw = new_secret()?;
     let now = clock::now();
+    // 로그인 경로는 모두 여기를 지난다. 휴면이면 여기서 깨운다 (ADR-0073).
+    if let Some(email) = tx.wake_member(&member.id).await? {
+        member.email = email;
+        tx.audit(
+            &Actor::human(member.id.clone(), [], crate::actor::rank::GUEST),
+            "member.wake",
+            Target::new("member", &member.id),
+            json!({ "method": method }),
+        )
+        .await?;
+    }
+    tx.touch_login(&member.id, &now).await?;
     let session = Session {
         id: clock::new_id(),
         token_hash: tokens::hash(&raw),

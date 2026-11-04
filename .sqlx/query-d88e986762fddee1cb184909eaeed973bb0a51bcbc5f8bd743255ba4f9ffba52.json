@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO member_dormant (member_id, email, dormant_at)\n             SELECT id, email, ? FROM members\n             WHERE id = ? AND email NOT LIKE '%@invalid'\n               AND NOT EXISTS (SELECT 1 FROM member_dormant WHERE member_id = ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "d88e986762fddee1cb184909eaeed973bb0a51bcbc5f8bd743255ba4f9ffba52"
+}

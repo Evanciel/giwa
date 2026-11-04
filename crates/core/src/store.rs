@@ -15,13 +15,13 @@ use crate::actor::Actor;
 use crate::audit::{AuditRecord, Target};
 use crate::blobs::Blobs;
 use crate::error::{Error, Result};
-use crate::model::MemberTotp;
 use crate::model::{
     Attachment, AuditEntry, Board, Category, Comment, CommentStatus, Font, FontFile, Listing,
     LoginTicket, MailOut, MailStatus, Media, Member, MenuLink, Page, PageReq, PageStatus, Post,
     PostStatus, PostTemplate, Revision, Role, Session, StatBatch, StatDay, StatPage, StatReferrer,
     Tag, TicketPurpose, Token, TotpChallenge, Widget,
 };
+use crate::model::{MemberActivity, MemberTotp};
 
 /// 댓글 관리 목록 조건. 비어 있는 조건은 거르지 않는다.
 #[derive(Debug, Clone, Copy, Default)]
@@ -51,6 +51,8 @@ pub trait Extensions: Send + Sync {
     async fn widget_types(&self, ctx: &Ctx) -> Vec<WidgetType>;
     /// 모듈 위젯의 설정을 검사한다. 그런 종류가 없으면 `None`.
     async fn check_widget(&self, ctx: &Ctx, kind: &str, config: Value) -> Option<Result<Value>>;
+    /// 켜진 모듈의 보존 정리 (ADR-0073). 지운 수의 합. 한 모듈이 실패해도 나머지는 한다.
+    async fn purge(&self, ctx: &Ctx) -> u64;
 }
 
 struct NoExtensions;
@@ -63,6 +65,10 @@ impl Extensions for NoExtensions {
 
     async fn check_widget(&self, _ctx: &Ctx, _kind: &str, _config: Value) -> Option<Result<Value>> {
         None
+    }
+
+    async fn purge(&self, _ctx: &Ctx) -> u64 {
+        0
     }
 }
 
@@ -255,8 +261,22 @@ pub trait Store: Send + Sync {
     async fn bump_totp_challenge(&self, id: &str) -> Result<i64>;
     /// 횟수를 다 쓴 확인 단계를 버린다. 시스템 기록.
     async fn delete_totp_challenge(&self, id: &str) -> Result<()>;
+    /// 마지막 로그인과 휴면 (ADR-0073)
+    async fn member_activity(&self, member_id: &str) -> Result<MemberActivity>;
+    /// 휴면 미리 알림을 보낼 회원: 마지막 접속(없으면 가입)이 `seen_before` 보다 앞서고
+    /// 아직 알리지 않은, 쓰는 중인 일반 회원(직원 역할 없음). 휴면 회원은 빠진다.
+    async fn members_to_notify(&self, seen_before: &str, limit: i64) -> Result<Vec<Member>>;
+    /// 휴면으로 바꿀 회원: 위 조건에 더해 `noticed_before` 보다 먼저 알린 회원.
+    async fn members_to_sleep(
+        &self,
+        seen_before: &str,
+        noticed_before: &str,
+        limit: i64,
+    ) -> Result<Vec<Member>>;
     /// 새것부터. `status` 가 없으면 전부
     async fn mails(&self, status: Option<MailStatus>, limit: i64) -> Result<Vec<MailOut>>;
+    /// 보냈거나 실패한 편지 중 `before` 보다 먼저 쌓인 것을 지운다. 시스템 정리라 감사 대상이 아니다.
+    async fn purge_mails(&self, before: &str) -> Result<u64>;
     async fn mail_by_id(&self, id: &str) -> Result<Option<MailOut>>;
     /// 배달 결과 (상태·시도 수·오류·보낸 때). 감사 대상이 아닌 시스템 기록.
     async fn update_mail(&self, m: &MailOut) -> Result<()>;
@@ -447,6 +467,13 @@ pub trait WriteTx: Send {
     async fn insert_session(&mut self, s: &Session) -> Result<()>;
     async fn delete_session(&mut self, id: &str) -> Result<u64>;
     async fn delete_member_sessions(&mut self, member_id: &str) -> Result<u64>;
+    /// 마지막 로그인을 적고 휴면 미리 알림 표시를 지운다 (ADR-0073).
+    async fn touch_login(&mut self, member_id: &str, now: &str) -> Result<()>;
+    async fn mark_dormant_notice(&mut self, member_id: &str, now: &str) -> Result<()>;
+    /// 메일 주소를 분리 표로 옮기고 `dormant+<id>@invalid` 로 바꾼다. 옮겼으면 `true`.
+    async fn make_dormant(&mut self, member_id: &str, now: &str) -> Result<bool>;
+    /// 휴면이면 메일 주소를 되돌리고 그 주소를 돌려준다.
+    async fn wake_member(&mut self, member_id: &str) -> Result<Option<String>>;
     async fn member_totp(&mut self, member_id: &str) -> Result<Option<MemberTotp>>;
     /// 넣거나 통째로 바꾼다.
     async fn put_member_totp(&mut self, t: &MemberTotp) -> Result<()>;

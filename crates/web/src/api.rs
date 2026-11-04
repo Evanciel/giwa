@@ -13,7 +13,8 @@ use maru_core::model::{MenuItem, PageReq, PageStatus, PostStatus};
 use maru_core::output::Success;
 use maru_core::services::{
     anonymous_actor, audit_log, backups, boards, categories, comments, design, files, fonts, media,
-    members, menus, pages, posts, search, settings, stats, tags, templates, tokens, views, widgets,
+    members, menus, pages, posts, retention, search, settings, stats, tags, templates, tokens,
+    views, widgets,
 };
 use maru_core::{Actor, Code, Error};
 use maru_modules::service as modules;
@@ -118,6 +119,7 @@ pub fn routes() -> Router<AppState> {
         .route("/slug-check", get(check_slug))
         .route("/search", get(site_search))
         .route("/search/reindex", post(reindex_search))
+        .route("/privacy/run", post(run_privacy))
         .route("/posts/{id}/comments", get(post_comments))
         .route("/comments", get(list_comments))
         .route("/comments/{id}/{action}", post(moderate_comment))
@@ -913,6 +915,16 @@ async fn site_search(
 }
 
 /// `POST /search/reindex` 검색 색인 다시 만들기 (사이트 관리 권한).
+async fn run_privacy(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+) -> Result<Response, ApiError> {
+    Ok(ok(
+        StatusCode::OK,
+        retention::run(&state.ctx, &actor).await?,
+    ))
+}
+
 async fn reindex_search(
     State(state): State<AppState>,
     ApiActor(actor): ApiActor,

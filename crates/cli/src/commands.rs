@@ -14,8 +14,8 @@ use maru_core::services::posts::{self, NewPost};
 use maru_core::services::tokens::{self, NewToken};
 use maru_core::services::{
     anonymous_actor, audit_log, auth, backups, categories, comments, design, files, fonts, mail,
-    media, members, menus, pages, presets, search, settings, stats, tags, templates, views,
-    widgets,
+    media, members, menus, pages, presets, retention, search, settings, stats, tags, templates,
+    views, widgets,
 };
 use maru_core::urls::{self, Target};
 use maru_core::{Actor, Code, Ctx, Error, Result};
@@ -26,9 +26,9 @@ use crate::output;
 use crate::{
     AuditCmd, AuditListArgs, BackupArgs, BackupCmd, BoardCmd, CategoryCmd, Command, CommentCmd,
     DesignCmd, FileCmd, FontCmd, Global, InitArgs, LoginLinkArgs, MailCmd, MediaCmd, MemberCmd,
-    MenuCmd, MenuSetArgs, PageCmd, PostCmd, PostListArgs, PostNewArgs, RestoreArgs, SearchArgs,
-    SearchCmd, ServeArgs, SiteCmd, StatsArgs, TagCmd, TemplateCmd, TokenCmd, TokenCreateArgs,
-    WidgetCmd,
+    MenuCmd, MenuSetArgs, PageCmd, PostCmd, PostListArgs, PostNewArgs, PrivacyCmd, RestoreArgs,
+    SearchArgs, SearchCmd, ServeArgs, SiteCmd, StatsArgs, TagCmd, TemplateCmd, TokenCmd,
+    TokenCreateArgs, WidgetCmd,
 };
 
 pub async fn run(g: &Global, command: Command) -> ExitCode {
@@ -60,6 +60,7 @@ pub async fn run(g: &Global, command: Command) -> ExitCode {
         Command::Member(cmd) => member_cmd(g, cmd).await,
         Command::Comment(cmd) => comment_cmd(g, cmd).await,
         Command::Mail(cmd) => mail_cmd(g, cmd).await,
+        Command::Privacy(cmd) => privacy_cmd(g, cmd).await,
         Command::LoginLink(args) => login_link(g, args).await,
     };
     match res {
@@ -1644,6 +1645,8 @@ async fn site(g: &Global, cmd: SiteCmd) -> Out {
                 captcha: args.captcha,
                 banned_words: args.banned_words,
                 flood_seconds: args.flood_seconds,
+                dormant_days: args.dormant_days,
+                mail_retention_days: args.mail_retention_days,
             };
             settings::update(&ctx, &actor, patch).await
         }
@@ -2334,6 +2337,23 @@ fn member_out(v: members::MemberView) -> Out {
         member_flags(&v.member)
     ) + if v.two_factor { "  2단계" } else { "" };
     Ok((to_value(&v)?, human))
+}
+
+async fn privacy_cmd(g: &Global, cmd: PrivacyCmd) -> Out {
+    let PrivacyCmd::Run = cmd;
+    let (ctx, _config, db) = open(g).await?;
+    let res = async {
+        let actor = actor(&ctx).await?;
+        retention::run(&ctx, &actor).await
+    }
+    .await;
+    db.close().await;
+    let r = res?;
+    let human = format!(
+        "보존 정리: 휴면 알림 {}명, 휴면 전환 {}명, 지운 메일 {}통, 모듈 기록 {}건",
+        r.notified, r.dormant, r.mails_removed, r.module_removed
+    );
+    Ok((to_value(&r)?, human))
 }
 
 async fn mail_cmd(g: &Global, cmd: MailCmd) -> Out {

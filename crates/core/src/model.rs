@@ -742,6 +742,12 @@ pub struct SiteSettings {
     /// 회원이 글·댓글을 쓰는 최소 간격(초). 0 이면 끔 (ADR-0071)
     #[serde(default)]
     pub flood_seconds: u32,
+    /// 이 날수 동안 로그인하지 않은 회원을 휴면으로 바꾼다. 0 이면 끔 (ADR-0073)
+    #[serde(default)]
+    pub dormant_days: u32,
+    /// 보냈거나 실패한 편지를 며칠 남길지 (7~3650, ADR-0073)
+    #[serde(default = "default_mail_retention_days")]
+    pub mail_retention_days: u32,
 }
 
 /// 사람 확인 질문 (자체 캡차, ADR-0052). 비회원 댓글·회원 가입 폼에 낸다.
@@ -802,6 +808,10 @@ fn default_stats_retention_days() -> u32 {
     400
 }
 
+fn default_mail_retention_days() -> u32 {
+    90
+}
+
 fn default_true() -> bool {
     true
 }
@@ -825,6 +835,8 @@ impl Default for SiteSettings {
             stats_retention_days: default_stats_retention_days(),
             banned_words: Vec::new(),
             flood_seconds: 0,
+            dormant_days: 0,
+            mail_retention_days: default_mail_retention_days(),
         }
     }
 }
@@ -924,6 +936,14 @@ pub struct LoginTicket {
     pub created_at: String,
     pub expires_at: String,
     pub used_at: Option<String>,
+}
+
+/// 회원의 마지막 로그인과 휴면 (ADR-0073).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct MemberActivity {
+    pub last_login_at: Option<String>,
+    /// 휴면으로 바뀐 때. 없으면 휴면이 아니다
+    pub dormant_at: Option<String>,
 }
 
 /// 회원의 TOTP 비밀 (ADR-0072). 비밀이 들어 있어 직렬화하지 않는다.

@@ -53,6 +53,10 @@ static MANIFEST: Manifest = Manifest {
 const PER_PAGE: i64 = 20;
 const ME_LIMIT: i64 = 5;
 const HOME: &str = "/m/notify";
+/// 알림 보관 날수 (ADR-0073)
+const DEFAULT_KEEP_DAYS: i64 = 180;
+const MIN_KEEP_DAYS: i64 = 7;
+const MAX_KEEP_DAYS: i64 = 3650;
 
 /// 알림 종류. 표에는 문자열로 둔다.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -810,24 +814,69 @@ impl Module for NotifyModule {
         }
     }
 
+    /// `keep_days` 가 지난 알림을 지운다 (읽음과 상관없이).
+    async fn purge(&self, ctx: &Ctx) -> Result<u64> {
+        let days = settings_of(ctx, self)
+            .await?
+            .get("keep_days")
+            .and_then(Value::as_i64)
+            .unwrap_or(DEFAULT_KEEP_DAYS)
+            .clamp(MIN_KEEP_DAYS, MAX_KEEP_DAYS);
+        let before = clock::hours_ago(days * 24);
+        Ok(
+            sqlx::query!("DELETE FROM mod_notify_item WHERE at < ?", before)
+                .execute(self.db.write_pool())
+                .await
+                .map_err(Error::internal)?
+                .rows_affected(),
+        )
+    }
+
     fn settings_fields(&self) -> Vec<FieldDef> {
-        vec![FieldDef {
-            key: "mail".to_owned(),
-            label: "메일로도 알리기".to_owned(),
-            kind: "boolean".to_owned(),
-            required: false,
-            options: Vec::new(),
-            help: Some(
-                "끄면 사이트 안에서만 알립니다. 회원은 알림 화면에서 따로 끌 수 있습니다."
-                    .to_owned(),
-            ),
-        }]
+        vec![
+            FieldDef {
+                key: "mail".to_owned(),
+                label: "메일로도 알리기".to_owned(),
+                kind: "boolean".to_owned(),
+                required: false,
+                options: Vec::new(),
+                help: Some(
+                    "끄면 사이트 안에서만 알립니다. 회원은 알림 화면에서 따로 끌 수 있습니다."
+                        .to_owned(),
+                ),
+            },
+            FieldDef {
+                key: "keep_days".to_owned(),
+                label: "알림 보관 날수".to_owned(),
+                kind: "number".to_owned(),
+                required: false,
+                options: Vec::new(),
+                help: Some(format!(
+                    "이 날수가 지난 알림은 하루 한 번 지웁니다 ({MIN_KEEP_DAYS}~{MAX_KEEP_DAYS})."
+                )),
+            },
+        ]
     }
 
     fn default_settings(&self) -> Map<String, Value> {
         let mut m = Map::new();
         m.insert("mail".into(), json!(true));
+        m.insert("keep_days".into(), json!(DEFAULT_KEEP_DAYS));
         m
+    }
+
+    fn check_settings(&self, settings: &Map<String, Value>) -> Result<()> {
+        if !settings
+            .get("keep_days")
+            .and_then(Value::as_i64)
+            .is_some_and(|n| (MIN_KEEP_DAYS..=MAX_KEEP_DAYS).contains(&n))
+        {
+            return Err(module_error(
+                Code::Validation,
+                format!("keep_days 는 {MIN_KEEP_DAYS}~{MAX_KEEP_DAYS} 사이의 정수여야 합니다."),
+            ));
+        }
+        Ok(())
     }
 
     async fn slot(

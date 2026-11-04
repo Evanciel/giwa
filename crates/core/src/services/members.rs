@@ -68,6 +68,9 @@ pub struct MemberView {
     pub roles: Vec<String>,
     /// 2단계 인증을 켰는지 (ADR-0072)
     pub two_factor: bool,
+    /// 휴면이면 메일 주소는 따로 보관돼 `email` 이 자리표시 값이다 (ADR-0073)
+    pub dormant: bool,
+    pub last_login_at: Option<String>,
 }
 
 /// 가입한다. 비밀번호 해시 계산이 무거우므로 웹은 동시에 부르는 수를 제한한다.
@@ -524,10 +527,13 @@ async fn view(ctx: &Ctx, member: Member) -> Result<MemberView> {
         .map(|r| r.name)
         .collect();
     let two_factor = totp::is_enabled(ctx, &member.id).await?;
+    let activity = ctx.store.member_activity(&member.id).await?;
     Ok(MemberView {
         member,
         roles,
         two_factor,
+        dormant: activity.dormant_at.is_some(),
+        last_login_at: activity.last_login_at,
     })
 }
 
