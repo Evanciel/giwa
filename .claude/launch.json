@@ -6,6 +6,12 @@
       "runtimeExecutable": "H:/maru-build/target/debug/maru.exe",
       "runtimeArgs": ["--data", "F:/claude-temp/rust-cms/demo", "serve", "--bind", "127.0.0.1:3139"],
       "port": 3139
+    },
+    {
+      "name": "maru-community",
+      "runtimeExecutable": "H:/maru-build/target/debug/maru.exe",
+      "runtimeArgs": ["--data", "F:/claude-temp/rust-cms/demo-cm2", "serve", "--bind", "127.0.0.1:3139"],
+      "port": 3139
     }
   ]
 }
