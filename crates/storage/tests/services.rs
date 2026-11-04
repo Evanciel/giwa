@@ -834,7 +834,7 @@ async fn boards_crud_and_non_empty_delete() {
         "알림"
     );
     let bad = boards::BoardPatch {
-        kind: Some("wiki".into()),
+        kind: Some("chatroom".into()),
         ..Default::default()
     };
     assert_eq!(

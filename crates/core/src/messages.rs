@@ -181,6 +181,9 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "error.media_not_found" => "`{id}` 미디어를 찾을 수 없습니다.",
         "error.media_type" => "이미지 파일(jpg, png, gif, webp)만 올릴 수 있습니다: {name}",
         "error.media_too_large" => "파일이 너무 큽니다. {max}MB 이하만 올릴 수 있습니다.",
+        "error.not_wiki" => {
+            "「{board}」 게시판은 위키가 아닙니다. 게시판 종류를 위키(wiki)로 바꾸세요."
+        }
         "error.media_decode" => "이미지를 읽지 못했습니다. 파일이 깨졌거나 너무 큽니다: {detail}",
         "error.media_rotate" => "돌리기는 0·90·180·270도만 됩니다 (받은 값: {value}).",
         "error.media_crop_arg" => "--crop 은 `x,y,가로,세로` 네 개의 0 이상 정수입니다.",

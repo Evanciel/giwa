@@ -73,8 +73,24 @@ function footnoteRef(state: StateInline, silent: boolean): boolean {
   return true;
 }
 
+/** 위키 링크 `[[문서]]`·`[[문서|보일 글]]` (GAP C13). 서버는 위키 게시판에서만 링크로 그리고, 다른 곳에서는 글자 그대로다. */
+const WIKI = /^\[\[([^\[\]|\n]+)(?:\|([^\[\]\n]+))?\]\]/;
+
+function wikiLink(state: StateInline, silent: boolean): boolean {
+  if (state.src.charCodeAt(state.pos) !== 0x5b || state.src.charCodeAt(state.pos + 1) !== 0x5b) return false;
+  const m = state.src.slice(state.pos).match(WIKI);
+  if (!m || !m[1].trim()) return false;
+  if (!silent) {
+    const tok = state.push("wikilink", "a", 0);
+    tok.meta = { target: m[1], label: m[2] ?? null };
+  }
+  state.pos += m[0].length;
+  return true;
+}
+
 export function maruSyntax(md: MarkdownIt) {
   md.core.ruler.push("maru_tasks", taskLists);
+  md.inline.ruler.before("link", "wikilink", wikiLink);
   md.block.ruler.before("reference", "footnote_def", footnoteDef, { alt: ["paragraph", "reference"] });
   md.inline.ruler.before("link", "footnote_ref", footnoteRef);
 }

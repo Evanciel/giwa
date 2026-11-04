@@ -94,6 +94,7 @@ fn kind_label(kind: &str) -> &'static str {
         "qna" => "질문·답변",
         "faq" => "자주 묻는 질문",
         "forum" => "포럼",
+        "wiki" => "위키",
         _ => "기타",
     }
 }

@@ -711,3 +711,9 @@ form.widget-search { flex: 1; min-width: 0; }
 .notify-prefs label { display: inline-flex; align-items: center; gap: calc(var(--space) * .75); }
 .notify-prefs { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space); margin-top: calc(var(--space) * 3); }
 .scrap-list form { grid-column: 2; grid-row: 1 / span 2; margin: 0; }
+/* 위키 (GAP C13). 아직 없는 문서는 붉은 점선 밑줄 */
+a.wikilink-new { color: #b3261e; text-decoration-style: dashed; }
+.wiki-backlinks, .wiki-index { margin-top: calc(var(--space) * 4); padding-top: calc(var(--space) * 2); border-top: 1px solid var(--border); }
+.wiki-index { display: grid; gap: calc(var(--space) * 3); grid-template-columns: repeat(auto-fit, minmax(min(16rem, 100%), 1fr)); }
+.wiki-backlinks h2, .wiki-index h2 { margin: 0 0 .5em; font-size: 1rem; }
+.wiki-backlinks ul, .wiki-index ul { margin: 0; padding-left: 1.1em; }

@@ -49,6 +49,20 @@ const footnoteRef: NodeSpec = {
   toDOM: (node) => ["sup", { class: "me-fnref", "data-label": node.attrs.label, title: `각주 ${node.attrs.label}` }, node.attrs.label],
 };
 
+// 위키 링크 (GAP C13). 고칠 일이 드물어 덩어리 하나로 둔다. `[[대상|보일 글]]` 을 그대로 다시 쓴다.
+const wikilink: NodeSpec = {
+  inline: true,
+  group: "inline",
+  atom: true,
+  attrs: { target: {}, label: { default: null } },
+  parseDOM: [{ tag: "span.me-wikilink", getAttrs: (dom) => ({ target: (dom as HTMLElement).dataset.target, label: (dom as HTMLElement).dataset.label ?? null }) }],
+  toDOM: (node) => [
+    "span",
+    { class: "me-wikilink", "data-target": node.attrs.target, ...(node.attrs.label ? { "data-label": node.attrs.label } : {}), title: `위키 문서 「${node.attrs.target}」` },
+    node.attrs.label ?? node.attrs.target,
+  ],
+};
+
 const footnoteDef: NodeSpec = {
   group: "block",
   content: "inline*",
@@ -199,6 +213,7 @@ export const schema = new Schema({
     .update("image", image)
     .addToEnd("footnote_ref", footnoteRef)
     .addToEnd("footnote_def", footnoteDef)
+    .addToEnd("wikilink", wikilink)
     .addToEnd("box", box)
     .addToEnd("table", table)
     .addToEnd("table_row", tableRow)
@@ -246,6 +261,7 @@ const parser = new MarkdownParser(schema, readMd, {
   },
   footnote_ref: { node: "footnote_ref", getAttrs: (tok) => ({ label: tok.meta.label }) },
   footnote_def: { block: "footnote_def", getAttrs: (tok) => ({ label: tok.meta.label }) },
+  wikilink: { node: "wikilink", getAttrs: (tok) => ({ target: tok.meta.target, label: tok.meta.label }) },
   maru_box: { block: "box", getAttrs: (tok) => ({ kind: tok.meta.kind }) },
   maru_video: { node: "video", getAttrs: (tok) => ({ url: tok.meta.url }) },
   maru_place: { node: "place", getAttrs: (tok) => ({ name: tok.meta.name, addr: tok.meta.addr }) },
@@ -321,6 +337,9 @@ const serializer = new MarkdownSerializer(
     },
     footnote_ref(state, node) {
       state.write(`[^${node.attrs.label}]`);
+    },
+    wikilink(state, node) {
+      state.write(`[[${node.attrs.target}${node.attrs.label ? `|${node.attrs.label}` : ""}]]`);
     },
     footnote_def(state, node) {
       state.write(`[^${node.attrs.label}]: `);

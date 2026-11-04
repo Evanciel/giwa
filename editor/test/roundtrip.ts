@@ -106,6 +106,12 @@ const rich: Record<string, string> = {
     } else check("찾기 문서", false);
     check("원문 바꾸기", JSON.stringify(replaceText("a b a", "a", "c")) === JSON.stringify(["c b c", 2]));
   }
+  for (const md of ["[[고양이]]와 [[강아지|개]]", "**[[굵은 문서]]**"]) {
+    const w = load(md);
+    let n = 0;
+    if (w.ok) w.doc.descendants((node) => void (node.type.name === "wikilink" && n++));
+    check(`위키 링크 ${md}`, w.ok && n > 0 && serialize(w.doc) === md, w.ok ? serialize(w.doc) : "");
+  }
   const g = load(":::gallery\n![a](/a.png)\n:::");
   check("갤러리 상자", g.ok && g.doc.firstChild?.type.name === "box" && g.doc.firstChild.attrs.kind === "gallery");
   // 접기: 새 노드 없이 상자 하나. 첫 문단(요약)이 첫 자식으로 남아야 서버와 같은 뜻이 된다.

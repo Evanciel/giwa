@@ -15,7 +15,7 @@ use maru_core::services::tokens::{self, NewToken};
 use maru_core::services::{
     anonymous_actor, audit_log, auth, backups, categories, comments, design, files, fonts, mail,
     media, members, menus, pages, presets, retention, search, settings, signals, stats, tags,
-    templates, views, widgets,
+    templates, views, widgets, wiki,
 };
 use maru_core::urls::{self, Target};
 use maru_core::{Actor, Code, Ctx, Error, Result};
@@ -62,6 +62,7 @@ pub async fn run(g: &Global, command: Command) -> ExitCode {
         Command::Mail(cmd) => mail_cmd(g, cmd).await,
         Command::Privacy(cmd) => privacy_cmd(g, cmd).await,
         Command::Signals(args) => signals_cmd(g, args).await,
+        Command::Wiki { board } => wiki_cmd(g, &board).await,
         Command::LoginLink(args) => login_link(g, args).await,
     };
     match res {
@@ -2370,6 +2371,30 @@ fn member_out(v: members::MemberView) -> Out {
         member_flags(&v.member)
     ) + if v.two_factor { "  2단계" } else { "" };
     Ok((to_value(&v)?, human))
+}
+
+async fn wiki_cmd(g: &Global, board: &str) -> Out {
+    let (ctx, _config, db) = open(g).await?;
+    let res = async {
+        let actor = actor(&ctx).await?;
+        let idx = wiki::index(&ctx, &actor, board).await?;
+        let mut human = format!(
+            "문서 {}개 · 필요한 문서 {}개 · 외톨이 문서 {}개",
+            idx.pages,
+            idx.wanted.len(),
+            idx.orphans.len()
+        );
+        for w in &idx.wanted {
+            human.push_str(&format!("\n- 필요: {} ({}곳)", w.title, w.count));
+        }
+        for o in &idx.orphans {
+            human.push_str(&format!("\n- 외톨이: {}", o.title));
+        }
+        Ok((to_value(&idx)?, human))
+    }
+    .await;
+    db.close().await;
+    res
 }
 
 async fn signals_cmd(g: &Global, args: SignalsArgs) -> Out {

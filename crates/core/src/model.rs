@@ -7,7 +7,9 @@ use crate::actor::{AuthorType, Permission, Scope};
 use crate::clock::Id;
 
 /// 게시판 종류 (SPEC §4). DB 에 CHECK 를 두지 않고 여기서 검증한다 (ADR-0016).
-pub const BOARD_KINDS: [&str; 7] = ["blog", "notice", "gallery", "free", "qna", "faq", "forum"];
+pub const BOARD_KINDS: [&str; 8] = [
+    "blog", "notice", "gallery", "free", "qna", "faq", "forum", "wiki",
+];
 /// 게시판 목록 순서 (ADR-0058). 빈 값이면 종류의 기본값.
 pub const BOARD_ORDERS: [&str; 2] = ["latest", "activity"];
 /// 댓글을 채택할 수 있는 게시판 종류 (ADR-0058).

@@ -108,6 +108,11 @@ enum Command {
     /// 개인정보 보유기간: 휴면 전환·지난 메일·모듈 기록 정리 (서버가 하루 한 번 한다)
     #[command(subcommand)]
     Privacy(PrivacyCmd),
+    /// 위키 게시판의 색인: 필요한 문서(가리키지만 없음)·외톨이 문서(아무도 가리키지 않음)
+    Wiki {
+        /// 위키 게시판 slug
+        board: String,
+    },
     /// 운영 신호: 댓글 급증·신고 집중·묵은 신고. `maru signals alert` 는 새 신호를 지금 메일로
     Signals(SignalsArgs),
     /// 관리 화면 로그인 링크를 만든다 (10분, 1회용)
@@ -674,7 +679,7 @@ pub struct BoardCreateArgs {
     pub slug: String,
     #[arg(long)]
     pub name: String,
-    /// blog, notice, gallery, free, qna, faq, forum
+    /// blog, notice, gallery, free, qna, faq, forum, wiki
     #[arg(long, default_value = "blog")]
     pub kind: String,
     #[arg(long, default_value_t = 0)]

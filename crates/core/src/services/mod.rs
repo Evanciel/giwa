@@ -31,6 +31,7 @@ pub mod tokens;
 pub mod totp;
 pub mod views;
 pub mod widgets;
+pub mod wiki;
 
 use crate::actor::Actor;
 use crate::error::{Code, Error, Result};

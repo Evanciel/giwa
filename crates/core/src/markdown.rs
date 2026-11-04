@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use pulldown_cmark::{CowStr, Event, Options, Parser, Tag, TagEnd, html};
+use pulldown_cmark::{CowStr, Event, LinkType, Options, Parser, Tag, TagEnd, html};
 use serde::Serialize;
 
 use crate::directives;
@@ -27,6 +27,49 @@ fn options() -> Options {
         | Options::ENABLE_FOOTNOTES
         | Options::ENABLE_STRIKETHROUGH
         | Options::ENABLE_TASKLISTS
+}
+
+/// 위키 링크 `[[문서]]`·`[[문서|보일 글]]` 이 갈 곳 (GAP C13).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WikiHref {
+    pub href: String,
+    /// 아직 없는 문서. 누르면 만들기 화면이다
+    pub missing: bool,
+}
+
+/// 위키 문서 제목을 견주는 열쇠: 앞뒤 공백을 떼고, 밑줄은 빈칸으로, 소문자로.
+pub fn wiki_key(title: &str) -> String {
+    title.trim().replace('_', " ").to_lowercase()
+}
+
+/// 본문의 위키 링크가 가리키는 제목, 처음 나온 순서대로 (같은 열쇠는 한 번).
+pub fn wiki_targets(md: &str) -> Vec<String> {
+    if !md.contains("[[") {
+        return Vec::new();
+    }
+    let md = directives::expand(md, options());
+    let mut out: Vec<String> = Vec::new();
+    for ev in Parser::new_ext(&md, options() | Options::ENABLE_WIKILINKS) {
+        if let Event::Start(Tag::Link {
+            link_type: LinkType::WikiLink { .. },
+            dest_url,
+            ..
+        }) = ev
+        {
+            let t = dest_url.trim();
+            if !t.is_empty() && !out.iter().any(|o| wiki_key(o) == wiki_key(t)) {
+                out.push(t.to_owned());
+            }
+        }
+    }
+    out
+}
+
+fn attr_escape(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('"', "&quot;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }
 
 /// 보관소에 있는 그림의 크기와 축소본. 공개 화면이 `width`·`height`·`srcset` 을 붙이는 데 쓴다.
@@ -77,7 +120,7 @@ pub fn render(md: &str) -> SafeHtml {
 
 /// [`render`] 와 같고, 보관소 그림에는 `images` 가 돌려준 크기·축소본을 붙인다.
 pub fn render_with(md: &str, images: &dyn Fn(&str) -> Option<ImageInfo>) -> SafeHtml {
-    render_inner(md, images, false).0
+    render_inner(md, images, false, None).0
 }
 
 /// 목차 한 줄. `id` 는 본문 제목의 `id` 와 같다.
@@ -99,7 +142,18 @@ pub struct Document {
 /// [`render_with`] 에 더해 h2~h4 옆에 「이 절 주소」 링크를 달고 목차를 함께 돌려준다.
 /// 제목 `id` 는 모든 렌더에 붙고(RSS·미리보기에서도 같은 주소), 링크 표시는 공개 화면에만 붙는다.
 pub fn render_document(md: &str, images: &dyn Fn(&str) -> Option<ImageInfo>) -> Document {
-    let (html, toc) = render_inner(md, images, true);
+    let (html, toc) = render_inner(md, images, true, None);
+    Document { html, toc }
+}
+
+/// 위키 게시판의 본문 (GAP C13). [`render_document`] 에 더해 `[[문서]]` 를 `wiki` 가 돌려준 곳으로 잇는다.
+/// 다른 게시판에서는 위키 문법을 켜지 않아 `[[…]]` 가 글자 그대로 남는다.
+pub fn render_wiki_document(
+    md: &str,
+    images: &dyn Fn(&str) -> Option<ImageInfo>,
+    wiki: &dyn Fn(&str) -> WikiHref,
+) -> Document {
+    let (html, toc) = render_inner(md, images, true, Some(wiki));
     Document { html, toc }
 }
 
@@ -107,13 +161,21 @@ fn render_inner(
     md: &str,
     images: &dyn Fn(&str) -> Option<ImageInfo>,
     anchors: bool,
+    wiki: Option<&dyn Fn(&str) -> WikiHref>,
 ) -> (SafeHtml, Vec<TocItem>) {
     let md = &*directives::expand(md, options());
     let mut raw = String::with_capacity(md.len() * 3 / 2);
+    let opts = if wiki.is_some() {
+        options() | Options::ENABLE_WIKILINKS
+    } else {
+        options()
+    };
+    // 열린 링크마다 위키 링크인가. 끝 이벤트에는 종류가 없어 짝을 맞춰 둔다.
+    let mut links: Vec<bool> = Vec::new();
     // 각주는 직접 그린다. pulldown-cmark 기본 출력은 라벨을 그대로 id 로 쓰는데(`id="메모"`),
     // 정화 단계에서 임의의 id 를 허용할 수 없어 번호 링크가 끊긴다. 번호로 만든 `fn-N` 만 쓴다.
     let mut numbers: HashMap<String, usize> = HashMap::new();
-    let events = Parser::new_ext(md, options()).map(|event| {
+    let events = Parser::new_ext(md, opts).map(|event| {
         let mut number = |label: &str| {
             let next = numbers.len() + 1;
             *numbers.entry(label.to_owned()).or_insert(next)
@@ -136,6 +198,40 @@ fn render_inner(
                 )
             }
             Event::End(TagEnd::FootnoteDefinition) => Event::Html("</div>\n".into()),
+            Event::Start(Tag::Link {
+                link_type: LinkType::WikiLink { .. },
+                dest_url,
+                ..
+            }) => {
+                links.push(true);
+                match wiki.map(|f| f(dest_url.trim())) {
+                    Some(w) => Event::InlineHtml(
+                        format!(
+                            "<a class=\"wikilink{}\" href=\"{}\"{}>",
+                            if w.missing { " wikilink-new" } else { "" },
+                            attr_escape(&w.href),
+                            if w.missing {
+                                " title=\"아직 없는 문서\" rel=\"nofollow\""
+                            } else {
+                                ""
+                            }
+                        )
+                        .into(),
+                    ),
+                    None => Event::Text("".into()),
+                }
+            }
+            e @ Event::Start(Tag::Link { .. }) => {
+                links.push(false);
+                e
+            }
+            Event::End(TagEnd::Link) => {
+                if links.pop() == Some(true) {
+                    Event::InlineHtml("</a>".into())
+                } else {
+                    Event::End(TagEnd::Link)
+                }
+            }
             other => other,
         }
     });
@@ -179,7 +275,7 @@ fn render_inner(
         .add_tag_attributes("h3", ["id"])
         .add_tag_attributes("h4", ["id"])
         .add_tag_attributes("a", ["aria-label"])
-        .add_allowed_classes("a", ["heading-anchor"])
+        .add_allowed_classes("a", ["heading-anchor", "wikilink", "wikilink-new"])
         .add_tag_attributes("img", ["srcset", "sizes", "loading", "decoding"])
         .add_allowed_classes("img", IMAGE_WIDTHS.map(width_class))
         .add_allowed_classes("figure", ["figure"])

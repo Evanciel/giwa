@@ -14,7 +14,7 @@ use maru_core::output::Success;
 use maru_core::services::{
     anonymous_actor, audit_log, backups, boards, categories, comments, design, files, fonts, media,
     members, menus, pages, posts, retention, search, settings, signals, stats, tags, templates,
-    tokens, views, widgets,
+    tokens, views, widgets, wiki,
 };
 use maru_core::{Actor, Code, Error};
 use maru_modules::service as modules;
@@ -31,6 +31,7 @@ pub fn routes() -> Router<AppState> {
             get(get_board).patch(update_board).delete(delete_board),
         )
         .route("/boards/{slug}/posts", get(board_posts))
+        .route("/boards/{slug}/wiki", get(board_wiki))
         .route("/boards/{slug}/posts/{post}/nearby", get(post_nearby))
         .route(
             "/boards/{slug}/categories",
@@ -964,6 +965,18 @@ struct PublicListQuery {
 }
 
 /// `GET /boards/{slug}/posts?category=` 공개 화면과 같은 목록(공지 따로, 비밀글은 제목만).
+/// 위키 색인: 필요한 문서·외톨이 문서 (GAP C13).
+async fn board_wiki(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(slug): Path<String>,
+) -> Result<Response, ApiError> {
+    Ok(ok(
+        StatusCode::OK,
+        wiki::index(&state.ctx, &actor, &slug).await?,
+    ))
+}
+
 async fn board_posts(
     State(state): State<AppState>,
     ApiActor(actor): ApiActor,

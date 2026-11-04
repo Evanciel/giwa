@@ -84,6 +84,9 @@ struct NewQuery {
     /// 답변을 달 위 글 id
     #[serde(default)]
     reply: Option<String>,
+    /// 미리 채울 제목 (위키의 「아직 없는 문서」, GAP C13)
+    #[serde(default)]
+    title: Option<String>,
 }
 
 impl WriteForm {
@@ -177,6 +180,11 @@ async fn new_form(
             }
             Err(e) => return crate::error::page(&state, &e).await,
         }
+    }
+    if f.title.is_empty()
+        && let Some(t) = q.title.as_deref().map(str::trim).filter(|t| !t.is_empty())
+    {
+        f.title = t.chars().take(200).collect();
     }
     form(
         &state,

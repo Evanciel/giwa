@@ -1,5 +1,6 @@
 //! 공개 사이트. 비로그인 Actor 로 공개 조회 서비스(`posts::public_*`, `pages::public_*`)만 부른다.
 
+use std::collections::HashMap;
 use std::net::SocketAddr;
 
 use axum::Router;
@@ -17,6 +18,7 @@ use maru_core::services::search::{self, SearchInput, Sort};
 use maru_core::services::widgets::Screen;
 use maru_core::services::{
     anonymous_actor, boards, comments, design, files, media, menus, pages, posts, settings, tags,
+    wiki,
 };
 use maru_core::urls::{self, Target};
 use maru_core::{Code, Error, Result, blobs, clock, markdown, slug};
@@ -270,7 +272,7 @@ async fn board_inner(state: &AppState, slug: &str, q: PageQuery) -> Result<Value
         Some(c) => format!("{} · {} · {}", c.name, board.name, site.settings.name),
         None => format!("{} · {}", board.name, site.settings.name),
     };
-    Ok(json!({
+    let mut out = json!({
         "meta": json!({
             "title": title,
             "description": site.settings.description,
@@ -284,7 +286,12 @@ async fn board_inner(state: &AppState, slug: &str, q: PageQuery) -> Result<Value
         "posts": items,
         "pagination": pagination(&found.posts, &urls::path(&target)),
         "search": search_form(&urls::path(&Target::Board { board: &board.slug }), "", Range::All, Sort::Rank),
-    }))
+    });
+    // 위키 게시판: 필요한 문서·외톨이 문서 (GAP C13).
+    if board.kind == "wiki" {
+        out["wiki"] = json!(wiki::index_of(&state.ctx, &board).await?);
+    }
+    Ok(out)
 }
 
 /// 게시판 안 검색 결과 (`/b/{board}?q=`). 목록 자리에 결과를 보인다.
@@ -575,7 +582,14 @@ async fn post_inner(
         "next": neighbor(&near.next),
         "related": summaries_any_board(state, &near.related, &site.settings).await?,
     });
-    let doc = body_document(state, &post.body_md, &site.settings).await?;
+    // 위키 게시판: `[[문서]]` 를 잇고, 이 문서를 가리키는 문서를 붙인다 (GAP C13).
+    let doc = if board.kind == "wiki" {
+        let links = wiki::links(&state.ctx, &board, &post.body_md).await?;
+        view["wiki"] = json!({ "backlinks": wiki::backlinks(&state.ctx, &board, &post).await? });
+        body_document(state, &post.body_md, &site.settings, Some(&links)).await?
+    } else {
+        body_document(state, &post.body_md, &site.settings, None).await?
+    };
     view["body_html"] = Value::String(doc.html.into_string());
     view["toc"] = json!(doc.toc);
     let image = cover_image(state, &post).await?;
@@ -782,7 +796,7 @@ async fn page_inner(state: &AppState, slug: &str) -> Result<Value> {
         }),
         "site": site.json,
         "canonical": urls::absolute(&state.ctx.site_url, &target),
-        "page": page_json(&p, body_document(state, &p.body_md, &site.settings).await?),
+        "page": page_json(&p, body_document(state, &p.body_md, &site.settings, None).await?),
     }))
 }
 
@@ -1054,9 +1068,26 @@ async fn cover_image(state: &AppState, post: &Post) -> Result<Option<String>> {
 
 /// 본문 HTML 과 목차. 보관소 그림에는 크기와 축소본(srcset)을 붙인다.
 /// 제목 수가 사이트 설정의 기준에 못 미치면(또는 설정이 0 이면) 목차는 비운다.
-async fn body_document(state: &AppState, md: &str, s: &SiteSettings) -> Result<markdown::Document> {
+async fn body_document(
+    state: &AppState,
+    md: &str,
+    s: &SiteSettings,
+    wiki: Option<&HashMap<String, markdown::WikiHref>>,
+) -> Result<markdown::Document> {
     let images = media::images_in(&state.ctx, md).await?;
-    let mut doc = markdown::render_document(md, &|url| images.get(url).cloned());
+    let image = |url: &str| images.get(url).cloned();
+    let mut doc = match wiki {
+        Some(links) => markdown::render_wiki_document(md, &image, &|t| {
+            links
+                .get(&markdown::wiki_key(t))
+                .cloned()
+                .unwrap_or_else(|| markdown::WikiHref {
+                    href: "#".into(),
+                    missing: true,
+                })
+        }),
+        None => markdown::render_document(md, &image),
+    };
     let min = s.toc_min_headings as usize;
     if min == 0 || doc.toc.len() < min {
         doc.toc.clear();

@@ -32,6 +32,18 @@
 </ul>
 {% endif %}
 {% include "_list.html" %}
+{% if wiki %}
+<section class="wiki-index" aria-label="위키 살피기">
+  <div>
+    <h2>필요한 문서</h2>
+    {% if wiki.wanted %}<ul>{% for w in wiki.wanted %}<li><a class="wikilink wikilink-new" href="{{ w.create_url }}" rel="nofollow">{{ w.title }}</a> <span class="hint">{{ w.count }}곳에서 가리킴</span></li>{% endfor %}</ul>{% else %}<p class="empty">없습니다.</p>{% endif %}
+  </div>
+  <div>
+    <h2>외톨이 문서</h2>
+    {% if wiki.orphans %}<ul>{% for o in wiki.orphans %}<li><a href="{{ o.url }}">{{ o.title }}</a></li>{% endfor %}</ul>{% else %}<p class="empty">없습니다.</p>{% endif %}
+  </div>
+</section>
+{% endif %}
 {% endif %}
 {% if search %}<section class="board-search" aria-label="{{ board.name }} 안에서 검색">{% include "_search_form.html" %}</section>{% endif %}
 {% endblock %}

@@ -1576,6 +1576,7 @@ class Editor {
       { label: "코드 블록", current: rich && blockActive(s, n.code_block), run: () => (rich ? toggleCodeBlock(this.view.state, this.view.dispatch) : this.mdFence()) },
       { label: "각주", run: () => (rich ? insertFootnote(this.view.state, this.view.dispatch) : this.mdFootnote()) },
       { label: "찾기·바꾸기", run: () => void setTimeout(() => this.openFindReplace()) },
+      { label: "위키 링크 [[문서]] (위키 게시판에서 문서끼리 잇기)", run: () => void setTimeout(() => this.openWikiLink()) },
       { label: "갤러리 (사진 여러 장을 격자로)", current: rich && !!boxKind(s, "gallery"), run: () => (rich ? setBox("gallery", "gallery")(this.view.state, this.view.dispatch) : this.mdBox("gallery")) },
       { label: "접기 상자 (첫 줄이 질문, 나머지는 눌러야 보임)", current: rich && !!boxKind(s, "details"), run: () => (rich ? setBox("details", "details")(this.view.state, this.view.dispatch) : this.mdBox("details")) },
     ]);
@@ -1682,6 +1683,21 @@ class Editor {
     };
     this.pop.hidden = false;
     right.focus();
+  }
+
+  /** 위키 링크 넣기 (GAP C13). `문서|보일 글` 처럼 쓰면 다르게 보인다. */
+  openWikiLink() {
+    this.openPop("위키 문서 제목 (다르게 보이려면 「제목|보일 글」)", "", "예: 등장인물", (raw) => {
+      const [target, label] = raw.split("|").map((s) => s.trim());
+      if (!target || /[\[\]\n]/.test(raw)) return "제목을 적어 주세요. [ ] 는 쓸 수 없습니다.";
+      if (this.mode === "rich") {
+        const node = schema.nodes.wikilink.create({ target, label: label || null });
+        this.view.dispatch(this.view.state.tr.replaceSelectionWith(node, false).scrollIntoView());
+      } else {
+        this.mdInsert(`[[${target}${label ? `|${label}` : ""}]]`);
+      }
+      return null;
+    });
   }
 
   /** 찾기·바꾸기 (GAP E23). 서식 모드는 글자만, Markdown 모드는 원문 전체에서 바꾼다. 한 번에 되돌릴 수 있다. */

@@ -13,7 +13,7 @@ use maru_core::model::{
 use maru_core::model::{MemberActivity, MemberTotp};
 use maru_core::store::{
     AuditFilter, CommentQuery, MenuRow, ModuleMigration, PopularQuery, PostFilter, PublishedQuery,
-    SearchQuery, SearchRef, Store, WriteTx,
+    SearchQuery, SearchRef, Store, WikiPage, WriteTx,
 };
 use maru_core::{Code, Error, Result, clock, slug, urls};
 use serde_json::Value;
@@ -1356,6 +1356,31 @@ impl Store for SqliteStore {
 
     async fn count_comments(&self, q: &CommentQuery<'_>) -> Result<i64> {
         crate::comments::count(&self.db.read, q).await
+    }
+
+    async fn wiki_pages(&self, board_id: &str, limit: i64) -> Result<Vec<WikiPage>> {
+        let rows = sqlx::query!(
+            r#"SELECT id AS "id!", title AS "title!", slug AS "slug!", body_md AS "body_md!",
+                      updated_at AS "updated_at!"
+               FROM posts
+               WHERE board_id = ? AND status = 'published' AND parent_id IS NULL AND is_secret = 0
+               ORDER BY published_at, id LIMIT ?"#,
+            board_id,
+            limit
+        )
+        .fetch_all(&self.db.read)
+        .await
+        .map_err(db_error)?;
+        Ok(rows
+            .into_iter()
+            .map(|r| WikiPage {
+                id: r.id,
+                title: r.title,
+                slug: r.slug,
+                body_md: r.body_md,
+                updated_at: r.updated_at,
+            })
+            .collect())
     }
 
     async fn member_comments(

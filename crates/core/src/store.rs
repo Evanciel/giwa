@@ -32,6 +32,16 @@ pub struct CommentQuery<'a> {
     pub board_ids: Option<&'a [String]>,
 }
 
+/// 위키 게시판의 공개 문서 한 장 (GAP C13).
+#[derive(Debug, Clone)]
+pub struct WikiPage {
+    pub id: String,
+    pub title: String,
+    pub slug: String,
+    pub body_md: String,
+    pub updated_at: String,
+}
+
 /// 서비스 함수의 첫 인자.
 #[derive(Clone)]
 pub struct Ctx {
@@ -313,6 +323,8 @@ pub trait Store: Send + Sync {
         offset: i64,
     ) -> Result<Vec<Comment>>;
     async fn count_comments(&self, q: &CommentQuery<'_>) -> Result<i64>;
+    /// 게시판의 공개된 맨 위 글(비밀글 제외), 먼저 올린 것부터 `limit` 개 (위키, GAP C13).
+    async fn wiki_pages(&self, board_id: &str, limit: i64) -> Result<Vec<WikiPage>>;
     /// 회원이 쓴 댓글, 새것부터. 지운 댓글은 빠진다 (GAP M3).
     async fn member_comments(
         &self,
