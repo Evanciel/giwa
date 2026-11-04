@@ -1358,6 +1358,19 @@ impl Store for SqliteStore {
         crate::comments::count(&self.db.read, q).await
     }
 
+    async fn member_comments(
+        &self,
+        member_id: &str,
+        limit: i64,
+        offset: i64,
+    ) -> Result<Vec<Comment>> {
+        crate::comments::of_member(&self.db.read, member_id, limit, offset).await
+    }
+
+    async fn count_member_comments(&self, member_id: &str) -> Result<i64> {
+        crate::comments::count_of_member(&self.db.read, member_id).await
+    }
+
     async fn comment_counts(&self, post_ids: &[String]) -> Result<Vec<(String, i64)>> {
         crate::comments::counts(&self.db.read, post_ids).await
     }

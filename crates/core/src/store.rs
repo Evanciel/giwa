@@ -313,6 +313,14 @@ pub trait Store: Send + Sync {
         offset: i64,
     ) -> Result<Vec<Comment>>;
     async fn count_comments(&self, q: &CommentQuery<'_>) -> Result<i64>;
+    /// 회원이 쓴 댓글, 새것부터. 지운 댓글은 빠진다 (GAP M3).
+    async fn member_comments(
+        &self,
+        member_id: &str,
+        limit: i64,
+        offset: i64,
+    ) -> Result<Vec<Comment>>;
+    async fn count_member_comments(&self, member_id: &str) -> Result<i64>;
     /// 글마다 공개 댓글 수. 댓글이 없는 글은 빠진다.
     async fn comment_counts(&self, post_ids: &[String]) -> Result<Vec<(String, i64)>>;
     /// 캡차 도전을 둔다 (시스템 기록, 감사 대상 아님). 만료된 것은 함께 지운다.

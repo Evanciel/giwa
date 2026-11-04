@@ -502,3 +502,75 @@ async fn hidden_and_secret_posts_take_no_comments() {
             .is_err()
     );
 }
+
+#[tokio::test]
+async fn my_comments_are_mine_newest_first_without_deleted() {
+    let e = env(open_policy()).await;
+    settings::update(
+        &e.ctx,
+        &Actor::local(),
+        SettingsPatch {
+            captcha: Some("off".into()),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    let first = comments::create(&e.ctx, &e.member, text(&e.post, "첫째\n둘째 줄"))
+        .await
+        .unwrap();
+    let gone = comments::create(&e.ctx, &e.member, text(&e.post, "지울 것"))
+        .await
+        .unwrap();
+    let last = comments::create(&e.ctx, &e.member, text(&e.post, "마지막"))
+        .await
+        .unwrap();
+    comments::create(&e.ctx, &e.guest, as_guest(&e.post, "남의 것", None))
+        .await
+        .unwrap();
+    comments::delete(&e.ctx, &e.member, &gone.id, None)
+        .await
+        .unwrap();
+
+    let mine = comments::mine(&e.ctx, &e.member, PageReq::new(1, 20))
+        .await
+        .unwrap();
+    assert_eq!(mine.total, 2, "지운 것·남의 것은 빠진다");
+    let ids: Vec<&str> = mine.items.iter().map(|c| c.id.as_str()).collect();
+    assert_eq!(ids, [last.id.as_str(), first.id.as_str()], "새것부터");
+    let c = &mine.items[1];
+    assert_eq!(c.post_title, "댓글 받는 글");
+    assert_eq!(c.board_name.as_deref(), Some("자유"));
+    assert!(c.untrusted);
+    let url = c.url.as_deref().unwrap();
+    assert!(
+        url.starts_with("/b/free/") && url.ends_with(&format!("#comment-{}", first.id)),
+        "{url}"
+    );
+
+    // 쪽 나누기
+    let p2 = comments::mine(&e.ctx, &e.member, PageReq::new(2, 1))
+        .await
+        .unwrap();
+    assert_eq!((p2.total, p2.items.len()), (2, 1));
+    assert_eq!(p2.items[0].id, first.id);
+
+    // 숨긴 댓글은 상태와 함께 남고, 글 주소만 준다.
+    comments::moderate(&e.ctx, &editor(), &first.id, Moderation::Hide)
+        .await
+        .unwrap();
+    let mine = comments::mine(&e.ctx, &e.member, PageReq::new(1, 20))
+        .await
+        .unwrap();
+    let c = mine.items.iter().find(|c| c.id == first.id).unwrap();
+    assert_eq!(c.status, CommentStatus::Hidden);
+    assert!(!c.url.as_deref().unwrap().contains('#'));
+
+    // 손님·에이전트는 「내 댓글」이 없다.
+    for who in [e.guest.clone(), Actor::local()] {
+        let err = comments::mine(&e.ctx, &who, PageReq::new(1, 20))
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), Code::Unauthorized);
+    }
+}

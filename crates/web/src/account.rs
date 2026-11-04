@@ -14,10 +14,10 @@ use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
 use maru_core::actor::Permission;
 use maru_core::clock;
-use maru_core::model::{CaptchaMode, PageReq, PostStatus, SignupMode};
+use maru_core::model::{CaptchaMode, CommentStatus, PageReq, PostStatus, SignupMode};
 use maru_core::services::auth::{self, Login, SignedIn};
 use maru_core::services::members::{self, ProfilePatch, SignupInput};
-use maru_core::services::{captcha, posts, settings, totp};
+use maru_core::services::{captcha, comments, posts, settings, totp};
 use maru_core::urls::{self, Target};
 use maru_core::{Code, Error};
 use serde::Deserialize;
@@ -42,6 +42,7 @@ pub fn routes() -> Router<AppState> {
         .route("/reset/{token}", get(reset_form).post(reset))
         .route("/verify/{token}", get(verify_form).post(verify))
         .route("/me", get(me))
+        .route("/me/comments", get(my_comments_page))
         .route("/me/profile", post(profile))
         .route("/me/password", post(password))
         .route("/me/withdraw", post(withdraw))
@@ -766,6 +767,7 @@ async fn me_page_with(
         json!({ "secret": grouped, "uri": s.uri })
     });
     let posts = my_posts(state, who, site.tz_offset_min).await;
+    let comments = my_comments(state, who, site.tz_offset_min, PageReq::new(1, 5)).await;
     let (error_in, error) = error.map_or((None, None), |(k, m)| (Some(k), Some(m)));
     let ctx = json!({
         "site": crate::public::site_json(state).await,
@@ -778,6 +780,8 @@ async fn me_page_with(
             "is_owner": who.actor.has(Permission::SiteAdmin),
             "admin_url": who.actor.has(Permission::PostModerate).then_some("/admin"),
             "posts": posts,
+            "comments": comments.as_ref().map(|(items, _)| items.clone()).unwrap_or_default(),
+            "comments_total": comments.map_or(0, |(_, l)| l.total),
             "notice": notice,
             "error": error,
             "error_in": error_in,
@@ -792,6 +796,75 @@ async fn me_page_with(
         "slots": crate::modules::me_slots(state, &who.actor).await,
     });
     render(state, status, "me.html", &ctx).await
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct PageQuery {
+    #[serde(default)]
+    page: Option<u32>,
+}
+
+/// 내가 쓴 댓글 전부, 20개씩 (GAP M3).
+async fn my_comments_page(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<PageQuery>,
+) -> Response {
+    let who = match require(&state, &headers).await {
+        Ok(w) => w,
+        Err(res) => return *res,
+    };
+    let site = settings::site(&state.ctx).await.unwrap_or_default();
+    let page = PageReq::new(q.page.unwrap_or(1), 20);
+    let Some((items, list)) = my_comments(&state, &who, site.tz_offset_min, page).await else {
+        return crate::error::page(&state, &Error::new(Code::Internal)).await;
+    };
+    let ctx = json!({
+        "site": crate::public::site_json(&state).await,
+        "meta": { "title": format!("내가 쓴 댓글 · {}", site.name), "noindex": true },
+        "me": { "display_name": who.member.display_name, "total": list.total, "comments": items },
+        "pagination": crate::public::pagination(&list, "/me/comments"),
+    });
+    render(&state, StatusCode::OK, "me_comments.html", &ctx).await
+}
+
+/// 내가 쓴 댓글을 화면용으로. 본문은 한 줄 80자로 줄인다.
+async fn my_comments(
+    state: &AppState,
+    who: &SignedIn,
+    tz: i32,
+    page: PageReq,
+) -> Option<(Vec<Value>, maru_core::model::Listing<comments::MyComment>)> {
+    let list = comments::mine(&state.ctx, &who.actor, page).await.ok()?;
+    let items = list
+        .items
+        .iter()
+        .map(|c| {
+            let line = c.body.split_whitespace().collect::<Vec<_>>().join(" ");
+            let short: String = line.chars().take(80).collect();
+            let excerpt = if short.len() < line.len() {
+                format!("{short}…")
+            } else {
+                short
+            };
+            let status = match c.status {
+                CommentStatus::Published => None,
+                CommentStatus::Pending => Some("승인 대기"),
+                CommentStatus::Hidden => Some("숨김"),
+                CommentStatus::Spam => Some("스팸 처리"),
+                CommentStatus::Deleted => Some("지움"),
+            };
+            json!({
+                "excerpt": excerpt,
+                "post_title": c.post_title,
+                "board": c.board_name,
+                "status": status,
+                "date": clock::display_date(&c.created_at, tz),
+                "url": c.url,
+            })
+        })
+        .collect();
+    Some((items, list))
 }
 
 /// 내가 쓴 글 최근 20개 (초안 포함). 글쓰기 권한이 없으면 빈 목록.

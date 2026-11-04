@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{# 내 정보: 닉네임·비밀번호·2단계 인증·내 글·로그아웃·탈퇴 (GAP M3·M16). 폼마다 세션 CSRF 값. #}
+{# 내 정보: 닉네임·비밀번호·2단계 인증·내 글·내 댓글·로그아웃·탈퇴 (GAP M3·M16). 폼마다 세션 CSRF 값. #}
 {% block main_class %}wrap account-wrap{% endblock %}
 {% block main %}
 <section class="account me" aria-labelledby="me-title">
@@ -19,6 +19,19 @@
       </li>{% endfor %}
     </ul>
     {% else %}<p class="empty">아직 쓴 글이 없습니다.</p>{% endif %}
+  </section>
+
+  <section class="me-block" aria-labelledby="me-comments">
+    <h2 id="me-comments">내가 쓴 댓글{% if me.comments_total %} <span class="count">{{ me.comments_total }}</span>{% endif %}</h2>
+    {% if me.comments %}
+    <ul class="me-posts">
+      {% for c in me.comments %}<li>
+        {% if c.url %}<a href="{{ c.url }}">{{ c.excerpt }}</a>{% else %}<span>{{ c.excerpt }}</span>{% endif %}
+        <span class="hint">{% if c.board %}{{ c.board }} · {% endif %}{{ c.post_title }}{% if c.status %} · {{ c.status }}{% endif %} · {{ c.date }}</span>
+      </li>{% endfor %}
+    </ul>
+    {% if me.comments_total > me.comments | length %}<p><a href="/me/comments">댓글 모두 보기</a></p>{% endif %}
+    {% else %}<p class="empty">아직 쓴 댓글이 없습니다.</p>{% endif %}
   </section>
   {% if slots and slots.me_sections %}{% for s in slots.me_sections %}{% include s.template %}{% endfor %}{% endif %}
 

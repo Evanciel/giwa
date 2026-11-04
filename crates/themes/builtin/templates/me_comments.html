@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{# 내가 쓴 댓글 전부 (GAP M3). 지운 댓글은 빠진다. #}
+{% block main_class %}wrap account-wrap{% endblock %}
+{% block main %}
+<section class="account me" aria-labelledby="me-comments-title">
+  <div class="me-head">
+    <h1 id="me-comments-title">내가 쓴 댓글 <span class="count">{{ me.total }}</span></h1>
+    <p class="hint"><a href="/me">내 정보로 돌아가기</a></p>
+  </div>
+  {% if me.comments %}
+  <ul class="me-posts">
+    {% for c in me.comments %}<li>
+        {% if c.url %}<a href="{{ c.url }}">{{ c.excerpt }}</a>{% else %}<span>{{ c.excerpt }}</span>{% endif %}
+        <span class="hint">{% if c.board %}{{ c.board }} · {% endif %}{{ c.post_title }}{% if c.status %} · {{ c.status }}{% endif %} · {{ c.date }}</span>
+      </li>{% endfor %}
+  </ul>
+  {% include "_pagination.html" %}
+  {% else %}<p class="empty">아직 쓴 댓글이 없습니다.</p>{% endif %}
+</section>
+{% endblock %}

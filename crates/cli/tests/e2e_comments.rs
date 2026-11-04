@@ -422,6 +422,19 @@ fn member_comment_is_public_at_once() {
     assert!(page.body.contains("회원 댓글"));
     assert!(page.body.contains("달빛"));
     let id = to.rsplit("#comment-").next().unwrap();
+    // 내 정보에 「내가 쓴 댓글」, 그 댓글 자리로 가는 링크 (GAP M3).
+    let me = http(&bind, "GET", "/me", &[("Cookie", &session)], "");
+    assert!(me.body.contains("내가 쓴 댓글"), "{}", me.body);
+    assert!(
+        me.body.contains(&format!("href=\"{url}#comment-{id}\"")),
+        "{}",
+        me.body
+    );
+    let all = http(&bind, "GET", "/me/comments", &[("Cookie", &session)], "");
+    assert_eq!(all.status, 200);
+    assert!(all.body.contains("회원 댓글"));
+    let anon = http(&bind, "GET", "/me/comments", &[], "");
+    assert_eq!(anon.status, 303, "로그인하지 않으면 로그인으로");
     // 남이 연 지우기 화면: 회원 댓글은 비밀번호로 못 지운다 → 로그인으로.
     let other = http(&bind, "GET", &format!("/c/{id}/delete"), &[], "");
     assert_eq!(other.status, 303);

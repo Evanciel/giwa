@@ -1123,7 +1123,7 @@ fn post_summary(board_slug: &str, p: &Post, s: &SiteSettings) -> Value {
 }
 
 /// `base` 는 첫 쪽 주소. 이미 쿼리(`?category=`)가 있으면 `&page=` 로 잇는다.
-fn pagination<T>(list: &Listing<T>, base: &str) -> Value {
+pub(crate) fn pagination<T>(list: &Listing<T>, base: &str) -> Value {
     pages_json(i64::from(list.page), list.total_pages(), base)
 }
 

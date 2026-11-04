@@ -183,6 +183,43 @@ pub(crate) async fn count<'e>(e: impl SqliteExecutor<'e>, q: &CommentQuery<'_>) 
     .map_err(db_error)
 }
 
+pub(crate) async fn of_member<'e>(
+    e: impl SqliteExecutor<'e>,
+    member_id: &str,
+    limit: i64,
+    offset: i64,
+) -> Result<Vec<Comment>> {
+    rows(
+        sqlx::query_as!(
+            Row,
+            "SELECT id, post_id, parent_id, reply_to_id, status, body, author_id, guest_name,
+                    guest_pw_hash, actor_type, created_at, updated_at
+             FROM comments
+             WHERE author_id = ?1 AND status != 'deleted'
+             ORDER BY created_at DESC, id DESC LIMIT ?2 OFFSET ?3",
+            member_id,
+            limit,
+            offset
+        )
+        .fetch_all(e)
+        .await
+        .map_err(db_error)?,
+    )
+}
+
+pub(crate) async fn count_of_member<'e>(
+    e: impl SqliteExecutor<'e>,
+    member_id: &str,
+) -> Result<i64> {
+    sqlx::query_scalar!(
+        "SELECT count(*) FROM comments WHERE author_id = ? AND status != 'deleted'",
+        member_id
+    )
+    .fetch_one(e)
+    .await
+    .map_err(db_error)
+}
+
 /// 글마다 공개 댓글 수. 댓글이 없는 글은 빠진다.
 pub(crate) async fn counts<'e>(
     e: impl SqliteExecutor<'e>,

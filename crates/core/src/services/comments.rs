@@ -18,6 +18,7 @@ use crate::model::{
 };
 use crate::services::{auth, captcha, members, moderation, posts, settings};
 use crate::store::{CommentQuery, Ctx, Tx};
+use crate::urls;
 
 pub const MAX_BODY_CHARS: usize = 2000;
 pub const MIN_GUEST_PASSWORD: usize = 4;
@@ -457,6 +458,78 @@ pub async fn admin_list(
     Ok(Listing {
         items: views(ctx, items).await?,
         total: ctx.store.count_comments(&q).await?,
+        page: page.page,
+        per_page: page.per_page,
+    })
+}
+
+/// 내가 쓴 댓글 한 줄 (GAP M3). 본문은 사용자 입력이다.
+#[derive(Debug, Clone, Serialize, JsonSchema)]
+pub struct MyComment {
+    pub id: String,
+    pub post_id: String,
+    pub post_title: String,
+    pub board_name: Option<String>,
+    /// 공개된 글의 공개 댓글이면 그 댓글 자리, 공개된 글이면 글 주소. 아니면 없다
+    pub url: Option<String>,
+    pub status: CommentStatus,
+    pub created_at: String,
+    pub untrusted: bool,
+    pub body: String,
+}
+
+/// 로그인한 회원 본인이 쓴 댓글, 새것부터. 지운 댓글은 빠진다 (GAP M3).
+pub async fn mine(ctx: &Ctx, actor: &Actor, page: PageReq) -> Result<Listing<MyComment>> {
+    let Some(member) = actor.member_id() else {
+        return Err(Error::new(Code::Unauthorized));
+    };
+    let items = ctx
+        .store
+        .member_comments(member, page.limit(), page.offset())
+        .await?;
+    let mut posts: HashMap<String, Option<(Post, Option<Board>)>> = HashMap::new();
+    let mut out = Vec::with_capacity(items.len());
+    for c in items {
+        if !posts.contains_key(&c.post_id) {
+            let found = match ctx.store.post_by_id(&c.post_id).await? {
+                Some(p) => {
+                    let board = ctx.store.board_by_id(&p.board_id).await?;
+                    Some((p, board))
+                }
+                None => None,
+            };
+            posts.insert(c.post_id.clone(), found);
+        }
+        let found = posts.get(&c.post_id).and_then(Option::as_ref);
+        let url = found.and_then(|(p, b)| {
+            let b = b.as_ref()?;
+            (p.status == crate::model::PostStatus::Published).then(|| {
+                let path = urls::path(&urls::Target::Post {
+                    board: &b.slug,
+                    post: &p.slug,
+                });
+                if c.status == CommentStatus::Published {
+                    format!("{path}#comment-{}", c.id)
+                } else {
+                    path
+                }
+            })
+        });
+        out.push(MyComment {
+            id: c.id,
+            post_id: c.post_id,
+            post_title: found.map_or_else(|| "지운 글".into(), |(p, _)| p.title.clone()),
+            board_name: found.and_then(|(_, b)| b.as_ref().map(|b| b.name.clone())),
+            url,
+            status: c.status,
+            created_at: c.created_at,
+            untrusted: true,
+            body: c.body,
+        });
+    }
+    Ok(Listing {
+        items: out,
+        total: ctx.store.count_member_comments(member).await?,
         page: page.page,
         per_page: page.per_page,
     })
