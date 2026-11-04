@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE mod_message_item SET read_at = ? WHERE id = ? AND read_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "20e7e5cd2ba66f3f3272f8454b0f95d97120ed9b1aabb8c5365eceade0ee5e75"
+}

@@ -1,0 +1,33 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT option_id, COUNT(*) AS \"n!: i64\" FROM mod_poll_vote\n               WHERE poll_id = ? GROUP BY option_id",
+  "describe": {
+    "columns": [
+      {
+        "name": "option_id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_poll_vote",
+            "name": "option_id"
+          }
+        }
+      },
+      {
+        "name": "n!: i64",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "849d6209b7b64c6da9eaf75b4e2eb5c4d66b98d01bf176371cdce49cf2bc6da4"
+}

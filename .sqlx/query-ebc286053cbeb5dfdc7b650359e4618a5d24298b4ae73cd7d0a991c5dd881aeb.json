@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT option_id FROM mod_poll_vote WHERE poll_id = ? AND member_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "option_id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_poll_vote",
+            "name": "option_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "ebc286053cbeb5dfdc7b650359e4618a5d24298b4ae73cd7d0a991c5dd881aeb"
+}

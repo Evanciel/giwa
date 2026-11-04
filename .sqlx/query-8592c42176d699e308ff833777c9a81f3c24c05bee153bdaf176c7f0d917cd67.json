@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO mod_poll (id, post_id, question, multiple, closes_at, created_by, at)\n             VALUES (?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "8592c42176d699e308ff833777c9a81f3c24c05bee153bdaf176c7f0d917cd67"
+}

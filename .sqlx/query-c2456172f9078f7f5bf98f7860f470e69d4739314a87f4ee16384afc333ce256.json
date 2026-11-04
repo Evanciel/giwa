@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE mod_message_item SET sender_deleted = 1\n             WHERE id = ? AND sender_id = ? AND sender_deleted = 0",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "c2456172f9078f7f5bf98f7860f470e69d4739314a87f4ee16384afc333ce256"
+}

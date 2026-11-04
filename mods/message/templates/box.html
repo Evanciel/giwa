@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{# 받은 쪽지·보낸 쪽지 (ADR-0070). #}
+{% block main_class %}wrap account-wrap{% endblock %}
+{% block main %}
+<section class="account me" aria-labelledby="message-title">
+  <h1 id="message-title">{% if outgoing %}보낸 쪽지{% else %}받은 쪽지{% endif %}{% if unread and not outgoing %} <span class="count" aria-label="읽지 않은 쪽지 {{ unread }}통">{{ unread }}</span>{% endif %}</h1>
+  <nav class="post-actions" aria-label="쪽지함">
+    <a href="/m/message"{% if not outgoing %} aria-current="page"{% endif %}>받은 쪽지</a>
+    <a href="/m/message/sent"{% if outgoing %} aria-current="page"{% endif %}>보낸 쪽지</a>
+    <a href="/m/message/new">쪽지 쓰기</a>
+    <a href="/m/message/blocks">차단한 회원</a>
+  </nav>
+  {% if items %}
+  <ul class="me-posts message-list">
+    {% for m in items %}<li{% if m.unread %} class="unread"{% endif %}>
+      <a href="{{ m.url }}">{{ m.excerpt }}</a>
+      <span class="hint">{{ m.other }} · {{ m.date }}{% if m.unread %} · 안 읽음{% endif %}</span>
+    </li>{% endfor %}
+  </ul>
+  {% if prev or next %}
+  <nav class="post-actions" aria-label="쪽 나눔">
+    {% if prev %}<a href="{{ base }}?page={{ prev }}" rel="prev">이전</a>{% endif %}
+    {% if next %}<a href="{{ base }}?page={{ next }}" rel="next">다음</a>{% endif %}
+  </nav>
+  {% endif %}
+  {% else %}
+  <p class="empty">{% if outgoing %}보낸 쪽지가 없습니다.{% else %}받은 쪽지가 없습니다.{% endif %}</p>
+  {% endif %}
+</section>
+{% endblock %}

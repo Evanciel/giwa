@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM mod_poll_option WHERE poll_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "aee10ca32dd597385f5b3382442bc926c323629dcb72c37940d80c303b16829b"
+}

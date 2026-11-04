@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT blocked_id FROM mod_message_block WHERE member_id = ? ORDER BY at DESC",
+  "describe": {
+    "columns": [
+      {
+        "name": "blocked_id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_message_block",
+            "name": "blocked_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "534c17aa3c42c25de352cd357f4d79abd4cbd2ba26a41fa6a756e43c20bfb572"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR IGNORE INTO mod_message_block (member_id, blocked_id, at)\n                 VALUES (?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "e02345972e3b8de70a2f0ece371855bfab9d83ea605a349ad5278a9a33813628"
+}

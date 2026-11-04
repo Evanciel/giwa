@@ -18,12 +18,14 @@ pub(crate) fn registry(db: &Db) -> Result<Arc<Registry>> {
         Arc::new(maru_mod_reaction::ReactionModule::new(db.clone())),
         Arc::new(maru_mod_scrap::ScrapModule::new(db.clone())),
         Arc::new(maru_mod_notify::NotifyModule::new(db.clone())),
+        Arc::new(maru_mod_message::MessageModule::new(db.clone())),
+        Arc::new(maru_mod_poll::PollModule::new(db.clone())),
     ];
     Ok(Arc::new(Registry::new(modules)?))
 }
 
 /// 데이터 디렉터리를 열기 전에 모르는 명령을 가려내는 데 쓴다.
-const IDS: [&str; 4] = ["point", "reaction", "scrap", "notify"];
+const IDS: [&str; 6] = ["point", "reaction", "scrap", "notify", "message", "poll"];
 
 fn usage(detail: impl Into<String>) -> Error {
     Error::new(Code::Usage)
@@ -180,6 +182,14 @@ fn parse_args(schema: &Value, args: impl Iterator<Item = String>) -> Result<Valu
         let raw = args
             .next()
             .ok_or_else(|| usage(format!("--{name} 의 값이 없습니다")))?;
+        if is_array(prop) {
+            out.entry(key)
+                .or_insert_with(|| Value::Array(Vec::new()))
+                .as_array_mut()
+                .ok_or_else(|| usage(format!("--{name} 값이 맞지 않습니다: {raw}")))?
+                .push(Value::String(raw));
+            continue;
+        }
         out.insert(
             key,
             typed(prop, &raw)
@@ -187,6 +197,15 @@ fn parse_args(schema: &Value, args: impl Iterator<Item = String>) -> Result<Valu
         );
     }
     Ok(Value::Object(out))
+}
+
+/// 배열 칸인가. 문자열 배열만 받는다(`--칸 값` 을 되풀이).
+fn is_array(prop: &Value) -> bool {
+    match &prop["type"] {
+        Value::String(s) => s == "array",
+        Value::Array(a) => a.iter().any(|v| v == "array"),
+        _ => false,
+    }
 }
 
 fn typed(prop: &Value, raw: &str) -> Option<Value> {

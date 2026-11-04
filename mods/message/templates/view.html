@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{# 쪽지 한 통 (ADR-0070). 본문은 이스케이프된 평문이다. #}
+{% block main_class %}wrap account-wrap{% endblock %}
+{% block main %}
+<section class="account me" aria-labelledby="message-view-title">
+  <h1 id="message-view-title">{% if m.direction == "in" %}받은 쪽지{% else %}보낸 쪽지{% endif %}</h1>
+  <p class="hint">{% if m.direction == "in" %}보낸 사람{% else %}받는 사람{% endif %}: <strong>{{ m.other }}</strong> · {{ m.date }}{% if m.direction == "out" %} · {% if m.read %}읽음{% else %}안 읽음{% endif %}{% endif %}</p>
+  <div class="message-body">{{ m.body }}</div>
+  <div class="message-actions">
+    {% if m.direction == "in" %}
+    <a class="pill" href="{{ reply_url }}">답장</a>
+    <form method="post" action="/m/message/block">
+      <input type="hidden" name="name" value="{{ m.other }}">
+      <button type="submit" class="pill">이 회원 차단</button>
+    </form>
+    {% endif %}
+    <form method="post" action="/m/message/delete/{{ m.id }}">
+      <button type="submit" class="pill">지우기</button>
+    </form>
+    <a class="pill" href="/m/message">쪽지함으로</a>
+  </div>
+</section>
+{% endblock %}

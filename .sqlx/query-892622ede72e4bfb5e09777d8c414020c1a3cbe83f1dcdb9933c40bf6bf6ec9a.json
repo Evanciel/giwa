@@ -1,0 +1,86 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, sender_id, recipient_id, body, at, read_at FROM mod_message_item\n             WHERE id = ?1 AND ((sender_id = ?2 AND sender_deleted = 0)\n                             OR (recipient_id = ?2 AND recipient_deleted = 0))",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_message_item",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "sender_id",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_message_item",
+            "name": "sender_id"
+          }
+        }
+      },
+      {
+        "name": "recipient_id",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_message_item",
+            "name": "recipient_id"
+          }
+        }
+      },
+      {
+        "name": "body",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_message_item",
+            "name": "body"
+          }
+        }
+      },
+      {
+        "name": "at",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_message_item",
+            "name": "at"
+          }
+        }
+      },
+      {
+        "name": "read_at",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_message_item",
+            "name": "read_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "892622ede72e4bfb5e09777d8c414020c1a3cbe83f1dcdb9933c40bf6bf6ec9a"
+}

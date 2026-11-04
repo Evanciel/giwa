@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO mod_message_item (id, sender_id, recipient_id, body, at)\n             VALUES (?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "beb25e263042966fefbbf6522fc8793813d00150ce55e60d89aa18befd5d1d81"
+}

@@ -1,0 +1,86 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, post_id, question, multiple, closes_at, closed_at\n             FROM mod_poll WHERE post_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_poll",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "post_id",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_poll",
+            "name": "post_id"
+          }
+        }
+      },
+      {
+        "name": "question",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_poll",
+            "name": "question"
+          }
+        }
+      },
+      {
+        "name": "multiple",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_poll",
+            "name": "multiple"
+          }
+        }
+      },
+      {
+        "name": "closes_at",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_poll",
+            "name": "closes_at"
+          }
+        }
+      },
+      {
+        "name": "closed_at",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_poll",
+            "name": "closed_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "af203add48ee7887a12c3d2ebcd0c9d9f5f29eb923a248d2b2654237e7815960"
+}

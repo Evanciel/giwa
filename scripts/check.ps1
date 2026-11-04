@@ -35,7 +35,7 @@ $forbidden = [ordered]@{
     "maru-core"    = @("sqlx", "axum", "minijinja", "tokio", "maru-storage", "maru-web", "maru-themes")
     "maru-storage" = @("axum", "minijinja", "maru-web", "maru-themes")
     "maru-themes"  = @("sqlx", "axum", "maru-storage", "maru-web")
-    "maru-web"     = @("sqlx", "maru-storage", "maru-mod-point", "maru-mod-reaction", "maru-mod-scrap", "maru-mod-notify")
+    "maru-web"     = @("sqlx", "maru-storage", "maru-mod-point", "maru-mod-reaction", "maru-mod-scrap", "maru-mod-notify", "maru-mod-message", "maru-mod-poll")
     "maru-modules" = @("sqlx", "maru-storage", "maru-web", "maru-themes")
 }
 Write-Host "[check] deps" -ForegroundColor Cyan

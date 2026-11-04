@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM mod_message_item WHERE sender_deleted = 1 AND recipient_deleted = 1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": []
+  },
+  "hash": "763c83a54585b654e95441d40132beaefc96f8505a5d6ba9eed5b4cc99655301"
+}

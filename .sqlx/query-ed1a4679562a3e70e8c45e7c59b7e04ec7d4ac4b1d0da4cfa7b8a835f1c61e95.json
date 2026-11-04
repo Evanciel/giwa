@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM mod_message_block WHERE member_id = ? AND blocked_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "ed1a4679562a3e70e8c45e7c59b7e04ec7d4ac4b1d0da4cfa7b8a835f1c61e95"
+}

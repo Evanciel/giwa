@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE mod_poll SET closed_at = COALESCE(closed_at, ?) WHERE post_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "733f03fc4798f58aab94667265f6a0778789c61a4a97fa1ae9620e48ac097567"
+}

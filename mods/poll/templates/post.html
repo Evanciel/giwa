@@ -1,0 +1,36 @@
+{# 글 아래 투표 (ADR-0070). 막대는 progress 로 그린다: CSP 가 인라인 스타일을 막는다. #}
+{% set p = s.data.poll %}
+{% if p %}
+<section class="poll" aria-labelledby="poll-title">
+  <h2 id="poll-title">{{ p.question }}</h2>
+  <p class="hint">{% if p.multiple %}여러 개 고를 수 있습니다{% else %}하나만 고릅니다{% endif %} · 참여 {{ p.voters }}명{% if not p.open %} · 마감됨{% elif p.closes_at %} · {{ p.closes_at }} 마감{% endif %}</p>
+  {% if p.open and s.data.member %}
+  <form method="post" action="/m/poll/vote/{{ s.data.post_id }}">
+    <ul class="poll-options">
+      {% for o in p.options %}<li>
+        <label><input type="{% if p.multiple %}checkbox{% else %}radio{% endif %}" name="option" value="{{ o.id }}"{% if o.pressed %} checked{% endif %}{% if not p.multiple %} required{% endif %}> {{ o.label }}</label>
+        {% if p.results %}<span class="poll-bar"><progress max="{{ s.data.total }}" value="{{ o.votes }}" aria-label="{{ o.label }}"></progress><span class="hint">{{ o.votes }}표</span></span>{% endif %}
+      </li>{% endfor %}
+    </ul>
+    <button type="submit" class="pill">{% if p.voted %}다시 투표{% else %}투표{% endif %}</button>
+  </form>
+  {% else %}
+  <ul class="poll-options">
+    {% for o in p.options %}<li{% if o.pressed %} class="on"{% endif %}>
+      <span>{{ o.label }}{% if o.pressed %} <span class="hint">(내 선택)</span>{% endif %}</span>
+      {% if p.results %}<span class="poll-bar"><progress max="{{ s.data.total }}" value="{{ o.votes }}" aria-label="{{ o.label }}"></progress><span class="hint">{{ o.votes }}표</span></span>{% endif %}
+    </li>{% endfor %}
+  </ul>
+  {% if p.open %}<p class="hint"><a href="/login">로그인</a>하면 투표할 수 있습니다.</p>{% endif %}
+  {% endif %}
+  {% if not p.results %}<p class="hint">결과는 투표한 뒤에 보입니다.</p>{% endif %}
+  {% if s.data.manager %}
+  <div class="poll-manage">
+    {% if p.open %}<form method="post" action="/m/poll/close/{{ s.data.post_id }}"><button type="submit" class="pill">마감</button></form>{% endif %}
+    <form method="post" action="/m/poll/delete/{{ s.data.post_id }}"><button type="submit" class="pill">투표 지우기</button></form>
+  </div>
+  {% endif %}
+</section>
+{% else %}
+<a class="pill poll-new" href="{{ s.data.new_url }}">투표 붙이기</a>
+{% endif %}
