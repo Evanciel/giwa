@@ -86,6 +86,13 @@
   </fieldset>
 
   <fieldset>
+    <legend>운영 신호</legend>
+    <label for="s-burst">댓글 급증으로 알릴 댓글 수 <span class="hint">한 글에 지난 1시간 동안 이만큼 달리면 관리 화면 첫 쪽에 보입니다. 0 이면 끕니다(3~1000). 신고 집중·묵은 신고 기준은 신고 모듈 설정에 있습니다.</span></label>
+    <input id="s-burst" name="signal_comment_burst" value="{{ form.signal_comment_burst }}" inputmode="numeric" autocomplete="off" class="short">
+    <label class="choice"><input type="checkbox" name="signal_mail" value="1"{% if form.signal_mail %} checked{% endif %}> 새 신호를 관리자·소유자에게 메일로 알리기</label>
+  </fieldset>
+
+  <fieldset>
     <legend>방문자 통계</legend>
     <label for="s-stats">며칠 남길지 <span class="hint">30~3650</span></label>
     <input id="s-stats" name="stats_retention_days" value="{{ form.stats_retention_days }}" inputmode="numeric" autocomplete="off" class="short">

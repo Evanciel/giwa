@@ -16,7 +16,7 @@ use axum::{Extension, Router};
 use maru_core::actor::{Actor, Permission};
 use maru_core::audit::{AuditRecord, Target};
 use maru_core::fields::FieldDef;
-use maru_core::model::{AuditEvent, Board, CommentStatus, MemberStatus, PostStatus};
+use maru_core::model::{AuditEvent, Board, CommentStatus, MemberStatus, PostStatus, Signal};
 use maru_core::services::comments::{self, Moderation};
 use maru_core::services::{auth, posts, settings};
 use maru_core::store::ModuleMigration;
@@ -45,6 +45,10 @@ const MAX_NOTE: usize = 500;
 const EXCERPT_CHARS: usize = 120;
 const HOME: &str = "/m/report";
 const DEFAULT_THRESHOLD: i64 = 5;
+/// 운영 신호 (ADR-0074): 한 대상에 처리 전 신고가 이만큼이면 「신고 집중」
+const DEFAULT_CROWD: i64 = 3;
+/// 처리 전 신고가 이 시간을 넘기면 「묵은 신고」
+const DEFAULT_STALE_HOURS: i64 = 24;
 const REASONS: [(&str, &str); 6] = [
     ("spam", "광고·도배"),
     ("abuse", "욕설·비방"),
@@ -780,37 +784,135 @@ impl Module for ReportModule {
     }
 
     fn settings_fields(&self) -> Vec<FieldDef> {
-        vec![FieldDef {
-            key: "auto_hide".to_owned(),
-            label: "자동으로 가릴 신고 수".to_owned(),
+        let number = |key: &str, label: &str, help: &str| FieldDef {
+            key: key.to_owned(),
+            label: label.to_owned(),
             kind: "number".to_owned(),
             required: true,
             options: Vec::new(),
-            help: Some(
-                "서로 다른 회원의 신고가 이만큼 모이면 가립니다. 0 이면 자동으로 가리지 않습니다."
-                    .to_owned(),
+            help: Some(help.to_owned()),
+        };
+        vec![
+            number(
+                "auto_hide",
+                "자동으로 가릴 신고 수",
+                "서로 다른 회원의 신고가 이만큼 모이면 가립니다. 0 이면 자동으로 가리지 않습니다.",
             ),
-        }]
+            number(
+                "crowd",
+                "신고 집중으로 알릴 신고 수",
+                "한 글·댓글에 처리 전 신고가 이만큼 모이면 운영 신호로 알립니다. 0 이면 끕니다.",
+            ),
+            number(
+                "stale_hours",
+                "묵은 신고로 알릴 시간",
+                "처리하지 않은 신고가 이 시간을 넘기면 운영 신호로 알립니다. 0 이면 끕니다.",
+            ),
+        ]
     }
 
     fn default_settings(&self) -> Map<String, Value> {
         let mut m = Map::new();
         m.insert("auto_hide".into(), json!(DEFAULT_THRESHOLD));
+        m.insert("crowd".into(), json!(DEFAULT_CROWD));
+        m.insert("stale_hours".into(), json!(DEFAULT_STALE_HOURS));
         m
     }
 
     fn check_settings(&self, settings: &Map<String, Value>) -> Result<()> {
-        if !settings
-            .get("auto_hide")
-            .and_then(Value::as_i64)
-            .is_some_and(|n| n >= 0)
-        {
-            return Err(module_error(
-                Code::Validation,
-                "auto_hide 는 0 이상의 정수여야 합니다.",
-            ));
+        for key in ["auto_hide", "crowd", "stale_hours"] {
+            if !settings
+                .get(key)
+                .and_then(Value::as_i64)
+                .is_some_and(|n| n >= 0)
+            {
+                return Err(module_error(
+                    Code::Validation,
+                    format!("{key} 는 0 이상의 정수여야 합니다."),
+                ));
+            }
         }
         Ok(())
+    }
+
+    /// 신고 집중(대상마다)과 묵은 신고(하루 한 번 묶어서). 다룰 수 없는 게시판의 대상은 빠진다.
+    async fn signals(&self, ctx: &Ctx, actor: &Actor) -> Result<Vec<Signal>> {
+        if !actor.has(Permission::PostModerate) {
+            return Ok(Vec::new());
+        }
+        let settings = settings_of(ctx, self).await?;
+        let get = |k: &str, d: i64| settings.get(k).and_then(Value::as_i64).unwrap_or(d);
+        let (crowd, stale) = (
+            get("crowd", DEFAULT_CROWD),
+            get("stale_hours", DEFAULT_STALE_HOURS),
+        );
+        let mut out = Vec::new();
+        if crowd > 0 {
+            let rows = sqlx::query!(
+                r#"SELECT target_type AS "target_type!: String", target_id AS "target_id!: String",
+                          COUNT(*) AS "n!: i64"
+                   FROM mod_report_item WHERE status = 'open'
+                   GROUP BY target_type, target_id HAVING COUNT(*) >= ?
+                   ORDER BY COUNT(*) DESC LIMIT 20"#,
+                crowd
+            )
+            .fetch_all(self.db.read_pool())
+            .await
+            .map_err(Error::internal)?;
+            for r in rows {
+                let kind = Kind::parse(&r.target_type)?;
+                let Some(s) = self.subject(ctx, kind, &r.target_id).await? else {
+                    continue;
+                };
+                if !can_moderate(actor, &s.board) {
+                    continue;
+                }
+                let what = match kind {
+                    Kind::Post => format!("글 「{}」", s.title),
+                    Kind::Comment => format!("「{}」의 댓글", s.title),
+                };
+                out.push(Signal {
+                    key: format!("report_crowd:{}:{}", r.target_type, r.target_id),
+                    kind: "report_crowd".into(),
+                    message: format!("신고가 몰렸습니다: {what}에 처리 전 신고 {}건", r.n),
+                    url: Some(HOME.into()),
+                    count: r.n,
+                });
+            }
+        }
+        if stale > 0 {
+            let before = clock::hours_ago(stale);
+            let rows = sqlx::query!(
+                r#"SELECT target_type AS "target_type!: String", target_id AS "target_id!: String"
+                   FROM mod_report_item WHERE status = 'open'
+                   GROUP BY target_type, target_id HAVING MIN(at) < ?
+                   LIMIT 500"#,
+                before
+            )
+            .fetch_all(self.db.read_pool())
+            .await
+            .map_err(Error::internal)?;
+            let mut n = 0;
+            for r in rows {
+                let kind = Kind::parse(&r.target_type)?;
+                // 신고함과 같은 규칙: 대상이 없어졌으면 누구나, 있으면 다룰 수 있는 사람만
+                match self.subject(ctx, kind, &r.target_id).await? {
+                    Some(s) if !can_moderate(actor, &s.board) => {}
+                    _ => n += 1,
+                }
+            }
+            if n > 0 {
+                let day = clock::now().chars().take(10).collect::<String>();
+                out.push(Signal {
+                    key: format!("report_stale:{day}"),
+                    kind: "report_stale".into(),
+                    message: format!("{stale}시간 넘게 처리하지 않은 신고가 {n}건 있습니다"),
+                    url: Some(HOME.into()),
+                    count: n,
+                });
+            }
+        }
+        Ok(out)
     }
 
     async fn slot(

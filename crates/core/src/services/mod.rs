@@ -23,6 +23,7 @@ pub mod presets;
 pub mod retention;
 pub mod search;
 pub mod settings;
+pub mod signals;
 pub mod stats;
 pub mod tags;
 pub mod templates;

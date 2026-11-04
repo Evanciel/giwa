@@ -1,0 +1,45 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT target_type AS \"target_type!: String\", target_id AS \"target_id!: String\",\n                          COUNT(*) AS \"n!: i64\"\n                   FROM mod_report_item WHERE status = 'open'\n                   GROUP BY target_type, target_id HAVING COUNT(*) >= ?\n                   ORDER BY COUNT(*) DESC LIMIT 20",
+  "describe": {
+    "columns": [
+      {
+        "name": "target_type!: String",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_report_item",
+            "name": "target_type"
+          }
+        }
+      },
+      {
+        "name": "target_id!: String",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_report_item",
+            "name": "target_id"
+          }
+        }
+      },
+      {
+        "name": "n!: i64",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "619657b33f607452049827a7018028e7ccf07bb21e5af9edaf4834373ee2a182"
+}

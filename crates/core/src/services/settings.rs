@@ -9,7 +9,7 @@ use crate::audit::Target;
 use crate::clock;
 use crate::error::{Code, Error, Result};
 use crate::model::{CaptchaMode, SignupMode, SiteSettings};
-use crate::services::{moderation, required_text, retention};
+use crate::services::{moderation, required_text, retention, signals};
 use crate::store::{Ctx, Tx};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
@@ -60,6 +60,12 @@ pub struct SettingsPatch {
     /// 보냈거나 실패한 편지를 남길 날수 (7~3650). 회원 관리 권한 필요
     #[serde(default)]
     pub mail_retention_days: Option<u32>,
+    /// 한 글에 지난 1시간 댓글이 이만큼이면 운영 신호 (0 = 끔, 3~1000)
+    #[serde(default)]
+    pub signal_comment_burst: Option<u32>,
+    /// 새 운영 신호를 관리자·소유자에게 메일로
+    #[serde(default)]
+    pub signal_mail: Option<bool>,
 }
 
 /// 저장된 값 위에 기본값을 채운다. 모르는 키나 잘못된 값은 기본값으로 둔다.
@@ -167,6 +173,19 @@ pub async fn update(ctx: &Ctx, actor: &Actor, patch: SettingsPatch) -> Result<Si
                 .arg("value", n.to_string()));
         }
         changes.push(("mail_retention_days", json!(n)));
+    }
+    if let Some(n) = patch.signal_comment_burst {
+        actor.require(Permission::MemberManage)?;
+        if n != 0 && !(signals::MIN_BURST..=signals::MAX_BURST).contains(&n) {
+            return Err(Error::new(Code::Validation)
+                .with_message("error.signal_burst")
+                .arg("value", n.to_string()));
+        }
+        changes.push(("signal_comment_burst", json!(n)));
+    }
+    if let Some(b) = patch.signal_mail {
+        actor.require(Permission::MemberManage)?;
+        changes.push(("signal_mail", json!(b)));
     }
     if let Some(m) = &patch.signup {
         actor.require(Permission::MemberManage)?;

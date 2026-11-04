@@ -1158,6 +1158,10 @@ struct SettingsForm {
     dormant_days: String,
     #[serde(default)]
     mail_retention_days: String,
+    #[serde(default)]
+    signal_comment_burst: String,
+    #[serde(default)]
+    signal_mail: Option<String>,
 }
 
 fn on(b: bool) -> Option<String> {
@@ -1186,6 +1190,8 @@ impl SettingsForm {
             flood_seconds: s.flood_seconds.to_string(),
             dormant_days: s.dormant_days.to_string(),
             mail_retention_days: s.mail_retention_days.to_string(),
+            signal_comment_burst: s.signal_comment_burst.to_string(),
+            signal_mail: on(s.signal_mail),
         }
     }
 
@@ -1243,6 +1249,11 @@ impl SettingsForm {
                 number("mail_retention_days", &self.mail_retention_days)?,
                 now.mail_retention_days,
             ),
+            signal_comment_burst: changed(
+                number("signal_comment_burst", &self.signal_comment_burst)?,
+                now.signal_comment_burst,
+            ),
+            signal_mail: changed(self.signal_mail.is_some(), now.signal_mail),
         })
     }
 }

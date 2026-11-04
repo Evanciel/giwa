@@ -1251,6 +1251,57 @@ impl Store for SqliteStore {
         .collect()
     }
 
+    async fn comment_bursts(
+        &self,
+        since: &str,
+        min: i64,
+        limit: i64,
+    ) -> Result<Vec<(String, i64)>> {
+        Ok(sqlx::query!(
+            r#"SELECT post_id AS "post_id!: String", COUNT(*) AS "n!: i64" FROM comments
+               WHERE created_at >= ? AND status IN ('published', 'pending')
+               GROUP BY post_id HAVING COUNT(*) >= ?
+               ORDER BY COUNT(*) DESC, post_id LIMIT ?"#,
+            since,
+            min,
+            limit
+        )
+        .fetch_all(&self.db.read)
+        .await
+        .map_err(db_error)?
+        .into_iter()
+        .map(|r| (r.post_id, r.n))
+        .collect())
+    }
+
+    async fn staff_members(&self, min_rank: i64) -> Result<Vec<Member>> {
+        sqlx::query_as!(
+            MemberRow,
+            "SELECT m.id, m.email, m.display_name, m.password_hash, m.status, m.email_verified_at,
+                    m.withdrawn_at, m.created_at, m.updated_at
+             FROM members m
+             WHERE m.status = 'active' AND m.withdrawn_at IS NULL
+               AND EXISTS (SELECT 1 FROM member_roles mr JOIN roles r ON r.id = mr.role_id
+                           WHERE mr.member_id = m.id AND r.rank >= ?)
+             ORDER BY m.created_at, m.id",
+            min_rank
+        )
+        .fetch_all(&self.db.read)
+        .await
+        .map_err(db_error)?
+        .into_iter()
+        .map(Member::try_from)
+        .collect()
+    }
+
+    async fn purge_signal_sent(&self, before: &str) -> Result<u64> {
+        Ok(sqlx::query!("DELETE FROM signal_sent WHERE at < ?", before)
+            .execute(&self.db.write)
+            .await
+            .map_err(db_error)?
+            .rows_affected())
+    }
+
     async fn purge_mails(&self, before: &str) -> Result<u64> {
         Ok(sqlx::query!(
             "DELETE FROM mail_outbox WHERE status != 'queued' AND created_at < ?",
@@ -2823,6 +2874,19 @@ impl WriteTx for SqliteWriteTx {
                 .map_err(db_error)?
                 .rows_affected(),
         )
+    }
+
+    async fn mark_signal_sent(&mut self, key: &str, at: &str) -> Result<bool> {
+        Ok(sqlx::query!(
+            "INSERT INTO signal_sent (key, at) VALUES (?, ?) ON CONFLICT (key) DO NOTHING",
+            key,
+            at
+        )
+        .execute(&mut *self.tx)
+        .await
+        .map_err(db_error)?
+        .rows_affected()
+            > 0)
     }
 
     async fn touch_login(&mut self, member_id: &str, now: &str) -> Result<()> {

@@ -18,7 +18,7 @@ use axum::http::HeaderMap;
 use axum::response::Response;
 use maru_core::actor::{Actor, Permission};
 use maru_core::fields::FieldDef;
-use maru_core::model::AuditEvent;
+use maru_core::model::{AuditEvent, Signal};
 use maru_core::services::widgets::WidgetType;
 use maru_core::store::{Extensions, ModuleMigration};
 use maru_core::{Code, Ctx, Error, Result};
@@ -142,6 +142,11 @@ pub trait Module: Send + Sync {
     /// 보존 정리 (ADR-0073). 서버가 하루 한 번, `maru privacy run` 이 바로 부른다. 지운 수를 돌려준다.
     async fn purge(&self, _ctx: &Ctx) -> Result<u64> {
         Ok(0)
+    }
+
+    /// 운영 신호 (ADR-0074). `actor` 가 다룰 수 있는 것만 돌려준다.
+    async fn signals(&self, _ctx: &Ctx, _actor: &Actor) -> Result<Vec<Signal>> {
+        Ok(Vec::new())
     }
 
     fn settings_fields(&self) -> Vec<FieldDef> {
@@ -319,5 +324,18 @@ impl Extensions for Registry {
             }
         }
         removed
+    }
+
+    async fn signals(&self, ctx: &Ctx, actor: &Actor) -> Vec<Signal> {
+        let mut out = Vec::new();
+        for m in self.enabled(ctx).await {
+            match m.signals(ctx, actor).await {
+                Ok(mut v) => out.append(&mut v),
+                Err(e) => {
+                    tracing::warn!(module = %m.manifest().id, error = ?e, "모듈 운영 신호 실패")
+                }
+            }
+        }
+        out
     }
 }

@@ -748,6 +748,12 @@ pub struct SiteSettings {
     /// 보냈거나 실패한 편지를 며칠 남길지 (7~3650, ADR-0073)
     #[serde(default = "default_mail_retention_days")]
     pub mail_retention_days: u32,
+    /// 한 글에 지난 1시간 댓글이 이만큼이면 운영 신호. 0 이면 끔 (ADR-0074)
+    #[serde(default = "default_signal_comment_burst")]
+    pub signal_comment_burst: u32,
+    /// 새 운영 신호를 관리자·소유자에게 메일로 알린다 (ADR-0074)
+    #[serde(default = "default_true")]
+    pub signal_mail: bool,
 }
 
 /// 사람 확인 질문 (자체 캡차, ADR-0052). 비회원 댓글·회원 가입 폼에 낸다.
@@ -812,6 +818,10 @@ fn default_mail_retention_days() -> u32 {
     90
 }
 
+fn default_signal_comment_burst() -> u32 {
+    20
+}
+
 fn default_true() -> bool {
     true
 }
@@ -837,6 +847,8 @@ impl Default for SiteSettings {
             flood_seconds: 0,
             dormant_days: 0,
             mail_retention_days: default_mail_retention_days(),
+            signal_comment_burst: default_signal_comment_burst(),
+            signal_mail: true,
         }
     }
 }
@@ -936,6 +948,19 @@ pub struct LoginTicket {
     pub created_at: String,
     pub expires_at: String,
     pub used_at: Option<String>,
+}
+
+/// 운영자가 살펴볼 일 하나 (ADR-0074). `message` 에는 사용자가 쓴 글(제목 등)이 들어 있을 수 있다.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Signal {
+    /// 같은 신호를 두 번 알리지 않는 열쇠 (예: `comment_burst:<글>:<날짜>`)
+    pub key: String,
+    /// comment_burst, report_crowd, report_stale …
+    pub kind: String,
+    pub message: String,
+    /// 살펴볼 곳 (사이트 안 경로)
+    pub url: Option<String>,
+    pub count: i64,
 }
 
 /// 회원의 마지막 로그인과 휴면 (ADR-0073).

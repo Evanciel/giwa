@@ -21,7 +21,7 @@ use crate::model::{
     PostStatus, PostTemplate, Revision, Role, Session, StatBatch, StatDay, StatPage, StatReferrer,
     Tag, TicketPurpose, Token, TotpChallenge, Widget,
 };
-use crate::model::{MemberActivity, MemberTotp};
+use crate::model::{MemberActivity, MemberTotp, Signal};
 
 /// 댓글 관리 목록 조건. 비어 있는 조건은 거르지 않는다.
 #[derive(Debug, Clone, Copy, Default)]
@@ -53,6 +53,8 @@ pub trait Extensions: Send + Sync {
     async fn check_widget(&self, ctx: &Ctx, kind: &str, config: Value) -> Option<Result<Value>>;
     /// 켜진 모듈의 보존 정리 (ADR-0073). 지운 수의 합. 한 모듈이 실패해도 나머지는 한다.
     async fn purge(&self, ctx: &Ctx) -> u64;
+    /// 켜진 모듈의 운영 신호 (ADR-0074). 한 모듈이 실패해도 나머지는 한다.
+    async fn signals(&self, ctx: &Ctx, actor: &Actor) -> Vec<Signal>;
 }
 
 struct NoExtensions;
@@ -69,6 +71,10 @@ impl Extensions for NoExtensions {
 
     async fn purge(&self, _ctx: &Ctx) -> u64 {
         0
+    }
+
+    async fn signals(&self, _ctx: &Ctx, _actor: &Actor) -> Vec<Signal> {
+        Vec::new()
     }
 }
 
@@ -277,6 +283,13 @@ pub trait Store: Send + Sync {
     async fn mails(&self, status: Option<MailStatus>, limit: i64) -> Result<Vec<MailOut>>;
     /// 보냈거나 실패한 편지 중 `before` 보다 먼저 쌓인 것을 지운다. 시스템 정리라 감사 대상이 아니다.
     async fn purge_mails(&self, before: &str) -> Result<u64>;
+    /// `since` 뒤로 댓글이 `min` 개 이상 달린 글과 그 수, 많은 순 (ADR-0074)
+    async fn comment_bursts(&self, since: &str, min: i64, limit: i64)
+    -> Result<Vec<(String, i64)>>;
+    /// 이 순위 이상의 역할을 가진, 쓰는 중인 회원
+    async fn staff_members(&self, min_rank: i64) -> Result<Vec<Member>>;
+    /// `before` 보다 먼저 알린 신호를 잊는다. 시스템 정리.
+    async fn purge_signal_sent(&self, before: &str) -> Result<u64>;
     async fn mail_by_id(&self, id: &str) -> Result<Option<MailOut>>;
     /// 배달 결과 (상태·시도 수·오류·보낸 때). 감사 대상이 아닌 시스템 기록.
     async fn update_mail(&self, m: &MailOut) -> Result<()>;
@@ -467,6 +480,8 @@ pub trait WriteTx: Send {
     async fn insert_session(&mut self, s: &Session) -> Result<()>;
     async fn delete_session(&mut self, id: &str) -> Result<u64>;
     async fn delete_member_sessions(&mut self, member_id: &str) -> Result<u64>;
+    /// 처음 알리는 신호면 적고 `true` (ADR-0074).
+    async fn mark_signal_sent(&mut self, key: &str, at: &str) -> Result<bool>;
     /// 마지막 로그인을 적고 휴면 미리 알림 표시를 지운다 (ADR-0073).
     async fn touch_login(&mut self, member_id: &str, now: &str) -> Result<()>;
     async fn mark_dormant_notice(&mut self, member_id: &str, now: &str) -> Result<()>;

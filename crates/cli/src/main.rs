@@ -108,6 +108,8 @@ enum Command {
     /// 개인정보 보유기간: 휴면 전환·지난 메일·모듈 기록 정리 (서버가 하루 한 번 한다)
     #[command(subcommand)]
     Privacy(PrivacyCmd),
+    /// 운영 신호: 댓글 급증·신고 집중·묵은 신고. `maru signals alert` 는 새 신호를 지금 메일로
+    Signals(SignalsArgs),
     /// 관리 화면 로그인 링크를 만든다 (10분, 1회용)
     LoginLink(LoginLinkArgs),
     /// 설치 상태를 점검한다 (데이터, DB, 포트, 운영자, 테마)
@@ -176,6 +178,18 @@ pub enum CommentCmd {
     Spam { id: String },
     /// 지운다 (본문을 비우고 자리만 남긴다)
     Delete { id: String },
+}
+
+#[derive(Debug, Args)]
+pub struct SignalsArgs {
+    #[command(subcommand)]
+    pub cmd: Option<SignalsCmd>,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum SignalsCmd {
+    /// 새 신호를 관리자·소유자에게 메일로 쌓는다 (서버가 10분마다 한다)
+    Alert,
 }
 
 #[derive(Debug, Subcommand)]
@@ -1006,6 +1020,12 @@ pub struct SiteSetArgs {
     /// 보냈거나 실패한 메일을 남길 날수 (7~3650)
     #[arg(long)]
     pub mail_retention_days: Option<u32>,
+    /// 한 글에 지난 1시간 댓글이 이만큼이면 운영 신호 (0 = 끔, 3~1000)
+    #[arg(long)]
+    pub signal_comment_burst: Option<u32>,
+    /// 새 운영 신호를 관리자·소유자에게 메일로 (true/false)
+    #[arg(long)]
+    pub signal_mail: Option<bool>,
     /// 회원 가입: off(받지 않음), open(누구나)
     #[arg(long)]
     pub signup: Option<String>,

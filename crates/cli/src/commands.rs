@@ -14,8 +14,8 @@ use maru_core::services::posts::{self, NewPost};
 use maru_core::services::tokens::{self, NewToken};
 use maru_core::services::{
     anonymous_actor, audit_log, auth, backups, categories, comments, design, files, fonts, mail,
-    media, members, menus, pages, presets, retention, search, settings, stats, tags, templates,
-    views, widgets,
+    media, members, menus, pages, presets, retention, search, settings, signals, stats, tags,
+    templates, views, widgets,
 };
 use maru_core::urls::{self, Target};
 use maru_core::{Actor, Code, Ctx, Error, Result};
@@ -27,8 +27,8 @@ use crate::{
     AuditCmd, AuditListArgs, BackupArgs, BackupCmd, BoardCmd, CategoryCmd, Command, CommentCmd,
     DesignCmd, FileCmd, FontCmd, Global, InitArgs, LoginLinkArgs, MailCmd, MediaCmd, MemberCmd,
     MenuCmd, MenuSetArgs, PageCmd, PostCmd, PostListArgs, PostNewArgs, PrivacyCmd, RestoreArgs,
-    SearchArgs, SearchCmd, ServeArgs, SiteCmd, StatsArgs, TagCmd, TemplateCmd, TokenCmd,
-    TokenCreateArgs, WidgetCmd,
+    SearchArgs, SearchCmd, ServeArgs, SignalsArgs, SignalsCmd, SiteCmd, StatsArgs, TagCmd,
+    TemplateCmd, TokenCmd, TokenCreateArgs, WidgetCmd,
 };
 
 pub async fn run(g: &Global, command: Command) -> ExitCode {
@@ -61,6 +61,7 @@ pub async fn run(g: &Global, command: Command) -> ExitCode {
         Command::Comment(cmd) => comment_cmd(g, cmd).await,
         Command::Mail(cmd) => mail_cmd(g, cmd).await,
         Command::Privacy(cmd) => privacy_cmd(g, cmd).await,
+        Command::Signals(args) => signals_cmd(g, args).await,
         Command::LoginLink(args) => login_link(g, args).await,
     };
     match res {
@@ -1647,6 +1648,8 @@ async fn site(g: &Global, cmd: SiteCmd) -> Out {
                 flood_seconds: args.flood_seconds,
                 dormant_days: args.dormant_days,
                 mail_retention_days: args.mail_retention_days,
+                signal_comment_burst: args.signal_comment_burst,
+                signal_mail: args.signal_mail,
             };
             settings::update(&ctx, &actor, patch).await
         }
@@ -2337,6 +2340,37 @@ fn member_out(v: members::MemberView) -> Out {
         member_flags(&v.member)
     ) + if v.two_factor { "  2단계" } else { "" };
     Ok((to_value(&v)?, human))
+}
+
+async fn signals_cmd(g: &Global, args: SignalsArgs) -> Out {
+    let (ctx, _config, db) = open(g).await?;
+    let res = async {
+        let actor = actor(&ctx).await?;
+        match args.cmd {
+            Some(SignalsCmd::Alert) => {
+                actor.require(maru_core::actor::Permission::PostModerate)?;
+                let n = signals::alert(&ctx).await?;
+                Ok((
+                    serde_json::json!({ "alerted": n }),
+                    format!("새 운영 신호 {n}건을 메일로 쌓았습니다"),
+                ))
+            }
+            None => {
+                let list = signals::list(&ctx, &actor).await?;
+                let mut human = format!("운영 신호 {}건", list.len());
+                for s in &list {
+                    human.push_str(&format!("\n- {}", s.message));
+                    if let Some(u) = &s.url {
+                        human.push_str(&format!("  ({u})"));
+                    }
+                }
+                Ok((to_value(&list)?, human))
+            }
+        }
+    }
+    .await;
+    db.close().await;
+    res
 }
 
 async fn privacy_cmd(g: &Global, cmd: PrivacyCmd) -> Out {

@@ -166,6 +166,10 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "mail.dormant_notice.body" => {
             "{name} 님, {site}에 오랫동안 로그인하지 않으셨습니다.\n\n{days}일 동안 로그인하지 않은 계정은 휴면으로 바뀌고, 메일 주소를 다른 곳에 따로 보관합니다. 30일 안에 로그인하시면 그대로 쓰실 수 있고, 휴면이 된 뒤에도 로그인하면 바로 돌아옵니다.\n\n{link}\n"
         }
+        "mail.signals.subject" => "[{site}] 살펴볼 일 {count}건",
+        "mail.signals.body" => {
+            "{name} 님, 사이트에 살펴볼 일이 생겼습니다.\n\n{lines}\n\n관리 화면: {admin}\n\n사이트 설정에서 「운영 신호 메일」을 끄면 이 메일이 오지 않습니다.\n"
+        }
         "mail.reset.subject" => "[{site}] 비밀번호 다시 정하기",
         "mail.reset.body" => {
             "{name} 님, 비밀번호를 다시 정하려면 아래 링크를 누르세요. 1시간 안에 한 번만 쓸 수 있습니다.\n\n{link}\n\n요청한 적이 없다면 이 메일은 지우셔도 됩니다. 비밀번호는 그대로입니다.\n"
@@ -231,6 +235,8 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "error.stats_retention" => "통계 보존 기간은 30~3650일입니다 (받은 값 {value}).",
         "error.dormant_days" => "휴면 기간은 0(끔) 또는 180~3650일입니다 (받은 값 {value}).",
         "error.mail_retention" => "편지 보존 기간은 7~3650일입니다 (받은 값 {value}).",
+        "error.signal_burst" => "댓글 급증 기준은 0(끔) 또는 3~1000개입니다 (받은 값 {value}).",
+        "signal.comment_burst" => "댓글이 몰립니다: 「{title}」에 지난 1시간 댓글 {count}개",
         "error.widget_popup_region" => {
             "팝업은 popup 영역에만, popup 영역에는 팝업만 놓을 수 있습니다 (종류 {kind}, 영역 {region})."
         }

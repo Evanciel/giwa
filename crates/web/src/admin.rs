@@ -861,6 +861,14 @@ async fn home(
     let boards = boards::list(&state.ctx, &who.actor)
         .await
         .unwrap_or_default();
+    // 운영 신호 (ADR-0074). 게시판 관리 권한이 없으면 비어 있다.
+    let signals = if who.actor.has(Permission::PostModerate) {
+        maru_core::services::signals::list(&state.ctx, &who.actor)
+            .await
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    };
     let tz = settings::site(&state.ctx)
         .await
         .map(|s| s.tz_offset_min)
@@ -892,6 +900,7 @@ async fn home(
     let ctx = merge(
         base(&state, Some(&who), "posts").await,
         json!({
+            "signals": signals,
             "notice": match (q.done.as_str(), q.ok, q.failed) {
                 ("bulk", Some(ok), failed) => Some(match failed.unwrap_or(0) {
                     0 => format!("{ok}개를 처리했습니다."),

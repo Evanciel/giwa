@@ -33,7 +33,7 @@ use maru_core::services::backups::Archiver;
 use maru_core::services::mail::{self, Mailer};
 use maru_core::services::stats::{self, StatCounter};
 use maru_core::services::views::{self, ViewCounter};
-use maru_core::services::{auth, fonts, media, posts, retention};
+use maru_core::services::{auth, fonts, media, posts, retention, signals};
 use maru_core::{Code, Ctx, Error, Result};
 use maru_modules::Registry;
 use maru_themes::{Admin, Theme};
@@ -417,6 +417,12 @@ async fn purge_loop(state: AppState) {
             Ok(n) if n > 0 => tracing::info!(removed = n, "만료된 세션·링크 정리"),
             Ok(_) => {}
             Err(e) => tracing::warn!(error = ?e, "세션 정리 실패"),
+        }
+        // 새 운영 신호는 관리자·소유자에게 메일로 (ADR-0074). 같은 신호는 한 번만.
+        match signals::alert(&state.ctx).await {
+            Ok(n) if n > 0 => tracing::info!(signals = n, "운영 신호 알림"),
+            Ok(_) => {}
+            Err(e) => tracing::warn!(error = ?e, "운영 신호 알림 실패"),
         }
         state.limiter.purge();
     }

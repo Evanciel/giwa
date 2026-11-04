@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT target_type AS \"target_type!: String\", target_id AS \"target_id!: String\"\n                   FROM mod_report_item WHERE status = 'open'\n                   GROUP BY target_type, target_id HAVING MIN(at) < ?\n                   LIMIT 500",
+  "describe": {
+    "columns": [
+      {
+        "name": "target_type!: String",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_report_item",
+            "name": "target_type"
+          }
+        }
+      },
+      {
+        "name": "target_id!: String",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_report_item",
+            "name": "target_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      true
+    ]
+  },
+  "hash": "1146efdfb5a245ef3cfa73a1e8b8828d4004e543fa0861dd89210228771d3e20"
+}
