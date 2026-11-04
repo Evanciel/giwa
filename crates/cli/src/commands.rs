@@ -13,8 +13,8 @@ use maru_core::services::boards::{self, NewBoard};
 use maru_core::services::posts::{self, NewPost};
 use maru_core::services::tokens::{self, NewToken};
 use maru_core::services::{
-    anonymous_actor, auth, categories, comments, design, files, fonts, mail, media, members, menus,
-    pages, presets, search, settings, stats, tags, templates, views, widgets,
+    anonymous_actor, audit_log, auth, categories, comments, design, files, fonts, mail, media,
+    members, menus, pages, presets, search, settings, stats, tags, templates, views, widgets,
 };
 use maru_core::urls::{self, Target};
 use maru_core::{Actor, Code, Ctx, Error, Result};
@@ -23,10 +23,10 @@ use serde_json::{Value, json};
 
 use crate::output;
 use crate::{
-    BoardCmd, CategoryCmd, Command, CommentCmd, DesignCmd, FileCmd, FontCmd, Global, InitArgs,
-    LoginLinkArgs, MailCmd, MediaCmd, MemberCmd, MenuCmd, MenuSetArgs, PageCmd, PostCmd,
-    PostListArgs, PostNewArgs, SearchArgs, SearchCmd, ServeArgs, SiteCmd, StatsArgs, TagCmd,
-    TemplateCmd, TokenCmd, TokenCreateArgs, WidgetCmd,
+    AuditCmd, AuditListArgs, BoardCmd, CategoryCmd, Command, CommentCmd, DesignCmd, FileCmd,
+    FontCmd, Global, InitArgs, LoginLinkArgs, MailCmd, MediaCmd, MemberCmd, MenuCmd, MenuSetArgs,
+    PageCmd, PostCmd, PostListArgs, PostNewArgs, SearchArgs, SearchCmd, ServeArgs, SiteCmd,
+    StatsArgs, TagCmd, TemplateCmd, TokenCmd, TokenCreateArgs, WidgetCmd,
 };
 
 pub async fn run(g: &Global, command: Command) -> ExitCode {
@@ -46,6 +46,7 @@ pub async fn run(g: &Global, command: Command) -> ExitCode {
         Command::Menu(cmd) => menu(g, cmd).await,
         Command::Widget(cmd) => widget_cmd(g, cmd).await,
         Command::Stats(args) => stats_cmd(g, args).await,
+        Command::Audit(AuditCmd::List(args)) => audit_list(g, args).await,
         Command::Site(cmd) => site(g, cmd).await,
         Command::Design(cmd) => design_cmd(g, cmd).await,
         Command::Font(cmd) => font_cmd(g, cmd).await,
@@ -1263,6 +1264,62 @@ fn menu_human(location: &str, items: &[MenuItem]) -> String {
 }
 
 // ---- widget ----
+
+async fn audit_list(g: &Global, a: AuditListArgs) -> Out {
+    let (ctx, _config, db) = open(g).await?;
+    let res = async {
+        let actor = actor(&ctx).await?;
+        audit_log::list(
+            &ctx,
+            &actor,
+            &audit_log::AuditQuery {
+                actor_type: a.actor_type,
+                actor_id: a.actor_id,
+                action: a.action,
+                target_type: a.target_type,
+                target_id: a.target_id,
+                since: a.since,
+                until: a.until,
+                page: Some(a.page),
+                per_page: Some(a.per_page),
+            },
+        )
+        .await
+    }
+    .await;
+    db.close().await;
+    let list = res?;
+    let human = if list.items.is_empty() {
+        "맞는 기록이 없습니다.".to_owned()
+    } else {
+        let mut lines: Vec<String> = list
+            .items
+            .iter()
+            .map(|e| {
+                let who = match (&e.actor_id, e.actor_name.is_empty()) {
+                    (_, false) => format!("{} {}", e.actor_type, e.actor_name),
+                    (Some(id), true) => format!("{} {id}", e.actor_type),
+                    (None, true) => e.actor_type.clone(),
+                };
+                format!(
+                    "{}  {}  {} {}  ({who})",
+                    e.at,
+                    e.action,
+                    e.target_type,
+                    e.target_id.as_deref().unwrap_or("-")
+                )
+            })
+            .collect();
+        lines.push(format!(
+            "{} / {} 쪽, 모두 {}건",
+            list.page,
+            list.total_pages(),
+            list.total
+        ));
+        lines.join("\n")
+    };
+    Ok((to_value(&list)?, human))
+}
 
 async fn stats_cmd(g: &Global, args: StatsArgs) -> Out {
     let (ctx, _config, db) = open(g).await?;

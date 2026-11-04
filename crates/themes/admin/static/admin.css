@@ -367,3 +367,13 @@ pre.diff > span { display: block; padding: 0 .75rem; }
 .stat-table .bar-col { width: 40%; }
 .stat-table meter { width: 100%; height: .8rem; }
 @media (max-width: 640px) { .stat-table .bar-col { display: none; } }
+
+/* 감사 로그 (ADR-0062) */
+.audit-filter { display: flex; flex-wrap: wrap; align-items: end; gap: .6rem 1rem; margin: 0 0 1.25rem; }
+.audit-filter label { display: grid; gap: .25rem; font-size: .85rem; color: var(--muted); }
+.audit-filter input, .audit-filter select { min-width: 10rem; }
+.audit-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+.audit-row { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: .6rem 1rem; }
+.audit-head, .audit-meta { margin: 0; overflow-wrap: anywhere; }
+.audit-meta { font-size: .85rem; color: var(--muted); margin-top: .2rem; }
+.audit-diff { margin: .4rem 0 0; padding: .6rem; background: var(--bg); border-radius: var(--radius); font-size: .8rem; max-height: 20rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }

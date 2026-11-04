@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT count(*) AS \"n!: i64\" FROM audit_log a\n               WHERE (? = '' OR a.actor_type = ?)\n                 AND (? = '' OR a.actor_id = ?)\n                 AND (? = '' OR a.action = ? OR a.action LIKE ? ESCAPE '\\')\n                 AND (? = '' OR a.target_type = ?)\n                 AND (? = '' OR a.target_id = ?)\n                 AND (? = '' OR a.at >= ?)\n                 AND (? = '' OR a.at < ?)",
+  "describe": {
+    "columns": [
+      {
+        "name": "n!: i64",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 15
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "7bd2db2b6670e6b57592b37f99c930d67d6fb5f70a81deaf4b6a05b8be88203e"
+}

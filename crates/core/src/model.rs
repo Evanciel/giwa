@@ -589,6 +589,20 @@ pub struct MenuItem {
 /// `popup` 은 팝업 종류 전용 자리다 (ADR-0060).
 pub const WIDGET_REGIONS: [&str; 6] = ["header", "hero", "main", "sidebar", "footer", "popup"];
 
+/// 감사 기록 한 줄 (GAP S14, ADR-0062). `actor_name` 은 회원 표시 이름·토큰 이름(없으면 빈 값).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct AuditEntry {
+    pub id: String,
+    pub actor_type: String,
+    pub actor_id: Option<String>,
+    pub actor_name: String,
+    pub action: String,
+    pub target_type: String,
+    pub target_id: Option<String>,
+    pub diff: serde_json::Value,
+    pub at: String,
+}
+
 /// 하루 방문 집계 (ADR-0061). `day` 는 한국 시간 `YYYY-MM-DD`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct StatDay {

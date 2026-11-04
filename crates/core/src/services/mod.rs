@@ -1,6 +1,7 @@
 //! 서비스 레이어. REST·CLI·웹·MCP 가 모두 여기만 부른다 (원칙 1).
 //! 시그니처는 `(&Ctx, &Actor, input)`.
 
+pub mod audit_log;
 pub mod auth;
 pub mod board_posts;
 pub mod boards;

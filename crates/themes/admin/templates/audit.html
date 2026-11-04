@@ -1,0 +1,43 @@
+{% extends "_base.html" %}
+{% block title %}감사 로그{% endblock %}
+{% block content %}
+<div class="heading-row">
+  <h1>감사 로그 <span class="count">{{ total }}</span></h1>
+</div>
+<p class="hint">누가 언제 무엇을 바꿨는지 최신 순으로 봅니다. 비밀번호·토큰 같은 값은 기록할 때 지워집니다. <code>maru audit list --json</code> 으로도 봅니다.</p>
+
+<form method="get" action="/admin/audit" class="audit-filter">
+  <label>동작 <input name="action" value="{{ q.action or '' }}" placeholder="post 또는 post.publish" maxlength="80"></label>
+  <label>행위자
+    <select name="actor_type">
+      <option value="">모두</option>
+      {% for t in actor_types %}<option value="{{ t[0] }}"{% if q.actor_type == t[0] %} selected{% endif %}>{{ t[1] }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>대상 종류 <input name="target_type" value="{{ q.target_type or '' }}" placeholder="post, board, member…" maxlength="80"></label>
+  <label>대상 ID <input name="target_id" value="{{ q.target_id or '' }}" maxlength="80"></label>
+  <button type="submit" class="secondary">찾기</button>
+  {% if filtered %}<a href="/admin/audit">조건 지우기</a>{% endif %}
+</form>
+
+{% if items %}
+<ol class="audit-rows">
+{% for e in items %}
+  <li class="audit-row">
+    <p class="audit-head"><code>{{ e.action }}</code> <span class="badge">{{ e.target_type }}</span>{% if e.target_id %} <a href="/admin/audit?target_type={{ e.target_type }}&amp;target_id={{ e.target_id }}"><code>{{ e.target_id }}</code></a>{% endif %}</p>
+    <p class="audit-meta"><time datetime="{{ e.at }}">{{ e.at_display }}</time> · {{ e.actor_label }}{% if e.actor_name %} {{ e.actor_name }}{% endif %}</p>
+    {% if e.diff_text %}<details><summary>바뀐 내용</summary><pre class="audit-diff">{{ e.diff_text }}</pre></details>{% endif %}
+  </li>
+{% endfor %}
+</ol>
+{% if pages > 1 %}
+<nav class="pager" aria-label="쪽">
+  {% if page > 1 %}<a href="{{ base_query }}page={{ page - 1 }}">이전</a>{% endif %}
+  <span>{{ page }} / {{ pages }}</span>
+  {% if page < pages %}<a href="{{ base_query }}page={{ page + 1 }}">다음</a>{% endif %}
+</nav>
+{% endif %}
+{% else %}
+<p class="hint">맞는 기록이 없습니다.</p>
+{% endif %}
+{% endblock %}

@@ -4,14 +4,14 @@ use async_trait::async_trait;
 use maru_core::actor::{AuthorType, Permission, Scope};
 use maru_core::audit::AuditRecord;
 use maru_core::model::{
-    Attachment, Board, BoardPolicy, Category, Comment, CommentStatus, Font, FontFile, LoginTicket,
-    MailOut, MailStatus, Media, MediaVariant, Member, MemberStatus, Page, PageStatus, Post,
-    PostKind, PostStatus, PostTemplate, Revision, Role, Session, StatBatch, StatDay, StatPage,
-    StatReferrer, Tag, TicketPurpose, Token, Widget,
+    Attachment, AuditEntry, Board, BoardPolicy, Category, Comment, CommentStatus, Font, FontFile,
+    Listing, LoginTicket, MailOut, MailStatus, Media, MediaVariant, Member, MemberStatus, Page,
+    PageReq, PageStatus, Post, PostKind, PostStatus, PostTemplate, Revision, Role, Session,
+    StatBatch, StatDay, StatPage, StatReferrer, Tag, TicketPurpose, Token, Widget,
 };
 use maru_core::store::{
-    CommentQuery, MenuRow, PopularQuery, PostFilter, PublishedQuery, SearchQuery, SearchRef, Store,
-    WriteTx,
+    AuditFilter, CommentQuery, MenuRow, PopularQuery, PostFilter, PublishedQuery, SearchQuery,
+    SearchRef, Store, WriteTx,
 };
 use maru_core::{Code, Error, Result, clock, slug, urls};
 use serde_json::Value;
@@ -1172,6 +1172,105 @@ impl Store for SqliteStore {
             .map_err(db_error)?;
         }
         tx.commit().await.map_err(db_error)
+    }
+
+    async fn list_audit(&self, f: &AuditFilter, page: PageReq) -> Result<Listing<AuditEntry>> {
+        // 동작 앞부분: `post` 는 `post` 자신과 `post.…`. LIKE 의 `_`·`%` 는 글자 그대로.
+        let like = format!(
+            "{}.%",
+            f.action
+                .replace('\\', "\\\\")
+                .replace('%', "\\%")
+                .replace('_', "\\_")
+        );
+        let (limit, offset) = (page.limit(), page.offset());
+        let rows = sqlx::query!(
+            r#"SELECT a.id AS "id!", a.actor_type AS "actor_type!", a.actor_id,
+                      COALESCE(m.display_name, t.name, '') AS "actor_name!: String",
+                      a.action AS "action!", a.target_type AS "target_type!", a.target_id,
+                      a.diff AS "diff!", a.at AS "at!"
+               FROM audit_log a
+               LEFT JOIN members m ON a.actor_type = 'human' AND m.id = a.actor_id
+               LEFT JOIN tokens t ON a.actor_type = 'agent' AND t.id = a.actor_id
+               WHERE (? = '' OR a.actor_type = ?)
+                 AND (? = '' OR a.actor_id = ?)
+                 AND (? = '' OR a.action = ? OR a.action LIKE ? ESCAPE '\')
+                 AND (? = '' OR a.target_type = ?)
+                 AND (? = '' OR a.target_id = ?)
+                 AND (? = '' OR a.at >= ?)
+                 AND (? = '' OR a.at < ?)
+               ORDER BY a.at DESC, a.id DESC LIMIT ? OFFSET ?"#,
+            f.actor_type,
+            f.actor_type,
+            f.actor_id,
+            f.actor_id,
+            f.action,
+            f.action,
+            like,
+            f.target_type,
+            f.target_type,
+            f.target_id,
+            f.target_id,
+            f.since,
+            f.since,
+            f.until,
+            f.until,
+            limit,
+            offset
+        )
+        .fetch_all(&self.db.read)
+        .await
+        .map_err(db_error)?;
+        let total = sqlx::query_scalar!(
+            r#"SELECT count(*) AS "n!: i64" FROM audit_log a
+               WHERE (? = '' OR a.actor_type = ?)
+                 AND (? = '' OR a.actor_id = ?)
+                 AND (? = '' OR a.action = ? OR a.action LIKE ? ESCAPE '\')
+                 AND (? = '' OR a.target_type = ?)
+                 AND (? = '' OR a.target_id = ?)
+                 AND (? = '' OR a.at >= ?)
+                 AND (? = '' OR a.at < ?)"#,
+            f.actor_type,
+            f.actor_type,
+            f.actor_id,
+            f.actor_id,
+            f.action,
+            f.action,
+            like,
+            f.target_type,
+            f.target_type,
+            f.target_id,
+            f.target_id,
+            f.since,
+            f.since,
+            f.until,
+            f.until
+        )
+        .fetch_one(&self.db.read)
+        .await
+        .map_err(db_error)?;
+        let items = rows
+            .into_iter()
+            .map(|r| {
+                Ok(AuditEntry {
+                    id: r.id,
+                    actor_type: r.actor_type,
+                    actor_id: r.actor_id,
+                    actor_name: r.actor_name,
+                    action: r.action,
+                    target_type: r.target_type,
+                    target_id: r.target_id,
+                    diff: serde_json::from_str(&r.diff).map_err(Error::internal)?,
+                    at: r.at,
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+        Ok(Listing {
+            items,
+            total,
+            page: page.page,
+            per_page: page.per_page,
+        })
     }
 
     async fn add_stats(&self, batch: &StatBatch) -> Result<()> {

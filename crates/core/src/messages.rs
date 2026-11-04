@@ -185,6 +185,13 @@ pub fn lookup(key: &str) -> Option<&'static str> {
             "위젯 범위는 all, home, boards, board:<주소>, page:<주소> 중 하나입니다: {value}"
         }
         "error.widget_config" => "`{kind}` 위젯 설정이 올바르지 않습니다: {reason}",
+        "error.audit_actor_type" => "행위자 종류는 {allowed} 중 하나입니다 (받은 값 {value}).",
+        "error.audit_name" => {
+            "{field} 에는 영문 소문자·숫자·`.`·`_`·`-` 만 씁니다 (받은 값 {value})."
+        }
+        "error.audit_time" => {
+            "{field} 는 RFC3339 시각입니다 (예: 2026-11-04T09:00:00+09:00, 받은 값 {value})."
+        }
         "error.stats_days" => "통계 기간은 1~{max}일입니다.",
         "error.stats_retention" => "통계 보존 기간은 30~3650일입니다 (받은 값 {value}).",
         "error.widget_popup_region" => {

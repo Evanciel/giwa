@@ -65,6 +65,7 @@ pub fn routes() -> Router<AppState> {
         .route("/admin/fonts/{slug}/license", post(font_license))
         .route("/admin/fonts/{slug}/{action}", post(font_action))
         .route("/admin/templates", get(list_templates).post(save_template))
+        .route("/admin/audit", get(audit_page))
         .route("/admin/stats", get(stats_page))
         .route("/admin/stats.csv", get(stats_csv))
         .route("/admin/widgets", get(widgets_page).post(widget_place))
@@ -2055,6 +2056,120 @@ fn json_body_error(e: JsonRejection) -> ApiError {
 }
 
 // ---- 위젯 (ADR-0059) ----
+
+#[derive(Debug, Default, Deserialize)]
+struct AuditPageQuery {
+    #[serde(default)]
+    action: String,
+    #[serde(default)]
+    actor_type: String,
+    #[serde(default)]
+    target_type: String,
+    #[serde(default)]
+    target_id: String,
+    #[serde(default)]
+    page: Option<u32>,
+}
+
+fn actor_label(t: &str) -> &'static str {
+    match t {
+        "human" => "사람",
+        "agent" => "에이전트",
+        "local" => "로컬 CLI",
+        "anonymous" => "손님",
+        _ => "시스템",
+    }
+}
+
+/// 감사 로그 (ADR-0062). 운영자만.
+async fn audit_page(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<AuditPageQuery>,
+) -> Response {
+    use maru_core::services::audit_log::{self, ACTOR_TYPES, AuditQuery};
+    let who = match require(&state, &headers, "/admin/audit").await {
+        Ok(w) => w,
+        Err(r) => return *r,
+    };
+    let some = |v: &str| (!v.trim().is_empty()).then(|| v.trim().to_owned());
+    let query = AuditQuery {
+        action: some(&q.action),
+        actor_type: some(&q.actor_type),
+        target_type: some(&q.target_type),
+        target_id: some(&q.target_id),
+        page: q.page,
+        ..Default::default()
+    };
+    let list = match audit_log::list(&state.ctx, &who.actor, &query).await {
+        Ok(l) => l,
+        Err(e) => return fail(&state, Some(&who), &e).await,
+    };
+    let tz = settings::site(&state.ctx)
+        .await
+        .map(|s| s.tz_offset_min)
+        .unwrap_or(540);
+    let items = list
+        .items
+        .iter()
+        .map(|e| {
+            let diff = if e.diff.as_object().is_some_and(|o| o.is_empty()) || e.diff.is_null() {
+                String::new()
+            } else {
+                serde_json::to_string_pretty(&e.diff).unwrap_or_default()
+            };
+            json!({
+                "action": e.action,
+                "target_type": e.target_type,
+                "target_id": e.target_id,
+                "at": e.at,
+                "at_display": clock::display_datetime(&e.at, tz),
+                "actor_label": actor_label(&e.actor_type),
+                "actor_name": e.actor_name,
+                "diff_text": diff,
+            })
+        })
+        .collect::<Vec<_>>();
+    // 쪽 이동 링크에 조건을 그대로 붙인다.
+    let mut base_query = String::from("/admin/audit?");
+    for (k, v) in [
+        ("action", &q.action),
+        ("actor_type", &q.actor_type),
+        ("target_type", &q.target_type),
+        ("target_id", &q.target_id),
+    ] {
+        if !v.trim().is_empty() {
+            base_query.push_str(&format!("{k}={}&", urlencoding_min(v.trim())));
+        }
+    }
+    let filtered = base_query.len() > "/admin/audit?".len();
+    let ctx = merge(
+        base(&state, Some(&who), "audit").await,
+        json!({
+            "items": items,
+            "total": list.total,
+            "page": list.page,
+            "pages": list.total_pages(),
+            "q": { "action": q.action, "actor_type": q.actor_type, "target_type": q.target_type, "target_id": q.target_id },
+            "filtered": filtered,
+            "base_query": base_query,
+            "actor_types": ACTOR_TYPES.iter().map(|t| [*t, actor_label(t)]).collect::<Vec<_>>(),
+        }),
+    );
+    render(&state, StatusCode::OK, "audit.html", &ctx)
+}
+
+/// 쿼리 문자열 값 인코딩 (영숫자·`-._~` 외는 %XX).
+fn urlencoding_min(v: &str) -> String {
+    v.bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' => {
+                (b as char).to_string()
+            }
+            _ => format!("%{b:02X}"),
+        })
+        .collect()
+}
 
 #[derive(Debug, Default, Deserialize)]
 struct StatsPageQuery {

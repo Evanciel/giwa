@@ -13,10 +13,10 @@ use crate::audit::{AuditRecord, Target};
 use crate::blobs::Blobs;
 use crate::error::{Error, Result};
 use crate::model::{
-    Attachment, Board, Category, Comment, CommentStatus, Font, FontFile, LoginTicket, MailOut,
-    MailStatus, Media, Member, MenuLink, Page, PageStatus, Post, PostStatus, PostTemplate,
-    Revision, Role, Session, StatBatch, StatDay, StatPage, StatReferrer, Tag, TicketPurpose, Token,
-    Widget,
+    Attachment, AuditEntry, Board, Category, Comment, CommentStatus, Font, FontFile, Listing,
+    LoginTicket, MailOut, MailStatus, Media, Member, MenuLink, Page, PageReq, PageStatus, Post,
+    PostStatus, PostTemplate, Revision, Role, Session, StatBatch, StatDay, StatPage, StatReferrer,
+    Tag, TicketPurpose, Token, Widget,
 };
 
 /// 댓글 관리 목록 조건. 비어 있는 조건은 거르지 않는다.
@@ -36,6 +36,19 @@ pub struct Ctx {
     pub blobs: Arc<dyn Blobs>,
     /// 절대 URL 의 기준 (`config.toml`). 끝에 `/` 가 없다.
     pub site_url: String,
+}
+
+/// 감사 로그 조건 (ADR-0062). 빈 값은 따지지 않는다. `action` 은 그 이름 자신과 `action.…`.
+/// 시각은 저장 형식(UTC)이다.
+#[derive(Debug, Clone, Default)]
+pub struct AuditFilter {
+    pub actor_type: String,
+    pub actor_id: String,
+    pub action: String,
+    pub target_type: String,
+    pub target_id: String,
+    pub since: String,
+    pub until: String,
 }
 
 /// 인기글 조건 (ADR-0059). 비밀글은 언제나 뺀다.
@@ -234,6 +247,8 @@ pub trait Store: Send + Sync {
     async fn add_views(&self, counts: &[(String, i64)]) -> Result<()>;
     /// 모아 둔 방문 통계를 날짜별 표에 한 트랜잭션으로 더한다 (ADR-0061).
     async fn add_stats(&self, batch: &StatBatch) -> Result<()>;
+    /// 감사 기록, 최신 순.
+    async fn list_audit(&self, filter: &AuditFilter, page: PageReq) -> Result<Listing<AuditEntry>>;
     /// `before_day` 보다 앞선 날의 통계를 지운다.
     async fn purge_stats(&self, before_day: &str) -> Result<()>;
     /// `from`~`to`(포함) 중 기록이 있는 날, 날짜 순.

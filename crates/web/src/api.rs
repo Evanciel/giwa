@@ -12,8 +12,8 @@ use axum::{Json, Router};
 use maru_core::model::{MenuItem, PageReq, PageStatus, PostStatus};
 use maru_core::output::Success;
 use maru_core::services::{
-    anonymous_actor, boards, categories, comments, design, files, fonts, media, members, menus,
-    pages, posts, search, settings, stats, tags, templates, tokens, views, widgets,
+    anonymous_actor, audit_log, boards, categories, comments, design, files, fonts, media, members,
+    menus, pages, posts, search, settings, stats, tags, templates, tokens, views, widgets,
 };
 use maru_core::{Actor, Code, Error};
 use serde::Deserialize;
@@ -65,6 +65,7 @@ pub fn routes() -> Router<AppState> {
                 .patch(configure_widget)
                 .delete(remove_widget),
         )
+        .route("/audit", get(list_audit))
         .route("/stats", get(get_stats))
         .route("/stats.csv", get(get_stats_csv))
         .route("/settings", get(get_settings).patch(update_settings))
@@ -506,6 +507,17 @@ async fn put_menu(
 }
 
 /// 위젯 종류와 설정 모양 (ADR-0059). 정적인 설명이라 권한이 필요 없다.
+async fn list_audit(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Query(q): Query<audit_log::AuditQuery>,
+) -> Result<Response, ApiError> {
+    Ok(ok(
+        StatusCode::OK,
+        audit_log::list(&state.ctx, &actor, &q).await?,
+    ))
+}
+
 async fn get_stats(
     State(state): State<AppState>,
     ApiActor(actor): ApiActor,

@@ -71,6 +71,9 @@ enum Command {
     Widget(WidgetCmd),
     /// 방문자 통계 (쿠키 없는 날짜별 집계)
     Stats(StatsArgs),
+    /// 감사 로그 (누가 언제 무엇을 바꿨나)
+    #[command(subcommand)]
+    Audit(AuditCmd),
     /// 사이트 이름·설명·시간대 등
     #[command(subcommand)]
     Site(SiteCmd),
@@ -770,6 +773,41 @@ pub struct MenuSetArgs {
     /// 메뉴를 비운다
     #[arg(long)]
     pub clear: bool,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum AuditCmd {
+    /// 최신 순 감사 기록
+    List(AuditListArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct AuditListArgs {
+    /// 동작 이름 또는 앞부분 (post → post.create, post.publish …)
+    #[arg(long)]
+    pub action: Option<String>,
+    /// anonymous, human, agent, local, system
+    #[arg(long)]
+    pub actor_type: Option<String>,
+    /// 회원 ID 또는 토큰 ID
+    #[arg(long)]
+    pub actor_id: Option<String>,
+    /// post, board, page, member, token, site …
+    #[arg(long)]
+    pub target_type: Option<String>,
+    #[arg(long)]
+    pub target_id: Option<String>,
+    /// 이 시각부터 (RFC3339)
+    #[arg(long)]
+    pub since: Option<String>,
+    /// 이 시각 전까지 (RFC3339)
+    #[arg(long)]
+    pub until: Option<String>,
+    #[arg(long, default_value_t = 1)]
+    pub page: u32,
+    /// 1~100
+    #[arg(long, default_value_t = 50)]
+    pub per_page: u32,
 }
 
 #[derive(Debug, Args)]
