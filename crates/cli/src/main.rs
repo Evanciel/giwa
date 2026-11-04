@@ -74,6 +74,10 @@ enum Command {
     /// 감사 로그 (누가 언제 무엇을 바꿨나)
     #[command(subcommand)]
     Audit(AuditCmd),
+    /// 백업 파일 만들기·목록 (DB·media·themes·config 를 .tar.gz 하나로)
+    Backup(BackupArgs),
+    /// 백업 파일로 되살린다 (서버를 끈 뒤)
+    Restore(RestoreArgs),
     /// 사이트 이름·설명·시간대 등
     #[command(subcommand)]
     Site(SiteCmd),
@@ -773,6 +777,29 @@ pub struct MenuSetArgs {
     /// 메뉴를 비운다
     #[arg(long)]
     pub clear: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct BackupArgs {
+    #[command(subcommand)]
+    pub cmd: Option<BackupCmd>,
+    /// 세션·토큰·비밀번호 해시·로그인 링크·보낼 편지를 뺀다 (남에게 줄 사본용)
+    #[arg(long)]
+    pub no_secrets: bool,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum BackupCmd {
+    /// 백업 파일 목록 (최신 순)
+    List,
+    /// 백업 파일을 지운다
+    Delete { name: String },
+}
+
+#[derive(Debug, Args)]
+pub struct RestoreArgs {
+    /// 백업 파일 (.tar.gz). 지금 데이터는 backups/before-restore-… 로 옮긴다 (`--yes` 필요)
+    pub file: PathBuf,
 }
 
 #[derive(Debug, Subcommand)]

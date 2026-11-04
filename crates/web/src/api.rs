@@ -12,8 +12,8 @@ use axum::{Json, Router};
 use maru_core::model::{MenuItem, PageReq, PageStatus, PostStatus};
 use maru_core::output::Success;
 use maru_core::services::{
-    anonymous_actor, audit_log, boards, categories, comments, design, files, fonts, media, members,
-    menus, pages, posts, search, settings, stats, tags, templates, tokens, views, widgets,
+    anonymous_actor, audit_log, backups, boards, categories, comments, design, files, fonts, media,
+    members, menus, pages, posts, search, settings, stats, tags, templates, tokens, views, widgets,
 };
 use maru_core::{Actor, Code, Error};
 use serde::Deserialize;
@@ -66,6 +66,11 @@ pub fn routes() -> Router<AppState> {
                 .delete(remove_widget),
         )
         .route("/audit", get(list_audit))
+        .route("/backups", get(list_backups).post(create_backup))
+        .route(
+            "/backups/{name}",
+            get(download_backup).delete(delete_backup),
+        )
         .route("/stats", get(get_stats))
         .route("/stats.csv", get(get_stats_csv))
         .route("/settings", get(get_settings).patch(update_settings))
@@ -507,6 +512,53 @@ async fn put_menu(
 }
 
 /// 위젯 종류와 설정 모양 (ADR-0059). 정적인 설명이라 권한이 필요 없다.
+async fn list_backups(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+) -> Result<Response, ApiError> {
+    Ok(ok(
+        StatusCode::OK,
+        backups::list(&actor, state.archiver()?).await?,
+    ))
+}
+
+async fn create_backup(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    body: Bytes,
+) -> Result<Response, ApiError> {
+    // 본문이 비면 기본값(비밀 포함).
+    let input: backups::NewBackup = if body.iter().all(u8::is_ascii_whitespace) {
+        backups::NewBackup::default()
+    } else {
+        serde_json::from_slice(&body).map_err(|e| {
+            Error::new(Code::Validation)
+                .with_message("error.json_body")
+                .arg("detail", e.to_string())
+        })?
+    };
+    let info = backups::create(&state.ctx, &actor, state.archiver()?, input).await?;
+    Ok(ok(StatusCode::CREATED, info))
+}
+
+async fn download_backup(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(name): Path<String>,
+) -> Result<Response, ApiError> {
+    let path = backups::file(&actor, state.archiver()?, &name).await?;
+    Ok(crate::backup_file_response(&path, &name).await?)
+}
+
+async fn delete_backup(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(name): Path<String>,
+) -> Result<Response, ApiError> {
+    backups::delete(&state.ctx, &actor, state.archiver()?, &name).await?;
+    Ok(ok(StatusCode::OK, serde_json::json!({ "deleted": name })))
+}
+
 async fn list_audit(
     State(state): State<AppState>,
     ApiActor(actor): ApiActor,

@@ -639,3 +639,16 @@
   - 경로: core `services::audit_log::list` + store `list_audit`, REST `GET /api/v1/audit`, CLI `maru audit list [--action --actor-type --actor-id --target-type --target-id --since --until --page --per-page]`, 관리 화면 `/admin/audit`(조건 폼, 대상 ID 를 누르면 그 대상의 기록만, 바뀐 내용은 `<details>`).
 - **대안:** 편집자도 보기 — 회원 역할·토큰 기록까지 보인다. 전문 검색 — 동작·대상 조건으로 충분하다. diff 를 화면에서 다시 거르기 — 쓰는 쪽이 이미 거른다.
 - **결과:** 저장소 테스트(`crates/storage/tests/audit_log.rs`)가 최신 순·동작 앞부분·정확한 동작·`_` 가 와일드카드가 아님·대상·기간·행위자·쪽, 잘못된 조건 4가지, 손님 401·편집자 403·모든 스코프 에이전트 403·운영자 허용을, e2e(`crates/cli/tests/e2e_audit.rs`)가 CLI 조건·쪽·검증 오류, REST 손님 401·기본 토큰 403, 로그인 기록에 회원 이름, 관리 화면 조건·행위자 표시·펼치기·잘못된 조건 400 을 확인한다.
+
+## ADR-0063 백업·복원: tar.gz 하나, 비밀 빼기, 서버 잠금, 복원은 CLI 만
+
+- **배경:** 셀프호스팅이라 데이터를 지키는 책임이 사용자에게 있다. 지금까지는 데이터 디렉터리를 손으로 복사하는 수밖에 없었고, 서버가 켜진 채 복사하면 WAL 때문에 DB 가 어긋날 수 있었다(GAP S6). 계획 `docs/plans/u13-admin.md` D3~D6.
+- **결정:**
+  - 형식: `backups/maru-YYYYMMDD-HHMMSS[-N][-nosecrets].tar.gz`. 안에는 `manifest.json`(형식 1·Maru 버전·스키마 버전·만든 시각·비밀 포함 여부, 맨 앞), `maru.db`(읽기 연결에서 `VACUUM INTO` — 서버가 쓰는 중이어도 한 시점의 일관된 사본), `config.toml`, `media/`, `themes/`. `backups/` 자신은 넣지 않는다. 새 의존성 `tar`·`flate2`(MIT/Apache), 내려받기 흘려보내기에 이미 잠금 파일에 있던 `futures-core`.
+  - 비밀 빼기(`--no-secrets`, 화면 체크): 사본 DB 에서 세션·로그인 링크·토큰·보낼 편지함을 지우고 비밀번호 해시를 비운 뒤 `VACUUM` 으로 빈 쪽까지 다시 쓴다. 기본은 전부 포함(그대로 되살리기용).
+  - 권한: `site.admin`(운영자·소유자)과 로컬 CLI. 에이전트 토큰은 스코프와 상관없이 못 다룬다 — 백업에는 모든 회원 정보와 비밀이 들어 있다. 만들기·지우기는 감사 로그(`backup.create`·`backup.delete`)에 남는다.
+  - 이름 검사: `maru-` 로 시작하고 `.tar.gz` 로 끝나며 소문자·숫자·`-`·`.` 만, `..` 없음. 아니면 「없음」(경로 조각을 아예 받지 않는다).
+  - 복원은 CLI 전용 `maru restore <파일> --yes`. `serve` 는 데이터 디렉터리의 `serve.lock` 을 `File::try_lock` 으로 쥐고 있고(새 의존성 없음, 두 번째 서버도 막힌다), 복원은 같은 잠금을 못 잡으면 `CONFLICT`「서버를 끈 뒤 다시」로 멈춘다. 첫째 판에서 항목 이름(허용 목록·`Normal` 조각만)·종류(파일·폴더만)·manifest·형식·스키마를 검사하고(더 새 스키마는 `SCHEMA_TOO_NEW`), 통과해야 지금 데이터를 `backups/before-restore-<시각>/` 로 옮긴 뒤 `unpack_in` 으로 푼다. 이어서 DB 를 열어 마이그레이션한다(옛 백업은 최신 스키마로 올라간다).
+  - 경로: core `services::backups`(권한·이름·감사) + `Archiver` 트레이트, storage `backup::FsArchiver`·`lock_serve`·`restore`, CLI `maru backup [--no-secrets]`·`maru backup list`·`maru backup delete <이름>`·`maru restore`, REST `GET/POST /api/v1/backups`·`GET/DELETE /api/v1/backups/{name}`, 관리 화면 `/admin/backups`(목록·지금 백업·비밀 빼기·내려받기·지우기, 복원 명령 안내).
+- **대안:** 폴더 복사 — 내려받기·옮기기가 불편하고 켜진 서버면 어긋난다. zip — 크레이트 둘이 드는 건 같고 유닉스 권한·긴 경로 처리가 tar 보다 번거롭다. 화면에서 복원 — 켜진 서버의 DB 연결을 바꿔치기해야 하고, 실패하면 화면도 같이 죽는다. 잠금 파일 대신 PID 파일 — 비정상 종료 뒤 남은 파일을 지워야 한다(OS 잠금은 프로세스가 죽으면 풀린다).
+- **결과:** 저장소 테스트(`crates/storage/tests/backup.rs`)가 manifest 가 맨 앞·media 포함·backups 제외, 사본 DB 의 글·토큰 수, 비밀 뺀 사본의 토큰 0, 이름 검사·없는 파일·에이전트 403·지우기, 잠금 중 복원 `CONFLICT`·두 번째 잠금 실패, 복원 뒤 지운 글이 돌아오고 이전 데이터가 `before-restore` 에 남음, 허용 밖 항목·manifest 없음·더 새 스키마·gzip 아님 거부와 그때 지금 데이터를 옮기지 않음을, e2e(`crates/cli/tests/e2e_backup.rs`)가 켜진 서버 옆 CLI 백업, 켜진 서버면 복원 `CONFLICT`, `--yes` 없으면 `USAGE`, REST 손님 401·기본 토큰 403, 관리 화면 만들기(비밀 빼기)·내려받기(`application/gzip`·`attachment`)·이상한 이름 404·지우기·CSRF 틀리면 403, 감사 기록 3건, 서버를 끈 뒤 복원하면 지운 글이 발행 상태로 돌아오고 서버가 다시 뜨는 것을 확인한다. 브라우저로 데스크톱·모바일 화면을 확인했다.

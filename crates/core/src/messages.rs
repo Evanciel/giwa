@@ -192,6 +192,17 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "error.audit_time" => {
             "{field} 는 RFC3339 시각입니다 (예: 2026-11-04T09:00:00+09:00, 받은 값 {value})."
         }
+        "error.restore_confirm" => {
+            "복원은 지금 데이터를 옮기고 백업으로 바꿉니다. 확인했으면 --yes 를 붙여 다시 실행하세요."
+        }
+        "error.backup_not_found" => "`{name}` 백업 파일이 없습니다.",
+        "error.backup_invalid" => "Maru 백업 파일이 아니거나 깨졌습니다: {path} ({detail})",
+        "error.backup_newer" => {
+            "이 백업은 더 새 Maru({version}, 스키마 {schema})로 만들었습니다. 이 바이너리는 스키마 {known} 까지 압니다. Maru 를 올린 뒤 복원하세요."
+        }
+        "error.server_running" => {
+            "이 데이터 디렉터리({path})로 서버가 이미 켜져 있습니다. 서버를 끈 뒤 다시 실행하세요."
+        }
         "error.stats_days" => "통계 기간은 1~{max}일입니다.",
         "error.stats_retention" => "통계 보존 기간은 30~3650일입니다 (받은 값 {value}).",
         "error.widget_popup_region" => {

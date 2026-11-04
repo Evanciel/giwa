@@ -28,6 +28,7 @@ use axum::response::{IntoResponse, Response};
 use maru_core::Actor;
 use maru_core::actor::Permission;
 use maru_core::model::Media;
+use maru_core::services::backups::Archiver;
 use maru_core::services::mail::{self, Mailer};
 use maru_core::services::stats::{self, StatCounter};
 use maru_core::services::views::{self, ViewCounter};
@@ -75,6 +76,8 @@ pub struct AppState {
     pub stats: Arc<StatCounter>,
     /// 편지 전송 방식. 없으면 편지는 편지함에 쌓이기만 한다.
     pub mailer: Option<Arc<dyn Mailer>>,
+    /// 백업 파일 보관소 (ADR-0063). 없으면 백업 경로가 「쓸 수 없음」으로 답한다.
+    pub archiver: Option<Arc<dyn Archiver>>,
 }
 
 impl AppState {
@@ -89,12 +92,25 @@ impl AppState {
             views: Arc::new(ViewCounter::new()),
             stats: Arc::new(StatCounter::new()),
             mailer: None,
+            archiver: None,
         }
     }
 
     pub fn with_mailer(mut self, mailer: Arc<dyn Mailer>) -> Self {
         self.mailer = Some(mailer);
         self
+    }
+
+    pub fn with_archiver(mut self, archiver: Arc<dyn Archiver>) -> Self {
+        self.archiver = Some(archiver);
+        self
+    }
+
+    /// 백업 보관소. 없으면 내부 오류(서버를 이 저장소 없이 띄운 경우).
+    pub(crate) fn archiver(&self) -> Result<&dyn Archiver> {
+        self.archiver
+            .as_deref()
+            .ok_or_else(|| Error::internal("백업 보관소가 연결되지 않았습니다"))
     }
 }
 
@@ -377,4 +393,59 @@ pub(crate) fn upload_limit() -> (RequestBodyLimitLayer, axum::extract::DefaultBo
         RequestBodyLimitLayer::new(UPLOAD_LIMIT),
         axum::extract::DefaultBodyLimit::max(UPLOAD_LIMIT),
     )
+}
+
+/// 백업 파일 내려받기 응답. 큰 파일이라 통째로 읽지 않고 흘려보낸다.
+pub(crate) async fn backup_file_response(path: &std::path::Path, name: &str) -> Result<Response> {
+    let file = tokio::fs::File::open(path).await.map_err(|e| {
+        Error::new(Code::NotFound)
+            .with_message("error.backup_not_found")
+            .arg("name", name.to_owned())
+            .with_source(e)
+    })?;
+    let len = file.metadata().await.map_err(Error::internal)?.len();
+    let body = axum::body::Body::from_stream(FileStream {
+        file,
+        buf: vec![0; 64 * 1024].into_boxed_slice(),
+    });
+    let mut res = Response::new(body);
+    let h = res.headers_mut();
+    h.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/gzip"),
+    );
+    h.insert(header::CONTENT_LENGTH, HeaderValue::from(len));
+    if let Ok(v) = HeaderValue::from_str(&format!("attachment; filename=\"{name}\"")) {
+        h.insert(header::CONTENT_DISPOSITION, v);
+    }
+    h.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    Ok(res)
+}
+
+/// 파일을 64KB 씩 읽어 내보내는 흐름.
+struct FileStream {
+    file: tokio::fs::File,
+    buf: Box<[u8]>,
+}
+
+impl futures_core::Stream for FileStream {
+    type Item = std::io::Result<axum::body::Bytes>;
+
+    fn poll_next(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Self::Item>> {
+        use std::task::Poll;
+        use tokio::io::{AsyncRead, ReadBuf};
+        let this = &mut *self;
+        let mut rb = ReadBuf::new(&mut this.buf);
+        match std::pin::Pin::new(&mut this.file).poll_read(cx, &mut rb) {
+            Poll::Ready(Ok(())) if rb.filled().is_empty() => Poll::Ready(None),
+            Poll::Ready(Ok(())) => {
+                Poll::Ready(Some(Ok(axum::body::Bytes::copy_from_slice(rb.filled()))))
+            }
+            Poll::Ready(Err(e)) => Poll::Ready(Some(Err(e))),
+            Poll::Pending => Poll::Pending,
+        }
+    }
 }

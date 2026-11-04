@@ -1,0 +1,44 @@
+{% extends "_base.html" %}
+{% block title %}백업{% endblock %}
+{% block content %}
+<div class="heading-row">
+  <h1>백업 <span class="count">{{ items | length }}</span></h1>
+</div>
+<p class="hint">DB·올린 파일(<code>media</code>)·테마·설정을 <code>.tar.gz</code> 파일 하나로 묶습니다. 서버가 켜져 있어도 DB 는 한 시점의 사본입니다. 백업 파일은 데이터 디렉터리의 <code>backups/</code> 에 쌓이니, 내려받아 다른 곳(외장 디스크·클라우드)에도 두세요.</p>
+
+<form method="post" action="/admin/backups" class="backup-form">
+  <input type="hidden" name="_csrf" value="{{ csrf }}">
+  <label class="choice"><input type="checkbox" name="no_secrets" value="1"> 비밀 빼기 <span class="choice-hint">세션·토큰·비밀번호·로그인 링크·보낼 편지를 뺍니다. 남에게 줄 사본용이며, 되살리면 모두 로그인 링크로 다시 들어와야 합니다</span></label>
+  <button type="submit">지금 백업</button>
+</form>
+
+{% if items %}
+<table class="stat-table backup-table">
+  <thead><tr><th scope="col">파일</th><th scope="col">만든 때</th><th scope="col" class="num">크기</th><th scope="col">비밀</th><th scope="col"><span class="visually-hidden">동작</span></th></tr></thead>
+  <tbody>
+  {% for b in items %}
+    <tr>
+      <th scope="row"><a href="/admin/backups/{{ b.name }}" download><code>{{ b.name }}</code></a></th>
+      <td><time datetime="{{ b.at }}">{{ b.at_display }}</time></td>
+      <td class="num">{{ b.size }}</td>
+      <td>{% if b.secrets %}포함{% else %}뺌{% endif %}</td>
+      <td>
+        <form method="post" action="/admin/backups/{{ b.name }}/delete" class="inline">
+          <input type="hidden" name="_csrf" value="{{ csrf }}">
+          <button type="submit" class="warn" aria-label="{{ b.name }} 지우기">지우기</button>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="hint">아직 백업이 없습니다.</p>
+{% endif %}
+
+<section aria-labelledby="restore-h" class="restore-help">
+  <h2 id="restore-h">되살리기</h2>
+  <p>켜진 서버의 DB 를 바꿔치기하지 않도록 복원은 화면에서 하지 않습니다. 서버를 끈 뒤 터미널에서 실행하세요. 지금 데이터는 <code>backups/before-restore-…</code> 로 옮겨 둔 뒤 되살립니다.</p>
+  <pre><code>maru restore --data {{ data_dir }} backups/&lt;파일 이름&gt; --yes</code></pre>
+</section>
+{% endblock %}

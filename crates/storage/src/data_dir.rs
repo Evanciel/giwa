@@ -115,7 +115,7 @@ pub fn not_initialized(root: &Path) -> Error {
         ))
 }
 
-fn io_error(path: &Path, e: std::io::Error) -> Error {
+pub(crate) fn io_error(path: &Path, e: std::io::Error) -> Error {
     Error::new(Code::Internal)
         .with_message("error.io")
         .arg("path", path.display().to_string())

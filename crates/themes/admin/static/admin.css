@@ -377,3 +377,12 @@ pre.diff > span { display: block; padding: 0 .75rem; }
 .audit-head, .audit-meta { margin: 0; overflow-wrap: anywhere; }
 .audit-meta { font-size: .85rem; color: var(--muted); margin-top: .2rem; }
 .audit-diff { margin: .4rem 0 0; padding: .6rem; background: var(--bg); border-radius: var(--radius); font-size: .8rem; max-height: 20rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* 백업 (ADR-0063) */
+.backup-form { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1rem; margin: 0 0 1.25rem; }
+.backup-form .choice { flex: 1 1 22rem; display: flex; align-items: baseline; flex-wrap: wrap; gap: .1rem .45rem; margin: 0; font-weight: 400; cursor: pointer; }
+.backup-form .choice input { width: auto; align-self: center; }
+.backup-table td { white-space: nowrap; }
+.backup-table th[scope="row"] { overflow-wrap: anywhere; }
+.restore-help pre { overflow-x: auto; padding: .75rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+@media (max-width: 640px) { .backup-table td:nth-child(2) { display: none; } .backup-table thead th:nth-child(2) { display: none; } }

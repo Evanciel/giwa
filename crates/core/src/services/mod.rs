@@ -3,6 +3,7 @@
 
 pub mod audit_log;
 pub mod auth;
+pub mod backups;
 pub mod board_posts;
 pub mod boards;
 pub mod captcha;

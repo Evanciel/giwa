@@ -19,7 +19,7 @@ maru-web = { path = "crates/web" }
 axum = "0.8.9"
 tower = "0.5.3"
 tower-http = { version = "0.7.1", features = ["trace", "limit", "timeout", "set-header"] }
-tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "net", "signal", "time"] }
+tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "net", "signal", "time", "fs"] }
 # DB: sqlite 피처는 load-extension 까지 켜므로 sqlite-bundled 만 쓴다
 sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "sqlite-bundled", "macros", "migrate", "json"] }
 # 표현
@@ -44,6 +44,11 @@ toml = "1.1.8"
 sha2 = "0.11.1"
 getrandom = "0.4.3"
 hex = "0.4.3"
+# 백업 파일(.tar.gz) 만들기·풀기 (ADR-0063)
+tar = "0.4.46"
+# 백업 파일을 통째로 읽지 않고 흘려보낸다 (이미 sqlx·axum 이 쓰는 크레이트)
+futures-core = "0.3.34"
+flate2 = "1.1.10"
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
 percent-encoding = "2.3.2"
 unicode-normalization = "0.1.26"

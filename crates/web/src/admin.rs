@@ -66,6 +66,9 @@ pub fn routes() -> Router<AppState> {
         .route("/admin/fonts/{slug}/{action}", post(font_action))
         .route("/admin/templates", get(list_templates).post(save_template))
         .route("/admin/audit", get(audit_page))
+        .route("/admin/backups", get(backups_page).post(backup_create))
+        .route("/admin/backups/{name}", get(backup_download))
+        .route("/admin/backups/{name}/delete", post(backup_delete))
         .route("/admin/stats", get(stats_page))
         .route("/admin/stats.csv", get(stats_csv))
         .route("/admin/widgets", get(widgets_page).post(widget_place))
@@ -208,6 +211,23 @@ async fn require(
         )),
         Err(e) => Err(Box::new(fail(state, None, &e).await)),
     }
+}
+
+/// 로그인한 사람의 폼 전송만. CSRF 값이 틀리면 거절 화면.
+async fn require_post(
+    state: &AppState,
+    headers: &HeaderMap,
+    csrf: &str,
+) -> Result<SignedIn, Box<Response>> {
+    let who = match current(state, headers).await {
+        Ok(Some(w)) => w,
+        Ok(None) => return Err(Box::new(Redirect::to("/admin/login").into_response())),
+        Err(e) => return Err(Box::new(fail(state, None, &e).await)),
+    };
+    if !session_csrf_ok(&who, csrf) {
+        return Err(Box::new(csrf_failed(state, Some(&who)).await));
+    }
+    Ok(who)
 }
 
 pub(crate) fn with_session(state: &AppState, new: &NewSession, to: &str) -> Response {
@@ -2056,6 +2076,156 @@ fn json_body_error(e: JsonRejection) -> ApiError {
 }
 
 // ---- 위젯 (ADR-0059) ----
+
+#[derive(Debug, Default, Deserialize)]
+struct BackupsQuery {
+    #[serde(default)]
+    done: String,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct BackupForm {
+    #[serde(rename = "_csrf", default)]
+    csrf: String,
+    #[serde(default)]
+    no_secrets: Option<String>,
+}
+
+/// 백업 (ADR-0063). 운영자만. 복원은 서버를 끈 뒤 CLI 로만 한다.
+async fn backups_page(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<BackupsQuery>,
+) -> Response {
+    use maru_core::services::backups;
+    let who = match require(&state, &headers, "/admin/backups").await {
+        Ok(w) => w,
+        Err(r) => return *r,
+    };
+    let archiver = match state.archiver() {
+        Ok(a) => a,
+        Err(e) => return fail(&state, Some(&who), &e).await,
+    };
+    let list = match backups::list(&who.actor, archiver).await {
+        Ok(l) => l,
+        Err(e) => return fail(&state, Some(&who), &e).await,
+    };
+    let tz = settings::site(&state.ctx)
+        .await
+        .map(|s| s.tz_offset_min)
+        .unwrap_or(540);
+    let items = list
+        .iter()
+        .map(|b| {
+            json!({
+                "name": b.name,
+                "size": human_size(b.size),
+                "at": b.created_at,
+                "at_display": clock::display_datetime(&b.created_at, tz),
+                "secrets": b.secrets,
+            })
+        })
+        .collect::<Vec<_>>();
+    let notice = match q.done.as_str() {
+        "created" => Some("백업을 만들었습니다."),
+        "deleted" => Some("백업을 지웠습니다."),
+        _ => None,
+    };
+    let ctx = merge(
+        base(&state, Some(&who), "backups").await,
+        json!({ "items": items, "notice": notice, "data_dir": "<데이터 디렉터리>" }),
+    );
+    render(&state, StatusCode::OK, "backups.html", &ctx)
+}
+
+fn human_size(n: u64) -> String {
+    const KB: f64 = 1024.0;
+    let f = n as f64;
+    if f < KB {
+        format!("{n} B")
+    } else if f < KB * KB {
+        format!("{:.1} KB", f / KB)
+    } else if f < KB * KB * KB {
+        format!("{:.1} MB", f / KB / KB)
+    } else {
+        format!("{:.2} GB", f / KB / KB / KB)
+    }
+}
+
+async fn backup_create(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Form(form): Form<BackupForm>,
+) -> Response {
+    use maru_core::services::backups::{self, NewBackup};
+    let who = match require_post(&state, &headers, &form.csrf).await {
+        Ok(w) => w,
+        Err(r) => return *r,
+    };
+    let res = match state.archiver() {
+        Ok(a) => {
+            backups::create(
+                &state.ctx,
+                &who.actor,
+                a,
+                NewBackup {
+                    no_secrets: form.no_secrets.is_some(),
+                },
+            )
+            .await
+        }
+        Err(e) => Err(e),
+    };
+    match res {
+        Ok(_) => Redirect::to("/admin/backups?done=created").into_response(),
+        Err(e) => fail(&state, Some(&who), &e).await,
+    }
+}
+
+async fn backup_download(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(name): Path<String>,
+) -> Response {
+    use maru_core::services::backups;
+    let who = match require(&state, &headers, "/admin/backups").await {
+        Ok(w) => w,
+        Err(r) => return *r,
+    };
+    let res = match state.archiver() {
+        Ok(a) => backups::file(&who.actor, a, &name).await,
+        Err(e) => Err(e),
+    };
+    let res = match res {
+        Ok(path) => crate::backup_file_response(&path, &name).await,
+        Err(e) => Err(e),
+    };
+    match res {
+        Ok(r) => r,
+        Err(e) => fail(&state, Some(&who), &e).await,
+    }
+}
+
+async fn backup_delete(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(name): Path<String>,
+    Form(form): Form<BackupForm>,
+) -> Response {
+    use maru_core::services::backups;
+    let who = match require_post(&state, &headers, &form.csrf).await {
+        Ok(w) => w,
+        Err(r) => return *r,
+    };
+    let res = match state.archiver() {
+        Ok(a) => backups::delete(&state.ctx, &who.actor, a, &name).await,
+        Err(e) => Err(e),
+    };
+    match res {
+        Ok(()) => Redirect::to("/admin/backups?done=deleted").into_response(),
+        Err(e) => fail(&state, Some(&who), &e).await,
+    }
+}
 
 #[derive(Debug, Default, Deserialize)]
 struct AuditPageQuery {

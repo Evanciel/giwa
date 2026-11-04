@@ -90,7 +90,7 @@
 | S3 | 방문자 통계(쿠키 없는 집계, IP 마스킹) | ✅ | 하루 소금 해시·쿼리 제거·DNT·GPC·봇·운영자 제외, 날짜별 표 3개, CSV 수식 방어, 보존 설정, CLI·REST·관리 화면 (ADR-0061) |
 | S4 | 관리 화면: 게시판·메뉴·페이지·회원·설정·디자인 | 일부 | 글 목록·작성만 |
 | S5 | 메일 발송 설정(SMTP) | 일부 | ADR-0051. 보낼 편지함·`Mailer` 트레이트·파일 전송(`데이터/mail/*.eml`)·`maru mail`. SMTP 는 lettre 의존성 승인 뒤 |
-| S6 | 백업·복원 화면 | 일부 | CLI 만 |
+| S6 | 백업·복원 화면 | ✅ | `.tar.gz` 하나(manifest·VACUUM INTO 사본·media·themes·config), 비밀 빼기, 서버 잠금으로 켜진 동안 복원 거부, CLI·REST·관리 화면(복원은 CLI 안내) (ADR-0063) |
 | S7 | 다국어 | ❌ | 전역 지침: 출시 직전에 한꺼번에 |
 | S8 | 외부 공개(`maru expose`), MCP 서버 | ❌ | SPEC Phase 3 |
 | S9 | 사이트 글꼴 올리기(woff2) → 토큰 `font.*` | ✅ | ADR-0048. woff2·woff·ttf·otf, 글 안 `:font[]{slug}` 과 토큰 둘 다 |

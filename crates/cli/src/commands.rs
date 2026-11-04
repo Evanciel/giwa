@@ -13,8 +13,9 @@ use maru_core::services::boards::{self, NewBoard};
 use maru_core::services::posts::{self, NewPost};
 use maru_core::services::tokens::{self, NewToken};
 use maru_core::services::{
-    anonymous_actor, audit_log, auth, categories, comments, design, files, fonts, mail, media,
-    members, menus, pages, presets, search, settings, stats, tags, templates, views, widgets,
+    anonymous_actor, audit_log, auth, backups, categories, comments, design, files, fonts, mail,
+    media, members, menus, pages, presets, search, settings, stats, tags, templates, views,
+    widgets,
 };
 use maru_core::urls::{self, Target};
 use maru_core::{Actor, Code, Ctx, Error, Result};
@@ -23,10 +24,11 @@ use serde_json::{Value, json};
 
 use crate::output;
 use crate::{
-    AuditCmd, AuditListArgs, BoardCmd, CategoryCmd, Command, CommentCmd, DesignCmd, FileCmd,
-    FontCmd, Global, InitArgs, LoginLinkArgs, MailCmd, MediaCmd, MemberCmd, MenuCmd, MenuSetArgs,
-    PageCmd, PostCmd, PostListArgs, PostNewArgs, SearchArgs, SearchCmd, ServeArgs, SiteCmd,
-    StatsArgs, TagCmd, TemplateCmd, TokenCmd, TokenCreateArgs, WidgetCmd,
+    AuditCmd, AuditListArgs, BackupArgs, BackupCmd, BoardCmd, CategoryCmd, Command, CommentCmd,
+    DesignCmd, FileCmd, FontCmd, Global, InitArgs, LoginLinkArgs, MailCmd, MediaCmd, MemberCmd,
+    MenuCmd, MenuSetArgs, PageCmd, PostCmd, PostListArgs, PostNewArgs, RestoreArgs, SearchArgs,
+    SearchCmd, ServeArgs, SiteCmd, StatsArgs, TagCmd, TemplateCmd, TokenCmd, TokenCreateArgs,
+    WidgetCmd,
 };
 
 pub async fn run(g: &Global, command: Command) -> ExitCode {
@@ -47,6 +49,8 @@ pub async fn run(g: &Global, command: Command) -> ExitCode {
         Command::Widget(cmd) => widget_cmd(g, cmd).await,
         Command::Stats(args) => stats_cmd(g, args).await,
         Command::Audit(AuditCmd::List(args)) => audit_list(g, args).await,
+        Command::Backup(args) => backup_cmd(g, args).await,
+        Command::Restore(args) => restore_cmd(g, args).await,
         Command::Site(cmd) => site(g, cmd).await,
         Command::Design(cmd) => design_cmd(g, cmd).await,
         Command::Font(cmd) => font_cmd(g, cmd).await,
@@ -249,6 +253,12 @@ async fn serve(g: &Global, args: ServeArgs) -> ExitCode {
 
 async fn serve_inner(g: &Global, args: ServeArgs) -> Result<()> {
     let dir = DataDir::new(&g.data);
+    // 서버가 켜져 있는 동안 복원(`maru restore`)과 두 번째 서버를 막는다 (ADR-0063).
+    let _serve_lock = if dir.is_initialized() {
+        Some(maru_storage::backup::lock_serve(&dir)?)
+    } else {
+        None
+    };
     let (ctx, config, db) = maru_storage::open(&dir).await?;
     let bind = args.bind.unwrap_or(config.bind);
     let addr: SocketAddr = bind.parse().map_err(|_| {
@@ -279,7 +289,10 @@ async fn serve_inner(g: &Global, args: ServeArgs) -> Result<()> {
     // 편지는 지금 파일로만 남긴다 (SMTP 는 ADR-0051 승인 뒤).
     let mailer = maru_storage::mailer::FileMailer::new(dir.mail_dir(), &config.site_url);
     let mail_dir = mailer.dir().display().to_string();
-    let state = maru_web::AppState::new(ctx, theme).with_mailer(Arc::new(mailer));
+    let archiver = maru_storage::backup::FsArchiver::new(dir.clone(), db.clone());
+    let state = maru_web::AppState::new(ctx, theme)
+        .with_mailer(Arc::new(mailer))
+        .with_archiver(Arc::new(archiver));
     let started = json!({
         "url": url,
         "bind": local.to_string(),
@@ -1264,6 +1277,105 @@ fn menu_human(location: &str, items: &[MenuItem]) -> String {
 }
 
 // ---- widget ----
+
+async fn backup_cmd(g: &Global, args: BackupArgs) -> Out {
+    let dir = DataDir::new(&g.data);
+    let (ctx, _config, db) = open(g).await?;
+    let archiver = maru_storage::backup::FsArchiver::new(dir.clone(), db.clone());
+    let res = async {
+        let actor = actor(&ctx).await?;
+        match args.cmd {
+            None => {
+                let b = backups::create(
+                    &ctx,
+                    &actor,
+                    &archiver,
+                    backups::NewBackup {
+                        no_secrets: args.no_secrets,
+                    },
+                )
+                .await?;
+                let path = dir.backups_dir().join(&b.name);
+                let human = format!(
+                    "백업을 만들었습니다: {} ({} 바이트{})\n되살리기: 서버를 끈 뒤 maru restore --data \"{}\" \"{}\" --yes",
+                    path.display(),
+                    b.size,
+                    if b.secrets { "" } else { ", 비밀 뺌" },
+                    dir.root().display(),
+                    path.display()
+                );
+                let mut v = to_value(&b)?;
+                v["path"] = json!(path.display().to_string());
+                Ok((v, human))
+            }
+            Some(BackupCmd::List) => {
+                let list = backups::list(&actor, &archiver).await?;
+                let human = if list.is_empty() {
+                    "백업이 없습니다. 만들기: maru backup".to_owned()
+                } else {
+                    list.iter()
+                        .map(|b| {
+                            format!(
+                                "{}  {}  {} 바이트{}",
+                                b.name,
+                                b.created_at,
+                                b.size,
+                                if b.secrets { "" } else { "  비밀 뺌" }
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                };
+                Ok((to_value(&list)?, human))
+            }
+            Some(BackupCmd::Delete { name }) => {
+                backups::delete(&ctx, &actor, &archiver, &name).await?;
+                Ok((json!({ "deleted": name }), format!("지웠습니다: {name}")))
+            }
+        }
+    }
+    .await;
+    db.close().await;
+    res
+}
+
+async fn restore_cmd(g: &Global, args: RestoreArgs) -> Out {
+    if !g.yes {
+        return Err(Error::new(Code::Usage)
+            .with_message("error.restore_confirm")
+            .next(format!(
+                "maru restore --data \"{}\" \"{}\" --yes",
+                g.data.display(),
+                args.file.display()
+            )));
+    }
+    let dir = DataDir::new(&g.data);
+    let report = maru_storage::backup::restore(&dir, &args.file).await?;
+    // 옛 백업이면 여기서 최신 스키마로 올라간다.
+    let (_ctx, _config, db) = open(g).await?;
+    let (schema, _) = db.schema_versions().await?;
+    db.close().await;
+    let human = format!(
+        "되살렸습니다: {} (만든 때 {}, Maru {}{})\n이전 데이터: {}",
+        args.file.display(),
+        report.manifest.created_at,
+        report.manifest.maru_version,
+        if report.manifest.secrets {
+            ""
+        } else {
+            ", 비밀 뺀 백업 — 로그인 링크로 다시 들어오세요"
+        },
+        report.previous.display()
+    );
+    Ok((
+        json!({
+            "manifest": report.manifest,
+            "previous": report.previous.display().to_string(),
+            "schema": schema,
+        }),
+        human,
+    ))
+}
 
 async fn audit_list(g: &Global, a: AuditListArgs) -> Out {
     let (ctx, _config, db) = open(g).await?;
