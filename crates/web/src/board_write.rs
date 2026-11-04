@@ -4,14 +4,17 @@
 //! - 손님은 폼 안에서 확인 질문을 푼다(오래 쓰는 동안 풀리지 않게 60분). 함정 칸·같은 출처 확인은 댓글과 같다.
 //! - 새 글은 `/write/{board}` — `/b/{board}/{post}` 와 겹치지 않게 게시판 주소 밖에 둔다.
 
+use axum::Json;
 use axum::Router;
+use axum::body::Bytes;
 use axum::extract::{Form, Path, Query, State};
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::middleware;
 use axum::response::{Html, IntoResponse, Redirect, Response};
-use axum::routing::get;
+use axum::routing::{get, post};
 use maru_core::actor::Permission;
 use maru_core::model::{Board, Post, PostStatus};
+use maru_core::output::Success;
 use maru_core::services::auth::SignedIn;
 use maru_core::services::board_posts::{self, BoardEdit, BoardWrite, Editable};
 use maru_core::services::comments::GuestAuthor;
@@ -22,13 +25,18 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 use crate::AppState;
-use crate::admin::{pre_csrf, pre_csrf_ok, session_csrf_ok};
+use crate::admin::{CSRF_HEADER, pre_csrf, pre_csrf_ok, session_csrf_ok};
 use crate::comments::{no_store, same_origin, viewer};
+use crate::error::ApiError;
 use crate::field_form;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/write/{board}", get(new_form).post(create))
+        .route(
+            "/write/{board}/files",
+            post(attach).layer(crate::upload_limit()),
+        )
         .route("/b/{board}/{post}/edit", get(edit_form).post(edit))
         .route("/b/{board}/{post}/delete", get(delete_form).post(delete))
         .layer(middleware::map_response(no_store))
@@ -216,6 +224,35 @@ async fn may_write(
     Err(Box::new(
         page(state, StatusCode::FORBIDDEN, "글쓰기", view, who, None).await,
     ))
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct AttachQuery {
+    #[serde(default)]
+    filename: String,
+}
+
+/// 글쓰기 화면의 「파일 붙이기」 (ADR-0065). 파일 내용을 그대로 본문으로 받아 본문에 넣을 마크다운을 돌려준다.
+/// 게시판 역할은 서비스가 본다. POST `/write/` 는 로그인과 같은 좁은 요청 제한을 받는다.
+async fn attach(
+    State(state): State<AppState>,
+    Path(slug): Path<String>,
+    Query(q): Query<AttachQuery>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Result<Response, ApiError> {
+    let (actor, who) = viewer(&state, &headers).await?;
+    let sent = headers
+        .get(CSRF_HEADER)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or_default();
+    if !same_origin(&headers) || !csrf_ok(&headers, who.as_ref(), sent) {
+        return Err(ApiError(
+            maru_core::Error::new(Code::Forbidden).with_message("error.csrf"),
+        ));
+    }
+    let out = board_posts::attach(&state.ctx, &actor, &slug, q.filename, body.to_vec()).await?;
+    Ok((StatusCode::CREATED, Json(Success::new(out))).into_response())
 }
 
 async fn create(
@@ -601,6 +638,7 @@ async fn render_form(
         // 같은 요청의 답으로만 돌려준다 (no-store). 손님이 다시 치지 않게.
         "password": if new_guest { f.password.as_str() } else { "" },
         "captcha": challenge,
+        "upload": board_posts::may_upload(&actor, board).then(|| format!("/write/{}/files", board.slug)),
         "error": error,
     });
     let heading = match (fv.mode, parent.is_some()) {

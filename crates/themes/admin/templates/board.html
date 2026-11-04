@@ -54,6 +54,12 @@
       </div>
       {% endfor %}
       <div class="stack">
+        <label for="b-p_upload">파일 올리기 <span class="hint">공개 글쓰기 화면. 손님은 고를 수 없습니다</span></label>
+        <select id="b-p_upload" name="p_upload">
+          {% for c in choices.roles_upload %}<option value="{{ c.id }}"{% if form.p_upload == c.id %} selected{% endif %}>{{ c.label }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="stack">
         <label for="b-capp">댓글 승인</label>
         <select id="b-capp" name="comment_approval">
           {% for c in choices.approvals %}<option value="{{ c.id }}"{% if form.comment_approval == c.id %} selected{% endif %}>{{ c.label }}</option>{% endfor %}

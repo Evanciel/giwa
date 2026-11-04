@@ -73,6 +73,11 @@ pub struct Upload {
 
 pub async fn upload(ctx: &Ctx, actor: &Actor, input: Upload) -> Result<Attachment> {
     actor.require(Permission::PostUpload)?;
+    store(ctx, actor, input).await
+}
+
+/// 권한을 묻지 않고 보관한다. 부르는 쪽이 먼저 확인한다(공개 글쓰기는 게시판 역할, ADR-0065).
+pub(crate) async fn store(ctx: &Ctx, actor: &Actor, input: Upload) -> Result<Attachment> {
     let filename = clean_name(&input.filename)?;
     let (ext, mime) = check(&filename, &input.bytes)?;
 

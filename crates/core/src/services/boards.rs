@@ -275,6 +275,15 @@ fn check_policy(policy: &BoardPolicy) -> Result<()> {
                 .arg("value", role.clone()));
         }
     }
+    // 파일 올리기는 회원 이상만. 손님에게 디스크를 열어 주지 않는다 (ADR-0065).
+    if policy.upload != "none"
+        && crate::actor::rank::of_role(&policy.upload)
+            .is_none_or(|r| r < crate::actor::rank::MEMBER)
+    {
+        return Err(Error::new(Code::Validation)
+            .with_message("error.board_upload_role")
+            .arg("value", policy.upload.clone()));
+    }
     // 댓글·답변은 `none`(받지 않음)도 된다 (ADR-0052·0056).
     for role in [&policy.comment, &policy.reply] {
         if role != "none" && crate::actor::rank::of_role(role).is_none() {

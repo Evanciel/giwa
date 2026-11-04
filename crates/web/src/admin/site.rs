@@ -162,6 +162,8 @@ struct BoardForm {
     #[serde(default)]
     p_moderate: String,
     #[serde(default)]
+    p_upload: String,
+    #[serde(default)]
     comment_approval: String,
     #[serde(default)]
     write_approval: String,
@@ -186,6 +188,7 @@ impl BoardForm {
             p_comment: p.comment.clone(),
             p_reply: p.reply.clone(),
             p_moderate: p.moderate.clone(),
+            p_upload: p.upload.clone(),
             comment_approval: p.comment_approval.as_str().into(),
             write_approval: p.write_approval.as_str().into(),
             field_schema: if b.field_schema.is_empty() {
@@ -226,6 +229,7 @@ impl BoardForm {
                 comment_approval: approval("comment_approval", &self.comment_approval)?,
                 write_approval: approval("write_approval", &self.write_approval)?,
                 reply: self.p_reply.clone(),
+                upload: self.p_upload.clone(),
             }),
             sort_order: Some(if self.sort_order.trim().is_empty() {
                 0
@@ -245,6 +249,13 @@ fn board_choices() -> Value {
         .copied()
         .chain([("none", "받지 않음")])
         .collect();
+    // 파일 올리기는 손님을 고를 수 없다 (ADR-0065).
+    let roles_upload: Vec<(&str, &str)> = ROLES
+        .iter()
+        .copied()
+        .filter(|(id, _)| *id != "guest")
+        .chain([("none", "받지 않음")])
+        .collect();
     let approvals: Vec<(&str, &str)> = Approval::ALL
         .iter()
         .map(|a| (a.as_str(), approval_label(*a)))
@@ -262,6 +273,7 @@ fn board_choices() -> Value {
         "orders": choices(&orders),
         "roles": choices(&ROLES),
         "roles_none": choices(&roles_none),
+        "roles_upload": choices(&roles_upload),
         "approvals": choices(&approvals),
     })
 }

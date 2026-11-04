@@ -42,6 +42,10 @@ pub struct BoardPolicy {
     /// 답변글을 달 수 있는 최소 역할. `none` 이면 받지 않는다 (ADR-0056)
     #[serde(default = "no_role")]
     pub reply: String,
+    /// 공개 글쓰기 화면에서 파일을 붙일 수 있는 최소 역할. `none` 이면 받지 않는다.
+    /// 손님은 고를 수 없다 (ADR-0065)
+    #[serde(default = "no_role")]
+    pub upload: String,
 }
 
 /// 댓글·공개 글쓰기 승인 (게시판 정책, ADR-0052·0053).
@@ -97,6 +101,7 @@ impl Default for BoardPolicy {
             comment_approval: Approval::Guest,
             write_approval: Approval::Guest,
             reply: no_role(),
+            upload: no_role(),
         }
     }
 }

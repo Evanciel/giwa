@@ -192,6 +192,10 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "error.audit_time" => {
             "{field} 는 RFC3339 시각입니다 (예: 2026-11-04T09:00:00+09:00, 받은 값 {value})."
         }
+        "error.board_upload_role" => {
+            "파일 올리기 역할은 회원 이상이거나 none 이어야 합니다: {value}. 손님 업로드는 받지 않습니다."
+        }
+        "error.upload_quota" => "파일은 하루에 {max}개까지 올릴 수 있습니다. 내일 다시 시도하세요.",
         "error.form_number" => "`{field}` 칸에는 숫자를 넣으세요: {value}",
         "error.form_choice" => "`{field}` 칸의 값 `{value}` 는 고를 수 없습니다.",
         "error.menu_child_first" => "하위 항목 「{label}」 위에 첫 단계 항목이 있어야 합니다.",

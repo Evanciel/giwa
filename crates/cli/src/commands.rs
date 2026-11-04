@@ -910,6 +910,7 @@ async fn board(g: &Global, cmd: BoardCmd) -> Out {
                 || args.comment_approval.is_some()
                 || args.write_approval.is_some()
                 || args.reply.is_some()
+                || args.upload.is_some()
             {
                 let current = boards::show(&ctx, &actor, &args.slug).await?.policy;
                 let approval = |v: Option<&str>, now| match v {
@@ -930,6 +931,7 @@ async fn board(g: &Global, cmd: BoardCmd) -> Out {
                     write: args.write.unwrap_or(current.write),
                     comment: args.comment.unwrap_or(current.comment),
                     reply: args.reply.unwrap_or(current.reply),
+                    upload: args.upload.unwrap_or(current.upload),
                     comment_approval,
                     write_approval,
                     ..current

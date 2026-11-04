@@ -656,6 +656,9 @@ pub struct BoardUpdateArgs {
     /// 답변글 최소 역할 (none 이면 받지 않음. 문의 게시판 기본은 editor)
     #[arg(long)]
     pub reply: Option<String>,
+    /// 공개 글쓰기 화면에서 파일을 붙일 수 있는 최소 역할 (member 이상 또는 none)
+    #[arg(long)]
+    pub upload: Option<String>,
     /// 여분 칸 정의를 통째로 바꾼다. JSON 배열 파일 (`-` 이면 표준 입력). 예: `[{"key":"price","label":"가격","type":"number","required":true}]`
     #[arg(long)]
     pub fields: Option<PathBuf>,

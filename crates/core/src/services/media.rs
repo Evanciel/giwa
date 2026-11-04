@@ -86,6 +86,18 @@ struct Processed {
 
 pub async fn upload(ctx: &Ctx, actor: &Actor, input: Upload) -> Result<Media> {
     actor.require(Permission::PostUpload)?;
+    store(ctx, actor, input).await
+}
+
+/// 그림 확장자인가.
+pub(crate) fn is_image(filename: &str) -> bool {
+    filename
+        .rsplit_once('.')
+        .is_some_and(|(_, ext)| EXTENSIONS.contains(&ext.to_ascii_lowercase().as_str()))
+}
+
+/// 권한을 묻지 않고 보관한다. 부르는 쪽이 먼저 확인한다(공개 글쓰기는 게시판 역할, ADR-0065).
+pub(crate) async fn store(ctx: &Ctx, actor: &Actor, input: Upload) -> Result<Media> {
     let alt_text = alt(input.alt_text)?;
     let p = process(&input.filename, &input.bytes)?;
 

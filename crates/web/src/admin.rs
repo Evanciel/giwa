@@ -1947,7 +1947,7 @@ mod tests {
 // 에디터 스크립트가 `fetch` 로 부른다. 세션 쿠키(SameSite=Lax)와 `X-CSRF-Token` 헤더를 둘 다 요구한다.
 // 응답은 REST 와 같은 `{ok, data}` / `{ok:false, error}` 모양이다.
 
-const CSRF_HEADER: &str = "x-csrf-token";
+pub(crate) const CSRF_HEADER: &str = "x-csrf-token";
 
 async fn json_session(state: &AppState, headers: &HeaderMap) -> Result<SignedIn, ApiError> {
     let who = current(state, headers)

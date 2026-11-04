@@ -5,20 +5,24 @@
 //! 에이전트는 이 경로를 쓰지 않는다 — 초안으로 쓰고 발행 권한으로 올린다(원칙 4).
 
 use schemars::JsonSchema;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::actor::AuthorType;
 use crate::actor::{Actor, ActorKind, Permission};
 use crate::audit::{self, Target};
 use crate::clock;
 use crate::error::{Code, Error, Result};
-use crate::model::{Approval, Board, CaptchaMode, Post, PostKind, PostStatus};
+use crate::model::{Approval, Board, CaptchaMode, PageReq, Post, PostKind, PostStatus};
 use crate::services::comments::{self, GuestAuthor};
-use crate::services::{auth, captcha, categories, members, posts, required_text, settings, tags};
-use crate::store::{Ctx, Tx};
+use crate::services::{
+    auth, captcha, categories, files, media, members, posts, required_text, settings, tags,
+};
+use crate::store::{AuditFilter, Ctx, Tx};
 
 /// 글쓰기 폼에 내는 확인 질문은 오래 쓰는 동안 풀리지 않게 길게 둔다.
 pub const CAPTCHA_MINUTES: i64 = 60;
+/// 회원이 하루(24시간)에 붙일 수 있는 파일 수 (ADR-0065). `post.upload` 권한이 있으면 세지 않는다.
+pub const MEMBER_UPLOADS_PER_DAY: i64 = 50;
 
 #[derive(Debug, Clone, Default, Deserialize, JsonSchema)]
 pub struct BoardWrite {
@@ -378,5 +382,134 @@ fn check_password(post: &Post, given: Option<&str>) -> Result<()> {
     match (given, &post.guest_pw_hash) {
         (Some(pw), Some(hash)) if auth::verify(pw, hash) => Ok(()),
         _ => Err(Error::new(Code::Forbidden).with_message("error.post_password")),
+    }
+}
+
+/// 공개 글쓰기 화면에서 붙인 결과.
+#[derive(Debug, Clone, Serialize, JsonSchema)]
+pub struct Attached {
+    pub url: String,
+    pub filename: String,
+    pub size: i64,
+    pub image: bool,
+    /// 본문에 넣을 마크다운
+    pub markdown: String,
+}
+
+/// 이 사람이 이 게시판의 글쓰기 화면에서 파일을 붙일 수 있나. 손님·에이전트는 안 된다.
+pub fn may_upload(actor: &Actor, board: &Board) -> bool {
+    matches!(actor.kind(), ActorKind::Human { .. })
+        && actor
+            .require_board(Permission::PostUpload, &board.id)
+            .is_ok()
+        && actor
+            .require_rank(Permission::PostUpload, &board.policy.upload)
+            .is_ok()
+}
+
+/// 공개 글쓰기 화면에서 파일 하나를 붙인다 (GAP M4, ADR-0065). 그림은 다시 인코딩하고,
+/// 문서는 확장자·서명 검사를 지난다(관리 경로와 같은 보관). 글과 묶지 않고 마크다운만 돌려준다.
+pub async fn attach(
+    ctx: &Ctx,
+    actor: &Actor,
+    board: &str,
+    filename: String,
+    bytes: Vec<u8>,
+) -> Result<Attached> {
+    let board = ctx
+        .store
+        .board_by_slug(board)
+        .await?
+        .ok_or_else(|| crate::services::boards::not_found(board))?;
+    if !may_upload(actor, &board) {
+        return Err(actor.denied(Permission::PostUpload));
+    }
+    if !actor.has(Permission::PostUpload) {
+        check_upload_quota(ctx, actor).await?;
+    }
+    if media::is_image(&filename) {
+        let label = link_label(filename.rsplit_once('.').map_or("", |(stem, _)| stem));
+        let m = media::store(
+            ctx,
+            actor,
+            media::Upload {
+                filename: filename.clone(),
+                bytes,
+                alt_text: None,
+            },
+        )
+        .await?;
+        Ok(Attached {
+            markdown: format!("![{label}]({})", m.url),
+            url: m.url,
+            filename,
+            size: m.size,
+            image: true,
+        })
+    } else {
+        let f = files::store(ctx, actor, files::Upload { filename, bytes }).await?;
+        let label = link_label(&f.filename);
+        Ok(Attached {
+            markdown: format!("[{label} ({})]({})", size_label(f.size), f.url),
+            url: f.url,
+            filename: f.filename,
+            size: f.size,
+            image: false,
+        })
+    }
+}
+
+/// 지난 24시간에 이 회원이 올린 수를 감사 기록으로 센다.
+async fn check_upload_quota(ctx: &Ctx, actor: &Actor) -> Result<()> {
+    let Some(id) = actor.member_id() else {
+        return Ok(());
+    };
+    let since = clock::hours_ago(24);
+    let mut used = 0;
+    for action in ["file.upload", "media.upload"] {
+        let filter = AuditFilter {
+            actor_type: String::new(),
+            actor_id: id.clone(),
+            action: action.to_owned(),
+            target_type: String::new(),
+            target_id: String::new(),
+            since: since.clone(),
+            until: String::new(),
+        };
+        used += ctx
+            .store
+            .list_audit(&filter, PageReq::new(1, 1))
+            .await?
+            .total;
+    }
+    if used >= MEMBER_UPLOADS_PER_DAY {
+        return Err(Error::new(Code::RateLimited)
+            .with_message("error.upload_quota")
+            .arg("max", MEMBER_UPLOADS_PER_DAY.to_string()));
+    }
+    Ok(())
+}
+
+/// 마크다운 링크 글자에서 문법을 깨는 글자를 뺀다.
+fn link_label(name: &str) -> String {
+    name.chars()
+        .filter(|c| {
+            !matches!(
+                c,
+                '[' | ']' | '(' | ')' | '\\' | '`' | '*' | '_' | '!' | '<' | '>'
+            )
+        })
+        .filter(|c| !c.is_control())
+        .collect::<String>()
+        .trim()
+        .to_owned()
+}
+
+fn size_label(n: i64) -> String {
+    let f = n as f64;
+    if f < 1024.0 * 1024.0 {
+        format!("{:.0}KB", (f / 1024.0).max(1.0))
+    } else {
+        format!("{:.1}MB", f / 1024.0 / 1024.0)
     }
 }
