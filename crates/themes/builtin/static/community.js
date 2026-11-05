@@ -116,15 +116,100 @@
   }
 
   // 지금 보는 게시판의 메뉴 칸에 표시. 메뉴 HTML 도 캐시하므로 주소를 보고 여기서 단다.
+  // 메뉴 줄과 서랍(ADR-0098)에 하나씩.
   function markCurrent() {
     var here = location.pathname;
-    var links = document.querySelectorAll(".cm-nav-groups a[href^='/']");
-    for (var i = 0; i < links.length; i++) {
-      var href = links[i].getAttribute("href").replace(/\/+$/, "");
-      if (href && (here === href || here.indexOf(href + "/") === 0)) {
-        links[i].setAttribute("aria-current", "page");
-        return;
+    [".cm-nav-groups", ".cm-drawer-nav"].forEach(function (box) {
+      var links = document.querySelectorAll(box + " a[href^='/']");
+      for (var i = 0; i < links.length; i++) {
+        var href = links[i].getAttribute("href").replace(/\/+$/, "");
+        if (href && (here === href || here.indexOf(href + "/") === 0)) {
+          links[i].setAttribute("aria-current", "page");
+          return;
+        }
       }
+    });
+  }
+
+  // 휴대폰 서랍 메뉴·검색 덮개 (GAP Q13, ADR-0098). <dialog> 를 쓸 수 있을 때만 단추를 보이고
+  // .cm-js 를 단다(그래야 CSS 가 메뉴 줄·검색 칸을 감춘다). Esc·초점 가두기는 브라우저가 한다.
+  function sheets() {
+    var ok = false;
+    [[".cm-drawer-open", "cm-drawer"], [".cm-search-open", "cm-search-sheet"]].forEach(function (p) {
+      var btn = document.querySelector(p[0]);
+      var dlg = document.getElementById(p[1]);
+      if (!btn || !dlg || typeof dlg.showModal !== "function") return;
+      ok = true;
+      btn.hidden = false;
+      btn.addEventListener("click", function () {
+        if (p[1] === "cm-search-sheet") recentSearches(dlg);
+        dlg.showModal();
+        btn.setAttribute("aria-expanded", "true");
+        var input = dlg.querySelector("input[type=search]");
+        if (input) input.focus();
+      });
+      dlg.addEventListener("close", function () { btn.setAttribute("aria-expanded", "false"); });
+      // 바깥(뒤 막) 누름이나 닫기 단추
+      dlg.addEventListener("click", function (ev) {
+        if (ev.target === dlg || (ev.target.closest && ev.target.closest("[data-close]"))) dlg.close();
+      });
+    });
+    if (ok) root.classList.add("cm-js");
+  }
+
+  // 최근 검색어: 이 브라우저 localStorage 에만 10개. 서버로 보내지 않는다.
+  var QKEY = "maru.recentSearches";
+  function loadQ() {
+    try {
+      var v = JSON.parse(localStorage.getItem(QKEY) || "[]");
+      return Array.isArray(v) ? v.filter(function (s) { return typeof s === "string" && s.trim() !== ""; }) : [];
+    } catch (e) { return []; }
+  }
+  function saveQ(list) {
+    try {
+      if (list.length) localStorage.setItem(QKEY, JSON.stringify(list));
+      else localStorage.removeItem(QKEY);
+    } catch (e) { /* 저장 못 함 */ }
+  }
+  function rememberSearches() {
+    var forms = document.querySelectorAll("form[role=search]");
+    for (var i = 0; i < forms.length; i++) {
+      forms[i].addEventListener("submit", function (ev) {
+        var input = ev.currentTarget.querySelector("input[name=q]");
+        var q = input ? input.value.trim().slice(0, 100) : "";
+        if (!q) return;
+        saveQ([q].concat(loadQ().filter(function (x) { return x !== q; })).slice(0, 10));
+      });
+    }
+  }
+  function recentSearches(dlg) {
+    var box = dlg.querySelector("[data-recent-searches]");
+    var form = dlg.querySelector("form[role=search]");
+    if (!box || !form) return;
+    var ul = box.querySelector("ul");
+    var list = loadQ();
+    ul.textContent = "";
+    box.hidden = list.length === 0;
+    list.forEach(function (q) {
+      var li = el("li", {});
+      li.appendChild(el("a", { href: form.getAttribute("action") + "?q=" + encodeURIComponent(q) }, q));
+      var del = el("button", { type: "button", "aria-label": q + " 지우기" }, "지우기");
+      del.addEventListener("click", function () {
+        saveQ(loadQ().filter(function (x) { return x !== q; }));
+        recentSearches(dlg);
+      });
+      li.appendChild(del);
+      ul.appendChild(li);
+    });
+    var clear = box.querySelector("[data-clear]");
+    if (clear && !clear.dataset.bound) {
+      clear.dataset.bound = "1";
+      clear.addEventListener("click", function () {
+        saveQ([]);
+        recentSearches(dlg);
+        var input = dlg.querySelector("input[type=search]");
+        if (input) input.focus();
+      });
     }
   }
 
@@ -146,6 +231,8 @@
   document.addEventListener("DOMContentLoaded", function () {
     markCurrent();
     allMenu();
+    sheets();
+    rememberSearches();
     var btn = document.querySelector(".cm-mode");
     if (btn) {
       btn.hidden = false;

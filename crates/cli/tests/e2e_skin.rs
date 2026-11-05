@@ -326,6 +326,36 @@ fn community_preset_skin_and_account_bar() {
         board.body.contains("region-masthead"),
         "이름 옆 자리는 모든 화면"
     );
+    // 휴대폰 서랍·검색 덮개 (GAP Q13, ADR-0098): 닫힌 dialog, 여는 단추는 스크립트가 보일 때까지 숨김
+    assert!(
+        home.body
+            .contains("<dialog class=\"cm-drawer\" id=\"cm-drawer\" aria-label=\"메뉴\">")
+    );
+    assert!(
+        home.body
+            .contains("aria-controls=\"cm-drawer\" aria-expanded=\"false\" hidden>")
+    );
+    let drawer = home
+        .body
+        .split("<dialog class=\"cm-drawer\"")
+        .nth(1)
+        .unwrap();
+    let drawer = drawer.split("</dialog>").next().unwrap();
+    assert!(
+        drawer.contains("<a class=\"cm-drawer-head\" href=\"/b/free\">커뮤니티</a>"),
+        "{drawer}"
+    );
+    assert!(drawer.contains("<a href=\"/b/forum\">토론</a>"));
+    assert!(
+        drawer.contains("<ul class=\"cm-drawer-quick\">"),
+        "바로가기도 서랍에"
+    );
+    assert!(
+        home.body
+            .contains("<dialog class=\"cm-search-sheet\" id=\"cm-search-sheet\"")
+    );
+    assert!(home.body.contains("id=\"sheet-q\""));
+    assert!(home.body.contains("data-recent-searches hidden"));
 
     let tokens = http(&bind, "GET", "/assets/tokens.css", &[], "");
     assert!(

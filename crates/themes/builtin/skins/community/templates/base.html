@@ -42,7 +42,10 @@
 </div>
 <header class="cm-header">
   <div class="cm-inner">
+    {# 휴대폰 단추 (GAP Q13, ADR-0098): 스크립트가 서랍·검색 덮개를 쓸 수 있을 때만 보인다. #}
+    <button class="cm-icon cm-drawer-open" type="button" aria-controls="cm-drawer" aria-expanded="false" hidden><span class="visually-hidden">메뉴 열기</span><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M3 5.5h14M3 10h14M3 14.5h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
     <a class="cm-brand" href="{{ site.home_url }}">{{ site.name }}</a>
+    {% if site.show_search %}<button class="cm-icon cm-search-open" type="button" aria-controls="cm-search-sheet" aria-expanded="false" hidden><span class="visually-hidden">검색 열기</span><svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="7" cy="7" r="4.8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10.6 10.6 14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>{% endif %}
     {% if widgets.masthead %}<div class="region region-masthead">{% for w in widgets.masthead %}{% include "_widget.html" %}{% endfor %}</div>{% endif %}
   </div>
 </header>
@@ -90,6 +93,32 @@
 {% if widgets.popup %}
 <div class="popups">{% for w in widgets.popup %}{% include "widgets/popup.html" %}{% endfor %}</div>
 {% endif %}
+{# 휴대폰 서랍 메뉴와 검색 덮개 (GAP Q13, ADR-0098). 닫혀 있으면 보이지 않고, 스크립트가 없으면 열 단추도 없다. #}
+<dialog class="cm-drawer" id="cm-drawer" aria-label="메뉴">
+  <div class="cm-sheet-head">
+    <a class="cm-brand" href="{{ site.home_url }}">{{ site.name }}</a>
+    <button class="cm-icon" type="button" data-close><span class="visually-hidden">메뉴 닫기</span><svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button>
+  </div>
+  {% if site.menus and site.menus.quick %}<ul class="cm-drawer-quick">{% for item in site.menus.quick %}<li><a href="{{ item.href }}"{% if item.external %} rel="noopener noreferrer"{% endif %}>{{ item.label }}</a></li>{% endfor %}</ul>{% endif %}
+  {% if site.menus and site.menus.header %}<nav class="cm-drawer-nav" aria-label="전체 게시판">{% for item in site.menus.header %}<div class="cm-drawer-group">
+    <a class="cm-drawer-head" href="{{ item.href }}"{% if item.external %} rel="noopener noreferrer"{% endif %}>{{ item.label }}</a>
+    {% if item.children %}<ul>{% for child in item.children %}<li><a href="{{ child.href }}"{% if child.external %} rel="noopener noreferrer"{% endif %}>{{ child.label }}</a></li>{% endfor %}</ul>{% endif %}
+  </div>{% endfor %}</nav>{% endif %}
+  {% if site.menus and site.menus.footer %}<nav class="cm-drawer-foot" aria-label="하단 메뉴">{% with items = site.menus.footer %}{% include "_menu.html" %}{% endwith %}</nav>{% endif %}
+</dialog>
+{% if site.show_search %}<dialog class="cm-search-sheet" id="cm-search-sheet" aria-label="검색">
+  <form class="cm-search" role="search" action="{{ site.search_url }}" method="get">
+    <label class="visually-hidden" for="sheet-q">사이트 검색</label>
+    <input id="sheet-q" type="search" name="q" maxlength="100" placeholder="게시판 전체에서 찾기" autocomplete="off" enterkeyhint="search">
+    <button type="submit" aria-label="검색"><svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="7" cy="7" r="4.8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10.6 10.6 14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+  </form>
+  <button class="cm-icon" type="button" data-close><span class="visually-hidden">검색 닫기</span><svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button>
+  {# 최근 검색어는 이 브라우저에만 남는다(서버로 보내지 않음). #}
+  <section class="cm-recent-q" data-recent-searches hidden>
+    <div class="cm-recent-q-head"><h2>최근 검색어</h2><button type="button" data-clear>전체 삭제</button></div>
+    <ul></ul>
+  </section>
+</dialog>{% endif %}
 {# 팝업·최근 본 게시판 (ADR-0060, 0096) #}
 <script src="/assets/site.js" defer{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %}></script>
 </body>
