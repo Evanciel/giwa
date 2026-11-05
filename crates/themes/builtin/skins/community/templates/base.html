@@ -51,6 +51,8 @@
   </div>
   {% if site.menus and site.menus.header %}<nav class="cm-nav" aria-label="게시판"><div class="cm-inner">{% with items = site.menus.header %}{% include "_menu.html" %}{% endwith %}</div></nav>{% endif %}
 </header>
+{# 최근 본 게시판 (GAP Q11, ADR-0096). HTML 은 모두에게 같고(캐시) 목록은 이 브라우저에만 있다. site.js 가 채운다. #}
+<nav class="recent-boards" aria-label="최근 본 게시판" data-recent-boards hidden><div class="cm-inner"></div></nav>
 {% if widgets.header %}<div class="region region-header"><div class="cm-inner">{% for w in widgets.header %}{% include "_widget.html" %}{% endfor %}</div></div>{% endif %}
 {% if widgets.hero %}<div class="region region-hero"><div class="cm-inner">{% for w in widgets.hero %}{% include "_widget.html" %}{% endfor %}</div></div>{% endif %}
 <div class="cm-body cm-inner{% if widgets.sidebar %} has-side{% endif %}">
@@ -69,7 +71,8 @@
 </footer>
 {% if widgets.popup %}
 <div class="popups">{% for w in widgets.popup %}{% include "widgets/popup.html" %}{% endfor %}</div>
-<script src="/assets/site.js" defer{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %}></script>
 {% endif %}
+{# 팝업·최근 본 게시판 (ADR-0060, 0096) #}
+<script src="/assets/site.js" defer{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %}></script>
 </body>
 </html>

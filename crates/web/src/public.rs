@@ -99,6 +99,8 @@ async fn site_value(state: &AppState, s: &SiteSettings) -> Value {
         "search_url": urls::path(&Target::Search),
         "show_search": s.show_search,
         "skin": s.skin,
+        // 상대 시간 필터의 날짜 표시용 시간대(분) (ADR-0096)
+        "tz": s.tz_offset_min,
         // 로그인 상태는 HTML 에 굽지 않고 스킨 스크립트가 따로 받는다 (ADR-0081)
         "account_bar_url": "/me/bar",
         // 가입을 받는 사이트만 머리글에 「내 계정」. 공개 화면은 손님 기준이라 로그인 여부와 상관없이 같다(ADR-0051).

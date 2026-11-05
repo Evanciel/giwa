@@ -39,6 +39,8 @@
     {% if site.show_account %}<a class="site-account" href="{{ site.account_url }}">내 계정</a>{% endif %}
   </div>
 </header>
+{# 최근 본 게시판 (GAP Q11, ADR-0096). HTML 은 모두에게 같고(캐시) 목록은 이 브라우저에만 있다. site.js 가 채운다. #}
+<nav class="recent-boards" aria-label="최근 본 게시판" data-recent-boards hidden><div class="wrap"></div></nav>
 {# 위젯 영역 (ADR-0059): header·hero·main·sidebar·footer. 비어 있으면 아무것도 그리지 않는다. #}
 {% if widgets.header %}<div class="region region-header"><div class="wrap">{% for w in widgets.header %}{% include "_widget.html" %}{% endfor %}</div></div>{% endif %}
 {% if widgets.hero %}<div class="region region-hero"><div class="wrap">{% for w in widgets.hero %}{% include "_widget.html" %}{% endfor %}</div></div>{% endif %}
@@ -59,7 +61,8 @@
 {% if widgets.popup %}
 {# 팝업 (ADR-0060). 처음엔 숨겨 두고 site.js 가 「보지 않기」 기한을 보고 연다. JS 가 없으면 뜨지 않는다. #}
 <div class="popups">{% for w in widgets.popup %}{% include "widgets/popup.html" %}{% endfor %}</div>
-<script src="/assets/site.js" defer{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %}></script>
 {% endif %}
+{# 팝업·최근 본 게시판 (ADR-0060, 0096). 팝업이 없으면 그 부분은 바로 끝난다. #}
+<script src="/assets/site.js" defer{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %}></script>
 </body>
 </html>

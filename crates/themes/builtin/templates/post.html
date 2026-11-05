@@ -4,7 +4,7 @@
   <header>
     <p class="crumb"><a href="{{ board.url }}">{{ board.name }}</a>{% if post.category %} <span aria-hidden="true">›</span> <a href="{{ post.category.url }}">{{ post.category.name }}</a>{% endif %}</p>
     <h1>{{ post.title }}</h1>
-    <p class="meta">{% if post.author and board.write_url %}<span class="author"{% if not post.author.guest %} data-member="{{ post.author.name }}"{% endif %}>{{ post.author.name }}</span>{% if post.author.badge %} <span class="level-badge" title="{{ post.author.badge.title }}">{{ post.author.badge.label }}</span>{% endif %}{% if post.author.guest %} <span class="comment-badge">비회원</span>{% endif %} · {% endif %}<time datetime="{{ post.published_at }}">{{ post.date }}</time>{% if post.views is not none %} · <span class="views">조회 {{ post.views }}</span>{% endif %}</p>
+    <p class="meta">{% if post.author and board.write_url %}<span class="author"{% if not post.author.guest %} data-member="{{ post.author.name }}"{% endif %}>{{ post.author.name }}</span>{% if post.author.badge %} <span class="level-badge" title="{{ post.author.badge.title }}">{{ post.author.badge.label }}</span>{% endif %}{% if post.author.guest %} <span class="comment-badge">비회원</span>{% endif %} · {% endif %}<time datetime="{{ post.published_at }}">{{ post.date }}</time>{% if post.views is not none %} · <span class="views">조회 {{ post.views|short_count }}</span>{% endif %}</p>
   </header>
   {% with toc = post.toc %}{% include "_toc.html" %}{% endwith %}
   {# body_html 은 서버가 ammonia 로 정화한 값만 들어온다. |safe 는 여기에만 쓴다. #}

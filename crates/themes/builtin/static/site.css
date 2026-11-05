@@ -838,3 +838,15 @@ a.wikilink-new { color: #b3261e; text-decoration-style: dashed; }
 .attend-list .name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .attend-list .streak, .attend-list .time { color: var(--muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
 .ranking-links { margin: calc(var(--space) * -4) 0 calc(var(--space) * 4); font-size: var(--fs-sm); }
+
+/* 최근 본 게시판 (GAP Q11, ADR-0096) */
+.recent-boards { border-bottom: 1px solid var(--border); font-size: var(--fs-sm); }
+.recent-boards > div { display: flex; align-items: center; gap: calc(var(--space) * 2); padding-top: calc(var(--space) * 1); padding-bottom: calc(var(--space) * 1); overflow-x: auto; scrollbar-width: thin; }
+.recent-boards-label { flex: none; color: var(--muted); font-weight: 600; }
+.recent-boards ul { display: flex; gap: calc(var(--space) * 1.5); list-style: none; margin: 0; padding: 0; flex: 1; min-width: 0; }
+.recent-boards li { flex: none; }
+.recent-boards a { color: var(--fg); text-decoration: none; white-space: nowrap; }
+.recent-boards a[aria-current] { color: var(--primary); font-weight: 700; }
+.recent-boards a:hover, .recent-boards a:focus-visible { text-decoration: underline; }
+.recent-boards-clear { flex: none; border: 0; background: none; color: var(--muted); font: inherit; cursor: pointer; padding: 0; }
+.recent-boards-clear:hover, .recent-boards-clear:focus-visible { color: var(--fg); text-decoration: underline; }

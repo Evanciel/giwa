@@ -87,6 +87,8 @@ fn public_env(
     env.set_undefined_behavior(UndefinedBehavior::Chainable);
     env.set_formatter(html_formatter);
     env.add_function("url_for", url_for);
+    env.add_filter("ago", ago);
+    env.add_filter("short_count", short_count);
     env.set_loader(move |name| {
         if let Some(text) = dir.as_deref().and_then(|d| read_user(d, "templates", name)) {
             return Ok(Some(text));
@@ -246,6 +248,54 @@ pub fn preset(id: &str) -> Result<Preset> {
 
 /// HTML 이스케이프는 `& < > " '` 만 한다. 기본 포매터는 `/` 까지 `&#x2f;` 로 바꿔
 /// 모든 링크가 읽기 어려워진다. 속성값은 항상 큰따옴표로 감싸므로 `/` 는 안전하다.
+/// 「방금 전」「5분 전」「3시간 전」, 하루가 넘으면 날짜 `2026. 11. 4.` (GAP Q11, ADR-0096).
+/// `tz` 는 사이트 시간대(분, 기본 한국 +540). 시각이 아니면 빈 문자열.
+fn ago(at: minijinja::Value, tz: Option<i32>) -> String {
+    let Some(at) = at.as_str() else {
+        return String::new();
+    };
+    match maru_core::clock::seconds_since(at) {
+        // 시계가 조금 어긋나 앞으로 온 시각도 「방금」으로 본다.
+        Some(s) if (-300..60).contains(&s) => "방금 전".to_owned(),
+        Some(s) if (60..3600).contains(&s) => format!("{}분 전", s / 60),
+        Some(s) if (3600..86_400).contains(&s) => format!("{}시간 전", s / 3600),
+        _ => maru_core::clock::display_date(at, tz.unwrap_or(540)),
+    }
+}
+
+/// 수 줄여 쓰기 (ADR-0096): 9,999 까지는 쉼표, 1만부터 「1.2만」, 1억부터 「1.2억」.
+/// 소수 첫째 자리에서 버린다(실제보다 많아 보이지 않게). 수가 아니면 그대로.
+fn short_count(n: minijinja::Value) -> String {
+    let Some(n) = n.as_i64() else {
+        return n.to_string();
+    };
+    let (unit, div) = match n.unsigned_abs() {
+        a if a >= 100_000_000 => ("억", 100_000_000),
+        a if a >= 10_000 => ("만", 10_000),
+        _ => return grouped(n),
+    };
+    let tenths = n / (div / 10);
+    let (whole, frac) = (tenths / 10, (tenths % 10).abs());
+    if frac == 0 {
+        format!("{whole}{unit}")
+    } else {
+        format!("{whole}.{frac}{unit}")
+    }
+}
+
+/// 세 자리마다 쉼표.
+fn grouped(n: i64) -> String {
+    let digits = n.unsigned_abs().to_string();
+    let mut out = String::new();
+    for (i, c) in digits.chars().enumerate() {
+        if i > 0 && (digits.len() - i).is_multiple_of(3) {
+            out.push(',');
+        }
+        out.push(c);
+    }
+    if n < 0 { format!("-{out}") } else { out }
+}
+
 fn html_formatter(
     out: &mut minijinja::Output,
     state: &mut minijinja::State,
@@ -440,6 +490,50 @@ mod tests {
             {
                 assert!(!body.contains("font-size"), "{selector} {{{body}}}");
             }
+        }
+    }
+
+    #[test]
+    fn ago_and_short_count_filters() {
+        let mut env = Environment::new();
+        env.add_filter("ago", ago);
+        env.add_filter("short_count", short_count);
+        let render = |src: &str, at: &str| {
+            env.render_str(src, minijinja::context! { at => at })
+                .unwrap()
+        };
+        let now = maru_core::clock::now();
+        assert_eq!(render("{{ at|ago }}", &now), "방금 전");
+        let minutes = maru_core::clock::minutes_later(-5);
+        assert_eq!(render("{{ at|ago }}", &minutes), "5분 전");
+        assert_eq!(
+            render("{{ at|ago }}", &maru_core::clock::hours_ago(3)),
+            "3시간 전"
+        );
+        let old = maru_core::clock::hours_ago(48);
+        assert_eq!(
+            render("{{ at|ago(540) }}", &old),
+            maru_core::clock::display_date(&old, 540)
+        );
+        assert_eq!(render("{{ none|ago }}", ""), "");
+        assert_eq!(render("{{ missing|ago }}", ""), "");
+        for (n, want) in [
+            (0, "0"),
+            (999, "999"),
+            (1234, "1,234"),
+            (9999, "9,999"),
+            (10_000, "1만"),
+            (12_345, "1.2만"),
+            (19_999, "1.9만"),
+            (1_234_567, "123.4만"),
+            (100_000_000, "1억"),
+            (250_000_000, "2.5억"),
+            (-12_345, "-1.2만"),
+        ] {
+            let out = env
+                .render_str("{{ n|short_count }}", minijinja::context! { n => n })
+                .unwrap();
+            assert_eq!(out, want, "{n}");
         }
     }
 

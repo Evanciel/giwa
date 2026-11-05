@@ -322,7 +322,10 @@ fn popups_render_hidden_with_script_only_in_period_and_scope() {
 
     let (_, board) = get(&bind, "/b/blog");
     assert!(!board.contains("role=\"dialog\""), "home 범위");
-    assert!(!board.contains("site.js"), "팝업이 없으면 스크립트도 없다");
+    assert!(
+        board.contains("src=\"/assets/site.js\""),
+        "최근 본 게시판 때문에 팝업이 없어도 싣는다 (ADR-0096)"
+    );
 
     let (status, js) = get(&bind, "/assets/site.js");
     assert_eq!(status, 200);
