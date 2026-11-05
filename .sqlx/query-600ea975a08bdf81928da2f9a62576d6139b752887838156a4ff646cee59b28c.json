@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM mod_webhook_delivery WHERE endpoint_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "600ea975a08bdf81928da2f9a62576d6139b752887838156a4ff646cee59b28c"
+}

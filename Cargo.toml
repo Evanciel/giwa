@@ -24,6 +24,7 @@ maru-mod-poll = { path = "mods/poll" }
 maru-mod-scrap = { path = "mods/scrap" }
 maru-mod-ads = { path = "mods/ads" }
 maru-mod-consult = { path = "mods/consult" }
+maru-mod-webhook = { path = "mods/webhook" }
 
 # 웹
 axum = "0.8.9"

@@ -1,0 +1,110 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT endpoint_id, event_id, action, ok, attempts, http_status, last_error, at\n             FROM mod_webhook_delivery\n             WHERE (?1 IS NULL OR endpoint_id = ?1) AND (?2 = 0 OR ok = 0)\n             ORDER BY at DESC, event_id DESC LIMIT ?3",
+  "describe": {
+    "columns": [
+      {
+        "name": "endpoint_id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_webhook_delivery",
+            "name": "endpoint_id"
+          }
+        }
+      },
+      {
+        "name": "event_id",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_webhook_delivery",
+            "name": "event_id"
+          }
+        }
+      },
+      {
+        "name": "action",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_webhook_delivery",
+            "name": "action"
+          }
+        }
+      },
+      {
+        "name": "ok",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_webhook_delivery",
+            "name": "ok"
+          }
+        }
+      },
+      {
+        "name": "attempts",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_webhook_delivery",
+            "name": "attempts"
+          }
+        }
+      },
+      {
+        "name": "http_status",
+        "ordinal": 5,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_webhook_delivery",
+            "name": "http_status"
+          }
+        }
+      },
+      {
+        "name": "last_error",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_webhook_delivery",
+            "name": "last_error"
+          }
+        }
+      },
+      {
+        "name": "at",
+        "ordinal": 7,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_webhook_delivery",
+            "name": "at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "02b3e63dd9a9672e47aec766ae9c2467f246b21ac1f1cea7ce24a77150951f14"
+}

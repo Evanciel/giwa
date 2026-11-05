@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE mod_webhook_endpoint SET events = ?, enabled = 1 WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "d716868bb19ecc9fffe374df06ef99c3efb08c9b49ae733acd51d3b0abbb39ed"
+}

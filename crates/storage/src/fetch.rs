@@ -191,6 +191,57 @@ impl HttpFetcher {
     }
 }
 
+/// 나가는 웹훅 전송 (GAP S13, ADR-0085). 링크 카드와 같은 주소 규칙(사설 주소 차단·프록시 없음)을 쓰고,
+/// POST 는 리디렉션을 따라가지 않는다(본문을 다른 곳에 다시 보내지 않게).
+pub struct WebhookPoster {
+    client: Client,
+}
+
+/// 웹훅 받는 곳으로 쓸 수 있는 주소인가(모양·IP 주소만 본다. 이름은 보낼 때 푼다)
+pub fn check_target_url(url: &str) -> Result<(), String> {
+    if url.len() > 2048 {
+        return Err("주소가 너무 깁니다".into());
+    }
+    let url = Url::parse(url).map_err(|e| format!("주소를 읽지 못했습니다: {e}"))?;
+    url_allowed(&url)
+}
+
+impl WebhookPoster {
+    pub fn new() -> Result<Self, String> {
+        crate::tls::install_provider();
+        let client = Client::builder()
+            .no_proxy()
+            .dns_resolver(Arc::new(PublicOnly))
+            .redirect(redirect::Policy::none())
+            .connect_timeout(CONNECT_TIMEOUT)
+            .timeout(TOTAL_TIMEOUT)
+            .user_agent(concat!("Maru-Webhook/", env!("CARGO_PKG_VERSION")))
+            .build()
+            .map_err(|e| e.to_string())?;
+        Ok(Self { client })
+    }
+
+    /// JSON 본문을 보낸다. 응답 코드를 돌려주고, 접속하지 못하면 `Err`.
+    pub async fn post_json(
+        &self,
+        url: &str,
+        headers: &[(&str, String)],
+        body: Vec<u8>,
+    ) -> Result<u16, String> {
+        let url = Url::parse(url).map_err(|e| format!("주소를 읽지 못했습니다: {e}"))?;
+        url_allowed(&url)?;
+        let mut req = self
+            .client
+            .post(url)
+            .header(reqwest::header::CONTENT_TYPE, "application/json");
+        for (k, v) in headers {
+            req = req.header(*k, v);
+        }
+        let res = req.body(body).send().await.map_err(|e| describe(&e))?;
+        Ok(res.status().as_u16())
+    }
+}
+
 fn describe(e: &reqwest::Error) -> String {
     use std::error::Error as _;
     let mut s = e.to_string();

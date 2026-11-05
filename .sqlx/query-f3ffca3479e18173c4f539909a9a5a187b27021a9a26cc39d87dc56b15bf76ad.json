@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO mod_webhook_delivery\n                 (endpoint_id, event_id, action, ok, attempts, http_status, last_error, at)\n             VALUES (?, ?, ?, ?, 1, ?, ?, ?)\n             ON CONFLICT (endpoint_id, event_id) DO UPDATE SET\n                 ok = excluded.ok, attempts = attempts + 1, http_status = excluded.http_status,\n                 last_error = excluded.last_error, at = excluded.at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "f3ffca3479e18173c4f539909a9a5a187b27021a9a26cc39d87dc56b15bf76ad"
+}

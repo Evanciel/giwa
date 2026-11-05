@@ -1,0 +1,86 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, url, events, secret, enabled, created_at\n             FROM mod_webhook_endpoint ORDER BY created_at, id",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_webhook_endpoint",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "url",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_webhook_endpoint",
+            "name": "url"
+          }
+        }
+      },
+      {
+        "name": "events",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_webhook_endpoint",
+            "name": "events"
+          }
+        }
+      },
+      {
+        "name": "secret",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_webhook_endpoint",
+            "name": "secret"
+          }
+        }
+      },
+      {
+        "name": "enabled",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_webhook_endpoint",
+            "name": "enabled"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_webhook_endpoint",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "dbec1d6be7d1b43c0a8108eb77ab82006c63600e25d88ee7e1248c7aaef89ef8"
+}
