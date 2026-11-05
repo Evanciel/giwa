@@ -1085,6 +1085,9 @@ pub struct SiteSetArgs {
     /// 공개 화면 머리글에 검색 칸을 보일지 (true/false)
     #[arg(long)]
     pub show_search: Option<bool>,
+    /// 글 화면 아래에 그 게시판 목록을 다시 보일지 (true/false). 켜면 이전·다음 글 링크는 숨긴다
+    #[arg(long)]
+    pub list_under_post: Option<bool>,
     /// 방문자 통계를 며칠 남길지 (30~3650)
     #[arg(long)]
     pub stats_retention_days: Option<u32>,

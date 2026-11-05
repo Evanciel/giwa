@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO member_signatures (member_id, signature, updated_at) VALUES (?1, ?2, ?3)\n             ON CONFLICT (member_id) DO UPDATE SET signature = ?2, updated_at = ?3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "1bc809a569f2ec2aae5a7388bcd5373e3abbf732809dbe60b31ba0d11c5bd38e"
+}

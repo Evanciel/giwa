@@ -1650,6 +1650,7 @@ async fn site(g: &Global, cmd: SiteCmd) -> Out {
                 toc_min_headings: args.toc_min_headings,
                 show_views: args.show_views,
                 show_search: args.show_search,
+                list_under_post: args.list_under_post,
                 stats_retention_days: args.stats_retention_days,
                 signup: args.signup,
                 signup_verify: args.signup_verify,

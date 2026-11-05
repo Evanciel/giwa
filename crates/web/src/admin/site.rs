@@ -1146,6 +1146,8 @@ struct SettingsForm {
     #[serde(default)]
     show_search: Option<String>,
     #[serde(default)]
+    list_under_post: Option<String>,
+    #[serde(default)]
     signup: String,
     #[serde(default)]
     signup_verify: Option<String>,
@@ -1189,6 +1191,7 @@ impl SettingsForm {
             toc_min_headings: s.toc_min_headings.to_string(),
             show_views: on(s.show_views),
             show_search: on(s.show_search),
+            list_under_post: on(s.list_under_post),
             signup: s.signup.as_str().into(),
             signup_verify: on(s.signup_verify),
             captcha: s.captcha.as_str().into(),
@@ -1237,6 +1240,7 @@ impl SettingsForm {
             ),
             show_views: changed(self.show_views.is_some(), now.show_views),
             show_search: changed(self.show_search.is_some(), now.show_search),
+            list_under_post: changed(self.list_under_post.is_some(), now.list_under_post),
             signup: changed(self.signup.clone(), now.signup.as_str().to_owned()),
             signup_verify: changed(self.signup_verify.is_some(), now.signup_verify),
             captcha: changed(self.captcha.clone(), now.captcha.as_str().to_owned()),

@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block main %}
+<p class="post-back"><a href="{{ board.url }}"><span aria-hidden="true">‹</span> {{ board.name }}</a></p>
 <article class="post">
   <header>
     <p class="crumb"><a href="{{ board.url }}">{{ board.name }}</a>{% if post.category %} <span aria-hidden="true">›</span> <a href="{{ post.category.url }}">{{ post.category.name }}</a>{% endif %}</p>
@@ -25,6 +26,8 @@
     {% if post.wiki.backlinks %}<ul>{% for b in post.wiki.backlinks %}<li><a href="{{ b.url }}">{{ b.title }}</a></li>{% endfor %}</ul>{% else %}<p class="empty">아직 없습니다.</p>{% endif %}
   </section>
   {% endif %}
+  {% if board.write_url and post.author and post.author.signature %}<p class="post-signature"><span class="visually-hidden">글쓴이 서명: </span>{{ post.author.signature }}</p>{% endif %}
+  {% if board.write_url and post.author and post.author.url %}<p class="post-author-more"><a href="{{ post.author.url }}">{{ post.author.name }} 님의 다른 글·댓글 보기</a></p>{% endif %}
   {% if post.parent %}
   <p class="post-parent">답변한 글: <a href="{{ post.parent.url }}">{{ post.parent.title }}</a></p>
   {% endif %}
@@ -41,7 +44,7 @@
 </article>
 {% if slots and slots.post_footer %}<div class="slot-row" id="reactions">{% for s in slots.post_footer %}{% include s.template %}{% endfor %}</div>{% endif %}
 {% if comments.open or comments.locked or comments.items %}{% include "_comments.html" %}{% endif %}
-{% if nearby.prev or nearby.next %}
+{% if (nearby.prev or nearby.next) and not board_list %}
 <nav class="post-nav" aria-label="이전 글과 다음 글">
   {% if nearby.prev %}<a class="post-nav-prev" href="{{ nearby.prev.url }}"><span class="post-nav-label">이전 글</span><span class="post-nav-title">{% if nearby.prev.is_secret %}{% include "_lock.html" %}{% endif %}{{ nearby.prev.title }}</span></a>{% endif %}
   {% if nearby.next %}<a class="post-nav-next" href="{{ nearby.next.url }}"><span class="post-nav-label">다음 글</span><span class="post-nav-title">{% if nearby.next.is_secret %}{% include "_lock.html" %}{% endif %}{{ nearby.next.title }}</span></a>{% endif %}
@@ -63,6 +66,12 @@
   </ul>
 </section>
 {% endif %}
+{% if board_list %}
+<section class="board-under" aria-labelledby="board-under-title">
+  <h2 id="board-under-title"><a href="{{ board.url }}">{{ board.name }}</a></h2>
+  {% with posts = board_list.posts, pagination = board_list.pagination %}{% include "_list.html" %}{% endwith %}
+</section>
+{% endif %}
 {# 긴 글에서 손이 닿는 곳에: 맨 위·목록. 스크립트 없이 화면에 붙어 있다 (ADR-0054). #}
-<nav class="float-nav" aria-label="빠른 이동"><a href="#main">맨 위</a><a href="{{ board.url }}">목록</a></nav>
+<nav class="float-nav" aria-label="빠른 이동"><a href="#main">맨 위</a><a class="float-wide" href="{{ board.url }}">목록</a>{% if slots and slots.post_footer %}<a class="float-wide" href="#reactions">추천</a>{% endif %}{% if comments.open or comments.locked or comments.items %}<a href="#comments">댓글</a>{% endif %}<button type="button" data-share hidden>공유</button></nav>
 {% endblock %}

@@ -171,3 +171,140 @@
     });
   });
 })();
+
+// 차단한 회원의 글·댓글 접기 (GAP Q18, ADR-0103). 공개 HTML 은 모두에게 같아(캐시) 누구를 접을지는
+// 로그인한 사람의 /me/bar(hidden_members)를 보고 여기서 정한다. 이름 표지(data-member)가 있는 화면만 묻는다.
+(() => {
+  const hosts = document.querySelectorAll("[data-member]");
+  if (!hosts.length || !window.fetch) return;
+  const bar = window.maruBar || (window.maruBar = fetch("/me/bar", { credentials: "same-origin", headers: { "Accept": "application/json" } })
+    .then((r) => (r.ok ? r.json() : null))
+    .catch(() => null));
+  const fold = (parts, before, where, text) => {
+    if (!parts.length || where.querySelector(":scope > .member-fold")) return;
+    const note = document.createElement("p");
+    note.className = "member-fold";
+    const show = document.createElement("button");
+    show.type = "button";
+    show.textContent = "보기";
+    note.append(text + " ", show);
+    parts.forEach((p) => p.classList.add("member-folded"));
+    where.insertBefore(note, before);
+    show.addEventListener("click", () => {
+      parts.forEach((p) => p.classList.remove("member-folded"));
+      note.remove();
+    });
+  };
+  bar.then((b) => {
+    const names = new Set(b && b.signed_in && Array.isArray(b.hidden_members) ? b.hidden_members : []);
+    if (!names.size) return;
+    hosts.forEach((host) => {
+      if (!names.has(host.getAttribute("data-member"))) return;
+      const row = host.closest(".comment, .post-row, .post-list > li, .post-grid > li");
+      if (row) {
+        const parts = Array.from(row.children).filter((c) => !c.classList.contains("member-fold"));
+        fold(parts, row.firstChild, row, row.classList.contains("comment") ? "차단한 회원의 댓글입니다." : "차단한 회원의 글입니다.");
+        return;
+      }
+      // 글 화면: 머리(제목·글쓴이)는 두고 본문 쪽만 접는다.
+      const article = host.closest("article.post");
+      if (!article || !host.closest("article.post > header")) return;
+      const parts = Array.from(article.querySelectorAll(":scope > .post-fields, :scope > .prose, :scope > .tags, :scope > .post-signature"));
+      if (parts.length) fold(parts, parts[0], article, "차단한 회원의 글입니다.");
+    });
+  });
+})();
+
+// 갤러리 빠른 보기와 공유 (GAP Q20, ADR-0105). 갤러리 칸을 누르면 목록을 떠나지 않고 글을 대화 상자로 연다.
+// 주소에 ?quick=<글 주소 이름> 이 붙어 뒤로 가기로 닫히고, 그 주소로 들어와도 열린다. 새 탭·수정 키는 그대로.
+(() => {
+  const grid = document.querySelector(".post-grid-gallery");
+  if (!grid || !window.fetch || !window.DOMParser || typeof HTMLDialogElement !== "function") return;
+  let dlg = null;
+  let pushed = false;
+  const close = () => { if (dlg && dlg.open) dlg.close(); };
+  const slugOf = (href) => decodeURIComponent(new URL(href, location.href).pathname.split("/").pop() || "");
+  const open = (href, push) => {
+    if (!dlg) {
+      dlg = document.createElement("dialog");
+      dlg.className = "quick-view";
+      dlg.setAttribute("aria-label", "빠른 보기");
+      const bar = document.createElement("div");
+      bar.className = "quick-view-bar";
+      const shut = document.createElement("button");
+      shut.type = "button";
+      shut.textContent = "닫기";
+      shut.addEventListener("click", close);
+      const full = document.createElement("a");
+      full.textContent = "글 화면으로";
+      const body = document.createElement("div");
+      body.className = "quick-view-body";
+      bar.append(shut, full);
+      dlg.append(bar, body);
+      document.body.append(dlg);
+      dlg.addEventListener("click", (ev) => { if (ev.target === dlg) close(); });
+      dlg.addEventListener("close", () => {
+        if (!new URLSearchParams(location.search).has("quick")) return;
+        if (pushed) { history.back(); return; }
+        const u = new URL(location.href);
+        u.searchParams.delete("quick");
+        history.replaceState(null, "", u);
+      });
+    }
+    const body = dlg.querySelector(".quick-view-body");
+    dlg.querySelector(".quick-view-bar a").href = href;
+    body.textContent = "불러오는 중…";
+    pushed = push;
+    if (push) {
+      const u = new URL(location.href);
+      u.searchParams.set("quick", slugOf(href));
+      history.pushState({ quick: href }, "", u);
+    }
+    if (!dlg.open) dlg.showModal();
+    fetch(href, { credentials: "same-origin" })
+      .then((r) => (r.ok ? r.text() : Promise.reject(r.status)))
+      .then((html) => {
+        // 같은 사이트가 그린 글 화면에서 글 부분만 옮긴다(본문은 서버가 정화한 HTML).
+        const doc = new DOMParser().parseFromString(html, "text/html");
+        const art = doc.querySelector("article.post");
+        body.textContent = "";
+        if (art) body.append(document.importNode(art, true));
+        else location.href = href;
+      })
+      .catch(() => { location.href = href; });
+  };
+  grid.addEventListener("click", (ev) => {
+    const a = ev.target.closest && ev.target.closest("a.tile, h2 a");
+    if (!a || ev.button !== 0 || ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.altKey) return;
+    ev.preventDefault();
+    open(a.href, true);
+  });
+  window.addEventListener("popstate", () => {
+    const q = new URLSearchParams(location.search).get("quick");
+    if (!q) { if (dlg && dlg.open) { const d = dlg; dlg = null; d.close(); d.remove(); } return; }
+  });
+  const q = new URLSearchParams(location.search).get("quick");
+  if (q) {
+    const a = Array.from(grid.querySelectorAll("h2 a")).find((x) => slugOf(x.href) === q);
+    if (a) open(a.href, false);
+  }
+})();
+
+(() => {
+  const b = document.querySelector("[data-share]");
+  if (!b) return;
+  const canShare = typeof navigator.share === "function";
+  if (!canShare && !(navigator.clipboard && navigator.clipboard.writeText)) return;
+  b.hidden = false;
+  b.addEventListener("click", () => {
+    const url = (document.querySelector("link[rel=canonical]") || location).href;
+    if (canShare) {
+      navigator.share({ title: document.title, url }).catch(() => {});
+      return;
+    }
+    navigator.clipboard.writeText(url).then(() => {
+      b.textContent = "복사됨";
+      setTimeout(() => { b.textContent = "공유"; }, 1500);
+    }, () => {});
+  });
+})();

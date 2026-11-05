@@ -38,6 +38,9 @@ pub struct SettingsPatch {
     /// 공개 화면 머리글에 검색 칸을 보일지
     #[serde(default)]
     pub show_search: Option<bool>,
+    /// 글 아래에 게시판 목록을 보일지 (GAP Q19)
+    #[serde(default)]
+    pub list_under_post: Option<bool>,
     /// 회원 가입: off · open (회원 관리 권한 필요)
     #[serde(default)]
     pub signup: Option<String>,
@@ -137,6 +140,9 @@ pub async fn update(ctx: &Ctx, actor: &Actor, patch: SettingsPatch) -> Result<Si
     }
     if let Some(b) = patch.show_views {
         changes.push(("show_views", json!(b)));
+    }
+    if let Some(b) = patch.list_under_post {
+        changes.push(("list_under_post", json!(b)));
     }
     if let Some(b) = patch.show_search {
         changes.push(("show_search", json!(b)));

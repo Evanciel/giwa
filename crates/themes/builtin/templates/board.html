@@ -22,13 +22,6 @@
   </ul>
 </nav>
 {% endif %}
-{% if posts and sorts %}
-<nav class="cats list-sort" aria-label="목록 순서">
-  <ul>
-    {% for s in sorts %}<li><a href="{{ s.url }}" rel="nofollow"{% if s.current %} aria-current="page"{% endif %}>{{ s.label }}</a></li>{% endfor %}
-  </ul>
-</nav>
-{% endif %}
 {% for g in field_filters %}
 <nav class="cats field-filter" aria-label="{{ g.label }}(으)로 거르기">
   <ul>
@@ -47,7 +40,21 @@
   {% endfor %}
 </ul>
 {% endif %}
+{% set pager_below = true %}
 {% include "_list.html" %}
+{# 목록 아래 줄: 왼쪽 순서, 오른쪽 글쓰기 (GAP Q16) #}
+{% if (posts and sorts) or board.write_url %}
+<div class="list-foot">
+  {% if posts and sorts %}
+  <nav class="cats list-sort" aria-label="목록 순서">
+    <ul>
+      {% for s in sorts %}<li><a href="{{ s.url }}" rel="nofollow"{% if s.current %} aria-current="page"{% endif %}>{{ s.label }}</a></li>{% endfor %}
+    </ul>
+  </nav>
+  {% endif %}
+  {% if board.write_url %}<a class="write-button" href="{{ board.write_url }}">글쓰기</a>{% endif %}
+</div>
+{% endif %}
 {% if wiki %}
 <section class="wiki-index" aria-label="위키 살피기">
   <div>
@@ -61,5 +68,8 @@
 </section>
 {% endif %}
 {% endif %}
+<div class="list-pager">
+{% if not search.searched %}{% include "_pagination.html" %}{% endif %}
 {% if search %}<section class="board-search" aria-label="{{ board.name }} 안에서 검색">{% include "_search_form.html" %}</section>{% endif %}
+</div>
 {% endblock %}

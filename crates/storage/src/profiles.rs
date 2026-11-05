@@ -43,6 +43,50 @@ pub(crate) async fn set_bio<'e>(
     Ok(())
 }
 
+/// 회원 서명 (GAP Q17)
+pub(crate) async fn signature<'e>(
+    e: impl SqliteExecutor<'e>,
+    member_id: &str,
+) -> Result<Option<String>> {
+    sqlx::query_scalar!(
+        "SELECT signature FROM member_signatures WHERE member_id = ?",
+        member_id
+    )
+    .fetch_optional(e)
+    .await
+    .map_err(db_error)
+}
+
+/// 비운 서명은 줄을 지운다.
+pub(crate) async fn set_signature<'e>(
+    e: impl SqliteExecutor<'e>,
+    member_id: &str,
+    signature: &str,
+    now: &str,
+) -> Result<()> {
+    if signature.is_empty() {
+        sqlx::query!(
+            "DELETE FROM member_signatures WHERE member_id = ?",
+            member_id
+        )
+        .execute(e)
+        .await
+        .map_err(db_error)?;
+    } else {
+        sqlx::query!(
+            "INSERT INTO member_signatures (member_id, signature, updated_at) VALUES (?1, ?2, ?3)
+             ON CONFLICT (member_id) DO UPDATE SET signature = ?2, updated_at = ?3",
+            member_id,
+            signature,
+            now
+        )
+        .execute(e)
+        .await
+        .map_err(db_error)?;
+    }
+    Ok(())
+}
+
 /// 회원의 공개 글 ID, 새것부터.
 pub(crate) async fn public_post_ids<'e>(
     e: impl SqliteExecutor<'e>,

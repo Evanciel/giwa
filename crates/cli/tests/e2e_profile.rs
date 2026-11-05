@@ -297,6 +297,54 @@ fn public_profile_and_author_card() {
         "{card}"
     );
 
+    // 서명 (GAP Q17): 본문 아래, 줄바꿈은 살리고 HTML 은 글자로.
+    assert!(!post.contains("class=\"post-signature\""), "{post}");
+    let sign = |who: &str, name: &str, bio: &str, signature: &str| {
+        let me = http(&bind, "GET", "/me", &[("Cookie", who)], "");
+        http(
+            &bind,
+            "POST",
+            "/me/profile",
+            &[FORM, ("Cookie", who)],
+            &form(&[
+                ("_csrf", &me.csrf()),
+                ("display_name", name),
+                ("bio", bio),
+                ("signature", signature),
+            ]),
+        )
+    };
+    let bio = "안녕하세요\n<b>굵게</b>";
+    let saved = sign(
+        moon.as_str(),
+        "달빛이",
+        bio,
+        "  달빛 서명\r\n<i>둘째 줄</i> ",
+    );
+    assert_eq!(saved.status, 303, "{}", saved.body);
+    let post = http(&bind, "GET", &open_url, &[], "").body;
+    let at = post.find("class=\"post-signature\"").expect("서명");
+    assert!(
+        post[at..].contains("서명: </span>달빛 서명\n&lt;i&gt;둘째 줄&lt;/i&gt;</p>"),
+        "{post}"
+    );
+    assert!(
+        at < post.find("class=\"author-card\"").unwrap(),
+        "서명은 카드 위"
+    );
+    let lines = sign(moon.as_str(), "달빛이", bio, "하나\n둘\n셋\n넷");
+    assert_eq!(lines.status, 400);
+    assert!(lines.body.contains("3줄 이하"), "{}", lines.body);
+    assert_eq!(
+        sign(moon.as_str(), "달빛이", bio, &"가".repeat(151)).status,
+        400
+    );
+    let me = http(&bind, "GET", "/me", &[("Cookie", &moon)], "").body;
+    assert!(
+        me.contains(">달빛 서명\n&lt;i&gt;"),
+        "내 정보 폼에 지금 서명"
+    );
+
     // REST(토큰 없으면 손님 기준)와 CLI(운영자 기준)는 같은 서비스를 쓴다.
     let api = http(
         &bind,
@@ -313,6 +361,13 @@ fn public_profile_and_author_card() {
     let cli = maru(&data, &["member", "profile", "달빛이"]);
     assert_eq!(cli["post_count"], 2, "운영자는 회원방 글도 센다");
     assert_eq!(cli["bio"], "안녕하세요\n<b>굵게</b>");
+    assert_eq!(cli["signature"], "달빛 서명\n<i>둘째 줄</i>");
+    // 서명 칸이 없는 폼(옛 화면)은 서명을 건드리지 않는다.
+    assert_eq!(save_profile(&bind, &moon, "달빛이", bio).status, 303);
+    assert_eq!(
+        maru(&data, &["member", "profile", "달빛이"])["signature"],
+        "달빛 서명\n<i>둘째 줄</i>"
+    );
     let missing = run(&data, &["member", "profile", "없는사람"]);
     assert_eq!(missing["error"]["code"], "NOT_FOUND");
     assert_eq!(http(&bind, "GET", "/u/없는사람", &[], "").status, 404);
@@ -340,6 +395,10 @@ fn public_profile_and_author_card() {
 
     // 탈퇴하면 자기소개가 지워진다.
     save_profile(&bind, &sun, "햇살이", "햇살 소개");
+    assert_eq!(
+        sign(sun.as_str(), "햇살이", "햇살 소개", "햇살 서명").status,
+        303
+    );
     assert_eq!(
         maru(&data, &["member", "profile", "햇살이"])["bio"],
         "햇살 소개"
@@ -369,6 +428,11 @@ fn public_profile_and_author_card() {
             .fetch_one(db.read_pool())
             .await
             .unwrap();
+        let signed: i64 = sqlx::query_scalar("SELECT count(*) FROM member_signatures")
+            .fetch_one(db.read_pool())
+            .await
+            .unwrap();
+        assert_eq!(signed, 1, "탈퇴한 회원의 서명도 지워진다");
         db.close().await;
         n
     });

@@ -490,6 +490,44 @@ fn community_preset_skin_and_account_bar() {
     assert_eq!(compose.status, 200);
     assert!(compose.body.contains("value=\"달빛\""), "{}", compose.body);
 
+    // 차단 넓히기 (GAP Q18, ADR-0103): 이름 메뉴 「차단하기」 → 묻는 화면 → 차단 → 막대의 접을 이름.
+    assert_eq!(msg["member_actions"][0]["label"], "쪽지 보내기", "{v}");
+    assert_eq!(msg["member_actions"][1]["label"], "차단하기", "{v}");
+    assert_eq!(msg["member_actions"][1]["url"], "/m/message/blocks?add=");
+    assert_eq!(v["hidden_members"].as_array().unwrap().len(), 0, "{v}");
+    let ask_url = format!("/m/message/blocks?add={}", enc("햇살"));
+    let ask = http(&bind, "GET", &ask_url, &[("Cookie", &moon)], "");
+    assert_eq!(ask.status, 200, "{}", ask.body);
+    assert!(
+        ask.body.contains("<strong>햇살</strong> 님을 차단할까요?"),
+        "{}",
+        ask.body
+    );
+    let block = |action: &str| {
+        http(
+            &bind,
+            "POST",
+            "/m/message/block",
+            &[FORM, ("Cookie", &moon), ("Sec-Fetch-Site", "same-origin")],
+            &form(&[("name", "햇살"), ("action", action)]),
+        )
+    };
+    assert_eq!(block("on").status, 303);
+    let v = http(&bind, "GET", "/me/bar", &[("Cookie", &moon)], "").json();
+    assert_eq!(v["hidden_members"][0], "햇살", "{v}");
+    assert_eq!(v["hidden_members"].as_array().unwrap().len(), 1, "{v}");
+    let ask = http(&bind, "GET", &ask_url, &[("Cookie", &moon)], "");
+    assert!(
+        !ask.body.contains("차단할까요"),
+        "이미 차단했으면 묻지 않는다"
+    );
+    // 차단당한 쪽 막대엔 아무것도 없다(차단 여부가 드러나지 않게).
+    let v = http(&bind, "GET", "/me/bar", &[("Cookie", &sun)], "").json();
+    assert_eq!(v["hidden_members"].as_array().unwrap().len(), 0, "{v}");
+    assert_eq!(block("off").status, 303);
+    let v = http(&bind, "GET", "/me/bar", &[("Cookie", &moon)], "").json();
+    assert_eq!(v["hidden_members"].as_array().unwrap().len(), 0, "{v}");
+
     // 목록의 추천 수와 회원 이름 표지. 목록 HTML 은 모두에게 같다(손님이 봐도 같은 수).
     maru(&data, &["module", "enable", "reaction"]);
     let post = maru(

@@ -311,6 +311,7 @@ async fn profile_password_and_withdraw() {
     let patch = |n: &str| ProfilePatch {
         display_name: Some(n.into()),
         bio: None,
+        signature: None,
     };
     assert_eq!(
         members::update_profile(&e.ctx, &me, patch("별빛"))

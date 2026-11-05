@@ -731,6 +731,9 @@ pub struct SiteSettings {
     /// 공개 화면 머리글에 사이트 검색 칸을 보인다 (`/search` 는 꺼도 열린다)
     #[serde(default = "default_true")]
     pub show_search: bool,
+    /// 글 화면 아래에 그 게시판 목록(첫 쪽)을 다시 보인다. 켜면 이전·다음 글 링크는 숨긴다 (GAP Q19)
+    #[serde(default)]
+    pub list_under_post: bool,
     /// 회원 가입: off(받지 않음) · open(누구나). 꺼도 이미 있는 회원은 로그인한다
     #[serde(default)]
     pub signup: SignupMode,
@@ -859,6 +862,7 @@ impl Default for SiteSettings {
             toc_min_headings: default_toc_min_headings(),
             show_views: true,
             show_search: true,
+            list_under_post: false,
             signup: SignupMode::Off,
             signup_verify: true,
             captcha: CaptchaMode::Guest,

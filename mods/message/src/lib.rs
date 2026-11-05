@@ -738,6 +738,9 @@ impl Module for MessageModule {
                     "count": self.unread(member).await?,
                     // 회원 이름을 누르면 나오는 메뉴 (ADR-0082). 받는 사람 이름을 뒤에 붙인다.
                     "member_action": { "label": "쪽지 보내기", "url": format!("{HOME}/new?to=") },
+                    // 이름 메뉴의 둘째 항목과, 화면에서 접을 회원 (GAP Q18, ADR-0103)
+                    "member_actions": [{ "label": "차단하기", "url": format!("{HOME}/blocks?add=") }],
+                    "hide_members": self.blocks(ctx, member).await?,
                 }),
             }));
         }
@@ -981,10 +984,18 @@ async fn delete_form(
     }
 }
 
+#[derive(Debug, Default, Deserialize)]
+struct BlocksQuery {
+    /// 이름 메뉴 「차단하기」: 이 이름을 차단할지 묻는다 (GAP Q18)
+    #[serde(default)]
+    add: String,
+}
+
 async fn blocks_page(
     State(state): State<ModuleState>,
     Extension(module): Extension<Arc<MessageModule>>,
     headers: HeaderMap,
+    Query(q): Query<BlocksQuery>,
 ) -> Response {
     let (_, member) = match viewer(&state, &headers).await {
         Ok(v) => v,
@@ -997,7 +1008,13 @@ async fn blocks_page(
                 .page(
                     "mod/message/blocks.html",
                     "차단한 회원",
-                    json!({ "names": names, "noindex": true }),
+                    json!({
+                        "names": names,
+                        // 이미 차단했으면 묻지 않는다. 이름 길이는 닉네임 한도 근처로 자른다.
+                        "add": Some(q.add.trim())
+                            .filter(|n| !n.is_empty() && n.chars().count() <= 40 && !names.iter().any(|x| x == n)),
+                        "noindex": true,
+                    }),
                 )
                 .await
         }

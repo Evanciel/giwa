@@ -318,8 +318,13 @@ async fn board_inner(
     // 목록 번호: 전체에서 거꾸로 센다(공지 제외).
     let first = found.posts.total
         - i64::from(found.posts.page.saturating_sub(1)) * i64::from(found.posts.per_page);
+    // 조회·댓글 순이면 번호 칸에 순위를 보인다 (GAP Q16).
+    let offset = i64::from(found.posts.page.saturating_sub(1)) * i64::from(found.posts.per_page);
     for (i, view) in items.iter_mut().enumerate() {
         view["number"] = json!(first - i as i64);
+        if sort != posts::ListSort::Latest {
+            view["rank"] = json!(offset + i as i64 + 1);
+        }
     }
     let items = with_thumbs(state, items, &found.posts.items).await?;
     let current = found.category.as_ref().map(|c| c.id.as_str());
@@ -849,6 +854,14 @@ async fn post_inner(
             site.settings.tz_offset_min
         ));
         view["author"]["bio"] = json!(state.ctx.store.member_bio(id).await?.unwrap_or_default());
+        view["author"]["signature"] = json!(
+            state
+                .ctx
+                .store
+                .member_signature(id)
+                .await?
+                .unwrap_or_default()
+        );
     }
     // 회원·손님이 쓴 글만 공개 화면에서 고친다. 누가 고칠 수 있는지는 누를 때 본다.
     if public_write(&board) && (post.author_id.is_some() || post.guest_name.is_some()) {
@@ -879,6 +892,34 @@ async fn post_inner(
             "url": urls::path(&Target::Post { board: &board.slug, post: &parent.slug }),
         });
     }
+    // 글 아래 게시판 목록 (GAP Q19): 게시판 첫 쪽을 손님 기준으로. 목록을 못 보는 게시판이면 없다.
+    let board_list = if site.settings.list_under_post {
+        let first = PageQuery {
+            page: None,
+            category: None,
+            q: String::new(),
+            range: String::new(),
+            sort: String::new(),
+            order: String::new(),
+        };
+        match Box::pin(board_inner(state, &board.slug, first, &[])).await {
+            Ok(mut list) => {
+                if let Some(items) = list["posts"].as_array_mut() {
+                    for item in items.iter_mut().filter(|i| i["id"] == post.id.as_str()) {
+                        item["current"] = json!(true);
+                    }
+                }
+                json!({
+                    "posts": list["posts"].take(),
+                    "notices": list["notices"].take(),
+                    "pagination": list["pagination"].take(),
+                })
+            }
+            Err(_) => Value::Null,
+        }
+    } else {
+        Value::Null
+    };
     Ok(json!({
         "meta": json!({
             "title": format!("{} · {}", post.title, site.settings.name),
@@ -894,6 +935,7 @@ async fn post_inner(
         "post": view,
         "nearby": nearby,
         "comments": comments,
+        "board_list": board_list,
     }))
 }
 
@@ -1541,10 +1583,30 @@ fn pages_json(page: i64, total_pages: i64, base: &str) -> Value {
             format!("{base}{sep}page={n}")
         }
     };
+    // 번호는 10개씩 묶는다(1~10, 11~20 …). 지금 쪽에서 셋 이상 먼 번호는 `far` —
+    // 좁은 화면 스킨이 숨겨 다섯 개만 보이게 한다 (GAP Q16).
+    let start = (page.max(1) - 1) / PAGE_BLOCK * PAGE_BLOCK + 1;
+    let end = (start + PAGE_BLOCK - 1).min(total_pages);
+    let pages = (start..=end)
+        .map(|n| {
+            json!({
+                "n": n,
+                "url": link(n),
+                "current": n == page,
+                "far": (n - page).abs() > 2,
+            })
+        })
+        .collect::<Vec<_>>();
     json!({
         "page": page,
         "total_pages": total_pages,
         "prev_url": (page > 1).then(|| link(page - 1)),
         "next_url": (page < total_pages).then(|| link(page + 1)),
+        "first_url": (page > 1).then(|| link(1)),
+        "last_url": (page < total_pages).then(|| link(total_pages)),
+        "pages": pages,
     })
 }
+
+/// 쪽 번호 한 묶음의 크기
+const PAGE_BLOCK: i64 = 10;

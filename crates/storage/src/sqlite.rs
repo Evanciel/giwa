@@ -1458,6 +1458,10 @@ impl Store for SqliteStore {
         crate::profiles::bio(&self.db.read, member_id).await
     }
 
+    async fn member_signature(&self, member_id: &str) -> Result<Option<String>> {
+        crate::profiles::signature(&self.db.read, member_id).await
+    }
+
     async fn public_posts_of(
         &self,
         member_id: &str,
@@ -2860,6 +2864,15 @@ impl WriteTx for SqliteWriteTx {
 
     async fn set_member_bio(&mut self, member_id: &str, bio: &str, now: &str) -> Result<()> {
         crate::profiles::set_bio(&mut *self.tx, member_id, bio, now).await
+    }
+
+    async fn set_member_signature(
+        &mut self,
+        member_id: &str,
+        signature: &str,
+        now: &str,
+    ) -> Result<()> {
+        crate::profiles::set_signature(&mut *self.tx, member_id, signature, now).await
     }
 
     async fn clear_member_roles(&mut self, member_id: &str) -> Result<()> {

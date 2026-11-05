@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT signature FROM member_signatures WHERE member_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "signature",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "member_signatures",
+            "name": "signature"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "a4ac17248d6b91d97a552ccf3e53f296be9259110b39bc70d14054bc4bff4482"
+}

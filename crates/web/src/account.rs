@@ -713,6 +713,9 @@ async fn require(state: &AppState, headers: &HeaderMap) -> Result<SignedIn, Box<
     }
 }
 
+/// `/me/bar` 의 `hidden_members` 최대 수
+const MAX_HIDDEN_MEMBERS: usize = 1000;
+
 /// 공개 화면 윗줄 회원 막대 (ADR-0081). 공개 HTML 은 모두에게 같아 캐시하므로
 /// 로그인한 사람의 이름·알림 수는 여기서 따로 준다. `no-store` 는 이 라우터 전체에 걸려 있다.
 async fn account_bar(State(state): State<AppState>, headers: HeaderMap) -> Response {
@@ -731,6 +734,24 @@ async fn account_bar(State(state): State<AppState>, headers: HeaderMap) -> Respo
         .into_response();
     };
     let slots = crate::modules::bar_slots(&state, &who.actor).await;
+    // 회원 이름 메뉴 항목: 사이트 안 주소에 이름을 붙여 쓴다 (ADR-0082)
+    let action_ok = |a: &&Value| {
+        a["label"].is_string()
+            && a["url"]
+                .as_str()
+                .is_some_and(|u| u.starts_with('/') && !u.starts_with("//"))
+    };
+    // 화면에서 접을 회원 이름 (GAP Q18, ADR-0103). 모듈이 준 것을 모아 겹친 것을 뺀다.
+    let mut hidden: Vec<&str> = slots
+        .iter()
+        .filter_map(|s| s["data"]["hide_members"].as_array())
+        .flatten()
+        .filter_map(Value::as_str)
+        .filter(|n| !n.is_empty())
+        .collect();
+    hidden.sort_unstable();
+    hidden.dedup();
+    hidden.truncate(MAX_HIDDEN_MEMBERS);
     let items: Vec<Value> = slots
         .iter()
         .filter_map(|s| {
@@ -740,9 +761,13 @@ async fn account_bar(State(state): State<AppState>, headers: HeaderMap) -> Respo
                 "label": d["label"].as_str()?,
                 "url": d["url"].as_str()?,
                 "count": d["count"].as_i64().unwrap_or(0),
-                "member_action": d.get("member_action").filter(|a| {
-                    a["label"].is_string() && a["url"].as_str().is_some_and(|u| u.starts_with('/'))
-                }),
+                "member_action": d.get("member_action").filter(action_ok),
+                "member_actions": d
+                    .get("member_action")
+                    .into_iter()
+                    .chain(d["member_actions"].as_array().into_iter().flatten())
+                    .filter(action_ok)
+                    .collect::<Vec<_>>(),
                 // 막대에서 펼쳐 보는 목록 주소(사이트 안 JSON), 이름 메뉴로 갈 항목, 덧붙일 한 줄 (GAP Q14, ADR-0099)
                 "panel": d["panel"].as_str().filter(|u| u.starts_with('/') && !u.starts_with("//")),
                 "menu": d["menu"].as_bool().unwrap_or(false),
@@ -759,6 +784,7 @@ async fn account_bar(State(state): State<AppState>, headers: HeaderMap) -> Respo
         // 이름 메뉴의 로그아웃 폼. 같은 사이트 스크립트만 읽는 응답이다(no-store, CORS 없음).
         "logout": { "url": "/logout", "csrf": who.session.csrf_token },
         "items": items,
+        "hidden_members": hidden,
     }))
     .into_response()
 }
@@ -829,6 +855,9 @@ async fn me_page_with(
             "display_name": who.member.display_name,
             "bio": state.ctx.store.member_bio(&who.member.id).await.ok().flatten().unwrap_or_default(),
             "max_bio": members::MAX_BIO_CHARS,
+            "signature": state.ctx.store.member_signature(&who.member.id).await.ok().flatten().unwrap_or_default(),
+            "max_signature": members::MAX_SIGNATURE_CHARS,
+            "max_signature_lines": members::MAX_SIGNATURE_LINES,
             "profile_url": maru_core::urls::path(&maru_core::urls::Target::Member { name: &who.member.display_name }),
             "joined": clock::display_date(&who.member.created_at, site.tz_offset_min),
             "is_owner": who.actor.has(Permission::SiteAdmin),
@@ -970,6 +999,9 @@ struct ProfileForm {
     display_name: String,
     #[serde(default)]
     bio: String,
+    /// 없으면(옛 폼) 서명은 그대로 둔다
+    #[serde(default)]
+    signature: Option<String>,
 }
 
 async fn profile(
@@ -987,6 +1019,7 @@ async fn profile(
     let patch = ProfilePatch {
         display_name: Some(f.display_name),
         bio: Some(f.bio),
+        signature: f.signature,
     };
     match members::update_profile(&state.ctx, &who, patch).await {
         Ok(_) => Redirect::to("/me?done=profile").into_response(),

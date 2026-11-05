@@ -218,8 +218,9 @@ fn board_layouts_follow_kind_then_cli_and_mark_new_posts() {
     let post = http(&bind, "GET", "/b/free/two", &[], "");
     assert_eq!(post.status, 200);
     assert!(post.body.contains("class=\"float-nav\""));
+    assert!(post.body.contains("<a href=\"#main\">맨 위</a>"));
     assert!(
         post.body
-            .contains("<a href=\"#main\">맨 위</a><a href=\"/b/free\">목록</a>")
+            .contains("<a class=\"float-wide\" href=\"/b/free\">목록</a>")
     );
 }

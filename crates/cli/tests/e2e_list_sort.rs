@@ -308,6 +308,42 @@ fn list_sort_and_comment_author_search() {
     assert_eq!(listed(&page), [sb.clone(), sc.clone()], "{page}");
     let page = http(&bind, "GET", "/b/free?order=views&page=2", &[], "").body;
     assert_eq!(listed(&page), [sa.as_str()], "{page}");
+    // 순위 번호: 조회 순 2쪽 첫 줄은 3위, 처음·이전 단추 (GAP Q16)
+    assert!(
+        page.contains("class=\"rank rank-top\" title=\"3위\">3</span>"),
+        "{page}"
+    );
+    assert!(page.contains(">처음</a>"), "{page}");
+    assert!(!page.contains(">마지막</a>"), "{page}");
+    let page = http(&bind, "GET", "/b/free?order=views", &[], "").body;
+    assert!(
+        page.contains("class=\"rank rank-top\" title=\"1위\">1</span>"),
+        "{page}"
+    );
+    // 쪽 번호 묶음: 지금 쪽은 링크 아님, 2쪽 링크와 마지막
+    assert!(
+        page.contains("<span class=\"visually-hidden\">현재 </span>1</span>"),
+        "{page}"
+    );
+    assert!(
+        page.contains("href=\"/b/free?order=views&amp;page=2\" aria-label=\"2쪽\""),
+        "{page}"
+    );
+    assert!(page.contains(">마지막</a>"), "{page}");
+    assert!(!page.contains(">처음</a>"), "{page}");
+    // 최신 순은 번호, 순서 줄은 목록 아래, 쪽 번호와 검색은 한 묶음
+    let page = http(&bind, "GET", "/b/free", &[], "").body;
+    assert!(!page.contains("class=\"rank"), "{page}");
+    let table = page.find("class=\"post-table\"").unwrap();
+    let foot = page.find("class=\"list-foot\"").expect("목록 아래 줄");
+    let pager = page.find("class=\"list-pager\"").expect("쪽 번호 묶음");
+    assert!(table < foot && foot < pager, "{page}");
+    assert!(
+        page[foot..pager].contains("aria-label=\"목록 순서\""),
+        "{page}"
+    );
+    assert!(page[pager..].contains("aria-label=\"페이지\""), "{page}");
+    assert!(page[pager..].contains("class=\"board-search\""), "{page}");
     // 모르는 순서는 최신으로
     let page = http(&bind, "GET", "/b/free?order=random", &[], "").body;
     assert_eq!(listed(&page), [sc.clone(), sb.clone()], "{page}");

@@ -307,4 +307,42 @@ fn views_count_people_once_and_reach_db_and_neighbors_agree() {
     let fixed = maru(&data, &["post", "views", &two_id, "--set", "0"]);
     assert_eq!(fixed["view_count"], 0);
     assert_eq!(db_views(&data, "two"), 0);
+
+    // 글 아래 게시판 목록 (GAP Q19, ADR-0104): 켜면 첫 쪽 목록이 붙고 이전·다음 글 줄은 숨는다.
+    let page = http(&bind, "GET", path, &[], "").body;
+    assert!(!page.contains("class=\"board-under\""), "기본은 끔");
+    assert!(page.contains("class=\"post-back\""), "휴대폰 뒤로가기 줄");
+    let s = maru(&data, &["site", "set", "--list-under-post", "true"]);
+    assert_eq!(s["list_under_post"], true, "{s}");
+    maru(&data, &["board", "update", "blog", "--layout", "list"]);
+    let page = http(&bind, "GET", path, &[], "").body;
+    let under = &page[page.find("class=\"board-under\"").expect("글 아래 목록")..];
+    assert!(
+        under.contains("href=\"/b/blog/one\"") && under.contains("href=\"/b/blog/three\""),
+        "{under}"
+    );
+    let current = &under[under.find("aria-current=\"page\"").expect("지금 글 표시")..];
+    assert!(
+        current[..current.find("</li>").unwrap()].contains("href=\"/b/blog/two\""),
+        "{current}"
+    );
+    assert!(!page.contains("class=\"post-nav\""), "{page}");
+    assert!(page.contains("class=\"related\""), "관련 글은 그대로");
+    // 떠 있는 단추에 공유(스크립트가 보인다) (GAP Q20, ADR-0105)
+    let float = &page[page.find("class=\"float-nav\"").expect("떠 있는 단추")..];
+    assert!(
+        float.contains("<button type=\"button\" data-share hidden>공유</button>"),
+        "{float}"
+    );
+    // 갤러리 칸: 제목·글쓴이·수치가 그림 위 덮개 안에
+    maru(&data, &["board", "update", "blog", "--layout", "gallery"]);
+    let list = http(&bind, "GET", "/b/blog", &[], "").body;
+    let cap = &list[list.find("class=\"tile-cap\"").expect("덮개")..];
+    assert!(
+        cap.contains("<h2>") && cap.contains("class=\"meta\""),
+        "{cap}"
+    );
+    // 빠른 보기 주소(?quick=)는 목록을 그대로 준다
+    let quick = http(&bind, "GET", "/b/blog?quick=two", &[], "");
+    assert_eq!(quick.status, 200);
 }

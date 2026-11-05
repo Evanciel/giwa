@@ -258,3 +258,11 @@
 .cm-pop-menu a:hover, .cm-pop-menu a:focus-visible, .cm-pop-menu button:hover, .cm-pop-menu button:focus-visible { background: var(--cm-row-hover); color: var(--primary); }
 .cm-pop-sep { margin-top: calc(var(--space) * .5); padding-top: calc(var(--space) * .5); border-top: 1px solid var(--border); }
 .cm-pop-sep form { margin: 0; }
+
+/* 목록 배치 (GAP Q16): 글쓰기는 목록 아래, 쪽 번호와 검색은 한 카드 */
+.cm .board-head .write-button { display: none; }
+.cm .list-foot { padding: calc(var(--space) * 1.5) 0; border-bottom: 1px solid var(--border); }
+.cm .list-pager { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: calc(var(--space) * 3); }
+.cm .list-pager .board-search { border-top: 1px dashed var(--border); padding-top: calc(var(--space) * 3); margin-top: calc(var(--space) * 3); }
+.cm .list-pager:not(:has(.pagination)) .board-search { border-top: 0; padding-top: 0; margin-top: 0; }
+.cm .list-pager .pagination [aria-current="page"] { background: var(--primary); border-color: var(--primary); color: #fff; }
