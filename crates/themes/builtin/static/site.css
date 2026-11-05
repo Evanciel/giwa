@@ -788,3 +788,13 @@ a.wikilink-new { color: #b3261e; text-decoration-style: dashed; }
 .board-head .hot-link { margin-left: auto; font-size: .9rem; font-weight: 600; color: var(--muted); }
 .board-head .hot-link:hover, .board-head .hot-link:focus-visible { color: var(--fg); }
 .hot-list li { display: flex; flex-wrap: wrap; align-items: baseline; gap: calc(var(--space) * 1); }
+
+/* 모든 게시판 모아보기 (GAP Q6, ADR-0091) */
+.recent-table .post-row { grid-template-columns: 7rem minmax(0, 1fr) 8rem 6.5rem 4rem; }
+.post-row .board-col { font-size: var(--fs-sm); text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.post-row .board-col a { color: var(--muted); text-decoration: none; }
+.post-row .board-col a:hover, .post-row .board-col a:focus-visible { color: var(--primary); text-decoration: underline; }
+@media (max-width: 640px) {
+  .recent-table .post-row { grid-template-columns: auto auto auto 1fr; }
+  .post-row .board-col { grid-row: 2; text-align: left; }
+}

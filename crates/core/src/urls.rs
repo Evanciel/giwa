@@ -49,6 +49,8 @@ pub enum Target<'a> {
     Member {
         name: &'a str,
     },
+    /// 모든 게시판 모아보기 (`/recent`, GAP Q6). 인기 순은 `?sort=popular`.
+    Recent,
 }
 
 /// 쿼리 값에서는 `&`·`=`·`+` 도 인코딩한다.
@@ -78,6 +80,7 @@ pub fn path(target: &Target<'_>) -> String {
         Target::Rss => "/rss.xml".to_owned(),
         Target::Search => "/search".to_owned(),
         Target::Member { name } => format!("/u/{}", enc(name)),
+        Target::Recent => "/recent".to_owned(),
     }
 }
 

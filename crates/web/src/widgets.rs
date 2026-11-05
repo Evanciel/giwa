@@ -57,6 +57,11 @@ pub(crate) async fn regions(state: &AppState, screen: Screen<'_>) -> Value {
     Value::Object(out)
 }
 
+/// 모든 게시판 인기 모아보기 주소 (GAP Q6)
+fn recent_popular_url() -> String {
+    urls::with_query(&urls::path(&Target::Recent), &[("sort", "popular")])
+}
+
 fn cfg<T: serde::de::DeserializeOwned>(w: &Widget) -> Result<T> {
     serde_json::from_value(w.config.clone()).map_err(maru_core::Error::internal)
 }
@@ -79,9 +84,11 @@ async fn view(
             let Some(board) = readable(state, actor, &c.board).await? else {
                 return Ok(None);
             };
-            if let Some(b) = &board {
-                more_url = json!(urls::path(&Target::Board { board: &b.slug }));
-            }
+            // 게시판을 고르지 않았으면 모든 게시판 모아보기로 (GAP Q6)
+            more_url = json!(match &board {
+                Some(b) => urls::path(&Target::Board { board: &b.slug }),
+                None => urls::path(&Target::Recent),
+            });
             let filter = PublicFilter {
                 exclude_secret: true,
                 ..PublicFilter::default()
@@ -103,6 +110,9 @@ async fn view(
                 return Ok(None);
             };
             let list = posts::public_popular(ctx, actor, board.as_ref(), c.days, c.limit).await?;
+            if board.is_none() {
+                more_url = json!(recent_popular_url());
+            }
             let items = summaries_any_board(state, &list, site).await?;
             json!({ "posts": items, "days": c.days })
         }
@@ -136,7 +146,11 @@ async fn view(
                     "id": format!("w-{}-t{i}", w.id),
                     "label": t.label,
                     "posts": items,
-                    "more_url": board.as_ref().map(|b| urls::path(&Target::Board { board: &b.slug })),
+                    "more_url": match &board {
+                        Some(b) => urls::path(&Target::Board { board: &b.slug }),
+                        None if t.source == "popular" => recent_popular_url(),
+                        None => urls::path(&Target::Recent),
+                    },
                 }));
             }
             if tabs.is_empty() {

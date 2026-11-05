@@ -37,6 +37,7 @@ pub fn routes() -> Router<AppState> {
         .route("/p/{page}", get(page))
         .route("/tags", get(tags_index))
         .route("/tags/{tag}", get(tag_page))
+        .route("/recent", get(recent))
         .route("/search", get(search_page))
         .route("/u/{name}", get(profile_page))
         .route("/sitemap.xml", get(crate::feeds::sitemap))
@@ -985,6 +986,76 @@ async fn tag_page_inner(state: &AppState, slug: &str, q: PageQuery) -> Result<Va
         "posts": items,
         "pagination": pagination(&list, &urls::path(&target)),
     }))
+}
+
+/// 인기 모아보기가 보는 기간(일)과 개수
+const RECENT_POPULAR_DAYS: u32 = 7;
+const RECENT_POPULAR_LIMIT: u32 = 50;
+
+/// 모든 게시판 모아보기 (GAP Q6, ADR-0091): 손님이 읽을 수 있는 게시판의 새 글(쪽 넘김) 또는
+/// 최근 7일 인기 글(조회 → 댓글). 비밀글은 뺀다. 위젯 「더 보기」가 게시판 없이 모을 때 여기로 온다.
+async fn recent(State(state): State<AppState>, Query(q): Query<PageQuery>) -> Response {
+    let v = recent_inner(&state, q).await;
+    render(&state, "recent.html", v).await
+}
+
+async fn recent_inner(state: &AppState, q: PageQuery) -> Result<Value> {
+    let site = load_site(state).await?;
+    let actor = anonymous_actor(&state.ctx).await?;
+    let popular = q.sort == "popular";
+    let base = urls::path(&Target::Recent);
+    let (list, pager) = if popular {
+        let list = posts::public_popular(
+            &state.ctx,
+            &actor,
+            None,
+            RECENT_POPULAR_DAYS,
+            RECENT_POPULAR_LIMIT,
+        )
+        .await?;
+        (list, Value::Null)
+    } else {
+        let page = PageReq::new(q.page.unwrap_or(1), site.settings.posts_per_page);
+        let filter = posts::PublicFilter {
+            exclude_secret: true,
+            ..posts::PublicFilter::default()
+        };
+        let found = posts::public_posts_where(&state.ctx, &actor, None, &filter, page).await?;
+        let pager = pagination(&found, &base);
+        (found.items, pager)
+    };
+    let mut items = summaries_any_board(state, &list, &site.settings).await?;
+    // 어느 게시판 글인지 줄마다 보인다.
+    let all_boards = state.ctx.store.list_boards().await?;
+    for (view, p) in items.iter_mut().zip(&list) {
+        if let Some(b) = all_boards.iter().find(|b| b.id == p.board_id) {
+            view["board"] = json!({
+                "name": b.name,
+                "url": urls::path(&Target::Board { board: &b.slug }),
+            });
+        }
+    }
+    let title = if popular { "인기 글" } else { "새 글" };
+    let mut out = json!({
+        "meta": json!({
+            "title": format!("{title} · {}", site.settings.name),
+            "description": site.settings.description,
+            "noindex": popular,
+        }),
+        "site": site.json,
+        "canonical": urls::absolute(&state.ctx.site_url, &Target::Recent),
+        "recent": {
+            "title": title,
+            "popular": popular,
+            "days": RECENT_POPULAR_DAYS,
+            "latest_url": base,
+            "popular_url": urls::with_query(&base, &[("sort", "popular")]),
+        },
+        "posts": items,
+        "pagination": pager,
+    });
+    crate::modules::add_list_slots(state, &mut out).await;
+    Ok(out)
 }
 
 fn tag_url(slug: &str) -> String {
