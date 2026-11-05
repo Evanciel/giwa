@@ -765,3 +765,14 @@ a.wikilink-new { color: #b3261e; text-decoration-style: dashed; }
 .wiki-index { display: grid; gap: calc(var(--space) * 3); grid-template-columns: repeat(auto-fit, minmax(min(16rem, 100%), 1fr)); }
 .wiki-backlinks h2, .wiki-index h2 { margin: 0 0 .5em; font-size: 1rem; }
 .wiki-backlinks ul, .wiki-index ul { margin: 0; padding-left: 1.1em; }
+/* 글 탭 위젯 (GAP Q3, ADR-0088). JS 가 켜면(.tabs-on) 탭 단추가 보이고 목록 제목은 숨는다. */
+.post-tabs .tab-list { display: flex; flex-wrap: wrap; gap: calc(var(--space) * .5); margin-bottom: calc(var(--space) * 1.5); border-bottom: 1px solid var(--border); }
+.post-tabs .tab-list[hidden] { display: none; }
+.post-tabs [role="tab"] { font: inherit; font-size: var(--fs-sm); color: var(--muted); background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; padding: calc(var(--space) * .75) calc(var(--space) * 1.25); cursor: pointer; }
+.post-tabs [role="tab"][aria-selected="true"] { color: var(--fg); font-weight: 700; border-bottom-color: var(--primary); }
+.post-tabs [role="tab"]:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.post-tabs .tab-panel + .tab-panel { margin-top: calc(var(--space) * 2); }
+.post-tabs.tabs-on .tab-panel + .tab-panel { margin-top: 0; }
+.post-tabs .tab-panel-title { margin: 0 0 calc(var(--space) * .75); font-size: var(--fs-sm); }
+.post-tabs.tabs-on .tab-panel-title { display: none; }
+.post-tabs .tab-more { margin: calc(var(--space) * 1) 0 0; text-align: right; }

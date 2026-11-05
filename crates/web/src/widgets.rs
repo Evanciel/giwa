@@ -7,7 +7,7 @@ use maru_core::model::{PageReq, SiteSettings, Widget};
 use maru_core::services::posts::PublicFilter;
 use maru_core::services::widgets::{
     self, GalleryGridConfig, ImageBannerConfig, LatestPostsConfig, MarkdownBlockConfig, MenuConfig,
-    NoticeBarConfig, PopularPostsConfig, PopupConfig, Screen, SearchConfig,
+    NoticeBarConfig, PopularPostsConfig, PopupConfig, PostTabsConfig, Screen, SearchConfig,
 };
 use maru_core::services::{anonymous_actor, boards, media, posts, settings};
 use maru_core::urls::{self, Target};
@@ -105,6 +105,44 @@ async fn view(
             let list = posts::public_popular(ctx, actor, board.as_ref(), c.days, c.limit).await?;
             let items = summaries_any_board(state, &list, site).await?;
             json!({ "posts": items, "days": c.days })
+        }
+        "post_tabs" => {
+            let c: PostTabsConfig = cfg(w)?;
+            let mut tabs = Vec::with_capacity(c.tabs.len());
+            for (i, t) in c.tabs.iter().enumerate() {
+                // 손님이 못 읽는 게시판의 탭은 뺀다.
+                let Some(board) = readable(state, actor, &t.board).await? else {
+                    continue;
+                };
+                let list = if t.source == "popular" {
+                    posts::public_popular(ctx, actor, board.as_ref(), t.days, c.limit).await?
+                } else {
+                    let filter = PublicFilter {
+                        exclude_secret: true,
+                        ..PublicFilter::default()
+                    };
+                    posts::public_posts_where(
+                        ctx,
+                        actor,
+                        board.as_ref(),
+                        &filter,
+                        PageReq::new(1, c.limit),
+                    )
+                    .await?
+                    .items
+                };
+                let items = summaries_any_board(state, &list, site).await?;
+                tabs.push(json!({
+                    "id": format!("w-{}-t{i}", w.id),
+                    "label": t.label,
+                    "posts": items,
+                    "more_url": board.as_ref().map(|b| urls::path(&Target::Board { board: &b.slug })),
+                }));
+            }
+            if tabs.is_empty() {
+                return Ok(None);
+            }
+            json!({ "tabs": tabs, "show_date": c.show_date })
         }
         "markdown_block" => {
             let c: MarkdownBlockConfig = cfg(w)?;

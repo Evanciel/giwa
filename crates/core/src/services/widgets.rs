@@ -63,6 +63,38 @@ pub struct PopularPostsConfig {
     pub days: u32,
 }
 
+/// 글 탭의 탭 하나: 한 게시판(또는 전체)의 최신 글이나 인기 글.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PostTab {
+    /// 탭 이름, 1~20자. 한 위젯 안에서 겹치지 않는다
+    pub label: String,
+    /// `latest`(최신 글) 또는 `popular`(인기 글). 기본 latest
+    #[serde(default = "latest_source")]
+    pub source: String,
+    /// 게시판 주소. 비우면 전체
+    #[serde(default)]
+    pub board: String,
+    /// popular 일 때 기간(일). 0 이면 전체 기간, 최대 365. 기본 7
+    #[serde(default = "seven")]
+    pub days: u32,
+}
+
+/// 글 탭 (GAP Q3, ADR-0088): 여러 목록을 탭으로 묶은 상자. 저절로 넘어가지 않는다(접근성).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PostTabsConfig {
+    /// 2~6개
+    pub tabs: Vec<PostTab>,
+    /// 탭마다 글 수 1~20, 기본 5
+    #[serde(default = "five")]
+    pub limit: u32,
+    #[serde(default = "yes")]
+    pub show_date: bool,
+}
+
+pub const POST_TAB_SOURCES: [&str; 2] = ["latest", "popular"];
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct MarkdownBlockConfig {
@@ -176,9 +208,12 @@ fn yes() -> bool {
 fn list_view() -> String {
     "list".into()
 }
+fn latest_source() -> String {
+    "latest".into()
+}
 
 /// 종류 id, 이름, 설명.
-const KINDS: [(&str, &str, &str); 9] = [
+const KINDS: [(&str, &str, &str); 10] = [
     (
         "latest_posts",
         "최신 글",
@@ -188,6 +223,11 @@ const KINDS: [(&str, &str, &str); 9] = [
         "popular_posts",
         "인기 글",
         "최근 며칠 동안 올라온 글을 조회수 순으로",
+    ),
+    (
+        "post_tabs",
+        "글 탭",
+        "게시판별 최신·인기 글을 탭으로 묶어 한 상자에",
     ),
     ("markdown_block", "글 상자", "Markdown 으로 쓴 안내·소개 글"),
     ("menu", "메뉴", "머리글·바닥글 메뉴를 한 번 더"),
@@ -225,6 +265,7 @@ pub fn types() -> Vec<WidgetType> {
             config_schema: match *id {
                 "latest_posts" => schema_of::<LatestPostsConfig>(),
                 "popular_posts" => schema_of::<PopularPostsConfig>(),
+                "post_tabs" => schema_of::<PostTabsConfig>(),
                 "markdown_block" => schema_of::<MarkdownBlockConfig>(),
                 "menu" => schema_of::<MenuConfig>(),
                 "notice_bar" => schema_of::<NoticeBarConfig>(),
@@ -644,6 +685,31 @@ async fn check_config(ctx: &Ctx, kind: &str, config: Value) -> Result<Value> {
             in_range(kind, "limit", c.limit, 1, 20)?;
             in_range(kind, "days", c.days, 0, 365)?;
             c.board = check_board(ctx, kind, &c.board, true).await?;
+            json!(c)
+        }
+        "post_tabs" => {
+            let mut c: PostTabsConfig = parse(kind, config)?;
+            in_range(kind, "limit", c.limit, 1, 20)?;
+            if !(2..=6).contains(&c.tabs.len()) {
+                return Err(bad_config(kind, "tabs 는 2~6개"));
+            }
+            let mut seen: Vec<String> = Vec::new();
+            for t in &mut c.tabs {
+                t.label = short_text(kind, "label", &t.label, 20, true)?;
+                if seen.contains(&t.label) {
+                    return Err(bad_config(
+                        kind,
+                        format!("탭 이름 `{}` 이 겹칩니다", t.label),
+                    ));
+                }
+                seen.push(t.label.clone());
+                t.source = t.source.trim().to_owned();
+                if !POST_TAB_SOURCES.contains(&t.source.as_str()) {
+                    return Err(bad_config(kind, "source 는 latest 또는 popular"));
+                }
+                in_range(kind, "days", t.days, 0, 365)?;
+                t.board = check_board(ctx, kind, &t.board, true).await?;
+            }
             json!(c)
         }
         "markdown_block" => {
