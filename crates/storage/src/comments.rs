@@ -220,6 +220,55 @@ pub(crate) async fn count_of_member<'e>(
     .map_err(db_error)
 }
 
+/// 공개 프로필의 댓글 (GAP Q2): 공개 댓글이면서 글도 게시판 목록 기준으로 공개인 것, 새것부터.
+pub(crate) async fn public_of_member<'e>(
+    e: impl SqliteExecutor<'e>,
+    member_id: &str,
+    max_read_rank: i64,
+    limit: i64,
+) -> Result<Vec<Comment>> {
+    rows(
+        sqlx::query_as!(
+            Row,
+            "SELECT c.id, c.post_id, c.parent_id, c.reply_to_id, c.status, c.body, c.author_id,
+                    c.guest_name, c.guest_pw_hash, c.actor_type, c.created_at, c.updated_at
+             FROM comments c
+             JOIN posts p ON p.id = c.post_id
+             JOIN boards b ON b.id = p.board_id
+             JOIN roles r ON r.name = json_extract(b.policy, '$.read')
+             WHERE c.author_id = ?1 AND c.status = 'published'
+               AND p.status = 'published' AND p.is_secret = 0 AND r.rank <= ?2
+             ORDER BY c.created_at DESC, c.id DESC LIMIT ?3",
+            member_id,
+            max_read_rank,
+            limit
+        )
+        .fetch_all(e)
+        .await
+        .map_err(db_error)?,
+    )
+}
+
+pub(crate) async fn count_public_of_member<'e>(
+    e: impl SqliteExecutor<'e>,
+    member_id: &str,
+    max_read_rank: i64,
+) -> Result<i64> {
+    sqlx::query_scalar!(
+        r#"SELECT count(*) AS "n!: i64" FROM comments c
+           JOIN posts p ON p.id = c.post_id
+           JOIN boards b ON b.id = p.board_id
+           JOIN roles r ON r.name = json_extract(b.policy, '$.read')
+           WHERE c.author_id = ?1 AND c.status = 'published'
+             AND p.status = 'published' AND p.is_secret = 0 AND r.rank <= ?2"#,
+        member_id,
+        max_read_rank
+    )
+    .fetch_one(e)
+    .await
+    .map_err(db_error)
+}
+
 /// 글마다 공개 댓글 수. 댓글이 없는 글은 빠진다.
 pub(crate) async fn counts<'e>(
     e: impl SqliteExecutor<'e>,

@@ -9,6 +9,7 @@ pub mod fetch;
 mod links;
 pub mod mail;
 pub mod mailer;
+mod profiles;
 mod search;
 pub mod sqlite;
 pub mod tls;

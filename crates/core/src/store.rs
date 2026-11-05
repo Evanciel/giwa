@@ -342,6 +342,22 @@ pub trait Store: Send + Sync {
         offset: i64,
     ) -> Result<Vec<Comment>>;
     async fn count_member_comments(&self, member_id: &str) -> Result<i64>;
+    /// 공개 프로필 (GAP Q2): 자기소개. 없으면 `None`
+    async fn member_bio(&self, member_id: &str) -> Result<Option<String>>;
+    /// 공개 프로필: 회원의 공개 글 ID(새것부터)와 전체 수. 기준은 게시판 목록과 같다
+    async fn public_posts_of(
+        &self,
+        member_id: &str,
+        max_read_rank: i64,
+        limit: i64,
+    ) -> Result<(Vec<String>, i64)>;
+    /// 공개 프로필: 공개 글의 공개 댓글(새것부터)과 전체 수
+    async fn public_comments_of(
+        &self,
+        member_id: &str,
+        max_read_rank: i64,
+        limit: i64,
+    ) -> Result<(Vec<Comment>, i64)>;
     /// 글마다 공개 댓글 수. 댓글이 없는 글은 빠진다.
     async fn comment_counts(&self, post_ids: &[String]) -> Result<Vec<(String, i64)>>;
     /// 캡차 도전을 둔다 (시스템 기록, 감사 대상 아님). 만료된 것은 함께 지운다.
@@ -484,6 +500,8 @@ pub trait WriteTx: Send {
     async fn member_by_email(&mut self, email: &str) -> Result<Option<Member>>;
     async fn insert_member(&mut self, m: &Member) -> Result<()>;
     async fn update_member(&mut self, m: &Member) -> Result<()>;
+    /// 자기소개 저장. 빈 값이면 지운다 (GAP Q2)
+    async fn set_member_bio(&mut self, member_id: &str, bio: &str, now: &str) -> Result<()>;
     async fn add_member_role(&mut self, member_id: &str, role: &str) -> Result<()>;
     async fn clear_member_roles(&mut self, member_id: &str) -> Result<()>;
     async fn member_by_name(&mut self, name: &str) -> Result<Option<Member>>;

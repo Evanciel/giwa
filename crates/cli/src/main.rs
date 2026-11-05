@@ -163,6 +163,8 @@ pub enum MemberCmd {
     Role { who: String, role: String },
     /// 2단계 인증을 끈다 (인증 앱과 복구 코드를 모두 잃었을 때). 꺼져 있으면 아무 일 없음
     TotpReset { who: String },
+    /// 공개 프로필 (닉네임): 가입일·자기소개·최근 공개 글과 댓글
+    Profile { name: String },
 }
 
 #[derive(Debug, Subcommand)]

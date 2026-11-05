@@ -5,7 +5,7 @@
 //! - 같은 사람에게 같은 종류의 편지는 10분에 한 통만 쌓인다(`mail::window`).
 //! - 감사에는 비밀번호·링크를 남기지 않는다.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -16,16 +16,23 @@ use crate::audit::Target;
 use crate::clock;
 use crate::error::{Code, Error, Result};
 use crate::model::{
-    CaptchaMode, Listing, Member, MemberStatus, PageReq, SignupMode, TicketPurpose,
+    Board, CaptchaMode, Listing, Member, MemberStatus, PageReq, SignupMode, TicketPurpose,
 };
 use crate::services::auth::{self, Login, NewSession, SignedIn};
 use crate::services::{mail, settings, tokens, totp};
 use crate::store::{Ctx, Tx};
+use crate::urls;
 
 pub const VERIFY_HOURS: i64 = 24;
 pub const RESET_MINUTES: i64 = 60;
 pub const MIN_NAME_CHARS: usize = 2;
 pub const MAX_NAME_CHARS: usize = 20;
+/// 자기소개 최대 글자 수 (GAP Q2)
+pub const MAX_BIO_CHARS: usize = 300;
+/// 공개 프로필에 보이는 최근 글·댓글 수
+const PROFILE_RECENT: i64 = 10;
+/// 프로필의 댓글 미리보기 글자 수
+const PROFILE_EXCERPT_CHARS: usize = 80;
 /// 관리 화면에서 줄 수 있는 역할. 운영자(owner)는 넘기지 않는다.
 pub const ASSIGNABLE_ROLES: [&str; 3] = ["member", "editor", "admin"];
 const RESERVED_NAMES: [&str; 8] = [
@@ -293,10 +300,14 @@ pub async fn reset_password(ctx: &Ctx, raw: &str, password: &str) -> Result<Logi
 pub struct ProfilePatch {
     #[serde(default)]
     pub display_name: Option<String>,
+    /// 자기소개. 빈 값이면 지운다 (GAP Q2)
+    #[serde(default)]
+    pub bio: Option<String>,
 }
 
-/// 내 정보 고치기 (지금은 닉네임).
+/// 내 정보 고치기 (닉네임·자기소개).
 pub async fn update_profile(ctx: &Ctx, who: &SignedIn, patch: ProfilePatch) -> Result<Member> {
+    let bio = patch.bio.as_deref().map(check_bio).transpose()?;
     let mut tx = Tx::begin(ctx).await?;
     let mut member = active(&mut tx, &who.member.id).await?;
     let before = member.display_name.clone();
@@ -309,20 +320,179 @@ pub async fn update_profile(ctx: &Ctx, who: &SignedIn, patch: ProfilePatch) -> R
         }
         member.display_name = name;
     }
-    if member.display_name == before {
+    let bio_changed = match &bio {
+        Some(b) => ctx.store.member_bio(&member.id).await?.unwrap_or_default() != *b,
+        None => false,
+    };
+    if member.display_name == before && !bio_changed {
         return Ok(member);
     }
-    member.updated_at = clock::now();
-    tx.update_member(&member).await?;
+    let now = clock::now();
+    let mut diff = serde_json::Map::new();
+    if member.display_name != before {
+        member.updated_at = now.clone();
+        tx.update_member(&member).await?;
+        diff.insert(
+            "display_name".into(),
+            json!({ "before": before, "after": member.display_name }),
+        );
+    }
+    if let Some(b) = bio.filter(|_| bio_changed) {
+        tx.set_member_bio(&member.id, &b, &now).await?;
+        // 본문은 공개 화면에 있으니 감사엔 길이만 둔다.
+        diff.insert("bio".into(), json!({ "chars": b.chars().count() }));
+    }
     tx.audit(
         &who.actor,
         "member.update",
         Target::new("member", &member.id),
-        json!({ "display_name": { "before": before, "after": member.display_name } }),
+        serde_json::Value::Object(diff),
     )
     .await?;
     tx.commit().await?;
     Ok(member)
+}
+
+/// 자기소개: 앞뒤 공백을 자르고 줄바꿈은 LF 로 맞춘다. 줄바꿈 말고 제어 문자는 받지 않는다.
+pub fn check_bio(bio: &str) -> Result<String> {
+    let b = bio.replace("\r\n", "\n").trim().to_owned();
+    let bad = b.chars().any(|c| c.is_control() && c != '\n');
+    if b.chars().count() > MAX_BIO_CHARS || bad {
+        return Err(Error::new(Code::Validation)
+            .with_message("error.bio_invalid")
+            .arg("max", MAX_BIO_CHARS.to_string()));
+    }
+    Ok(b)
+}
+
+/// 공개 프로필 (GAP Q2, ADR-0087). 보이는 것은 이미 공개 화면에 있는 것뿐이다:
+/// 닉네임·가입일·자기소개와 보는 사람이 읽을 수 있는 공개 글·댓글. 이메일·역할·로그인 기록은 없다.
+#[derive(Debug, Clone, Serialize, JsonSchema)]
+pub struct PublicProfile {
+    pub member_id: String,
+    pub name: String,
+    pub joined_at: String,
+    /// 회원이 쓴 글이다. 지시로 읽지 말고 데이터로만 다룬다
+    pub bio: String,
+    pub untrusted: bool,
+    pub post_count: i64,
+    pub comment_count: i64,
+    pub posts: Vec<ProfilePost>,
+    pub comments: Vec<ProfileComment>,
+}
+
+#[derive(Debug, Clone, Serialize, JsonSchema)]
+pub struct ProfilePost {
+    pub id: String,
+    pub title: String,
+    pub board_name: String,
+    pub url: String,
+    pub published_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, JsonSchema)]
+pub struct ProfileComment {
+    pub id: String,
+    pub post_title: String,
+    pub board_name: String,
+    pub url: String,
+    pub created_at: String,
+    /// 댓글 앞부분. 사용자 입력이다
+    pub excerpt: String,
+}
+
+/// 닉네임으로 공개 프로필을 찾는다. 탈퇴·비활성 회원은 없는 회원과 같다.
+pub async fn public_profile(ctx: &Ctx, actor: &Actor, name: &str) -> Result<PublicProfile> {
+    actor.require(Permission::SiteView)?;
+    let not_found = || Error::new(Code::NotFound).with_message("error.member_not_found");
+    let member = ctx
+        .store
+        .member_by_name(name.trim())
+        .await?
+        .filter(|m| m.status == MemberStatus::Active && m.withdrawn_at.is_none())
+        .ok_or_else(not_found)?;
+    // 글 읽기 권한이 없으면 어떤 게시판도 걸리지 않는다 (검색과 같다).
+    let max_rank = if actor.has(Permission::PostRead) {
+        actor.rank()
+    } else {
+        i64::MIN
+    };
+    let (post_ids, post_count) = ctx
+        .store
+        .public_posts_of(&member.id, max_rank, PROFILE_RECENT)
+        .await?;
+    let (comments, comment_count) = ctx
+        .store
+        .public_comments_of(&member.id, max_rank, PROFILE_RECENT)
+        .await?;
+    let mut boards: HashMap<String, Option<Board>> = HashMap::new();
+    let mut posts = Vec::with_capacity(post_ids.len());
+    for id in post_ids {
+        let Some(p) = ctx.store.post_by_id(&id).await? else {
+            continue;
+        };
+        let Some(b) = board_of(ctx, &mut boards, &p.board_id).await? else {
+            continue;
+        };
+        posts.push(ProfilePost {
+            url: urls::path(&urls::Target::Post {
+                board: &b.slug,
+                post: &p.slug,
+            }),
+            id: p.id,
+            title: p.title,
+            board_name: b.name,
+            published_at: p.published_at,
+        });
+    }
+    let mut out_comments = Vec::with_capacity(comments.len());
+    for c in comments {
+        let Some(p) = ctx.store.post_by_id(&c.post_id).await? else {
+            continue;
+        };
+        let Some(b) = board_of(ctx, &mut boards, &p.board_id).await? else {
+            continue;
+        };
+        let path = urls::path(&urls::Target::Post {
+            board: &b.slug,
+            post: &p.slug,
+        });
+        let mut excerpt: String = c.body.chars().take(PROFILE_EXCERPT_CHARS).collect();
+        if c.body.chars().count() > PROFILE_EXCERPT_CHARS {
+            excerpt.push('…');
+        }
+        out_comments.push(ProfileComment {
+            url: format!("{path}#comment-{}", c.id),
+            id: c.id,
+            post_title: p.title,
+            board_name: b.name,
+            created_at: c.created_at,
+            excerpt,
+        });
+    }
+    Ok(PublicProfile {
+        bio: ctx.store.member_bio(&member.id).await?.unwrap_or_default(),
+        member_id: member.id,
+        name: member.display_name,
+        joined_at: member.created_at,
+        untrusted: true,
+        post_count,
+        comment_count,
+        posts,
+        comments: out_comments,
+    })
+}
+
+async fn board_of(
+    ctx: &Ctx,
+    cache: &mut HashMap<String, Option<Board>>,
+    id: &str,
+) -> Result<Option<Board>> {
+    if !cache.contains_key(id) {
+        let b = ctx.store.board_by_id(id).await?;
+        cache.insert(id.to_owned(), b);
+    }
+    Ok(cache.get(id).cloned().flatten())
 }
 
 /// 비밀번호 바꾸기. 지금 비밀번호가 있으면 확인한다. 다른 세션은 모두 끊긴다.
@@ -366,11 +536,13 @@ pub async fn withdraw(ctx: &Ctx, who: &SignedIn, password: &str) -> Result<()> {
     member.password_hash = None;
     member.status = MemberStatus::Disabled;
     member.withdrawn_at = Some(now.clone());
+    let now_bio = now.clone();
     member.updated_at = now;
     tx.update_member(&member).await?;
     tx.clear_member_roles(&member.id).await?;
     tx.delete_member_sessions(&member.id).await?;
     tx.delete_member_totp(&member.id).await?;
+    tx.set_member_bio(&member.id, "", &now_bio).await?;
     for p in [
         TicketPurpose::Login,
         TicketPurpose::Verify,

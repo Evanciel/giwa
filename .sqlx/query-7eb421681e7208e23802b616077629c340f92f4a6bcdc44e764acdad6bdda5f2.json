@@ -1,0 +1,158 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT c.id, c.post_id, c.parent_id, c.reply_to_id, c.status, c.body, c.author_id,\n                    c.guest_name, c.guest_pw_hash, c.actor_type, c.created_at, c.updated_at\n             FROM comments c\n             JOIN posts p ON p.id = c.post_id\n             JOIN boards b ON b.id = p.board_id\n             JOIN roles r ON r.name = json_extract(b.policy, '$.read')\n             WHERE c.author_id = ?1 AND c.status = 'published'\n               AND p.status = 'published' AND p.is_secret = 0 AND r.rank <= ?2\n             ORDER BY c.created_at DESC, c.id DESC LIMIT ?3",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "comments",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "post_id",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "comments",
+            "name": "post_id"
+          }
+        }
+      },
+      {
+        "name": "parent_id",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "comments",
+            "name": "parent_id"
+          }
+        }
+      },
+      {
+        "name": "reply_to_id",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "comments",
+            "name": "reply_to_id"
+          }
+        }
+      },
+      {
+        "name": "status",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "comments",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "name": "body",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "comments",
+            "name": "body"
+          }
+        }
+      },
+      {
+        "name": "author_id",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "comments",
+            "name": "author_id"
+          }
+        }
+      },
+      {
+        "name": "guest_name",
+        "ordinal": 7,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "comments",
+            "name": "guest_name"
+          }
+        }
+      },
+      {
+        "name": "guest_pw_hash",
+        "ordinal": 8,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "comments",
+            "name": "guest_pw_hash"
+          }
+        }
+      },
+      {
+        "name": "actor_type",
+        "ordinal": 9,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "comments",
+            "name": "actor_type"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 10,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "comments",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "name": "updated_at",
+        "ordinal": 11,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "comments",
+            "name": "updated_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "7eb421681e7208e23802b616077629c340f92f4a6bcdc44e764acdad6bdda5f2"
+}

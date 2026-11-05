@@ -45,6 +45,10 @@ pub enum Target<'a> {
     Rss,
     /// 사이트 검색 화면. 검색어는 [`with_query`] 로 붙인다.
     Search,
+    /// 회원 공개 프로필 (`/u/{닉네임}`, GAP Q2)
+    Member {
+        name: &'a str,
+    },
 }
 
 /// 쿼리 값에서는 `&`·`=`·`+` 도 인코딩한다.
@@ -73,6 +77,7 @@ pub fn path(target: &Target<'_>) -> String {
         Target::Sitemap => "/sitemap.xml".to_owned(),
         Target::Rss => "/rss.xml".to_owned(),
         Target::Search => "/search".to_owned(),
+        Target::Member { name } => format!("/u/{}", enc(name)),
     }
 }
 

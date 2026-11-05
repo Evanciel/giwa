@@ -62,8 +62,10 @@
     openMenu = null;
   }
   function memberMenus(bar) {
-    var actions = (bar.items || []).map(function (i) { return i.member_action; }).filter(Boolean);
-    if (!bar.signed_in || !actions.length) return;
+    // 프로필 보기는 코어 화면이라 늘 첫 항목이다 (GAP Q2).
+    var actions = [{ label: "프로필 보기", url: "/u/" }].concat(
+      (bar.items || []).map(function (i) { return i.member_action; }).filter(Boolean));
+    if (!bar.signed_in) return;
     var names = document.querySelectorAll("[data-member]");
     for (var i = 0; i < names.length; i++) {
       var host = names[i];

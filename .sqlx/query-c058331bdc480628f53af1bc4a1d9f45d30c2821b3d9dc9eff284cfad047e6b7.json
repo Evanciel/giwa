@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO member_profiles (member_id, bio, updated_at) VALUES (?1, ?2, ?3)\n             ON CONFLICT (member_id) DO UPDATE SET bio = ?2, updated_at = ?3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "c058331bdc480628f53af1bc4a1d9f45d30c2821b3d9dc9eff284cfad047e6b7"
+}

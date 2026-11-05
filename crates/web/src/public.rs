@@ -11,7 +11,7 @@ use axum::response::{Html, IntoResponse, Response};
 use axum::routing::get;
 use maru_core::Actor;
 use maru_core::model::{
-    Board, Category, Listing, MenuItem, MenuLink, Page, PageReq, Post, SiteSettings,
+    Board, Category, Listing, MemberStatus, MenuItem, MenuLink, Page, PageReq, Post, SiteSettings,
 };
 use maru_core::search::Range;
 use maru_core::services::search::{self, SearchInput, Sort};
@@ -38,6 +38,7 @@ pub fn routes() -> Router<AppState> {
         .route("/tags", get(tags_index))
         .route("/tags/{tag}", get(tag_page))
         .route("/search", get(search_page))
+        .route("/u/{name}", get(profile_page))
         .route("/sitemap.xml", get(crate::feeds::sitemap))
         .route("/rss.xml", get(crate::feeds::rss))
         .route("/robots.txt", get(crate::feeds::robots))
@@ -499,6 +500,59 @@ async fn search_page(State(state): State<AppState>, Query(p): Query<SearchParams
     render(&state, "search.html", v).await
 }
 
+/// 회원 공개 프로필 (GAP Q2, ADR-0087). 손님 기준이라 모두에게 같은 화면이다.
+async fn profile_page(State(state): State<AppState>, Path(name): Path<String>) -> Response {
+    let v = profile_inner(&state, &name).await;
+    render(&state, "profile.html", v).await
+}
+
+async fn profile_inner(state: &AppState, name: &str) -> Result<Value> {
+    let site = load_site(state).await?;
+    let actor = anonymous_actor(&state.ctx).await?;
+    let p = maru_core::services::members::public_profile(&state.ctx, &actor, name).await?;
+    let tz = site.settings.tz_offset_min;
+    let posts: Vec<Value> = p
+        .posts
+        .iter()
+        .map(|x| {
+            json!({
+                "title": x.title,
+                "board": x.board_name,
+                "url": x.url,
+                "date": x.published_at.as_deref().map(|d| clock::display_date(d, tz)),
+            })
+        })
+        .collect();
+    let comments: Vec<Value> = p
+        .comments
+        .iter()
+        .map(|c| {
+            json!({
+                "excerpt": c.excerpt,
+                "post_title": c.post_title,
+                "board": c.board_name,
+                "url": c.url,
+                "date": clock::display_date(&c.created_at, tz),
+            })
+        })
+        .collect();
+    Ok(json!({
+        // 회원 화면은 검색 엔진에 내보내지 않는다.
+        "meta": json!({ "title": format!("{} · {}", p.name, site.settings.name), "noindex": true }),
+        "site": site.json,
+        "profile": {
+            "member_id": p.member_id,
+            "name": p.name,
+            "joined": clock::display_date(&p.joined_at, tz),
+            "bio": p.bio,
+            "post_count": p.post_count,
+            "comment_count": p.comment_count,
+            "posts": posts,
+            "comments": comments,
+        },
+    }))
+}
+
 async fn search_inner(state: &AppState, p: SearchParams) -> Result<Value> {
     let site = load_site(state).await?;
     let actor = anonymous_actor(&state.ctx).await?;
@@ -637,6 +691,17 @@ async fn post_inner(
         .await?
         .pop()
         .unwrap_or(Value::Null);
+    // 글 아래 글쓴이 카드 (GAP Q2): 이미 공개된 것(가입일·자기소개)만.
+    if view["author"]["url"].is_string()
+        && let Some(id) = post.author_id.as_deref()
+        && let Some(m) = state.ctx.store.member_by_id(id).await?
+    {
+        view["author"]["joined"] = json!(clock::display_date(
+            &m.created_at,
+            site.settings.tz_offset_min
+        ));
+        view["author"]["bio"] = json!(state.ctx.store.member_bio(id).await?.unwrap_or_default());
+    }
     // 회원·손님이 쓴 글만 공개 화면에서 고친다. 누가 고칠 수 있는지는 누를 때 본다.
     if public_write(&board) && (post.author_id.is_some() || post.guest_name.is_some()) {
         let base = urls::path(&target);
@@ -1029,7 +1094,9 @@ pub(crate) fn public_write(board: &Board) -> bool {
 
 /// 글쓴이 표시: 회원 닉네임 또는 손님 이름. 운영자·에이전트가 관리 경로로 쓴 글은 없다(블로그처럼).
 async fn authors(state: &AppState, posts: &[Post]) -> Result<Vec<Value>> {
-    let mut names: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    // 회원 ID → (닉네임, 프로필이 열리는지). 탈퇴·비활성 회원은 프로필 링크가 없다.
+    let mut names: std::collections::HashMap<String, (String, bool)> =
+        std::collections::HashMap::new();
     let mut out = Vec::with_capacity(posts.len());
     for p in posts {
         let v = match (&p.guest_name, &p.author_id) {
@@ -1038,12 +1105,17 @@ async fn authors(state: &AppState, posts: &[Post]) -> Result<Vec<Value>> {
                 if !names.contains_key(id)
                     && let Some(m) = state.ctx.store.member_by_id(id).await?
                 {
-                    names.insert(id.clone(), m.display_name);
+                    let open = m.status == MemberStatus::Active && m.withdrawn_at.is_none();
+                    names.insert(id.clone(), (m.display_name, open));
                 }
-                names.get(id).map_or(
-                    Value::Null,
-                    |n| json!({ "name": n, "guest": false, "member_id": id }),
-                )
+                names.get(id).map_or(Value::Null, |(n, open)| {
+                    json!({
+                        "name": n,
+                        "guest": false,
+                        "member_id": id,
+                        "url": open.then(|| urls::path(&Target::Member { name: n })),
+                    })
+                })
             }
             (None, None) => Value::Null,
         };

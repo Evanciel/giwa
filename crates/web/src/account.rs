@@ -765,7 +765,7 @@ async fn me(
         Err(res) => return *res,
     };
     let done = match q.done.as_str() {
-        "profile" => Some("닉네임을 바꿨습니다."),
+        "profile" => Some("닉네임과 자기소개를 저장했습니다."),
         "password" => Some("비밀번호를 바꿨습니다. 다른 기기의 로그인은 모두 끊었습니다."),
         "verified" => Some("메일 인증이 끝났습니다. 환영합니다."),
         "totp_start" => Some("인증 앱에 아래 값을 넣고, 앱이 보여 주는 6자리 코드로 확인하세요."),
@@ -819,6 +819,9 @@ async fn me_page_with(
             "csrf": who.session.csrf_token,
             "email": who.member.email,
             "display_name": who.member.display_name,
+            "bio": state.ctx.store.member_bio(&who.member.id).await.ok().flatten().unwrap_or_default(),
+            "max_bio": members::MAX_BIO_CHARS,
+            "profile_url": maru_core::urls::path(&maru_core::urls::Target::Member { name: &who.member.display_name }),
             "joined": clock::display_date(&who.member.created_at, site.tz_offset_min),
             "is_owner": who.actor.has(Permission::SiteAdmin),
             "admin_url": who.actor.has(Permission::PostModerate).then_some("/admin"),
@@ -957,6 +960,8 @@ struct ProfileForm {
     csrf: String,
     #[serde(default)]
     display_name: String,
+    #[serde(default)]
+    bio: String,
 }
 
 async fn profile(
@@ -973,6 +978,7 @@ async fn profile(
     }
     let patch = ProfilePatch {
         display_name: Some(f.display_name),
+        bio: Some(f.bio),
     };
     match members::update_profile(&state.ctx, &who, patch).await {
         Ok(_) => Redirect::to("/me?done=profile").into_response(),

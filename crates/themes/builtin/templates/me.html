@@ -36,14 +36,17 @@
   {% if slots and slots.me_sections %}{% for s in slots.me_sections %}{% include s.template %}{% endfor %}{% endif %}
 
   <section class="me-block" aria-labelledby="me-profile">
-    <h2 id="me-profile">닉네임</h2>
+    <h2 id="me-profile">닉네임과 자기소개</h2>
     {% if me.error_in == "profile" %}<p class="form-error" role="alert">{{ me.error }}</p>{% endif %}
-    <form class="account-form inline" method="post" action="/me/profile">
+    <form class="account-form" method="post" action="/me/profile">
       <input type="hidden" name="_csrf" value="{{ me.csrf }}">
-      <label class="visually-hidden" for="display_name">닉네임</label>
+      <label for="display_name">닉네임</label>
       <input id="display_name" type="text" name="display_name" value="{{ me.display_name }}" minlength="2" maxlength="20" autocomplete="nickname" required>
-      <button type="submit">바꾸기</button>
+      <label for="bio">자기소개 <span class="hint">공개 프로필과 글 아래에 보입니다. {{ me.max_bio }}자까지</span></label>
+      <textarea id="bio" name="bio" rows="3" maxlength="{{ me.max_bio }}">{{ me.bio }}</textarea>
+      <button type="submit">저장</button>
     </form>
+    <p class="hint"><a href="{{ me.profile_url }}">내 공개 프로필 보기</a></p>
   </section>
 
   <section class="me-block" aria-labelledby="me-password">

@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT bio FROM member_profiles WHERE member_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "bio",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "member_profiles",
+            "name": "bio"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "329f53afd90d912a260007280a969ffd896b8a65b50e574469dab84fa06ada0a"
+}

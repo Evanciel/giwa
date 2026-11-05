@@ -31,6 +31,13 @@
   {% if post.edit_url or post.reply_url %}
   <p class="post-actions"><a href="{{ board.url }}">목록</a>{% if post.reply_url %}<a href="{{ post.reply_url }}" rel="nofollow">답변</a>{% endif %}{% if post.edit_url %}<a href="{{ post.edit_url }}" rel="nofollow">고치기</a><a href="{{ post.delete_url }}" rel="nofollow">지우기</a>{% endif %}</p>
   {% endif %}
+  {% if board.write_url and post.author and post.author.url %}
+  <aside class="author-card" aria-label="글쓴이">
+    <p class="author-card-name"><a href="{{ post.author.url }}">{{ post.author.name }}</a>{% if post.author.badge %} <span class="level-badge" title="{{ post.author.badge.title }}">{{ post.author.badge.label }}</span>{% endif %}</p>
+    {% if post.author.bio %}<p class="author-card-bio">{{ post.author.bio }}</p>{% endif %}
+    <p class="author-card-meta">가입 {{ post.author.joined }} · <a href="{{ post.author.url }}">프로필 보기</a></p>
+  </aside>
+  {% endif %}
 </article>
 {% if slots and slots.post_footer %}<div class="slot-row" id="reactions">{% for s in slots.post_footer %}{% include s.template %}{% endfor %}</div>{% endif %}
 {% if comments.open or comments.locked or comments.items %}{% include "_comments.html" %}{% endif %}

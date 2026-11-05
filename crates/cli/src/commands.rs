@@ -2323,6 +2323,23 @@ async fn member_cmd(g: &Global, cmd: MemberCmd) -> Out {
                 Ok((to_value(&list)?, human))
             }
             MemberCmd::Show { who } => member_out(members::get(&ctx, &actor, &who).await?),
+            MemberCmd::Profile { name } => {
+                let p = members::public_profile(&ctx, &actor, &name).await?;
+                let mut human = format!(
+                    "{}  가입 {}  글 {}  댓글 {}",
+                    p.name,
+                    &p.joined_at[..p.joined_at.len().min(10)],
+                    p.post_count,
+                    p.comment_count
+                );
+                if !p.bio.is_empty() {
+                    human.push_str(&format!("\n자기소개(회원이 쓴 글): {}", p.bio));
+                }
+                for x in &p.posts {
+                    human.push_str(&format!("\n글  {}  {}", x.title, x.url));
+                }
+                Ok((to_value(&p)?, human))
+            }
             MemberCmd::Disable { who } => member_out(
                 members::set_status(&ctx, &actor, &who, maru_core::model::MemberStatus::Disabled)
                     .await?,

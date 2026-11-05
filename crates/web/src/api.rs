@@ -130,6 +130,7 @@ pub fn routes() -> Router<AppState> {
         .route("/comments/{id}/{action}", post(moderate_comment))
         .route("/members", get(list_members))
         .route("/members/{who}", get(get_member).patch(update_member))
+        .route("/profiles/{name}", get(get_profile))
         .fallback(|| async { ApiError(Error::new(Code::NotFound)) })
 }
 
@@ -1292,6 +1293,18 @@ async fn get_member(
     Ok(ok(
         StatusCode::OK,
         members::get(&state.ctx, &actor, &who).await?,
+    ))
+}
+
+/// 회원 공개 프로필 (GAP Q2). 토큰이 없으면 손님 기준.
+async fn get_profile(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(name): Path<String>,
+) -> Result<Response, ApiError> {
+    Ok(ok(
+        StatusCode::OK,
+        members::public_profile(&state.ctx, &actor, &name).await?,
     ))
 }
 

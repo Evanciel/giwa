@@ -1416,6 +1416,38 @@ impl Store for SqliteStore {
         crate::comments::count_of_member(&self.db.read, member_id).await
     }
 
+    async fn member_bio(&self, member_id: &str) -> Result<Option<String>> {
+        crate::profiles::bio(&self.db.read, member_id).await
+    }
+
+    async fn public_posts_of(
+        &self,
+        member_id: &str,
+        max_read_rank: i64,
+        limit: i64,
+    ) -> Result<(Vec<String>, i64)> {
+        let ids = crate::profiles::public_post_ids(&self.db.read, member_id, max_read_rank, limit)
+            .await?;
+        let total =
+            crate::profiles::count_public_posts(&self.db.read, member_id, max_read_rank).await?;
+        Ok((ids, total))
+    }
+
+    async fn public_comments_of(
+        &self,
+        member_id: &str,
+        max_read_rank: i64,
+        limit: i64,
+    ) -> Result<(Vec<Comment>, i64)> {
+        let items =
+            crate::comments::public_of_member(&self.db.read, member_id, max_read_rank, limit)
+                .await?;
+        let total =
+            crate::comments::count_public_of_member(&self.db.read, member_id, max_read_rank)
+                .await?;
+        Ok((items, total))
+    }
+
     async fn comment_counts(&self, post_ids: &[String]) -> Result<Vec<(String, i64)>> {
         crate::comments::counts(&self.db.read, post_ids).await
     }
@@ -2777,6 +2809,10 @@ impl WriteTx for SqliteWriteTx {
         .await
         .map_err(db_error)?;
         Ok(())
+    }
+
+    async fn set_member_bio(&mut self, member_id: &str, bio: &str, now: &str) -> Result<()> {
+        crate::profiles::set_bio(&mut *self.tx, member_id, bio, now).await
     }
 
     async fn clear_member_roles(&mut self, member_id: &str) -> Result<()> {

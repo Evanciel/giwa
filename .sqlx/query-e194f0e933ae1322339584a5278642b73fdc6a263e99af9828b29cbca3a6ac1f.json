@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT p.id AS \"id!\" FROM posts p\n           JOIN boards b ON b.id = p.board_id\n           JOIN roles r ON r.name = json_extract(b.policy, '$.read')\n           WHERE p.author_id = ?1 AND p.guest_name IS NULL\n             AND p.status = 'published' AND p.kind = 'post' AND p.is_secret = 0\n             AND r.rank <= ?2\n           ORDER BY p.published_at DESC, p.id DESC LIMIT ?3",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e194f0e933ae1322339584a5278642b73fdc6a263e99af9828b29cbca3a6ac1f"
+}
