@@ -30,6 +30,7 @@ use maru_core::Actor;
 use maru_core::actor::Permission;
 use maru_core::model::Media;
 use maru_core::services::backups::Archiver;
+use maru_core::services::links::{self, LinkFetcher};
 use maru_core::services::mail::{self, Mailer};
 use maru_core::services::stats::{self, StatCounter};
 use maru_core::services::views::{self, ViewCounter};
@@ -57,6 +58,8 @@ const PURGE_EVERY: Duration = Duration::from_secs(10 * 60);
 const SCHEDULE_EVERY: Duration = Duration::from_secs(20);
 /// 쌓인 편지를 배달하는 주기 (ADR-0051).
 const MAIL_EVERY: Duration = Duration::from_secs(5);
+/// 링크 카드 정보를 가져오는 주기 (ADR-0084). 한 번에 몇 개만.
+const LINKS_EVERY: Duration = Duration::from_secs(10);
 /// 모은 조회수를 DB 에 더하는 주기 (ADR-0049). 조회마다 쓰지 않는다.
 const VIEWS_EVERY: Duration = Duration::from_secs(20);
 /// 모듈 이벤트를 넘기는 주기.
@@ -80,6 +83,8 @@ pub struct AppState {
     pub stats: Arc<StatCounter>,
     /// 편지 전송 방식. 없으면 편지는 편지함에 쌓이기만 한다.
     pub mailer: Option<Arc<dyn Mailer>>,
+    /// 링크 카드용 외부 페이지 읽기 (ADR-0084). 없으면 카드는 주소와 도메인만 보인다.
+    pub link_fetcher: Option<Arc<dyn LinkFetcher>>,
     /// 백업 파일 보관소 (ADR-0063). 없으면 백업 경로가 「쓸 수 없음」으로 답한다.
     pub archiver: Option<Arc<dyn Archiver>>,
     /// 이 바이너리에 든 모듈 (ADR-0066). 켜짐은 DB 에 있다.
@@ -98,6 +103,7 @@ impl AppState {
             views: Arc::new(ViewCounter::new()),
             stats: Arc::new(StatCounter::new()),
             mailer: None,
+            link_fetcher: None,
             archiver: None,
             modules: Arc::new(Registry::default()),
         }
@@ -110,6 +116,11 @@ impl AppState {
 
     pub fn with_mailer(mut self, mailer: Arc<dyn Mailer>) -> Self {
         self.mailer = Some(mailer);
+        self
+    }
+
+    pub fn with_link_fetcher(mut self, fetcher: Arc<dyn LinkFetcher>) -> Self {
+        self.link_fetcher = Some(fetcher);
         self
     }
 
@@ -221,6 +232,7 @@ pub async fn serve(
     let scheduled = tokio::spawn(schedule_loop(state.clone()));
     let counted = tokio::spawn(views_loop(state.clone()));
     let mailed = tokio::spawn(mail_loop(state.clone()));
+    let fetched = tokio::spawn(links_loop(state.clone()));
     let delivered = tokio::spawn(modules_loop(state.clone()));
     let res = axum::serve(
         listener,
@@ -233,6 +245,7 @@ pub async fn serve(
     scheduled.abort();
     counted.abort();
     mailed.abort();
+    fetched.abort();
     delivered.abort();
     flush_views(&state).await;
     res
@@ -272,6 +285,27 @@ async fn mail_loop(state: AppState) {
                 "편지 배달"
             ),
             Err(e) => tracing::warn!(error = ?e, "편지 배달 확인 실패"),
+        }
+    }
+}
+
+/// 링크 카드 정보를 주기마다 몇 개씩 가져온다. 읽을 곳이 없으면 아무것도 하지 않는다.
+async fn links_loop(state: AppState) {
+    let Some(fetcher) = state.link_fetcher.clone() else {
+        return;
+    };
+    let mut tick = tokio::time::interval(LINKS_EVERY);
+    loop {
+        tick.tick().await;
+        match links::fetch_pending(&state.ctx, fetcher.as_ref()).await {
+            Ok(r) if r.ok + r.retry + r.failed == 0 => {}
+            Ok(r) => tracing::info!(
+                ok = r.ok,
+                retry = r.retry,
+                failed = r.failed,
+                "링크 카드 가져오기"
+            ),
+            Err(e) => tracing::warn!(error = ?e, "링크 카드 가져오기 확인 실패"),
         }
     }
 }

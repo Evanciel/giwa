@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO link_previews (url, status, attempts, created_at)\n         SELECT value, 'pending', 0, ? FROM json_each(?) WHERE true\n         ON CONFLICT (url) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "9507a4244883a9138cfdbc0f4a8344ef43098ae42038f75b04ab0fb02a71af13"
+}

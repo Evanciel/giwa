@@ -12,6 +12,7 @@ pub mod comments;
 pub mod design;
 pub mod files;
 pub mod fonts;
+pub mod links;
 pub mod mail;
 pub mod media;
 pub mod members;

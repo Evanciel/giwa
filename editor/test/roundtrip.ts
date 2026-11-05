@@ -54,6 +54,8 @@ const rich: Record<string, string> = {
   "상자 안 동영상": ":::center\n::video[https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=3]\n:::",
   "문단에 붙은 동영상 줄은 글자": "글\n::video[https://youtu.be/dQw4w9WgXcQ]",
   "모르는 주소는 글자": "::video[https://example.com/v/1]",
+  "링크 카드": "위\n\n::link[https://example.test/a?x=1&y=2]\n\n::link[https://x.com/u/status/1]",
+  "따옴표 든 주소는 글자": "::link[https://example.test/\"a]",
   "첨부 파일 링크": "[견적서 \[최종\].pdf (12KB)](/files/01m6eft46wt5sp5seq1xjbbryw) 받아 보세요",
 };
 

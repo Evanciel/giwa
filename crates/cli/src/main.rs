@@ -113,6 +113,9 @@ enum Command {
         /// 위키 게시판 slug
         board: String,
     },
+    /// 링크 카드(`::link[주소]`) 정보: 가져올 차례·가져옴·실패. 제목·설명은 남의 페이지에서 읽은 값이다
+    #[command(subcommand)]
+    Link(LinkCmd),
     /// 운영 신호: 댓글 급증·신고 집중·묵은 신고. `maru signals alert` 는 새 신호를 지금 메일로
     Signals(SignalsArgs),
     /// 관리 화면 로그인 링크를 만든다 (10분, 1회용)
@@ -201,6 +204,22 @@ pub enum SignalsCmd {
 pub enum PrivacyCmd {
     /// 지금 정리한다 (여러 번 해도 안전하다)
     Run,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum LinkCmd {
+    /// 새것부터
+    List {
+        /// pending, ok, failed
+        #[arg(long)]
+        status: Option<String>,
+        #[arg(long, default_value_t = 50)]
+        limit: i64,
+    },
+    /// 다음에 다시 가져오게 한다 (페이지 제목이 바뀐 때 등)
+    Refresh { url: String },
+    /// 가져올 차례인 주소를 지금 가져온다 (서버가 10초마다 하는 일)
+    Fetch,
 }
 
 #[derive(Debug, Subcommand)]
@@ -1075,6 +1094,9 @@ pub struct SiteSetArgs {
     /// 새 운영 신호를 관리자·소유자에게 메일로 (true/false)
     #[arg(long)]
     pub signal_mail: Option<bool>,
+    /// 링크 카드(`::link[주소]`)의 제목·그림을 서버가 가져온다 (true/false)
+    #[arg(long)]
+    pub link_cards: Option<bool>,
     /// 회원 가입: off(받지 않음), open(누구나)
     #[arg(long)]
     pub signup: Option<String>,

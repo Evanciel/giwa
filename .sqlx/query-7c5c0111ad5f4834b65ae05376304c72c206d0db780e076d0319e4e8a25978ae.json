@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE link_previews SET status = ?, title = ?, description = ?, site_name = ?,\n                image_url = ?, attempts = ?, last_error = ?, fetched_at = ?\n         WHERE url = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 9
+    },
+    "nullable": []
+  },
+  "hash": "7c5c0111ad5f4834b65ae05376304c72c206d0db780e076d0319e4e8a25978ae"
+}

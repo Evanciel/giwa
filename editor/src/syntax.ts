@@ -185,7 +185,17 @@ function boxRule(state: StateBlock, startLine: number, endLine: number, silent: 
 
 // ---- 한 줄 블록: `::video[주소]`, `::place[이름]{주소}` (ADR-0036) ----
 
-const LEAF = /^::(video|place)\[([^\]\n]*)\](?:\{([^}\n]*)\})?[ \t]*$/;
+const LEAF = /^::(video|place|link)\[([^\]\n]*)\](?:\{([^}\n]*)\})?[ \t]*$/;
+
+/** 링크 카드로 받을 주소. 서버 `directives::link_url_ok` 와 같은 규칙. */
+export function linkCardUrl(url: string): boolean {
+  return (
+    url.length <= 2048 &&
+    (url.startsWith("https://") || url.startsWith("http://")) &&
+    url.length > "https://".length &&
+    !/[\s\u0000-\u001f\u007f<>"'`\\]/.test(url)
+  );
+}
 
 function ytId(id: string): string | null {
   return /^[A-Za-z0-9_-]{11}$/.test(id) ? `https://www.youtube-nocookie.com/embed/${id}` : null;
@@ -240,11 +250,12 @@ function leafRule(state: StateBlock, startLine: number, endLine: number, silent:
   const [, kind, label, value] = m;
   if (kind === "video" && (value !== undefined || !videoEmbed(label))) return false;
   if (kind === "place" && !label.trim()) return false;
+  if (kind === "link" && (value !== undefined || !linkCardUrl(label))) return false;
   if (silent) return true;
   const tok = state.push(`maru_${kind}`, "div", 0);
   tok.block = true;
   tok.map = [startLine, next];
-  tok.meta = kind === "video" ? { url: label } : { name: label.trim(), addr: (value ?? "").trim() };
+  tok.meta = kind === "place" ? { name: label.trim(), addr: (value ?? "").trim() } : { url: label };
   state.line = next;
   return true;
 }

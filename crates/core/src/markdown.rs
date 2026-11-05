@@ -114,6 +114,13 @@ fn split_width(url: &str) -> (&str, Option<u32>) {
 
 const TABLE_ALIGNS: [&str; 3] = ["left", "center", "right"];
 
+pub use crate::directives::{LinkCardInfo, link_urls};
+
+/// 렌더 결과의 링크 카드 상자를 채운다 (ADR-0084). 넣는 값은 모두 이스케이프하고 그림은 이 사이트 `/media/` 만.
+pub fn fill_link_cards(html: SafeHtml, lookup: &dyn Fn(&str) -> Option<LinkCardInfo>) -> SafeHtml {
+    SafeHtml(crate::directives::fill_link_cards(&html.0, lookup))
+}
+
 pub fn render(md: &str) -> SafeHtml {
     render_with(md, &|_| None)
 }

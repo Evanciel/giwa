@@ -131,6 +131,10 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "error.mail_smtp_plain" => {
             "암호화 없는 SMTP(security = none)는 이 컴퓨터 안의 중계 서버에만 쓸 수 있습니다: {host}"
         }
+        "error.link_not_found" => {
+            "링크 카드 `{url}` 정보가 없습니다. 본문에 넣은 글을 한 번 연 뒤(또는 `maru link list`) 다시 하세요."
+        }
+        "error.link_status" => "링크 상태 `{value}` 는 없습니다. 가능한 값: pending, ok, failed",
         "error.mail_test_failed" => "시험 편지를 보내지 못했습니다: {detail}",
         "error.mail_transport" => "편지 보내는 방식 `{value}` 는 없습니다. 가능한 값: file, smtp",
         "error.mail_security" => {

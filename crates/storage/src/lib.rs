@@ -5,10 +5,13 @@ pub mod blobs;
 mod comments;
 pub mod data_dir;
 pub mod db;
+pub mod fetch;
+mod links;
 pub mod mail;
 pub mod mailer;
 mod search;
 pub mod sqlite;
+pub mod tls;
 
 use std::sync::Arc;
 

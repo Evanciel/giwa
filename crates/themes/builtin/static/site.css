@@ -483,6 +483,21 @@ main { min-height: 50vh; }
 .place-addr:empty { display: none; }
 .place-links { display: flex; flex-wrap: wrap; gap: .4em 1em; margin-top: .6em; font-size: .925em; }
 
+/* 링크 카드 (ADR-0084). 그림은 왼쪽 정사각형, 좁은 화면에서는 위로 */
+.link-card { margin-block: 1.5em; }
+.link-card > a { display: flex; align-items: stretch; gap: 0; color: inherit; text-decoration: none; border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; background: var(--bg); }
+.link-card > a:hover { border-color: var(--muted); }
+.link-card > a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.link-card-img { flex: none; width: 9.5rem; aspect-ratio: 1; object-fit: cover; background: var(--surface); }
+.link-card-text { display: flex; flex-direction: column; gap: .3em; min-width: 0; padding: .9em 1.1em; }
+.link-card-title { font-size: 1em; line-height: 1.45; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.link-card-desc { color: var(--muted); font-size: .925em; line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.link-card-site { margin-top: auto; color: var(--muted); font-size: .85em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 480px) {
+  .link-card > a { flex-direction: column; }
+  .link-card-img { width: 100%; aspect-ratio: 1.91; }
+}
+
 /* 공개 화면 글쓰기 (ADR-0053) */
 .board-head { display: flex; align-items: baseline; justify-content: space-between; gap: calc(var(--space) * 2); flex-wrap: wrap; margin: 0 0 calc(var(--space) * 6); }
 .board-head .page-title { margin: 0; }

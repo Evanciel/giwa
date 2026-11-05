@@ -164,6 +164,15 @@ const video: NodeSpec = {
   toDOM: (node) => ["div", { class: "me-embed me-video", "data-url": node.attrs.url }, `▶ 동영상 · ${node.attrs.url}`],
 };
 
+// 링크 카드 (ADR-0084). 편집 화면에서는 주소만 보인다(외부 요청 없음).
+const linkCard: NodeSpec = {
+  group: "block",
+  atom: true,
+  attrs: { url: {} },
+  parseDOM: [{ tag: "div.me-link", getAttrs: (dom) => ({ url: (dom as HTMLElement).dataset.url }) }],
+  toDOM: (node) => ["div", { class: "me-embed me-link", "data-url": node.attrs.url }, `🔗 링크 카드 · ${node.attrs.url}`],
+};
+
 const place: NodeSpec = {
   group: "block",
   atom: true,
@@ -219,6 +228,7 @@ export const schema = new Schema({
     .addToEnd("table_row", tableRow)
     .addToEnd("table_cell", tableCell)
     .addToEnd("video", video)
+    .addToEnd("link_card", linkCard)
     .addToEnd("place", place),
   marks: baseSchema.spec.marks
     .addToEnd("strike", {
@@ -264,6 +274,7 @@ const parser = new MarkdownParser(schema, readMd, {
   wikilink: { node: "wikilink", getAttrs: (tok) => ({ target: tok.meta.target, label: tok.meta.label }) },
   maru_box: { block: "box", getAttrs: (tok) => ({ kind: tok.meta.kind }) },
   maru_video: { node: "video", getAttrs: (tok) => ({ url: tok.meta.url }) },
+  maru_link: { node: "link_card", getAttrs: (tok) => ({ url: tok.meta.url }) },
   maru_place: { node: "place", getAttrs: (tok) => ({ name: tok.meta.name, addr: tok.meta.addr }) },
   table: { block: "table" },
   thead: { ignore: true },
@@ -307,6 +318,10 @@ const serializer = new MarkdownSerializer(
     },
     video(state, node) {
       state.write(`::video[${node.attrs.url}]`);
+      state.closeBlock(node);
+    },
+    link_card(state, node) {
+      state.write(`::link[${node.attrs.url}]`);
       state.closeBlock(node);
     },
     place(state, node) {

@@ -125,6 +125,27 @@ pub(crate) async fn store(ctx: &Ctx, actor: &Actor, input: Upload) -> Result<Med
     save(ctx, actor, p, alt_text, "media.upload", None).await
 }
 
+/// 서버가 가져온 링크 카드 그림을 보관한다 (ADR-0084). 시스템 작업이라 로컬 운영자 이름으로 감사(`link.thumbnail`).
+pub(crate) async fn store_link_thumbnail(
+    ctx: &Ctx,
+    filename: &str,
+    bytes: &[u8],
+    alt_text: Option<String>,
+    link: &str,
+) -> Result<Media> {
+    let alt_text = alt(alt_text)?;
+    let p = process(filename, bytes)?;
+    save(
+        ctx,
+        &Actor::local(),
+        p,
+        alt_text,
+        "link.thumbnail",
+        Some(json!({ "link": link })),
+    )
+    .await
+}
+
 /// 사진을 돌리거나 잘라 **새 미디어**로 둔다. 원본 기록·파일은 그대로 남아 본문의 옛 링크도 산다.
 /// 대체 텍스트는 원본 것을 이어받는다. 같은 요청을 다시 보내면 미디어가 하나 더 생긴다.
 pub async fn transform(ctx: &Ctx, actor: &Actor, id: &str, t: Transform) -> Result<Media> {

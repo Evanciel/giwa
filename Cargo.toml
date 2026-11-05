@@ -66,6 +66,12 @@ image = { version = "0.25.10", default-features = false, features = ["jpeg", "pn
 percent-encoding = "2.3.2"
 # 편지를 SMTP 로 보낸다. TLS 는 rustls(ring) + 운영체제 인증서 저장소. 연결 묶음(pool)·native-tls 는 끔 (S5, ADR-0083)
 lettre = { version = "0.11.23", default-features = false, features = ["builder", "smtp-transport", "tokio1", "tokio1-rustls", "ring", "rustls-platform-verifier"] }
+# 링크 카드·나가는 웹훅이 남의 주소를 읽는다. TLS 는 lettre 와 같은 rustls+ring 엔진(기본 엔진으로 깐다),
+# 운영체제 인증서 저장소. 운영체제 프록시·HTTP/2 는 쓰지 않는다 (E12, ADR-0084)
+reqwest = { version = "0.13.5", default-features = false, features = ["rustls-no-provider"] }
+rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12"] }
+# 국내 사이트의 EUC-KR 페이지를 읽는다 (E12)
+encoding_rs = "0.8.44"
 # 2단계 인증 등록 QR 그림을 서버에서 SVG 로 그린다. 그림 크레이트(image) 기능은 끔 (M16, ADR-0083)
 qrcode = { version = "0.14.1", default-features = false, features = ["svg"] }
 unicode-normalization = "0.1.26"

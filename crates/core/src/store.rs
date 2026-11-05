@@ -21,7 +21,7 @@ use crate::model::{
     PostStatus, PostTemplate, Revision, Role, Session, StatBatch, StatDay, StatPage, StatReferrer,
     Tag, TicketPurpose, Token, TotpChallenge, Widget,
 };
-use crate::model::{MemberActivity, MemberTotp, Signal};
+use crate::model::{LinkPreview, LinkStatus, MemberActivity, MemberTotp, Signal};
 
 /// 댓글 관리 목록 조건. 비어 있는 조건은 거르지 않는다.
 #[derive(Debug, Clone, Copy, Default)]
@@ -303,6 +303,15 @@ pub trait Store: Send + Sync {
     async fn mail_by_id(&self, id: &str) -> Result<Option<MailOut>>;
     /// 배달 결과 (상태·시도 수·오류·보낸 때). 감사 대상이 아닌 시스템 기록.
     async fn update_mail(&self, m: &MailOut) -> Result<()>;
+    /// 처음 보는 링크 카드 주소를 가져올 차례로 적는다 (ADR-0084). 감사 대상이 아닌 시스템 기록.
+    async fn note_links(&self, urls: &[String], now: &str) -> Result<()>;
+    async fn link_previews(&self, urls: &[String]) -> Result<Vec<LinkPreview>>;
+    /// 가져올 차례인 주소, 오래 기다린 것부터
+    async fn pending_links(&self, limit: i64) -> Result<Vec<LinkPreview>>;
+    /// 가져온 결과. 시스템 기록.
+    async fn update_link(&self, p: &LinkPreview) -> Result<()>;
+    /// 새것부터. `status` 가 없으면 전부
+    async fn links(&self, status: Option<LinkStatus>, limit: i64) -> Result<Vec<LinkPreview>>;
 
     async fn comment_by_id(&self, id: &str) -> Result<Option<Comment>>;
     /// 회원이 마지막으로 글이나 댓글을 쓴 때 (도배 방지, ADR-0071)
@@ -502,6 +511,8 @@ pub trait WriteTx: Send {
     async fn delete_member_sessions(&mut self, member_id: &str) -> Result<u64>;
     /// 처음 알리는 신호면 적고 `true` (ADR-0074).
     async fn mark_signal_sent(&mut self, key: &str, at: &str) -> Result<bool>;
+    /// 링크 카드를 다시 가져올 차례로 되돌린다. 없는 주소면 `None` (ADR-0084).
+    async fn reset_link(&mut self, url: &str) -> Result<Option<LinkPreview>>;
     /// 마지막 로그인을 적고 휴면 미리 알림 표시를 지운다 (ADR-0073).
     async fn touch_login(&mut self, member_id: &str, now: &str) -> Result<()>;
     async fn mark_dormant_notice(&mut self, member_id: &str, now: &str) -> Result<()>;

@@ -92,7 +92,7 @@ fn build_classes() -> Vec<(&'static str, Vec<String>)> {
         .iter()
         .flat_map(|(_, prefix, values)| values.iter().map(move |v| format!("{prefix}-{v}")))
         .collect();
-    divs.extend(["video", "place"].map(str::to_owned));
+    divs.extend(["video", "place", "link-card"].map(str::to_owned));
     spans.extend(["place-addr", "place-links"].map(str::to_owned));
     vec![
         ("div", divs),
@@ -124,6 +124,7 @@ pub fn expand(md: &str, options: Options) -> Cow<'_, str> {
             .any(|(name, _, _)| md.contains(&format!(":{name}[")))
         && !md.contains("::video[")
         && !md.contains("::place[")
+        && !md.contains("::link[")
     {
         return Cow::Borrowed(md);
     }
@@ -287,7 +288,7 @@ fn details_summary(doc: &Lines<'_>, from: usize, close: usize) -> (String, usize
     (inner, last)
 }
 
-// ---- 한 줄 블록: `::video[주소]`, `::place[이름]{주소}` (ADR-0036) ----
+// ---- 한 줄 블록: `::video[주소]`, `::place[이름]{주소}` (ADR-0036), `::link[주소]` (ADR-0084) ----
 
 /// 넣을 동영상 재생기의 `allow` 값. 정화 단계는 이 값만 남긴다.
 pub const VIDEO_ALLOW: &str =
@@ -311,6 +312,11 @@ fn leaf_at(lines: &[&str], fenced: &[bool], start: usize, end: usize, i: usize) 
         // 정화 단계는 iframe 을 받지 않는다. 링크로 두었다가 정화 뒤 [`embed_videos`] 가 재생기로 바꾼다.
         "video" if value.is_none() => video_embed(label)
             .map(|src| format!("<div class=\"video\"><a href=\"{src}\">동영상 보기</a></div>")),
+        // 정화 뒤 [`fill_link_cards`] 가 저장된 정보로 채운다. 정보가 없으면 이 링크 그대로다.
+        "link" if value.is_none() && link_url_ok(label) => Some(format!(
+            "<div class=\"link-card\"><a href=\"{0}\">{0}</a></div>",
+            escape(label)
+        )),
         "place" if !label.trim().is_empty() => {
             let name = label.trim();
             let addr = value.map(str::trim).unwrap_or("");
@@ -332,6 +338,8 @@ fn parse_leaf(line: &str) -> Option<(&'static str, &str, Option<&str>)> {
     let line = line.trim_end_matches([' ', '\t', '\r']);
     let (kind, rest) = if let Some(r) = line.strip_prefix("::video[") {
         ("video", r)
+    } else if let Some(r) = line.strip_prefix("::link[") {
+        ("link", r)
     } else {
         ("place", line.strip_prefix("::place[")?)
     };
@@ -422,6 +430,151 @@ pub fn embed_videos(html: &str) -> String {
     }
     out.push_str(rest);
     out
+}
+
+// ---- 링크 카드: `::link[주소]` (GAP E12, ADR-0084) ----
+
+/// 링크 카드로 받을 주소: http·https, 공백·꺾쇠·따옴표 없음, 2048자 이하
+pub fn link_url_ok(url: &str) -> bool {
+    url.len() <= 2048
+        && (url.starts_with("https://") || url.starts_with("http://"))
+        && url.len() > "https://".len()
+        && !url
+            .chars()
+            .any(|c| c.is_whitespace() || c.is_control() || "<>\"'`\\".contains(c))
+}
+
+/// 본문에 있는 링크 카드 주소(나온 차례, 겹치지 않게). 코드 블록 안은 뺀다.
+pub fn link_urls(md: &str) -> Vec<String> {
+    if !md.contains("::link[") {
+        return Vec::new();
+    }
+    let lines: Vec<&str> = md.split('\n').collect();
+    let fenced = fenced_lines(&lines);
+    let mut out: Vec<String> = Vec::new();
+    for i in 0..lines.len() {
+        if leaf_at(&lines, &fenced, 0, lines.len(), i).is_none() {
+            continue;
+        }
+        if let Some(("link", url, None)) = parse_leaf(lines[i])
+            && !out.iter().any(|u| u == url)
+        {
+            out.push(url.to_owned());
+        }
+    }
+    out
+}
+
+/// 카드에 그릴 정보. 값은 모두 맨 글자이고 여기서 이스케이프한다.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct LinkCardInfo {
+    pub title: Option<String>,
+    pub description: Option<String>,
+    /// 사이트 이름 또는 SNS 서비스 이름
+    pub site: Option<String>,
+    /// 이 사이트 보관소의 그림 주소(`/media/…`)만
+    pub image: Option<String>,
+}
+
+/// 정화를 마친 HTML 의 링크 카드 상자를 채운다. 정보가 없으면 주소와 도메인만 보인다.
+/// 상자 HTML 은 여기서만 만든다(정화 뒤에 넣으므로 모든 값을 이스케이프하고, 그림은 `/media/` 만).
+pub fn fill_link_cards(html: &str, lookup: &dyn Fn(&str) -> Option<LinkCardInfo>) -> String {
+    const OPEN: &str = "<div class=\"link-card\"><a href=\"";
+    const CLOSE: &str = "</a></div>";
+    if !html.contains(OPEN) {
+        return html.to_owned();
+    }
+    let mut out = String::with_capacity(html.len() + 512);
+    let mut rest = html;
+    while let Some(at) = rest.find(OPEN) {
+        out.push_str(&rest[..at]);
+        let after = &rest[at + OPEN.len()..];
+        let parsed = after.split_once('"').and_then(|(href, tail)| {
+            let end = tail.find(CLOSE)?;
+            (!tail[..end].contains('<')).then(|| (href, tail.len() - end - CLOSE.len()))
+        });
+        let Some((href, remain)) = parsed else {
+            out.push_str(OPEN);
+            rest = after;
+            continue;
+        };
+        // 정화가 `&` 를 `&amp;` 로 바꿔 둔다
+        let url = href.replace("&amp;", "&");
+        if !link_url_ok(&url) {
+            out.push_str(OPEN);
+            rest = after;
+            continue;
+        }
+        out.push_str(&card_html(&url, lookup(&url).unwrap_or_default()));
+        rest = &rest[rest.len() - remain..];
+    }
+    out.push_str(rest);
+    out
+}
+
+fn card_html(url: &str, info: LinkCardInfo) -> String {
+    let host = crate::services::links::host_of(url).unwrap_or_default();
+    let host = host.strip_prefix("www.").unwrap_or(&host).to_owned();
+    let site = info.site.clone().filter(|s| !s.trim().is_empty());
+    let title = info
+        .title
+        .clone()
+        .filter(|t| !t.trim().is_empty())
+        .unwrap_or_else(|| match &site {
+            Some(s) if crate::services::links::sns_label(url).is_some() => format!("{s} 게시물"),
+            _ => host.clone(),
+        });
+    let mut s = format!(
+        "<div class=\"link-card\"><a href=\"{}\" rel=\"nofollow noopener\" referrerpolicy=\"strict-origin-when-cross-origin\">",
+        escape(url)
+    );
+    if let Some(img) = info
+        .image
+        .as_deref()
+        .filter(|i| i.starts_with("/media/") && link_url_safe_path(i))
+    {
+        s.push_str(&format!(
+            "<img class=\"link-card-img\" src=\"{}\" alt=\"\" loading=\"lazy\" decoding=\"async\">",
+            escape(img)
+        ));
+    }
+    s.push_str("<span class=\"link-card-text\">");
+    s.push_str(&format!(
+        "<strong class=\"link-card-title\">{}</strong>",
+        escape(&title)
+    ));
+    if let Some(d) = info.description.as_deref().filter(|d| !d.trim().is_empty()) {
+        s.push_str(&format!(
+            "<span class=\"link-card-desc\">{}</span>",
+            escape(d)
+        ));
+    }
+    let foot = match site {
+        Some(site) if !site.eq_ignore_ascii_case(&host) => {
+            format!("{} · {}", escape(&site), escape(&host))
+        }
+        // 아직 정보가 없어 제목이 도메인이면 아래 줄에는 주소를 보인다
+        None if title == host => {
+            let bare = url.split_once("://").map_or(url, |(_, rest)| rest);
+            escape(
+                bare.strip_prefix("www.")
+                    .unwrap_or(bare)
+                    .trim_end_matches('/'),
+            )
+        }
+        _ => escape(&host),
+    };
+    s.push_str(&format!(
+        "<span class=\"link-card-site\">{foot}</span></span></a></div>"
+    ));
+    s
+}
+
+fn link_url_safe_path(p: &str) -> bool {
+    !p.contains("..")
+        && !p
+            .chars()
+            .any(|c| c.is_whitespace() || "<>\"'`\\".contains(c))
 }
 
 /// 재생기 주소로 쓸 수 있는가. [`video_embed`] 가 만드는 모양만.
@@ -668,6 +821,68 @@ mod tests {
             assert_eq!(s, format!("<div class=\"quote {k}\">\n\n인용\n\n</div>\n"));
         }
         assert!(!ex(":::quote-x\n인용\n:::").contains("<div"));
+    }
+
+    #[test]
+    fn link_cards_are_filled_after_sanitizing() {
+        let md = "앞\n\n::link[https://example.test/a?x=1&y=2]\n\n```\n::link[https://in.code/]\n```\n\n::link[https://x.com/u/status/1]\n\n::link[https://example.test/a?x=1&y=2]\n\n글\n::link[https://glued.test/]\n\n::link[javascript:alert(1)]";
+        assert_eq!(
+            link_urls(md),
+            ["https://example.test/a?x=1&y=2", "https://x.com/u/status/1"]
+        );
+        let html = crate::markdown::render(md).into_string();
+        assert!(!html.contains("href=\"javascript"), "{html}");
+        let filled = fill_link_cards(&html, &|u| {
+            (u == "https://example.test/a?x=1&y=2").then(|| LinkCardInfo {
+                title: Some("<b>제목</b>".into()),
+                description: Some("설명 \"따옴표\"".into()),
+                site: Some("예시".into()),
+                image: Some("/media/2026/a.jpg".into()),
+            })
+        });
+        assert!(
+            filled.contains("<strong class=\"link-card-title\">&lt;b&gt;제목&lt;/b&gt;</strong>"),
+            "{filled}"
+        );
+        assert!(filled.contains("설명 &quot;따옴표&quot;"), "{filled}");
+        assert!(
+            filled.contains("<img class=\"link-card-img\" src=\"/media/2026/a.jpg\""),
+            "{filled}"
+        );
+        assert!(
+            filled.contains("href=\"https://example.test/a?x=1&amp;y=2\""),
+            "{filled}"
+        );
+        assert!(
+            filled.contains("<span class=\"link-card-site\">예시 · example.test</span>"),
+            "{filled}"
+        );
+        // 정보가 없으면 도메인, SNS 는 서비스 이름
+        let bare = fill_link_cards(&html, &|u| {
+            crate::services::links::sns_label(u).map(|s| LinkCardInfo {
+                site: Some(s.into()),
+                ..LinkCardInfo::default()
+            })
+        });
+        assert!(
+            bare.contains("<strong class=\"link-card-title\">example.test</strong>"),
+            "{bare}"
+        );
+        assert!(
+            bare.contains("<strong class=\"link-card-title\">X 게시물</strong>"),
+            "{bare}"
+        );
+        // 바깥 그림 주소는 넣지 않는다
+        let evil = fill_link_cards(&html, &|_| {
+            Some(LinkCardInfo {
+                image: Some("https://evil.test/a.png".into()),
+                ..LinkCardInfo::default()
+            })
+        });
+        assert!(!evil.contains("evil.test"), "{evil}");
+        // 코드 블록·문단에 붙은 줄은 글자 그대로
+        assert!(html.contains("::link[https://in.code/]"), "{html}");
+        assert!(html.contains("::link[https://glued.test/]"), "{html}");
     }
 
     #[test]

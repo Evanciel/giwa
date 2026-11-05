@@ -51,7 +51,7 @@ import {
   wrappedIn,
 } from "./commands";
 import { IMAGE_WIDTHS, load, parse, schema, serialize } from "./markdown";
-import { isFontSlug, videoEmbed } from "./syntax";
+import { isFontSlug, linkCardUrl, videoEmbed } from "./syntax";
 import {
   altFromName,
   ATTACH_ACCEPT,
@@ -137,6 +137,7 @@ const TOOLS: (Tool | "|")[] = [
   { row: "insert", icon: "photo", label: "사진", name: "사진 올리기 (끌어다 놓거나 붙여 넣어도 됩니다)", run: (ed) => ed.pickFiles(), md: (ed) => ed.pickFiles() },
   { row: "insert", icon: "file", label: "파일", name: "파일 첨부 (PDF·한글·오피스·zip 등, 10MB 이하)", run: (ed) => ed.pickAttachments(), md: (ed) => ed.pickAttachments() },
   { row: "insert", icon: "video", label: "동영상", name: "유튜브·비메오 동영상 넣기", run: (ed) => ed.openVideo(), md: (ed) => ed.openVideo() },
+  { row: "insert", icon: "card", label: "링크 카드", name: "주소를 제목·설명·그림 상자로 넣기", run: (ed) => ed.openLinkCard(), md: (ed) => ed.openLinkCard() },
   { row: "insert", icon: "place", label: "장소", name: "장소(이름·주소·지도 링크) 넣기", run: (ed) => ed.openPlace(), md: (ed) => ed.openPlace() },
   { row: "insert", icon: "table", label: "표", name: "표 넣기 (칸 사이는 Tab 으로 이동)", run: cmd(insertTable()), md: (ed) => ed.mdInsert("\n\n| 제목 | 제목 |\n| --- | --- |\n| 내용 | 내용 |\n\n"), enabled: can(insertTable()) },
   { row: "insert", icon: "quote", label: "인용구", name: "인용구 (선·큰따옴표·말풍선·메모지·테두리)", run: (ed) => ed.openQuoteMenu(), md: (ed) => ed.openQuoteMenu(), active: (s) => wrappedIn(s, n.blockquote) || !!boxKind(s, "quote") },
@@ -1363,6 +1364,15 @@ class Editor {
       const url = raw.trim();
       if (!videoEmbed(url)) return "유튜브(youtube.com·youtu.be)나 비메오(vimeo.com) 동영상 주소만 넣을 수 있습니다.";
       this.insertBlock(schema.nodes.video.create({ url }), `::video[${url}]`);
+      return null;
+    });
+  }
+
+  openLinkCard() {
+    this.openPop("링크 카드로 넣을 주소", "", "https://…", (raw) => {
+      const url = raw.trim();
+      if (!linkCardUrl(url)) return "http:// 또는 https:// 로 시작하는 주소를 넣어 주세요(공백·따옴표 없이).";
+      this.insertBlock(schema.nodes.link_card.create({ url }), `::link[${url}]`);
       return null;
     });
   }

@@ -25,10 +25,10 @@ use serde_json::{Value, json};
 use crate::output;
 use crate::{
     AuditCmd, AuditListArgs, BackupArgs, BackupCmd, BoardCmd, CategoryCmd, Command, CommentCmd,
-    DesignCmd, FileCmd, FontCmd, Global, InitArgs, LoginLinkArgs, MailCmd, MailSetupArgs, MediaCmd,
-    MemberCmd, MenuCmd, MenuSetArgs, PageCmd, PostCmd, PostListArgs, PostNewArgs, PrivacyCmd,
-    RestoreArgs, SearchArgs, SearchCmd, ServeArgs, SignalsArgs, SignalsCmd, SiteCmd, StatsArgs,
-    TagCmd, TemplateCmd, TokenCmd, TokenCreateArgs, WidgetCmd,
+    DesignCmd, FileCmd, FontCmd, Global, InitArgs, LinkCmd, LoginLinkArgs, MailCmd, MailSetupArgs,
+    MediaCmd, MemberCmd, MenuCmd, MenuSetArgs, PageCmd, PostCmd, PostListArgs, PostNewArgs,
+    PrivacyCmd, RestoreArgs, SearchArgs, SearchCmd, ServeArgs, SignalsArgs, SignalsCmd, SiteCmd,
+    StatsArgs, TagCmd, TemplateCmd, TokenCmd, TokenCreateArgs, WidgetCmd,
 };
 
 pub async fn run(g: &Global, command: Command) -> ExitCode {
@@ -60,6 +60,7 @@ pub async fn run(g: &Global, command: Command) -> ExitCode {
         Command::Member(cmd) => member_cmd(g, cmd).await,
         Command::Comment(cmd) => comment_cmd(g, cmd).await,
         Command::Mail(cmd) => mail_cmd(g, cmd).await,
+        Command::Link(cmd) => link_cmd(g, cmd).await,
         Command::Privacy(cmd) => privacy_cmd(g, cmd).await,
         Command::Signals(args) => signals_cmd(g, args).await,
         Command::Wiki { board } => wiki_cmd(g, &board).await,
@@ -309,8 +310,10 @@ async fn serve_inner(g: &Global, args: ServeArgs) -> Result<()> {
     let (mailer, mail_about) = maru_storage::mailer::from_config(&dir, &config)?;
     let mail_info = mail_json(&dir, &config);
     let archiver = maru_storage::backup::FsArchiver::new(dir.clone(), db.clone());
+    let fetcher = maru_storage::fetch::HttpFetcher::new().map_err(Error::internal)?;
     let state = maru_web::AppState::new(ctx, theme)
         .with_mailer(mailer)
+        .with_link_fetcher(Arc::new(fetcher))
         .with_archiver(Arc::new(archiver))
         .with_modules(modules);
     let started = json!({
@@ -1656,6 +1659,7 @@ async fn site(g: &Global, cmd: SiteCmd) -> Out {
                 mail_retention_days: args.mail_retention_days,
                 signal_comment_burst: args.signal_comment_burst,
                 signal_mail: args.signal_mail,
+                link_cards: args.link_cards,
                 skin: args.skin,
             };
             settings::update(&ctx, &actor, patch).await
@@ -2378,6 +2382,56 @@ fn member_out(v: members::MemberView) -> Out {
         member_flags(&v.member)
     ) + if v.two_factor { "  2단계" } else { "" };
     Ok((to_value(&v)?, human))
+}
+
+async fn link_cmd(g: &Global, cmd: LinkCmd) -> Out {
+    use maru_core::services::links;
+    let (ctx, _config, db) = open(g).await?;
+    let res = async {
+        let actor = actor(&ctx).await?;
+        match cmd {
+            LinkCmd::List { status, limit } => {
+                let status = match status.as_deref() {
+                    None => None,
+                    Some(s) => Some(maru_core::model::LinkStatus::parse(s).ok_or_else(|| {
+                        Error::new(Code::Usage)
+                            .with_message("error.link_status")
+                            .arg("value", s)
+                            .next("maru link list --status pending")
+                    })?),
+                };
+                let list = links::list(&ctx, &actor, status, limit).await?;
+                let mut human = format!("링크 카드 {}개", list.len());
+                for p in &list {
+                    human.push_str(&format!(
+                        "\n{}  {}  {}",
+                        p.status.as_str(),
+                        p.url,
+                        p.title.as_deref().or(p.last_error.as_deref()).unwrap_or("")
+                    ));
+                }
+                Ok((json!({ "items": list, "untrusted": true }), human))
+            }
+            LinkCmd::Refresh { url } => {
+                let p = links::refresh(&ctx, &actor, &url).await?;
+                let human = format!("다음 주기에 다시 가져옵니다: {}", p.url);
+                Ok((to_value(&p)?, human))
+            }
+            LinkCmd::Fetch => {
+                actor.require(maru_core::actor::Permission::PostWrite)?;
+                let fetcher = maru_storage::fetch::HttpFetcher::new().map_err(Error::internal)?;
+                let r = links::fetch_pending(&ctx, &fetcher).await?;
+                let human = format!(
+                    "가져옴 {}개, 다시 시도 {}개, 실패 {}개",
+                    r.ok, r.retry, r.failed
+                );
+                Ok((to_value(&r)?, human))
+            }
+        }
+    }
+    .await;
+    db.close().await;
+    res
 }
 
 async fn wiki_cmd(g: &Global, board: &str) -> Out {

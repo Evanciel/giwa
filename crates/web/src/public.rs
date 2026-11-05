@@ -1125,6 +1125,28 @@ async fn body_document(
         }),
         None => markdown::render_document(md, &image),
     };
+    // 링크 카드 (ADR-0084). 정보를 못 읽어도 본문은 그린다 — 카드는 주소와 도메인만 보인다.
+    let link_urls = markdown::link_urls(md);
+    if !link_urls.is_empty() {
+        let cards = maru_core::services::links::cards_for(&state.ctx, &link_urls)
+            .await
+            .unwrap_or_default();
+        doc.html = markdown::fill_link_cards(doc.html, &|url| {
+            let sns = maru_core::services::links::sns_label(url);
+            match cards.get(url) {
+                Some(p) => Some(markdown::LinkCardInfo {
+                    title: p.title.clone(),
+                    description: p.description.clone(),
+                    site: p.site_name.clone().or_else(|| sns.map(str::to_owned)),
+                    image: p.image_url.clone(),
+                }),
+                None => sns.map(|s| markdown::LinkCardInfo {
+                    site: Some(s.to_owned()),
+                    ..markdown::LinkCardInfo::default()
+                }),
+            }
+        });
+    }
     let min = s.toc_min_headings as usize;
     if min == 0 || doc.toc.len() < min {
         doc.toc.clear();

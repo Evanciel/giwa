@@ -37,6 +37,7 @@
       <div class="stack">
         <label for="s-toc">목차를 보일 최소 제목 수 <span class="hint">0 이면 끔</span></label>
         <input id="s-toc" name="toc_min_headings" value="{{ form.toc_min_headings }}" inputmode="numeric" autocomplete="off">
+    <label class="choice"><input type="checkbox" name="link_cards" value="1"{% if form.link_cards %} checked{% endif %}> 링크 카드(<code>::link[주소]</code>)의 제목·설명·그림을 서버가 가져오기 <span class="hint">공개 인터넷 주소만 읽고, 그림은 이 사이트에 다시 저장합니다. 끄면 주소와 도메인만 보입니다.</span></label>
       </div>
     </div>
     <label class="choice"><input type="checkbox" name="show_views" value="1"{% if form.show_views %} checked{% endif %}> 조회수 보이기 <span class="choice-hint">꺼도 세기는 계속합니다</span></label>

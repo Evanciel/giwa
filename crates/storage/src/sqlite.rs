@@ -10,7 +10,7 @@ use maru_core::model::{
     Revision, Role, Session, StatBatch, StatDay, StatPage, StatReferrer, Tag, TicketPurpose, Token,
     TotpChallenge, Widget,
 };
-use maru_core::model::{MemberActivity, MemberTotp};
+use maru_core::model::{LinkPreview, LinkStatus, MemberActivity, MemberTotp};
 use maru_core::store::{
     AuditFilter, CommentQuery, MenuRow, ModuleMigration, PopularQuery, PostFilter, PublishedQuery,
     SearchQuery, SearchRef, Store, WikiPage, WriteTx,
@@ -1323,6 +1323,26 @@ impl Store for SqliteStore {
 
     async fn update_mail(&self, m: &MailOut) -> Result<()> {
         crate::mail::update(&self.db.write, m).await
+    }
+
+    async fn note_links(&self, urls: &[String], now: &str) -> Result<()> {
+        crate::links::note(&self.db.write, urls, now).await
+    }
+
+    async fn link_previews(&self, urls: &[String]) -> Result<Vec<LinkPreview>> {
+        crate::links::by_urls(&self.db.read, urls).await
+    }
+
+    async fn pending_links(&self, limit: i64) -> Result<Vec<LinkPreview>> {
+        crate::links::pending(&self.db.read, limit).await
+    }
+
+    async fn update_link(&self, p: &LinkPreview) -> Result<()> {
+        crate::links::update(&self.db.write, p).await
+    }
+
+    async fn links(&self, status: Option<LinkStatus>, limit: i64) -> Result<Vec<LinkPreview>> {
+        crate::links::list(&self.db.read, status, limit).await
     }
 
     async fn comment_by_id(&self, id: &str) -> Result<Option<Comment>> {
@@ -2912,6 +2932,10 @@ impl WriteTx for SqliteWriteTx {
                 .map_err(db_error)?
                 .rows_affected(),
         )
+    }
+
+    async fn reset_link(&mut self, url: &str) -> Result<Option<LinkPreview>> {
+        crate::links::reset(&mut self.tx, url).await
     }
 
     async fn mark_signal_sent(&mut self, key: &str, at: &str) -> Result<bool> {

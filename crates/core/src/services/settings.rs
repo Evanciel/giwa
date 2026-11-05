@@ -66,6 +66,9 @@ pub struct SettingsPatch {
     /// 새 운영 신호를 관리자·소유자에게 메일로
     #[serde(default)]
     pub signal_mail: Option<bool>,
+    /// 링크 카드 정보를 서버가 가져온다 (ADR-0084)
+    #[serde(default)]
+    pub link_cards: Option<bool>,
     /// 공개 화면 스킨: default · community (ADR-0081)
     #[serde(default)]
     pub skin: Option<String>,
@@ -189,6 +192,9 @@ pub async fn update(ctx: &Ctx, actor: &Actor, patch: SettingsPatch) -> Result<Si
     if let Some(b) = patch.signal_mail {
         actor.require(Permission::MemberManage)?;
         changes.push(("signal_mail", json!(b)));
+    }
+    if let Some(b) = patch.link_cards {
+        changes.push(("link_cards", json!(b)));
     }
     if let Some(m) = &patch.signup {
         actor.require(Permission::MemberManage)?;

@@ -1164,6 +1164,8 @@ struct SettingsForm {
     signal_comment_burst: String,
     #[serde(default)]
     signal_mail: Option<String>,
+    #[serde(default)]
+    link_cards: Option<String>,
 }
 
 fn on(b: bool) -> Option<String> {
@@ -1194,6 +1196,7 @@ impl SettingsForm {
             mail_retention_days: s.mail_retention_days.to_string(),
             signal_comment_burst: s.signal_comment_burst.to_string(),
             signal_mail: on(s.signal_mail),
+            link_cards: on(s.link_cards),
         }
     }
 
@@ -1257,6 +1260,7 @@ impl SettingsForm {
                 now.signal_comment_burst,
             ),
             signal_mail: changed(self.signal_mail.is_some(), now.signal_mail),
+            link_cards: changed(self.link_cards.is_some(), now.link_cards),
         })
     }
 }

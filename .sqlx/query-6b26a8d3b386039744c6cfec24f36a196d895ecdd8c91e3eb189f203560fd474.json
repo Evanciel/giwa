@@ -1,0 +1,134 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT url, status, title, description, site_name, image_url, attempts, last_error,\n                fetched_at, created_at\n         FROM link_previews WHERE (?1 IS NULL OR status = ?1)\n         ORDER BY created_at DESC, url LIMIT ?2",
+  "describe": {
+    "columns": [
+      {
+        "name": "url",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "link_previews",
+            "name": "url"
+          }
+        }
+      },
+      {
+        "name": "status",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "link_previews",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "name": "title",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "link_previews",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "name": "description",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "link_previews",
+            "name": "description"
+          }
+        }
+      },
+      {
+        "name": "site_name",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "link_previews",
+            "name": "site_name"
+          }
+        }
+      },
+      {
+        "name": "image_url",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "link_previews",
+            "name": "image_url"
+          }
+        }
+      },
+      {
+        "name": "attempts",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "link_previews",
+            "name": "attempts"
+          }
+        }
+      },
+      {
+        "name": "last_error",
+        "ordinal": 7,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "link_previews",
+            "name": "last_error"
+          }
+        }
+      },
+      {
+        "name": "fetched_at",
+        "ordinal": 8,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "link_previews",
+            "name": "fetched_at"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 9,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "link_previews",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "6b26a8d3b386039744c6cfec24f36a196d895ecdd8c91e3eb189f203560fd474"
+}

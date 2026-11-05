@@ -756,6 +756,9 @@ pub struct SiteSettings {
     /// 새 운영 신호를 관리자·소유자에게 메일로 알린다 (ADR-0074)
     #[serde(default = "default_true")]
     pub signal_mail: bool,
+    /// 링크 카드(`::link[주소]`)의 제목·설명·그림을 서버가 가져온다 (ADR-0084)
+    #[serde(default = "default_true")]
+    pub link_cards: bool,
     /// 공개 화면 스킨. `SKINS` 중 하나 (ADR-0081)
     #[serde(default = "default_skin")]
     pub skin: String,
@@ -861,6 +864,7 @@ impl Default for SiteSettings {
             mail_retention_days: default_mail_retention_days(),
             signal_comment_burst: default_signal_comment_burst(),
             signal_mail: true,
+            link_cards: true,
             skin: default_skin(),
         }
     }
@@ -1121,6 +1125,49 @@ pub struct Comment {
     pub created_at: String,
     /// 본문을 마지막으로 고친 때 (상태 변경은 audit_log 에만 남는다 → 화면의 「고침」 표시).
     pub updated_at: String,
+}
+
+/// 링크 카드 정보의 상태 (`link_previews.status`, ADR-0084)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum LinkStatus {
+    /// 가져올 차례
+    Pending,
+    Ok,
+    /// 몇 번 해도 못 가져옴 — 주소와 도메인만 보인다
+    Failed,
+}
+
+impl LinkStatus {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Pending => "pending",
+            Self::Ok => "ok",
+            Self::Failed => "failed",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        [Self::Pending, Self::Ok, Self::Failed]
+            .into_iter()
+            .find(|p| p.as_str() == s)
+    }
+}
+
+/// 링크 카드 한 장의 정보. 주소마다 하나, 여러 글이 함께 쓴다. 제목·설명은 남의 페이지에서 읽은 값이다.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+pub struct LinkPreview {
+    pub url: String,
+    pub status: LinkStatus,
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub site_name: Option<String>,
+    /// 이 사이트 보관소에 다시 저장한 그림 (`/media/…`)
+    pub image_url: Option<String>,
+    pub attempts: i64,
+    pub last_error: Option<String>,
+    pub fetched_at: Option<String>,
+    pub created_at: String,
 }
 
 /// 보낼 편지함의 편지 한 통 (`mail_outbox`). 본문에 1회용 링크가 들 수 있어 REST 로 내보내지 않는다.

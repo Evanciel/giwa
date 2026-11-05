@@ -12,9 +12,9 @@ use axum::{Json, Router};
 use maru_core::model::{MenuItem, PageReq, PageStatus, PostStatus};
 use maru_core::output::Success;
 use maru_core::services::{
-    anonymous_actor, audit_log, backups, boards, categories, comments, design, files, fonts, media,
-    members, menus, pages, posts, retention, search, settings, signals, stats, tags, templates,
-    tokens, views, widgets, wiki,
+    anonymous_actor, audit_log, backups, boards, categories, comments, design, files, fonts, links,
+    media, members, menus, pages, posts, retention, search, settings, signals, stats, tags,
+    templates, tokens, views, widgets, wiki,
 };
 use maru_core::{Actor, Code, Error};
 use maru_modules::service as modules;
@@ -123,6 +123,8 @@ pub fn routes() -> Router<AppState> {
         .route("/search/reindex", post(reindex_search))
         .route("/privacy/run", post(run_privacy))
         .route("/signals", get(list_signals))
+        .route("/links", get(list_links))
+        .route("/links/refresh", post(refresh_link))
         .route("/posts/{id}/comments", get(post_comments))
         .route("/comments", get(list_comments))
         .route("/comments/{id}/{action}", post(moderate_comment))
@@ -935,6 +937,50 @@ async fn list_signals(
     ApiActor(actor): ApiActor,
 ) -> Result<Response, ApiError> {
     Ok(ok(StatusCode::OK, signals::list(&state.ctx, &actor).await?))
+}
+
+#[derive(Deserialize)]
+struct LinksQuery {
+    status: Option<String>,
+    limit: Option<i64>,
+}
+
+/// 링크 카드 정보 (ADR-0084). 제목·설명은 남의 페이지에서 읽은 값이라 `untrusted`.
+async fn list_links(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Query(q): Query<LinksQuery>,
+) -> Result<Response, ApiError> {
+    let status = match q.status.as_deref() {
+        None => None,
+        Some(s) => Some(maru_core::model::LinkStatus::parse(s).ok_or_else(|| {
+            Error::new(Code::Validation)
+                .with_message("error.link_status")
+                .arg("value", s)
+        })?),
+    };
+    let list = links::list(&state.ctx, &actor, status, q.limit.unwrap_or(50)).await?;
+    Ok(ok(
+        StatusCode::OK,
+        serde_json::json!({ "items": list, "untrusted": true }),
+    ))
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RefreshLink {
+    url: String,
+}
+
+async fn refresh_link(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Json(body): Json<RefreshLink>,
+) -> Result<Response, ApiError> {
+    Ok(ok(
+        StatusCode::OK,
+        links::refresh(&state.ctx, &actor, &body.url).await?,
+    ))
 }
 
 async fn run_privacy(
