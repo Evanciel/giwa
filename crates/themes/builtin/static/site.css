@@ -855,3 +855,23 @@ a.wikilink-new { color: #b3261e; text-decoration-style: dashed; }
 .region-masthead { display: flex; align-items: center; gap: calc(var(--space) * 2); min-width: 0; }
 .region-masthead .widget { border: 0; padding: 0; background: none; }
 .region-masthead img { max-height: 5.5rem; width: auto; }
+
+/* 로그인 상자 (GAP Q15, ADR-0100) */
+.account-box { display: grid; gap: calc(var(--space) * 1.5); }
+.account-box-intro { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
+.account-box-login { display: block; padding: calc(var(--space) * 1.25); border-radius: var(--radius-sm); background: var(--fg); color: var(--bg); font-weight: 700; text-align: center; text-decoration: none; }
+.account-box-login:hover, .account-box-login:focus-visible { opacity: .9; }
+.account-box-sub { margin: calc(var(--space) * 1) 0 0; color: var(--muted); font-size: var(--fs-sm); text-align: center; }
+.account-box-sub a { color: inherit; }
+.account-box-links { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: calc(var(--space) * .75); }
+.account-box-links a { display: block; padding: calc(var(--space) * .9) calc(var(--space) * .5); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--fg); font-size: var(--fs-sm); font-weight: 600; text-align: center; text-decoration: none; }
+.account-box-links a:hover, .account-box-links a:focus-visible { border-color: var(--primary); color: var(--primary); }
+.account-box-member { display: grid; gap: calc(var(--space) * .75); }
+.account-box-hello, .account-box-note { margin: 0; }
+.account-box-note { color: var(--muted); font-size: var(--fs-sm); }
+.account-box-mine { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: calc(var(--space) * .5) calc(var(--space) * 1.5); font-size: var(--fs-sm); }
+.account-box-mine a { color: var(--fg); }
+.account-box-count { display: inline-block; min-width: 1.35em; padding: 0 .35em; border-radius: 999px; background: var(--primary); color: var(--bg); font-size: .72rem; font-weight: 700; line-height: 1.45; text-align: center; }
+.account-box-member form { margin: 0; }
+.account-box-logout { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: calc(var(--space) * .5) calc(var(--space) * 1.25); background: none; color: var(--muted); font: inherit; font-size: var(--fs-sm); cursor: pointer; }
+.account-box-logout:hover { color: var(--fg); border-color: var(--fg); }

@@ -83,5 +83,6 @@ items = [
   { kind = "latest_posts", region = "main", scope = "home", title = "토론", config = { board = "forum", limit = 8, show_date = true } },
   # 홀수 번째 마지막 판은 community.css 가 두 칸 너비로 편다
   { kind = "latest_posts", region = "main", scope = "home", title = "사진", config = { board = "photo", limit = 6, view = "card" } },
+  { kind = "account_box", region = "sidebar", scope = "all", title = "", config = { links = [{ label = "질문하기", link = "/write/qna" }, { label = "전체 새 글", link = "/recent" }] } },
   { kind = "popular_posts", region = "sidebar", scope = "all", title = "많이 본 글", config = { limit = 10, days = 7 } },
 ]

@@ -6,8 +6,9 @@
 use maru_core::model::{PageReq, SiteSettings, Widget};
 use maru_core::services::posts::PublicFilter;
 use maru_core::services::widgets::{
-    self, GalleryGridConfig, ImageBannerConfig, LatestPostsConfig, MarkdownBlockConfig, MenuConfig,
-    NoticeBarConfig, PopularPostsConfig, PopupConfig, PostTabsConfig, Screen, SearchConfig,
+    self, AccountBoxConfig, GalleryGridConfig, ImageBannerConfig, LatestPostsConfig,
+    MarkdownBlockConfig, MenuConfig, NoticeBarConfig, PopularPostsConfig, PopupConfig,
+    PostTabsConfig, Screen, SearchConfig,
 };
 use maru_core::services::{anonymous_actor, boards, media, posts, settings};
 use maru_core::urls::{self, Target};
@@ -181,6 +182,22 @@ async fn view(
             json!({
                 "action": urls::path(&Target::Search),
                 "placeholder": if c.placeholder.is_empty() { "검색" } else { c.placeholder.as_str() },
+            })
+        }
+        "account_box" => {
+            let c: AccountBoxConfig = cfg(w)?;
+            let intro = if c.intro.is_empty() {
+                &site.description
+            } else {
+                &c.intro
+            };
+            json!({
+                "intro": intro,
+                "bar_url": "/me/bar",
+                "login_url": "/login",
+                "forgot_url": "/forgot",
+                "signup_url": (site.signup == maru_core::model::SignupMode::Open).then_some("/signup"),
+                "links": c.links.iter().map(|l| json!({ "label": l.label, "link": link_json(&l.link) })).collect::<Vec<_>>(),
             })
         }
         "image_banner" => {

@@ -393,9 +393,11 @@
     var nav = document.querySelector(".cm-account[data-bar]");
     var url = nav && nav.getAttribute("data-bar");
     if (!url || !window.fetch) return;
-    fetch(url, { credentials: "same-origin", headers: { "Accept": "application/json" } })
+    // 로그인 상자 위젯(site.js, ADR-0100)과 같은 요청을 함께 쓴다.
+    var bar = window.maruBar || (window.maruBar = fetch(url, { credentials: "same-origin", headers: { "Accept": "application/json" } })
       .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (bar) { if (bar) { fillBar(nav, bar); memberMenus(bar); } })
+      .catch(function () { return null; }));
+    bar.then(function (b) { if (b) { fillBar(nav, b); memberMenus(b); } })
       .catch(function () { /* 그대로 「내 계정」 링크 */ });
   });
 })();

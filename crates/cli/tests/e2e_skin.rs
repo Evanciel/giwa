@@ -190,7 +190,7 @@ fn community_preset_skin_and_account_bar() {
     }
     let widgets = maru(&data, &["widget", "list"]);
     let count = widgets.as_array().unwrap().len();
-    assert_eq!(count, 6, "{widgets}");
+    assert_eq!(count, 7, "{widgets}");
 
     // 다시 적용해도 늘지 않는다. 사용자가 바꾼 설정은 덮어쓰지 않는다.
     maru(&data, &["site", "set", "--flood-seconds", "30"]);
@@ -238,6 +238,25 @@ fn community_preset_skin_and_account_bar() {
     assert!(home.body.contains("data-bar=\"/me/bar\""));
     assert!(home.body.contains("class=\"cm-nav\""));
     assert!(home.body.contains("widget-latest_posts"));
+    // 곁가지 로그인 상자 (GAP Q15, ADR-0100): 손님 모양(가입이 열려 있으면 회원가입 링크)
+    let side = home
+        .body
+        .split("data-account-box=\"/me/bar\"")
+        .nth(1)
+        .unwrap();
+    let side = side.split("</section>").next().unwrap();
+    assert!(
+        side.contains("<a class=\"account-box-login\" href=\"/login\">로그인</a>"),
+        "{side}"
+    );
+    assert!(
+        side.contains("<a href=\"/forgot\">비밀번호 찾기</a> · <a href=\"/signup\">회원가입</a>"),
+        "{side}"
+    );
+    assert!(
+        side.contains("<a href=\"/write/qna\">질문하기</a>"),
+        "{side}"
+    );
     assert!(home.body.contains("자유게시판"));
     let board = http(&bind, "GET", "/b/free", &[], "");
     assert_eq!(board.status, 200);

@@ -135,6 +135,27 @@ pub struct SearchConfig {
     pub placeholder: String,
 }
 
+/// 로그인 상자 (GAP Q15, ADR-0100). HTML 은 손님 모양으로 모두에게 같고, 로그인한 사람의 모양은
+/// 테마 스크립트가 `/me/bar` 로 바꾼다.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AccountBoxConfig {
+    /// 손님에게 보일 한 줄 소개(200자). 비우면 사이트 설명
+    #[serde(default)]
+    pub intro: String,
+    /// 아래 바로가기 단추(최대 6개). 출석체크·질문하기 같은 곳
+    #[serde(default)]
+    pub links: Vec<AccountBoxLink>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AccountBoxLink {
+    pub label: String,
+    /// `/…` 또는 `https://…`
+    pub link: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct BannerSlide {
@@ -223,7 +244,7 @@ fn latest_source() -> String {
 }
 
 /// 종류 id, 이름, 설명.
-const KINDS: [(&str, &str, &str); 10] = [
+const KINDS: [(&str, &str, &str); 11] = [
     (
         "latest_posts",
         "최신 글",
@@ -243,6 +264,11 @@ const KINDS: [(&str, &str, &str); 10] = [
     ("menu", "메뉴", "머리글·바닥글 메뉴를 한 번 더"),
     ("notice_bar", "알림 띠", "한 줄 알림과 링크"),
     ("search", "검색", "사이트 검색 칸"),
+    (
+        "account_box",
+        "로그인 상자",
+        "로그인·가입 단추와 바로가기. 로그인하면 내 이름·알림·포인트",
+    ),
     (
         "image_banner",
         "그림 배너",
@@ -280,6 +306,7 @@ pub fn types() -> Vec<WidgetType> {
                 "menu" => schema_of::<MenuConfig>(),
                 "notice_bar" => schema_of::<NoticeBarConfig>(),
                 "search" => schema_of::<SearchConfig>(),
+                "account_box" => schema_of::<AccountBoxConfig>(),
                 "image_banner" => schema_of::<ImageBannerConfig>(),
                 "popup" => schema_of::<PopupConfig>(),
                 _ => schema_of::<GalleryGridConfig>(),
@@ -753,6 +780,21 @@ async fn check_config(ctx: &Ctx, kind: &str, config: Value) -> Result<Value> {
         "search" => {
             let mut c: SearchConfig = parse(kind, config)?;
             c.placeholder = short_text(kind, "placeholder", &c.placeholder, 40, false)?;
+            json!(c)
+        }
+        "account_box" => {
+            let mut c: AccountBoxConfig = parse(kind, config)?;
+            c.intro = short_text(kind, "intro", &c.intro, 200, false)?;
+            if c.links.len() > 6 {
+                return Err(bad_config(kind, "links 는 6개까지"));
+            }
+            for l in &mut c.links {
+                l.label = short_text(kind, "links.label", &l.label, 20, true)?;
+                l.link = check_link(kind, &l.link)?;
+                if l.link.is_empty() {
+                    return Err(bad_config(kind, "links.link 가 비었습니다"));
+                }
+            }
             json!(c)
         }
         "image_banner" => {

@@ -1,4 +1,4 @@
-// Maru 내장 테마 스크립트 (ADR-0060). 팝업과 최근 본 게시판(ADR-0096).
+// Maru 내장 테마 스크립트 (ADR-0060). 팝업과 최근 본 게시판(ADR-0096), 로그인 상자(ADR-0100).
 // 「N일 보지 않기」 기한은 이 브라우저의 localStorage 에만 둔다. 저장소를 못 쓰면 닫기만 된다.
 (() => {
   const PREFIX = "maru-popup:";
@@ -92,4 +92,82 @@
   });
   box.append(label, ul, clear);
   nav.hidden = false;
+})();
+
+// 로그인 상자 위젯 (GAP Q15, ADR-0100). HTML 은 손님 모양으로 모두에게 같고(캐시), 로그인했으면
+// /me/bar 로 이름·알림·포인트·로그아웃으로 바꾼다. 막대 스크립트와 같은 요청을 함께 쓴다(window.maruBar).
+(() => {
+  const boxes = document.querySelectorAll("[data-account-box]");
+  if (!boxes.length || !window.fetch) return;
+  const next = location.pathname + location.search;
+  boxes.forEach((box) => {
+    const a = box.querySelector(".account-box-login");
+    if (a && next !== "/") a.href = a.getAttribute("href") + "?next=" + encodeURIComponent(next);
+  });
+  const url = boxes[0].dataset.accountBox;
+  if (!/^\/(?!\/)/.test(url)) return;
+  const bar = window.maruBar || (window.maruBar = fetch(url, { credentials: "same-origin", headers: { "Accept": "application/json" } })
+    .then((r) => (r.ok ? r.json() : null))
+    .catch(() => null));
+  bar.then((b) => {
+    if (!b || !b.signed_in) return;
+    const items = Array.isArray(b.items) ? b.items : [];
+    boxes.forEach((box) => {
+      const guest = box.querySelector(".account-box-guest");
+      if (!guest) return;
+      const me = document.createElement("div");
+      me.className = "account-box-member";
+      const hello = document.createElement("p");
+      hello.className = "account-box-hello";
+      const name = document.createElement("strong");
+      name.textContent = b.name;
+      hello.append(name, "님, 반갑습니다.");
+      me.append(hello);
+      for (const i of items) {
+        if (!i.note) continue;
+        const n = document.createElement("p");
+        n.className = "account-box-note";
+        n.textContent = i.note;
+        me.append(n);
+      }
+      const ul = document.createElement("ul");
+      ul.className = "account-box-mine";
+      const add = (label, href, count) => {
+        if (typeof href !== "string" || !/^\/(?!\/)/.test(href)) return;
+        const li = document.createElement("li");
+        const a = document.createElement("a");
+        a.href = href;
+        a.textContent = label;
+        if (count > 0) {
+          const c = document.createElement("span");
+          c.className = "account-box-count";
+          c.textContent = count > 99 ? "99+" : String(count);
+          c.setAttribute("aria-label", "읽지 않은 " + count + "개");
+          a.append(" ", c);
+        }
+        li.append(a);
+        ul.append(li);
+      };
+      add("내 정보", b.me_url);
+      for (const i of items) if (!i.menu) add(i.label, i.url, i.count);
+      for (const i of items) if (i.menu) add(i.label, i.url);
+      me.append(ul);
+      if (b.logout && typeof b.logout.url === "string") {
+        const f = document.createElement("form");
+        f.method = "post";
+        f.action = b.logout.url;
+        const t = document.createElement("input");
+        t.type = "hidden";
+        t.name = "_csrf";
+        t.value = b.logout.csrf;
+        const s = document.createElement("button");
+        s.type = "submit";
+        s.className = "account-box-logout";
+        s.textContent = "로그아웃";
+        f.append(t, s);
+        me.append(f);
+      }
+      guest.replaceWith(me);
+    });
+  });
 })();

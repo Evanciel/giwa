@@ -175,8 +175,8 @@
 .cm .comments { margin-top: calc(var(--space) * 5); }
 .cm .comment { padding-inline: calc(var(--space) * 1); }
 
-/* 글쓰기 단추는 눈에 띄게 */
-.cm .write-button { background: var(--primary); border-color: var(--primary); color: #fff; }
+/* 글쓰기 단추·로그인 상자 단추는 눈에 띄게 */
+.cm .write-button, .cm .account-box-login { background: var(--primary); border-color: var(--primary); color: #fff; }
 
 /* 바닥글 */
 .cm-footer { background: var(--cm-ink); color: var(--cm-ink-fg); padding-block: calc(var(--space) * 4); font-size: var(--fs-sm); }

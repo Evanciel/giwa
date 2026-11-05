@@ -999,7 +999,8 @@ pub enum WidgetCmd {
 
 #[derive(Debug, Args)]
 pub struct WidgetPlaceArgs {
-    /// latest_posts, popular_posts, markdown_block, menu, notice_bar, search, image_banner, gallery_grid
+    /// latest_posts, popular_posts, post_tabs, markdown_block, menu, notice_bar, search, account_box,
+    /// image_banner, gallery_grid, popup
     pub kind: String,
     /// header, hero, main, sidebar, footer, masthead(머리글 이름 옆), popup
     #[arg(long)]
