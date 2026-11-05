@@ -743,6 +743,10 @@ async fn account_bar(State(state): State<AppState>, headers: HeaderMap) -> Respo
                 "member_action": d.get("member_action").filter(|a| {
                     a["label"].is_string() && a["url"].as_str().is_some_and(|u| u.starts_with('/'))
                 }),
+                // 막대에서 펼쳐 보는 목록 주소(사이트 안 JSON), 이름 메뉴로 갈 항목, 덧붙일 한 줄 (GAP Q14, ADR-0099)
+                "panel": d["panel"].as_str().filter(|u| u.starts_with('/') && !u.starts_with("//")),
+                "menu": d["menu"].as_bool().unwrap_or(false),
+                "note": d["note"].as_str(),
             }))
         })
         .collect();
@@ -750,6 +754,10 @@ async fn account_bar(State(state): State<AppState>, headers: HeaderMap) -> Respo
         "signed_in": true,
         "name": who.member.display_name,
         "me_url": "/me",
+        "profile_url": urls::path(&Target::Member { name: &who.member.display_name }),
+        "comments_url": "/me/comments",
+        // 이름 메뉴의 로그아웃 폼. 같은 사이트 스크립트만 읽는 응답이다(no-store, CORS 없음).
+        "logout": { "url": "/logout", "csrf": who.session.csrf_token },
         "items": items,
     }))
     .into_response()

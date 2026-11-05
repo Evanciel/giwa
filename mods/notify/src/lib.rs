@@ -8,10 +8,10 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use axum::extract::{Form, Path, Query, State};
-use axum::http::{HeaderMap, StatusCode};
+use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
-use axum::{Extension, Router};
+use axum::{Extension, Json, Router};
 use maru_core::actor::{Actor, Permission};
 use maru_core::audit::{AuditRecord, Target};
 use maru_core::fields::FieldDef;
@@ -52,6 +52,8 @@ static MANIFEST: Manifest = Manifest {
 
 const PER_PAGE: i64 = 20;
 const ME_LIMIT: i64 = 5;
+/// 회원 막대에서 펼쳐 보는 알림 수 (GAP Q14, ADR-0099)
+const PEEK_LIMIT: i64 = 8;
 const HOME: &str = "/m/notify";
 /// 알림 보관 날수 (ADR-0073)
 const DEFAULT_KEEP_DAYS: i64 = 180;
@@ -710,6 +712,7 @@ impl Module for NotifyModule {
         Some(
             Router::new()
                 .route("/", get(list_page))
+                .route("/peek", get(peek))
                 .route("/open/{id}", post(open_form))
                 .route("/read-all", post(read_all_form))
                 .route("/prefs", post(prefs_form))
@@ -895,7 +898,12 @@ impl Module for NotifyModule {
         if slot == ACCOUNT_BAR {
             return Ok(Some(SlotContent {
                 template: "",
-                data: json!({ "label": "알림", "url": HOME, "count": self.unread(member).await? }),
+                data: json!({
+                    "label": "알림",
+                    "url": HOME,
+                    "count": self.unread(member).await?,
+                    "panel": format!("{HOME}/peek"),
+                }),
             }));
         }
         if slot != ME_SECTIONS {
@@ -933,6 +941,51 @@ async fn member_or_response(
             Redirect::to(&urls::with_query("/login", &[("next", HOME)])).into_response(),
         )),
     }
+}
+
+/// 회원 막대에서 펼쳐 보는 최근 알림 (GAP Q14, ADR-0099). 사람마다 다르므로 저장하지 않는다.
+/// 줄을 누르면 `open_url` + ID 로 POST(읽음 + 원본으로), 「모두 읽기」는 `read_all_url` 로 POST.
+async fn peek(
+    State(state): State<ModuleState>,
+    Extension(module): Extension<Arc<NotifyModule>>,
+    headers: HeaderMap,
+) -> Response {
+    let actor = match state.host.viewer(&headers).await {
+        Ok(a) => a,
+        Err(e) => return state.host.error(&e).await,
+    };
+    let mut res = match actor.member_id() {
+        None => (
+            StatusCode::UNAUTHORIZED,
+            Json(json!({ "signed_in": false, "login_url": "/login" })),
+        )
+            .into_response(),
+        Some(member) => {
+            let loaded = async {
+                let (items, _) = module
+                    .rows(&state.ctx, &actor, member, false, PEEK_LIMIT, 0)
+                    .await?;
+                Ok::<_, Error>((items, module.unread(member).await?))
+            }
+            .await;
+            match loaded {
+                Ok((items, unread)) => Json(json!({
+                    "items": items,
+                    "unread": unread,
+                    "more_url": HOME,
+                    "open_url": format!("{HOME}/open/"),
+                    "read_all_url": format!("{HOME}/read-all"),
+                }))
+                .into_response(),
+                Err(e) => return state.host.error(&e).await,
+            }
+        }
+    };
+    res.headers_mut().insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("private, no-store"),
+    );
+    res
 }
 
 /// 알림을 읽음으로 두고 원본으로 보낸다. 주소는 폼이 아니라 저장된 값에서 만든다.

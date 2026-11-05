@@ -38,12 +38,158 @@
     return a;
   }
 
+  // 막대에서 펼치는 작은 판 (GAP Q14, ADR-0099): 이름 메뉴와 알림 목록. 단추 바로 뒤에 넣어
+  // 탭 순서를 지키고, 화면 기준으로 띄운다. 바깥 누름·Esc·창 크기 바뀜·스크롤이면 닫는다.
+  var openPop = null;
+  function closePop(focus) {
+    if (!openPop) return;
+    var b = openPop.button;
+    openPop.box.remove();
+    b.setAttribute("aria-expanded", "false");
+    openPop = null;
+    if (focus) b.focus();
+  }
+  function place(box, button) {
+    var r = button.getBoundingClientRect();
+    var w = box.offsetWidth;
+    box.style.left = Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8)) + "px";
+    box.style.top = r.bottom + 6 + "px";
+  }
+  function popover(button, label, fill) {
+    button.setAttribute("aria-haspopup", "true");
+    button.setAttribute("aria-expanded", "false");
+    button.addEventListener("click", function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      var same = openPop && openPop.button === button;
+      closePop(false);
+      if (same) return;
+      var box = el("div", { "class": "cm-pop", role: "group", "aria-label": label });
+      button.insertAdjacentElement("afterend", box);
+      openPop = { button: button, box: box };
+      button.setAttribute("aria-expanded", "true");
+      fill(box, function () {
+        place(box, button);
+        var first = box.querySelector("a, button");
+        if (first) first.focus({ preventScroll: true });
+      });
+      place(box, button);
+    });
+  }
+  document.addEventListener("click", function (ev) {
+    if (openPop && !openPop.box.contains(ev.target)) closePop(false);
+  });
+  document.addEventListener("keydown", function (ev) {
+    if (ev.key === "Escape" && openPop) closePop(true);
+  });
+  window.addEventListener("resize", function () { closePop(false); });
+  window.addEventListener("scroll", function () { closePop(false); });
+
+  function setCount(button, n) {
+    var c = button.querySelector(".cm-count");
+    if (c) c.remove();
+    if (n > 0) {
+      c = el("span", { "class": "cm-count", "aria-label": "읽지 않은 " + n + "개" }, n > 99 ? "99+" : String(n));
+      button.appendChild(c);
+    }
+  }
+
+  // 이름 메뉴: 내 정보·프로필·댓글, 모듈 항목(menu), 로그아웃
+  function myMenu(bar) {
+    return function (box, ready) {
+      var ul = el("ul", { "class": "cm-pop-menu" });
+      function add(label, url, note) {
+        var li = el("li", {});
+        var a = el("a", { href: url }, label);
+        if (note) a.appendChild(el("span", { "class": "cm-pop-note" }, note));
+        li.appendChild(a);
+        ul.appendChild(li);
+      }
+      add("내 정보", bar.me_url);
+      if (bar.profile_url) add("내 프로필", bar.profile_url);
+      if (bar.comments_url) add("내 댓글", bar.comments_url);
+      (bar.items || []).forEach(function (it) { if (it.menu) add(it.label, it.url, it.note); });
+      if (bar.logout) {
+        var li = el("li", { "class": "cm-pop-sep" });
+        var f = el("form", { method: "post", action: bar.logout.url });
+        f.appendChild(el("input", { type: "hidden", name: "_csrf", value: bar.logout.csrf }));
+        f.appendChild(el("button", { type: "submit" }, "로그아웃"));
+        li.appendChild(f);
+        ul.appendChild(li);
+      }
+      box.appendChild(ul);
+      ready();
+    };
+  }
+
+  // 알림처럼 panel 주소가 있는 항목: 최근 목록을 펼쳐 본다. 줄은 POST 폼(읽음 + 원본으로).
+  function panelFill(item, button) {
+    return function load(box, ready) {
+      box.textContent = "";
+      box.appendChild(el("p", { "class": "cm-pop-empty" }, "불러오는 중…"));
+      fetch(item.panel, { credentials: "same-origin", headers: { "Accept": "application/json" } })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .catch(function () { return null; })
+        .then(function (d) {
+          if (!openPop || openPop.box !== box) return;
+          box.textContent = "";
+          if (!d || !Array.isArray(d.items)) {
+            box.appendChild(el("p", { "class": "cm-pop-empty" }, "목록을 불러오지 못했습니다."));
+            box.appendChild(el("a", { "class": "cm-pop-more", href: item.url }, "전체 보기"));
+            ready();
+            return;
+          }
+          setCount(button, d.unread);
+          var head = el("div", { "class": "cm-pop-head" });
+          head.appendChild(el("strong", {}, item.label));
+          if (d.unread > 0 && d.read_all_url) {
+            var all = el("button", { type: "button" }, "모두 읽기");
+            all.addEventListener("click", function (ev) {
+              ev.stopPropagation();
+              all.disabled = true;
+              fetch(d.read_all_url, { method: "POST", credentials: "same-origin" })
+                .catch(function () { return null; })
+                .then(function () { load(box, ready); });
+            });
+            head.appendChild(all);
+          }
+          box.appendChild(head);
+          if (!d.items.length) {
+            box.appendChild(el("p", { "class": "cm-pop-empty" }, "새 " + item.label + "이 없습니다."));
+          } else {
+            var ul = el("ul", { "class": "cm-pop-list" });
+            d.items.forEach(function (n) {
+              var li = el("li", n.unread ? { "class": "unread" } : {});
+              var f = el("form", { method: "post", action: d.open_url + encodeURIComponent(n.id) });
+              var b = el("button", { type: "submit" });
+              b.appendChild(el("span", { "class": "cm-pop-text" }, n.text));
+              b.appendChild(el("span", { "class": "cm-pop-meta" }, (n.title ? n.title + " · " : "") + n.date));
+              f.appendChild(b);
+              li.appendChild(f);
+              ul.appendChild(li);
+            });
+            box.appendChild(ul);
+          }
+          box.appendChild(el("a", { "class": "cm-pop-more", href: d.more_url || item.url }, item.label + " 전체 보기"));
+          ready();
+        });
+    };
+  }
+
   function fillBar(nav, bar) {
     var items = [];
     if (bar.signed_in) {
-      var me = el("a", { href: bar.me_url, "class": "cm-me" }, bar.name);
+      var me = el("button", { type: "button", "class": "cm-me" }, bar.name);
+      popover(me, "내 메뉴", myMenu(bar));
       items.push(me);
-      (bar.items || []).forEach(function (it) { items.push(link(it)); });
+      (bar.items || []).forEach(function (it) {
+        if (it.menu) return;
+        if (!it.panel) { items.push(link(it)); return; }
+        var b = el("button", { type: "button", "class": "cm-bar-btn" }, it.label);
+        setCount(b, it.count);
+        popover(b, it.label, panelFill(it, b));
+        items.push(b);
+      });
     } else {
       items.push(el("a", { href: bar.login_url }, "로그인"));
       if (bar.signup_url) items.push(el("a", { href: bar.signup_url, "class": "cm-join" }, "회원가입"));

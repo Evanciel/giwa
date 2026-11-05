@@ -16,8 +16,8 @@ use maru_core::store::ModuleMigration;
 use maru_core::urls::{self, Target as UrlTarget};
 use maru_core::{Code, Ctx, Error, Result, clock};
 use maru_modules::{
-    ME_SECTIONS, Manifest, Module, ModuleState, POST_FOOTER, SlotContent, SlotView, ToolDef,
-    module_error, schema_of,
+    ACCOUNT_BAR, ME_SECTIONS, Manifest, Module, ModuleState, POST_FOOTER, SlotContent, SlotView,
+    ToolDef, module_error, schema_of,
 };
 use maru_storage::Db;
 use schemars::JsonSchema;
@@ -335,6 +335,11 @@ impl Module for ScrapModule {
         view: &SlotView<'_>,
     ) -> Result<Option<SlotContent>> {
         match slot {
+            // 이름 메뉴의 「스크랩」 (GAP Q14, ADR-0099)
+            ACCOUNT_BAR => Ok(view.viewer.member_id().map(|_| SlotContent {
+                template: "",
+                data: json!({ "label": "스크랩", "url": "/m/scrap", "menu": true }),
+            })),
             POST_FOOTER => {
                 let Some(post_id) = view.post_id else {
                     return Ok(None);

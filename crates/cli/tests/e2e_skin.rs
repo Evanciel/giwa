@@ -214,6 +214,8 @@ fn community_preset_skin_and_account_bar() {
 
     maru(&data, &["module", "enable", "notify"]);
     maru(&data, &["module", "enable", "message"]);
+    maru(&data, &["module", "enable", "scrap"]);
+    maru(&data, &["module", "enable", "point"]);
     maru(
         &data,
         &[
@@ -385,6 +387,43 @@ fn community_preset_skin_and_account_bar() {
         .map(|i| i["label"].as_str().unwrap())
         .collect();
     assert!(labels.contains(&"알림") && labels.contains(&"쪽지"), "{v}");
+    // 이름 메뉴·알림 펼침 (GAP Q14, ADR-0099)
+    assert_eq!(v["profile_url"], "/u/%EB%8B%AC%EB%B9%9B", "{v}");
+    assert_eq!(v["comments_url"], "/me/comments");
+    assert_eq!(v["logout"]["url"], "/logout");
+    assert!(
+        v["logout"]["csrf"].as_str().is_some_and(|c| c.len() >= 20),
+        "{v}"
+    );
+    let item = |label: &str| {
+        v["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|i| i["label"] == label)
+            .unwrap_or_else(|| panic!("{label} 없음: {v}"))
+            .clone()
+    };
+    assert_eq!(item("알림")["panel"], "/m/notify/peek");
+    assert_eq!(item("알림")["menu"], false);
+    assert_eq!(item("스크랩")["menu"], true);
+    assert_eq!(item("출석체크")["menu"], true);
+    assert_eq!(item("출석체크")["url"], "/m/point/attend");
+    assert!(
+        item("출석체크")["note"].as_str().unwrap().contains("점"),
+        "{v}"
+    );
+    assert!(item("쪽지")["panel"].is_null());
+    let peek = http(&bind, "GET", "/m/notify/peek", &[], "");
+    assert_eq!(peek.status, 401, "{}", peek.body);
+    let peek = http(&bind, "GET", "/m/notify/peek", &[("Cookie", &moon)], "");
+    assert_eq!(peek.status, 200, "{}", peek.body);
+    assert_eq!(peek.header("cache-control"), "private, no-store");
+    let p = peek.json();
+    assert_eq!(p["unread"], 0, "{p}");
+    assert_eq!(p["items"].as_array().unwrap().len(), 0);
+    assert_eq!(p["open_url"], "/m/notify/open/");
+    assert_eq!(p["read_all_url"], "/m/notify/read-all");
     assert!(
         v["items"]
             .as_array()

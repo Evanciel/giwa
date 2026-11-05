@@ -25,8 +25,8 @@ use maru_core::urls;
 use maru_core::{Code, Ctx, Error, Result, clock};
 use maru_modules::service::settings_of;
 use maru_modules::{
-    MEMBER_BADGE, Manifest, Module, ModuleState, SlotContent, SlotView, ToolDef, module_error,
-    schema_of,
+    ACCOUNT_BAR, MEMBER_BADGE, Manifest, Module, ModuleState, SlotContent, SlotView, ToolDef,
+    module_error, schema_of,
 };
 use maru_storage::Db;
 use schemars::JsonSchema;
@@ -1082,6 +1082,24 @@ impl Module for PointModule {
         slot: &str,
         view: &SlotView<'_>,
     ) -> Result<Option<SlotContent>> {
+        if slot == ACCOUNT_BAR {
+            // 이름 메뉴의 「출석체크」와 내 레벨·포인트 한 줄 (GAP Q14, ADR-0099)
+            let Some(member) = view.viewer.member_id() else {
+                return Ok(None);
+            };
+            let settings = settings_of(ctx, self).await?;
+            let balance = self.balance_of(member).await?;
+            let level = level_for(balance, &levels_of(&settings));
+            return Ok(Some(SlotContent {
+                template: "",
+                data: json!({
+                    "label": "출석체크",
+                    "url": ATTEND_PATH,
+                    "menu": true,
+                    "note": format!("{} · {balance}점", level_label(level, &level_names_of(&settings))),
+                }),
+            }));
+        }
         if slot != MEMBER_BADGE || view.member_ids.is_empty() {
             return Ok(None);
         }
