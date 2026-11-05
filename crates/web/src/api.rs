@@ -1226,11 +1226,20 @@ async fn post_comments(
     State(state): State<AppState>,
     ApiActor(actor): ApiActor,
     Path(id): Path<String>,
+    Query(q): Query<CommentOrderQuery>,
 ) -> Result<Response, ApiError> {
+    let order = comments::CommentOrder::parse(&q.order);
     Ok(ok(
         StatusCode::OK,
-        comments::list_for_post(&state.ctx, &actor, &id).await?,
+        comments::list_for_post_ordered(&state.ctx, &actor, &id, order).await?,
     ))
+}
+
+/// 댓글 순서 oldest·newest (ADR-0093)
+#[derive(Debug, Default, Deserialize)]
+struct CommentOrderQuery {
+    #[serde(default)]
+    order: String,
 }
 
 #[derive(Debug, Deserialize)]

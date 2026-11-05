@@ -739,6 +739,9 @@ struct PostQuery {
     reply: String,
     #[serde(default)]
     comment: String,
+    /// 댓글 순서 oldest·newest (GAP Q8, ADR-0093)
+    #[serde(default)]
+    corder: String,
 }
 
 async fn post(
@@ -903,7 +906,8 @@ async fn comments_json(
     let rules = comments::rules(board, s.captcha);
     // 잠긴 글은 화면에서 폼·답글을 닫는다. 서비스도 막는다 (ADR-0058).
     let open = rules.open && !post.is_locked;
-    let list = comments::list_for_post(&state.ctx, actor, &post.id).await?;
+    let order = comments::CommentOrder::parse(&q.corder);
+    let list = comments::list_for_post_ordered(&state.ctx, actor, &post.id, order).await?;
     let published =
         |c: &comments::CommentView| c.status == maru_core::model::CommentStatus::Published;
     // 채택한 댓글이 지금 공개 상태일 때만 보인다.
@@ -925,6 +929,7 @@ async fn comments_json(
                 "deleted": c.status == maru_core::model::CommentStatus::Deleted,
                 "author_name": c.author_name,
                 "is_guest": c.is_guest,
+                "by_post_author": c.by_post_author,
                 "member_id": if c.is_guest { None } else { c.author_id.as_deref() },
                 "reply_to_name": c.reply_to_name,
                 "body": c.body,
@@ -959,6 +964,24 @@ async fn comments_json(
         })),
         "items": items,
         "count": count,
+        // 댓글이 둘 이상일 때만 순서 단추 (ADR-0093)
+        "orders": (count > 1).then(|| {
+            let base = urls::path(&Target::Post { board: &board.slug, post: &post.slug });
+            [
+                (comments::CommentOrder::Oldest, "등록순"),
+                (comments::CommentOrder::Newest, "최신순"),
+            ]
+            .iter()
+            .map(|(o, label)| json!({
+                "label": label,
+                "url": urls::with_query(
+                    &base,
+                    &[("corder", if *o == comments::CommentOrder::Oldest { "" } else { o.as_str() })],
+                ) + "#comments",
+                "current": *o == order,
+            }))
+            .collect::<Vec<_>>()
+        }),
         "action": format!("{}/comments", urls::path(&Target::Post { board: &board.slug, post: &post.slug })),
         "reply_to": reply_to,
         "pending": q.comment == "pending",

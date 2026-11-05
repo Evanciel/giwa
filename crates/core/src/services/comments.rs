@@ -45,6 +45,36 @@ pub struct CommentView {
     pub untrusted: bool,
     /// 평문. 지운 댓글은 비어 있다
     pub body: String,
+    /// 글을 쓴 회원이 단 댓글 (GAP Q8, ADR-0093). 손님 글·손님 댓글은 이름이 같아도 아니다
+    pub by_post_author: bool,
+}
+
+/// 댓글 순서 (GAP Q8, ADR-0093). 대댓글은 늘 뿌리 댓글 아래 단 순서대로다.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum CommentOrder {
+    /// 단 순서 (오래된 것부터)
+    #[default]
+    Oldest,
+    /// 최근 댓글부터
+    Newest,
+}
+
+impl CommentOrder {
+    /// 모르는 값은 단 순서로.
+    pub fn parse(s: &str) -> Self {
+        match s.trim() {
+            "newest" | "new" => Self::Newest,
+            _ => Self::Oldest,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Oldest => "oldest",
+            Self::Newest => "newest",
+        }
+    }
 }
 
 /// 비회원으로 쓸 때 이름과 비밀번호.
@@ -141,6 +171,16 @@ pub fn rules(board: &Board, captcha_mode: CaptchaMode) -> CommentRules {
 /// 글을 읽을 수 있는 사람에게 보이는 댓글: 공개 댓글, 그리고 공개 대댓글이 달린 지운 댓글의 자리.
 /// 뿌리 댓글 순서대로, 대댓글은 뿌리 바로 뒤에.
 pub async fn list_for_post(ctx: &Ctx, actor: &Actor, post_id: &str) -> Result<Vec<CommentView>> {
+    list_for_post_ordered(ctx, actor, post_id, CommentOrder::Oldest).await
+}
+
+/// 글의 댓글을 고른 순서로 (GAP Q8, ADR-0093). 뿌리 댓글만 순서를 바꾸고 대댓글은 그 아래 단 순서대로 둔다.
+pub async fn list_for_post_ordered(
+    ctx: &Ctx,
+    actor: &Actor,
+    post_id: &str,
+    order: CommentOrder,
+) -> Result<Vec<CommentView>> {
     let (_, post) = readable_post(ctx, actor, post_id).await?;
     let all = ctx
         .store
@@ -161,8 +201,12 @@ pub async fn list_for_post(ctx: &Ctx, actor: &Actor, post_id: &str) -> Result<Ve
                 || (c.parent_id.is_none() && has_reply.contains(c.id.as_str()))
         })
         .collect();
+    let mut roots: Vec<&&Comment> = shown.iter().filter(|c| c.parent_id.is_none()).collect();
+    if order == CommentOrder::Newest {
+        roots.reverse();
+    }
     let mut ordered: Vec<&Comment> = Vec::with_capacity(shown.len());
-    for root in shown.iter().filter(|c| c.parent_id.is_none()) {
+    for root in roots {
         ordered.push(root);
         ordered.extend(
             shown
@@ -170,7 +214,18 @@ pub async fn list_for_post(ctx: &Ctx, actor: &Actor, post_id: &str) -> Result<Ve
                 .filter(|c| c.parent_id.as_deref() == Some(root.id.as_str())),
         );
     }
-    views(ctx, ordered.into_iter().cloned().collect()).await
+    let mut out = views(ctx, ordered.into_iter().cloned().collect()).await?;
+    // 손님이 쓴 글은 이름만 같을 수 있어 「글쓴이」를 붙이지 않는다.
+    if post.guest_name.is_none()
+        && let Some(author) = post.author_id.as_deref()
+    {
+        for c in &mut out {
+            c.by_post_author = !c.is_guest
+                && c.status == CommentStatus::Published
+                && c.author_id.as_deref() == Some(author);
+        }
+    }
+    Ok(out)
 }
 
 /// 공개 댓글 수 (글 ID 별). 없는 글은 0.
@@ -747,6 +802,7 @@ async fn views(ctx: &Ctx, items: Vec<Comment>) -> Result<Vec<CommentView>> {
             updated_at: c.updated_at.clone(),
             untrusted: true,
             body: c.body.clone(),
+            by_post_author: false,
         });
     }
     Ok(out)

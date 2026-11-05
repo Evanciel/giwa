@@ -798,3 +798,12 @@ a.wikilink-new { color: #b3261e; text-decoration-style: dashed; }
   .recent-table .post-row { grid-template-columns: auto auto auto 1fr; }
   .post-row .board-col { grid-row: 2; text-align: left; }
 }
+
+/* 댓글 순서와 「글쓴이」 표시 (GAP Q8, ADR-0093) */
+.comments-head { display: flex; align-items: baseline; justify-content: space-between; gap: calc(var(--space) * 2); flex-wrap: wrap; margin: 0 0 calc(var(--space) * 2); }
+.comments-head h2 { margin: 0; }
+.comment-order { list-style: none; margin: 0; padding: 0; display: flex; gap: calc(var(--space) * 1.5); font-size: var(--fs-sm); }
+.comment-order a { color: var(--muted); text-decoration: none; }
+.comment-order a[aria-current] { color: var(--fg); font-weight: 700; }
+.comment-order a:hover, .comment-order a:focus-visible { color: var(--primary); text-decoration: underline; }
+.op-badge { font-size: .75rem; font-weight: 700; color: var(--primary); border: 1px solid currentColor; border-radius: 999px; padding: 0 calc(var(--space) * .75); }
