@@ -18,7 +18,10 @@ use maru_core::services::widgets::WidgetType;
 use maru_core::store::ModuleMigration;
 use maru_core::{Code, Ctx, Error, Result, clock};
 use maru_modules::service::settings_of;
-use maru_modules::{Manifest, Module, ModuleState, ToolDef, module_error, schema_of};
+use maru_modules::{
+    MEMBER_BADGE, Manifest, Module, ModuleState, SlotContent, SlotView, ToolDef, module_error,
+    schema_of,
+};
 use maru_storage::Db;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -48,6 +51,8 @@ const HISTORY_PER_PAGE: i64 = 30;
 const MAX_REASON: usize = 200;
 /// 레벨 기준 기본값: 이 점수를 넘을 때마다 한 단계 오른다.
 const DEFAULT_LEVELS: &str = "100,500,2000,10000";
+/// 레벨 이름 한 칸의 최대 글자 수. 이름 옆에 붙어 길면 목록이 밀린다.
+const MAX_LEVEL_NAME: usize = 8;
 
 #[derive(Clone)]
 pub struct PointModule {
@@ -143,6 +148,20 @@ impl PointModule {
         .await
         .map_err(Error::internal)?;
         Ok(row.map_or(0, |r| r.balance))
+    }
+
+    /// 여러 회원의 잔액. 원장에 없는 회원은 빠진다(0 점).
+    async fn balances_of(&self, ids: &[String]) -> Result<std::collections::HashMap<String, i64>> {
+        let ids_json = serde_json::to_string(ids).map_err(Error::internal)?;
+        let rows = sqlx::query!(
+            r#"SELECT member_id AS "member_id!: String", balance FROM mod_point_balance
+               WHERE member_id IN (SELECT value FROM json_each(?))"#,
+            ids_json
+        )
+        .fetch_all(self.db.read_pool())
+        .await
+        .map_err(Error::internal)?;
+        Ok(rows.into_iter().map(|r| (r.member_id, r.balance)).collect())
     }
 
     /// 순위. 사용 중이 아닌 회원은 건너뛴다.
@@ -404,6 +423,26 @@ fn levels_of(settings: &Map<String, Value>) -> Vec<i64> {
         .collect()
 }
 
+/// 레벨 이름 (GAP Q1). 비어 있으면 `Lv.n`. 저장할 때 개수를 맞춰 두었다.
+fn level_names_of(settings: &Map<String, Value>) -> Vec<String> {
+    settings
+        .get("level_names")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .split(',')
+        .map(|s| s.trim().to_owned())
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
+fn level_label(level: i64, names: &[String]) -> String {
+    usize::try_from(level - 1)
+        .ok()
+        .and_then(|i| names.get(i))
+        .cloned()
+        .unwrap_or_else(|| format!("Lv.{level}"))
+}
+
 /// 1 부터 시작해 기준을 넘을 때마다 한 단계씩.
 fn level_for(balance: i64, levels: &[i64]) -> i64 {
     1 + levels.iter().filter(|t| balance >= **t).count() as i64
@@ -529,6 +568,17 @@ impl Module for PointModule {
                 options: Vec::new(),
                 help: Some("쉼표로 나눈 점수. 넘을 때마다 레벨이 하나 오릅니다".to_owned()),
             },
+            FieldDef {
+                key: "level_names".to_owned(),
+                label: "레벨 이름".to_owned(),
+                kind: "text".to_owned(),
+                required: false,
+                options: Vec::new(),
+                help: Some(
+                    "쉼표로 나눈 이름. 레벨 기준보다 하나 많게 적습니다. 비우면 Lv.1, Lv.2 …"
+                        .to_owned(),
+                ),
+            },
         ]
     }
 
@@ -538,6 +588,7 @@ impl Module for PointModule {
         m.insert("comment".into(), json!(2));
         m.insert("login".into(), json!(1));
         m.insert("levels".into(), json!(DEFAULT_LEVELS));
+        m.insert("level_names".into(), json!(""));
         m
     }
 
@@ -552,13 +603,63 @@ impl Module for PointModule {
         }
         let text = settings.get("levels").and_then(Value::as_str).unwrap_or("");
         let parsed: Option<Vec<i64>> = text.split(',').map(|s| s.trim().parse().ok()).collect();
-        match parsed {
-            Some(v) if v.windows(2).all(|w| w[0] < w[1]) && v.iter().all(|n| *n > 0) => Ok(()),
-            _ => Err(module_error(
+        let levels = match parsed {
+            Some(v) if v.windows(2).all(|w| w[0] < w[1]) && v.iter().all(|n| *n > 0) => v,
+            _ => {
+                return Err(module_error(
+                    Code::Validation,
+                    "레벨 기준은 커지는 양의 정수를 쉼표로 나눠 적으세요. 예: 100,500,2000",
+                ));
+            }
+        };
+        let names = level_names_of(settings);
+        if !names.is_empty() && names.len() != levels.len() + 1 {
+            return Err(module_error(
                 Code::Validation,
-                "레벨 기준은 커지는 양의 정수를 쉼표로 나눠 적으세요. 예: 100,500,2000",
-            )),
+                format!(
+                    "레벨 이름은 {}개 적으세요(레벨 기준 {}개 + 1). 비우면 Lv.n 으로 보입니다.",
+                    levels.len() + 1,
+                    levels.len()
+                ),
+            ));
         }
+        if names.iter().any(|n| n.chars().count() > MAX_LEVEL_NAME) {
+            return Err(module_error(
+                Code::Validation,
+                format!("레벨 이름은 {MAX_LEVEL_NAME}자 이하로 적으세요."),
+            ));
+        }
+        Ok(())
+    }
+
+    async fn slot(
+        &self,
+        ctx: &Ctx,
+        slot: &str,
+        view: &SlotView<'_>,
+    ) -> Result<Option<SlotContent>> {
+        if slot != MEMBER_BADGE || view.member_ids.is_empty() {
+            return Ok(None);
+        }
+        let settings = settings_of(ctx, self).await?;
+        let levels = levels_of(&settings);
+        let names = level_names_of(&settings);
+        let balances = self.balances_of(view.member_ids).await?;
+        let by_member: Map<String, Value> = view
+            .member_ids
+            .iter()
+            .map(|id| {
+                let level = level_for(balances.get(id).copied().unwrap_or(0), &levels);
+                (
+                    id.clone(),
+                    json!({ "label": level_label(level, &names), "title": format!("레벨 {level}") }),
+                )
+            })
+            .collect();
+        Ok(Some(SlotContent {
+            template: "",
+            data: json!({ "by_member": by_member }),
+        }))
     }
 
     fn widget_types(&self) -> Vec<WidgetType> {

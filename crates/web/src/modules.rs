@@ -10,7 +10,8 @@ use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use maru_core::{Actor, Ctx, Error, Result};
 use maru_modules::{
-    ACCOUNT_BAR, COMMENT_ACTIONS, Host, ME_SECTIONS, ModuleState, POST_FOOTER, POST_LIST, SlotView,
+    ACCOUNT_BAR, COMMENT_ACTIONS, Host, ME_SECTIONS, MEMBER_BADGE, ModuleState, POST_FOOTER,
+    POST_LIST, SlotView,
 };
 use serde_json::{Value, json};
 
@@ -74,6 +75,7 @@ pub(crate) async fn add_post_slots(state: &AppState, headers: &HeaderMap, view: 
         post_id: Some(&post_id),
         comment_ids: &comment_ids,
         post_ids: &[],
+        member_ids: &[],
     };
     let slots = state
         .modules
@@ -102,12 +104,92 @@ pub(crate) async fn add_list_slots(state: &AppState, view: &mut Value) {
         post_id: None,
         comment_ids: &[],
         post_ids: &post_ids,
+        member_ids: &[],
     };
     let slots = state
         .modules
         .slots(&state.ctx, &[POST_LIST], &slot_view)
         .await;
     view["slots"] = Value::Object(slots);
+}
+
+/// 회원 이름 옆 표시 (GAP Q1, ADR-0086). 화면 값에서 `member_id` 를 가진 칸(글쓴이·댓글)을 찾아
+/// 모듈이 준 `{label, title}` 를 `badge` 로 붙인다. 보는 사람과 무관하게 손님으로 묻는다(목록 캐시).
+pub(crate) async fn add_member_badges(state: &AppState, view: &mut Value) {
+    if state.modules.enabled(&state.ctx).await.is_empty() {
+        return;
+    }
+    let mut ids = Vec::new();
+    collect_member_ids(view, &mut ids);
+    if ids.is_empty() {
+        return;
+    }
+    let viewer = Actor::anonymous([]);
+    let slot_view = SlotView {
+        viewer: &viewer,
+        post_id: None,
+        comment_ids: &[],
+        post_ids: &[],
+        member_ids: &ids,
+    };
+    let slots = state
+        .modules
+        .slots(&state.ctx, &[MEMBER_BADGE], &slot_view)
+        .await;
+    // 모듈이 여럿이면 먼저 켠 모듈의 표시를 쓴다.
+    let mut badges = serde_json::Map::new();
+    for item in slots
+        .get(MEMBER_BADGE)
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+    {
+        if let Some(map) = item["data"]["by_member"].as_object() {
+            for (id, b) in map {
+                badges.entry(id.clone()).or_insert_with(|| b.clone());
+            }
+        }
+    }
+    if !badges.is_empty() {
+        attach_badges(view, &badges);
+    }
+}
+
+fn collect_member_ids(v: &Value, out: &mut Vec<String>) {
+    match v {
+        Value::Object(map) => {
+            if let Some(id) = map.get("member_id").and_then(Value::as_str)
+                && !out.iter().any(|x| x == id)
+            {
+                out.push(id.to_owned());
+            }
+            for child in map.values() {
+                collect_member_ids(child, out);
+            }
+        }
+        Value::Array(items) => items.iter().for_each(|i| collect_member_ids(i, out)),
+        _ => {}
+    }
+}
+
+fn attach_badges(v: &mut Value, badges: &serde_json::Map<String, Value>) {
+    match v {
+        Value::Object(map) => {
+            let badge = map
+                .get("member_id")
+                .and_then(Value::as_str)
+                .and_then(|id| badges.get(id))
+                .cloned();
+            if let Some(b) = badge {
+                map.insert("badge".to_owned(), b);
+            }
+            for child in map.values_mut() {
+                attach_badges(child, badges);
+            }
+        }
+        Value::Array(items) => items.iter_mut().for_each(|i| attach_badges(i, badges)),
+        _ => {}
+    }
 }
 
 /// 내 정보 화면의 자리.
@@ -117,6 +199,7 @@ pub(crate) async fn me_slots(state: &AppState, viewer: &Actor) -> Value {
         post_id: None,
         comment_ids: &[],
         post_ids: &[],
+        member_ids: &[],
     };
     Value::Object(
         state
@@ -133,6 +216,7 @@ pub(crate) async fn bar_slots(state: &AppState, viewer: &Actor) -> Vec<Value> {
         post_id: None,
         comment_ids: &[],
         post_ids: &[],
+        member_ids: &[],
     };
     let mut map = state
         .modules

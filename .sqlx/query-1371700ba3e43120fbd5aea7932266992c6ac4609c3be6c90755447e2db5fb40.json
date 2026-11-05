@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT member_id AS \"member_id!: String\", balance FROM mod_point_balance\n               WHERE member_id IN (SELECT value FROM json_each(?))",
+  "describe": {
+    "columns": [
+      {
+        "name": "member_id!: String",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_point_balance",
+            "name": "member_id"
+          }
+        }
+      },
+      {
+        "name": "balance",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_point_balance",
+            "name": "balance"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "1371700ba3e43120fbd5aea7932266992c6ac4609c3be6c90755447e2db5fb40"
+}

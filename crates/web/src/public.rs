@@ -150,6 +150,8 @@ pub(crate) async fn render(state: &AppState, name: &str, ctx: Result<Value>) -> 
     let mut nonce = None;
     let rendered = match ctx {
         Ok(mut v) => {
+            // 회원 이름 옆 표시 (GAP Q1): 글쓴이·댓글 칸이 있는 모든 화면에 붙는다.
+            crate::modules::add_member_badges(state, &mut v).await;
             // 위젯 (ADR-0059): 화면 종류와 게시판·페이지 주소로 범위를 고른다.
             let board = v["board"]["slug"].as_str().map(str::to_owned);
             let page = v["page"]["slug"].as_str().map(str::to_owned);
@@ -716,6 +718,7 @@ async fn comments_json(
                 "deleted": c.status == maru_core::model::CommentStatus::Deleted,
                 "author_name": c.author_name,
                 "is_guest": c.is_guest,
+                "member_id": if c.is_guest { None } else { c.author_id.as_deref() },
                 "reply_to_name": c.reply_to_name,
                 "body": c.body,
                 "created_at": c.created_at,
@@ -1037,9 +1040,10 @@ async fn authors(state: &AppState, posts: &[Post]) -> Result<Vec<Value>> {
                 {
                     names.insert(id.clone(), m.display_name);
                 }
-                names
-                    .get(id)
-                    .map_or(Value::Null, |n| json!({ "name": n, "guest": false }))
+                names.get(id).map_or(
+                    Value::Null,
+                    |n| json!({ "name": n, "guest": false, "member_id": id }),
+                )
             }
             (None, None) => Value::Null,
         };

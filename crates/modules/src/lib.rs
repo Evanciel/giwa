@@ -72,6 +72,9 @@ pub const ACCOUNT_BAR: &str = "account_bar";
 /// 게시판 목록의 글마다 붙는 작은 표시 (ADR-0082). 템플릿은 쓰지 않고 `data` 의
 /// `{label, by_id: {글 ID: 수}}` 를 목록 템플릿이 읽는다. 공개 목록은 캐시하므로 보는 사람과 무관한 값만.
 pub const POST_LIST: &str = "post_list";
+/// 회원 이름 옆 작은 표시 (GAP Q1, ADR-0086). 템플릿은 쓰지 않고 `data` 의
+/// `{by_member: {회원 ID: {label, title}}}` 를 웹 계층이 이름 옆에 붙인다. 보는 사람과 무관한 값만.
+pub const MEMBER_BADGE: &str = "member_badge";
 
 /// 화면 자리를 채울 때 모듈이 보는 것.
 pub struct SlotView<'a> {
@@ -80,6 +83,8 @@ pub struct SlotView<'a> {
     pub comment_ids: &'a [String],
     /// 목록 화면(`post_list`)의 글 ID
     pub post_ids: &'a [String],
+    /// 이름 표시(`member_badge`)를 받을 회원 ID
+    pub member_ids: &'a [String],
 }
 
 /// 모듈이 자리에 넣는 것. 템플릿에서 `s.data` 로 읽는다.

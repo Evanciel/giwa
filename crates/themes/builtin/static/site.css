@@ -225,6 +225,8 @@ main { min-height: 50vh; }
 .comment-head { margin: 0 0 calc(var(--space) * .5); font-size: var(--fs-sm); display: flex; flex-wrap: wrap; gap: calc(var(--space) * 1); align-items: baseline; }
 .comment-head time, .muted { color: var(--muted); }
 .comment-badge { font-size: .75rem; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 0 calc(var(--space) * .75); }
+/* 레벨 표시 (GAP Q1, ADR-0086): 이름 옆 작은 꼬리표. 색은 기본색을 옅게 써서 테마를 따른다. */
+.level-badge { display: inline-block; font-size: .7rem; font-weight: 700; line-height: 1.5; color: var(--primary); background: color-mix(in srgb, var(--primary) 10%, var(--surface)); border-radius: 4px; padding: 0 calc(var(--space) * .6); vertical-align: .1em; white-space: nowrap; }
 .comment-body { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; }
 /* 포럼 (ADR-0058): 채택된 답변, 해결·잠김 표시 */
 .accepted-answer { margin: 0 0 calc(var(--space) * 3); padding: calc(var(--space) * 2) calc(var(--space) * 2.5); border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--border)); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--primary) 5%, var(--surface)); }

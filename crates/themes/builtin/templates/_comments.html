@@ -20,7 +20,7 @@
       <p class="comment-body muted">삭제된 댓글입니다.</p>
       {% else %}
       <p class="comment-head">
-        <strong class="comment-author"{% if not c.is_guest %} data-member="{{ c.author_name }}"{% endif %}>{{ c.author_name }}</strong>{% if c.is_guest %} <span class="comment-badge">비회원</span>{% endif %}
+        <strong class="comment-author"{% if not c.is_guest %} data-member="{{ c.author_name }}"{% endif %}>{{ c.author_name }}</strong>{% if c.badge %} <span class="level-badge" title="{{ c.badge.title }}">{{ c.badge.label }}</span>{% endif %}{% if c.is_guest %} <span class="comment-badge">비회원</span>{% endif %}
         <time datetime="{{ c.created_at }}">{{ c.date }}</time>{% if c.edited %} <span class="muted">· 고침</span>{% endif %}{% if c.accepted %} <span class="solved-mark">채택</span>{% endif %}
       </p>
       <p class="comment-body">{% if c.reply_to_name %}<span class="comment-to">@{{ c.reply_to_name }}</span> {% endif %}{{ c.body }}</p>
