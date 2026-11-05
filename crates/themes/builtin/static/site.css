@@ -214,6 +214,31 @@ main { min-height: 50vh; }
 .author-card-name a { color: inherit; text-decoration: none; }
 .author-card-name a:hover { text-decoration: underline; }
 .author-card-meta { margin: calc(var(--space) * 1) 0 0; font-size: var(--fs-sm); color: var(--muted); }
+/* 두 칸 글쓴이 카드 (GAP Q30, ADR-0113) */
+.author-card[data-recent] { display: grid; gap: calc(var(--space) * 2) calc(var(--space) * 3); }
+@media (min-width: 720px) { .author-card[data-recent] { grid-template-columns: minmax(0, 15rem) minmax(0, 1fr); } }
+.author-card-actions { display: flex; flex-wrap: wrap; gap: calc(var(--space) * 1); margin: calc(var(--space) * 1.5) 0 0; font-size: var(--fs-sm); }
+.author-card-actions a { padding: calc(var(--space) * .5) calc(var(--space) * 1.25); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--fg); text-decoration: none; }
+.author-card-actions a:hover, .author-card-actions a:focus-visible { color: var(--primary); border-color: currentColor; }
+.author-card-bio.is-clamped p { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
+.author-card-bio p { margin: 0; }
+.clamp-toggle { margin-top: calc(var(--space) * .5); padding: 0; border: 0; background: none; color: var(--muted); font: inherit; font-size: var(--fs-sm); cursor: pointer; }
+.clamp-toggle:hover, .clamp-toggle:focus-visible { color: var(--fg); text-decoration: underline; }
+.author-card-recent { min-width: 0; }
+.author-recent { list-style: none; margin: 0; padding: 0; font-size: var(--fs-sm); }
+.author-recent li { display: flex; gap: calc(var(--space) * 1.5); align-items: baseline; padding: calc(var(--space) * .75) 0; border-bottom: 1px solid var(--border); }
+.author-recent li:last-child { border-bottom: 0; }
+.author-recent a { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg); text-decoration: none; }
+.author-recent a:hover, .author-recent a:focus-visible { color: var(--primary); text-decoration: underline; }
+.author-recent .date { flex: none; color: var(--muted); font-variant-numeric: tabular-nums; }
+/* 글 머리 공유 아이콘: 휴대폰에서만 (넓은 화면은 떠 있는 단추 줄의 「공유」) */
+.post-title-row { display: flex; align-items: flex-start; gap: calc(var(--space) * 1.5); }
+.post-title-row h1 { flex: 1; min-width: 0; }
+.head-share { display: none; }
+@media (max-width: 640px) {
+  .head-share:not([hidden]) { display: grid; place-items: center; flex: none; width: 2.5rem; height: 2.5rem; margin-top: .1rem; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--fg); cursor: pointer; }
+  .head-share:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+}
 .me-posts { list-style: none; margin: 0; padding: 0; display: grid; gap: calc(var(--space) * 1.5); }
 .me-posts li { display: grid; gap: calc(var(--space) * .25); }
 .me-posts a { color: var(--fg); text-decoration: none; font-weight: 600; }

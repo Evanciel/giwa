@@ -208,8 +208,12 @@ fn comment(bind: &str, cookie: &str, post_url: &str, body: &str, reply_to: &str)
         .to_owned()
 }
 
+/// 댓글 영역 안에서의 위치. 글쓴이 카드의 최근 댓글(GAP Q30)이 그보다 위에 같은 글을 보일 수 있다.
 fn at(page: &str, needle: &str) -> usize {
-    page.find(needle)
+    let start = page.find("id=\"comments\"").unwrap_or(0);
+    page[start..]
+        .find(needle)
+        .map(|i| start + i)
         .unwrap_or_else(|| panic!("{needle} 없음: {page}"))
 }
 

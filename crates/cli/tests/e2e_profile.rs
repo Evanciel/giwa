@@ -296,6 +296,33 @@ fn public_profile_and_author_card() {
         card.contains("&lt;b&gt;굵게") && card.contains("프로필 보기"),
         "{card}"
     );
+    // 두 칸 카드 (GAP Q30): 글·댓글 수, 쪽지·차단 단추 자리, 최근 글·댓글 탭, 자기소개 접기.
+    let card = &card[..card.find("</aside>").unwrap()];
+    assert!(
+        card.contains(" · 글 ") && card.contains(" · 댓글 "),
+        "{card}"
+    );
+    assert!(card.contains("data-member-actions=\"달빛이\""), "{card}");
+    assert!(card.contains("data-clamp"), "{card}");
+    // 다른 공개 글·댓글이 없으면 탭이 없다. 회원방 글은 손님 기준이라 안 보인다.
+    assert!(
+        !card.contains("data-recent") && !card.contains("회원만 보는 글"),
+        "{card}"
+    );
+    comment(&bind, &moon, &open_url, "달빛이 단 댓글");
+    let post = http(&bind, "GET", &open_url, &[], "").body;
+    let card = &post[post.find("class=\"author-card\"").unwrap()..];
+    let card = &card[..card.find("</aside>").unwrap()];
+    assert!(
+        card.contains("data-recent")
+            && card.contains("role=\"tablist\"")
+            && card.contains(">최근 댓글</button>"),
+        "{card}"
+    );
+    assert!(
+        card.contains("달빛이 단 댓글") && card.contains("다른 글이 없습니다"),
+        "{card}"
+    );
 
     // 서명 (GAP Q17): 본문 아래, 줄바꿈은 살리고 HTML 은 글자로.
     assert!(!post.contains("class=\"post-signature\""), "{post}");

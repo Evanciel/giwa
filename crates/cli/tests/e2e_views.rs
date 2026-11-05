@@ -334,6 +334,11 @@ fn views_count_people_once_and_reach_db_and_neighbors_agree() {
         float.contains("<button type=\"button\" data-share hidden>공유</button>"),
         "{float}"
     );
+    // 글 머리 공유 아이콘 (GAP Q30): 휴대폰에서만 보이는 같은 단추.
+    assert!(
+        page.contains("class=\"head-share\" data-share hidden aria-label=\"공유\""),
+        "{float}"
+    );
     // 갤러리 칸: 제목·글쓴이·수치가 그림 위 덮개 안에
     maru(&data, &["board", "update", "blog", "--layout", "gallery"]);
     let list = http(&bind, "GET", "/b/blog", &[], "").body;

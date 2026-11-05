@@ -212,6 +212,15 @@
     var actions = [{ label: "프로필 보기", url: "/u/" }].concat(
       [].concat.apply([], (bar.items || []).map(function (i) { return i.member_actions || []; })));
     if (!bar.signed_in) return;
+    // 글쓴이 카드의 단추 줄 (GAP Q30): 프로필 보기 뒤에 모듈 항목(쪽지·차단 등)을 단추처럼 단다.
+    var cards = document.querySelectorAll("[data-member-actions]");
+    for (var c = 0; c < cards.length; c++) {
+      var who = cards[c].getAttribute("data-member-actions");
+      if (!who || who === bar.name) continue;
+      actions.slice(1).forEach(function (a) {
+        cards[c].appendChild(el("a", { href: a.url + encodeURIComponent(who) }, a.label));
+      });
+    }
     var names = document.querySelectorAll("[data-member]");
     for (var i = 0; i < names.length; i++) {
       var host = names[i];

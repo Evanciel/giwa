@@ -835,6 +835,9 @@ struct Visit {
     headers: HeaderMap,
 }
 
+/// 글쓴이 카드 탭마다 보일 최근 글·댓글 수 (GAP Q30)
+const AUTHOR_RECENT: usize = 5;
+
 async fn post_inner(
     state: &AppState,
     board_slug: &str,
@@ -909,6 +912,43 @@ async fn post_inner(
                 .await?
                 .unwrap_or_default()
         );
+        // 카드의 최근 글·댓글 탭 (GAP Q30, ADR-0113): 프로필 화면과 같은 공개 범위(손님 기준), 지금 글은 뺀다.
+        if let Some(name) = view["author"]["name"].as_str().map(str::to_owned)
+            && let Ok(p) =
+                maru_core::services::members::public_profile(&state.ctx, &actor, &name).await
+        {
+            let tz = site.settings.tz_offset_min;
+            let recent_posts: Vec<Value> = p
+                .posts
+                .iter()
+                .filter(|x| x.id != post.id)
+                .take(AUTHOR_RECENT)
+                .map(|x| {
+                    json!({
+                        "title": x.title,
+                        "url": x.url,
+                        "date": x.published_at.as_deref().map(|d| clock::display_date(d, tz)),
+                    })
+                })
+                .collect();
+            let recent_comments: Vec<Value> = p
+                .comments
+                .iter()
+                .take(AUTHOR_RECENT)
+                .map(|c| {
+                    json!({
+                        "excerpt": c.excerpt,
+                        "post_title": c.post_title,
+                        "url": c.url,
+                        "date": clock::display_date(&c.created_at, tz),
+                    })
+                })
+                .collect();
+            view["author"]["post_count"] = json!(p.post_count);
+            view["author"]["comment_count"] = json!(p.comment_count);
+            view["author"]["recent_posts"] = json!(recent_posts);
+            view["author"]["recent_comments"] = json!(recent_comments);
+        }
     }
     // 회원·손님이 쓴 글만 공개 화면에서 고친다. 누가 고칠 수 있는지는 누를 때 본다.
     if public_write(&board) && (post.author_id.is_some() || post.guest_name.is_some()) {

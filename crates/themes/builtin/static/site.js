@@ -333,22 +333,55 @@
 })();
 
 (() => {
-  const b = document.querySelector("[data-share]");
-  if (!b) return;
+  const buttons = document.querySelectorAll("[data-share]");
+  if (!buttons.length) return;
   const canShare = typeof navigator.share === "function";
   if (!canShare && !(navigator.clipboard && navigator.clipboard.writeText)) return;
-  b.hidden = false;
-  b.addEventListener("click", () => {
-    const url = (document.querySelector("link[rel=canonical]") || location).href;
-    if (canShare) {
-      navigator.share({ title: document.title, url }).catch(() => {});
-      return;
+  for (const b of buttons) {
+    b.hidden = false;
+    // 글 머리 아이콘(GAP Q30)은 글자 대신 이름표로 「복사됨」을 알린다.
+    const icon = b.classList.contains("head-share");
+    const say = (text) => {
+      if (icon) {
+        b.setAttribute("aria-label", text);
+        b.title = text;
+      } else b.textContent = text;
+    };
+    b.addEventListener("click", () => {
+      const url = (document.querySelector("link[rel=canonical]") || location).href;
+      if (canShare) {
+        navigator.share({ title: document.title, url }).catch(() => {});
+        return;
+      }
+      navigator.clipboard.writeText(url).then(() => {
+        say("복사됨");
+        setTimeout(() => say("공유"), 1500);
+      }, () => {});
+    });
+  }
+})();
+
+// 자기소개 펼치기 (GAP Q30, ADR-0113): 세 줄이 넘으면 접고 「펼치기」. 스크립트가 없으면 다 보인다.
+(() => {
+  for (const box of document.querySelectorAll("[data-clamp]")) {
+    box.classList.add("is-clamped");
+    const text = box.firstElementChild;
+    if (!text || text.scrollHeight <= text.clientHeight + 1) {
+      box.classList.remove("is-clamped");
+      continue;
     }
-    navigator.clipboard.writeText(url).then(() => {
-      b.textContent = "복사됨";
-      setTimeout(() => { b.textContent = "공유"; }, 1500);
-    }, () => {});
-  });
+    const more = document.createElement("button");
+    more.type = "button";
+    more.className = "clamp-toggle";
+    more.textContent = "펼치기";
+    more.setAttribute("aria-expanded", "false");
+    more.addEventListener("click", () => {
+      const open = box.classList.toggle("is-clamped") === false;
+      more.textContent = open ? "접기" : "펼치기";
+      more.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+    box.append(more);
+  }
 })();
 
 // 게시판 즐겨찾기 (GAP Q26, ADR-0108). 로그인한 회원의 /me/bar 에 board_star 가 있으면(스크랩 모듈)
