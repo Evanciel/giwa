@@ -469,6 +469,74 @@ fn reactions_and_scraps_from_the_public_post_page() {
     );
     hit("");
 
+    // 게시판 즐겨찾기 (GAP Q26, ADR-0108): 손님은 로그인으로, 회원은 JSON 으로 넣고 빼기, /me/bar 에 보인다.
+    let star = |cookie: Option<&str>, accept: &str, site: &str, path: &str| {
+        let mut h = vec![("Accept", accept), ("Sec-Fetch-Site", site)];
+        if let Some(c) = cookie {
+            h.push(("Cookie", c));
+        }
+        http(&bind, "POST", path, &h, "")
+    };
+    let res = star(None, "text/html", "same-origin", "/m/scrap/board/free");
+    assert_eq!(res.status, 303);
+    assert!(res.location().starts_with("/login?next=") && res.location().ends_with("free"));
+    assert_eq!(
+        star(
+            Some(&reader),
+            "application/json",
+            "cross-site",
+            "/m/scrap/board/free"
+        )
+        .status,
+        403
+    );
+    assert_eq!(
+        star(
+            Some(&reader),
+            "application/json",
+            "same-origin",
+            "/m/scrap/board/nope"
+        )
+        .status,
+        404
+    );
+    let res = star(
+        Some(&reader),
+        "application/json",
+        "same-origin",
+        "/m/scrap/board/free",
+    );
+    assert_eq!(res.status, 200, "{}", res.body);
+    assert!(res.body.contains("\"favorite\":true"), "{}", res.body);
+    let bar = http(&bind, "GET", "/me/bar", &as_reader, "").body;
+    let bar: Value = serde_json::from_str(&bar).unwrap();
+    assert_eq!(bar["board_star"], "/m/scrap/board/");
+    assert_eq!(
+        bar["favorite_boards"],
+        serde_json::json!([{ "name": "자유", "url": "/b/free" }])
+    );
+    assert!(
+        http(&bind, "GET", "/b/free", &[], "")
+            .body
+            .contains("data-board=\"free\"")
+    );
+    let res = star(
+        Some(&reader),
+        "text/html",
+        "same-origin",
+        "/m/scrap/board/free",
+    );
+    assert_eq!(res.status, 303);
+    assert_eq!(res.location(), "/b/free");
+    let bar = http(&bind, "GET", "/me/bar", &as_reader, "").body;
+    assert!(bar.contains("\"favorite_boards\":[]"), "{bar}");
+    star(
+        Some(&reader),
+        "application/json",
+        "same-origin",
+        "/m/scrap/board/free",
+    );
+
     // 감사 기록.
     let audit = maru(&data, &["audit", "list", "--action", "reaction"]);
     assert!(audit["total"].as_i64().unwrap() >= 5, "{audit}");

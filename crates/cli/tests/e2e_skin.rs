@@ -347,6 +347,53 @@ fn community_preset_skin_and_account_bar() {
         board.body.contains("region-masthead"),
         "이름 옆 자리는 모든 화면"
     );
+    // 광고 자리 (GAP Q24, ADR-0109): 후원 띠·양옆·아래 고정, 맨 아래로 단추
+    assert!(!board.body.contains("region-sponsor") && !board.body.contains("region-rail"));
+    assert!(
+        board.body.contains("<a href=\"#page-end\">맨 아래</a>")
+            && board.body.contains("id=\"page-end\"")
+    );
+    for (region, text) in [
+        ("sponsor", "후원 안내 하나"),
+        ("rail", "왼쪽 안내"),
+        ("rail", "오른쪽 안내"),
+        ("sticky", "아래 안내"),
+    ] {
+        let config = format!(r#"{{"body":"{text}"}}"#);
+        maru(
+            &data,
+            &[
+                "widget",
+                "place",
+                "markdown_block",
+                "--region",
+                region,
+                "--config",
+                &config,
+            ],
+        );
+    }
+    let board = http(&bind, "GET", "/b/free", &[], "").body;
+    let band = &board[board.find("data-sponsor").expect("후원 띠")..];
+    assert!(
+        band.contains(
+            "aria-controls=\"sponsor-items\" aria-expanded=\"true\" hidden>접기</button>"
+        ),
+        "{band}"
+    );
+    assert!(band.contains("후원 안내 하나"));
+    let rail = &board[board.find("class=\"region region-rail\"").expect("양옆")..];
+    let left = rail.find("왼쪽 안내").unwrap();
+    let right = rail.find("오른쪽 안내").unwrap();
+    assert!(
+        left < rail.find("rail-right").unwrap() && right > rail.find("rail-right").unwrap(),
+        "{rail}"
+    );
+    assert!(
+        board.contains("data-sticky-ad") && board.contains("아래 안내"),
+        "{board}"
+    );
+    assert!(board.find("data-sponsor").unwrap() < board.find("<footer").unwrap());
     // 휴대폰 서랍·검색 덮개 (GAP Q13, ADR-0098): 닫힌 dialog, 여는 단추는 스크립트가 보일 때까지 숨김
     assert!(
         home.body

@@ -4,14 +4,14 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use axum::extract::{Form, Path, Query, State};
-use axum::http::{HeaderMap, StatusCode};
+use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
 use axum::{Extension, Router};
 use maru_core::actor::{Actor, Permission};
 use maru_core::audit::{AuditRecord, Target};
 use maru_core::model::AuditEvent;
-use maru_core::services::{posts, settings};
+use maru_core::services::{boards, posts, settings};
 use maru_core::store::ModuleMigration;
 use maru_core::urls::{self, Target as UrlTarget};
 use maru_core::{Code, Ctx, Error, Result, clock};
@@ -28,12 +28,14 @@ static MANIFEST: Manifest = Manifest {
     id: "scrap",
     name: "스크랩",
     version: env!("CARGO_PKG_VERSION"),
-    description: "회원이 글을 모아 두고 내 정보에서 다시 봅니다.",
+    description: "회원이 글을 모아 두고 내 정보에서 다시 봅니다. 게시판 즐겨찾기도 맡습니다.",
     events: &["member.withdraw"],
 };
 
 const PER_PAGE: i64 = 20;
 const ME_LIMIT: i64 = 5;
+/// 즐겨찾는 게시판 수 한도 (GAP Q26, ADR-0108).
+const MAX_BOARDS: i64 = 30;
 
 #[derive(Clone)]
 pub struct ScrapModule {
@@ -64,6 +66,17 @@ struct ListInput {
 #[serde(deny_unknown_fields)]
 struct ToggleInput {
     post: String,
+}
+
+#[derive(Debug, Default, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct Empty {}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct BoardToggleInput {
+    /// 게시판 주소 이름(slug)
+    board: String,
 }
 
 fn parse_input<T: for<'de> Deserialize<'de>>(input: Value) -> Result<T> {
@@ -210,6 +223,108 @@ impl ScrapModule {
         Ok((out, total))
     }
 
+    /// 게시판 즐겨찾기를 넣거나 뺀다 (GAP Q26, ADR-0108). 빼는 일은 언제나, 넣는 일은 읽을 수 있는 게시판만.
+    async fn toggle_board(
+        &self,
+        ctx: &Ctx,
+        actor: &Actor,
+        member_id: &str,
+        slug: &str,
+    ) -> Result<bool> {
+        let board = ctx
+            .store
+            .board_by_slug(slug)
+            .await?
+            .ok_or_else(|| module_error(Code::NotFound, "게시판을 찾을 수 없습니다."))?;
+        let mut tx = self
+            .db
+            .write_pool()
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .map_err(Error::internal)?;
+        let removed = sqlx::query!(
+            "DELETE FROM mod_scrap_board WHERE member_id = ? AND board_id = ?",
+            member_id,
+            board.id
+        )
+        .execute(&mut *tx)
+        .await
+        .map_err(Error::internal)?
+        .rows_affected()
+            > 0;
+        if !removed {
+            boards::readable(ctx, actor, slug).await?;
+            let n = sqlx::query_scalar!(
+                r#"SELECT COUNT(*) AS "n!: i64" FROM mod_scrap_board WHERE member_id = ?"#,
+                member_id
+            )
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(Error::internal)?;
+            if n >= MAX_BOARDS {
+                return Err(module_error(
+                    Code::Validation,
+                    "즐겨찾는 게시판은 30개까지입니다. 하나를 빼고 다시 넣으세요.",
+                ));
+            }
+            let at = clock::now();
+            sqlx::query!(
+                "INSERT INTO mod_scrap_board (member_id, board_id, at) VALUES (?, ?, ?)",
+                member_id,
+                board.id,
+                at
+            )
+            .execute(&mut *tx)
+            .await
+            .map_err(Error::internal)?;
+        }
+        let audit = AuditRecord::new(
+            actor,
+            if removed {
+                "scrap.board_remove"
+            } else {
+                "scrap.board_add"
+            },
+            Target::new("board", &board.id),
+            json!({}),
+        );
+        maru_storage::sqlite::insert_audit(&mut tx, &audit).await?;
+        tx.commit().await.map_err(Error::internal)?;
+        Ok(!removed)
+    }
+
+    /// 즐겨찾는 게시판, 넣은 차례대로. 지웠거나 이제 읽을 수 없는 게시판은 건너뛴다.
+    async fn favorite_boards(
+        &self,
+        ctx: &Ctx,
+        actor: &Actor,
+        member_id: &str,
+    ) -> Result<Vec<Value>> {
+        let ids = sqlx::query_scalar!(
+            "SELECT board_id FROM mod_scrap_board WHERE member_id = ? ORDER BY at, board_id LIMIT ?",
+            member_id,
+            MAX_BOARDS
+        )
+        .fetch_all(self.db.read_pool())
+        .await
+        .map_err(Error::internal)?;
+        let mut out = Vec::with_capacity(ids.len());
+        for id in ids {
+            let Some(board) = ctx.store.board_by_id(&id).await? else {
+                continue;
+            };
+            if boards::readable(ctx, actor, &board.slug).await.is_err() {
+                continue;
+            }
+            out.push(json!({
+                "slug": board.slug,
+                "name": board.name,
+                "url": urls::path(&UrlTarget::Board { board: &board.slug }),
+            }));
+        }
+        Ok(out)
+    }
+
     async fn has(&self, member_id: &str, post_id: &str) -> Result<bool> {
         let n = sqlx::query_scalar!(
             r#"SELECT COUNT(*) AS "n!: i64" FROM mod_scrap_item WHERE member_id = ? AND post_id = ?"#,
@@ -250,6 +365,32 @@ impl ScrapModule {
         let (on, _) = self.toggle(ctx, actor, member, &input.post).await?;
         Ok(json!({ "scrapped": on }))
     }
+
+    async fn tool_boards(&self, ctx: &Ctx, actor: &Actor) -> Result<Value> {
+        let Some(member) = actor.member_id() else {
+            return Err(module_error(
+                Code::Forbidden,
+                "즐겨찾는 게시판은 회원 본인만 봅니다.",
+            ));
+        };
+        Ok(json!({ "boards": self.favorite_boards(ctx, actor, member).await? }))
+    }
+
+    async fn tool_board_toggle(
+        &self,
+        ctx: &Ctx,
+        actor: &Actor,
+        input: BoardToggleInput,
+    ) -> Result<Value> {
+        let Some(member) = actor.member_id() else {
+            return Err(module_error(
+                Code::Forbidden,
+                "게시판 즐겨찾기는 회원 본인만 할 수 있습니다.",
+            ));
+        };
+        let on = self.toggle_board(ctx, actor, member, &input.board).await?;
+        Ok(json!({ "favorite": on }))
+    }
 }
 
 #[async_trait]
@@ -259,12 +400,20 @@ impl Module for ScrapModule {
     }
 
     fn migrations(&self) -> Vec<ModuleMigration> {
-        vec![ModuleMigration {
-            version: 20261105300001,
-            name: "scrap",
-            up: include_str!("../migrations/20261105300001_scrap.up.sql"),
-            down: include_str!("../migrations/20261105300001_scrap.down.sql"),
-        }]
+        vec![
+            ModuleMigration {
+                version: 20261105300001,
+                name: "scrap",
+                up: include_str!("../migrations/20261105300001_scrap.up.sql"),
+                down: include_str!("../migrations/20261105300001_scrap.down.sql"),
+            },
+            ModuleMigration {
+                version: 20261106300001,
+                name: "scrap_board",
+                up: include_str!("../migrations/20261106300001_scrap_board.up.sql"),
+                down: include_str!("../migrations/20261106300001_scrap_board.down.sql"),
+            },
+        ]
     }
 
     fn routes(&self) -> Option<Router<ModuleState>> {
@@ -272,6 +421,7 @@ impl Module for ScrapModule {
             Router::new()
                 .route("/", get(list_page))
                 .route("/post/{id}", post(toggle_form))
+                .route("/board/{slug}", post(board_form))
                 .layer(Extension(Arc::new(self.clone()))),
         )
     }
@@ -304,6 +454,18 @@ impl Module for ScrapModule {
                 input_schema: schema_of::<ToggleInput>(),
                 permission: None,
             },
+            ToolDef {
+                name: "boards",
+                description: "회원 본인이 즐겨찾는 게시판",
+                input_schema: schema_of::<Empty>(),
+                permission: None,
+            },
+            ToolDef {
+                name: "board_toggle",
+                description: "회원 본인의 게시판 즐겨찾기를 넣거나 뺀다",
+                input_schema: schema_of::<BoardToggleInput>(),
+                permission: None,
+            },
         ]
     }
 
@@ -311,6 +473,14 @@ impl Module for ScrapModule {
         match tool {
             "list" => self.tool_list(ctx, actor, parse_input(input)?).await,
             "toggle" => self.tool_toggle(ctx, actor, parse_input(input)?).await,
+            "boards" => {
+                let _: Empty = parse_input(input)?;
+                self.tool_boards(ctx, actor).await
+            }
+            "board_toggle" => {
+                self.tool_board_toggle(ctx, actor, parse_input(input)?)
+                    .await
+            }
             other => Err(maru_modules::tool_not_found(MANIFEST.id, other)),
         }
     }
@@ -321,6 +491,10 @@ impl Module for ScrapModule {
             && let Some(member) = &ev.target_id
         {
             sqlx::query!("DELETE FROM mod_scrap_item WHERE member_id = ?", member)
+                .execute(self.db.write_pool())
+                .await
+                .map_err(Error::internal)?;
+            sqlx::query!("DELETE FROM mod_scrap_board WHERE member_id = ?", member)
                 .execute(self.db.write_pool())
                 .await
                 .map_err(Error::internal)?;
@@ -336,10 +510,23 @@ impl Module for ScrapModule {
     ) -> Result<Option<SlotContent>> {
         match slot {
             // 이름 메뉴의 「스크랩」 (GAP Q14, ADR-0099)
-            ACCOUNT_BAR => Ok(view.viewer.member_id().map(|_| SlotContent {
-                template: "",
-                data: json!({ "label": "스크랩", "url": "/m/scrap", "menu": true }),
-            })),
+            // 즐겨찾는 게시판과 별 단추 주소도 함께 준다 (GAP Q26, ADR-0108).
+            ACCOUNT_BAR => {
+                let Some(member) = view.viewer.member_id() else {
+                    return Ok(None);
+                };
+                let favorites = self.favorite_boards(ctx, view.viewer, member).await?;
+                Ok(Some(SlotContent {
+                    template: "",
+                    data: json!({
+                        "label": "스크랩",
+                        "url": "/m/scrap",
+                        "menu": true,
+                        "favorite_boards": favorites,
+                        "board_star": "/m/scrap/board/",
+                    }),
+                }))
+            }
             POST_FOOTER => {
                 let Some(post_id) = view.post_id else {
                     return Ok(None);
@@ -413,6 +600,41 @@ async fn toggle_form(
                 url.unwrap_or_else(|| "/m/scrap".into())
             ))
             .into_response()
+        }
+        Err(e) => state.host.error(&e).await,
+    }
+}
+
+/// 게시판 머리의 별 단추 (GAP Q26, ADR-0108). 스크립트는 JSON 을, 폼은 게시판으로 돌아가기를 받는다.
+async fn board_form(
+    State(state): State<ModuleState>,
+    Extension(module): Extension<Arc<ScrapModule>>,
+    Path(slug): Path<String>,
+    headers: HeaderMap,
+) -> Response {
+    if !state.host.same_origin(&headers) {
+        return StatusCode::FORBIDDEN.into_response();
+    }
+    let actor = match state.host.viewer(&headers).await {
+        Ok(a) => a,
+        Err(e) => return state.host.error(&e).await,
+    };
+    let back = urls::path(&UrlTarget::Board { board: &slug });
+    let Some(member) = actor.member_id() else {
+        return Redirect::to(&urls::with_query("/login", &[("next", back.as_str())]))
+            .into_response();
+    };
+    match module.toggle_board(&state.ctx, &actor, member, &slug).await {
+        Ok(on) => {
+            let wants_json = headers
+                .get(header::ACCEPT)
+                .and_then(|v| v.to_str().ok())
+                .is_some_and(|a| a.contains("application/json"));
+            if wants_json {
+                axum::Json(json!({ "favorite": on })).into_response()
+            } else {
+                Redirect::to(&back).into_response()
+            }
         }
         Err(e) => state.host.error(&e).await,
     }

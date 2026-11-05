@@ -555,7 +555,8 @@ pub async fn public_board_filtered(
     sort: ListSort,
     page: PageReq,
 ) -> Result<BoardPage> {
-    let applied = crate::fields::filters(&board.field_schema, fields);
+    let tz = crate::services::settings::site(ctx).await?.tz_offset_min;
+    let applied = crate::fields::filters(&board.field_schema, fields, &crate::clock::today(tz));
     let categories = ctx.store.categories_of_board(&board.id).await?;
     let category = match category.map(str::trim).filter(|c| !c.is_empty()) {
         Some(c) => {
@@ -607,7 +608,7 @@ pub async fn public_board_filtered(
         posts,
         categories,
         category,
-        filters: applied.into_iter().map(|(d, f)| (d.key, f.value)).collect(),
+        filters: applied.into_iter().map(|(d, f)| (d.key, f.token)).collect(),
         sort,
     })
 }

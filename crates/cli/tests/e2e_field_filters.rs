@@ -232,3 +232,152 @@ fn deal_board_lists_fields_and_filters_by_them() {
     assert_eq!(v["data"]["posts"]["total"], 1);
     assert_eq!(v["data"]["filters"], serde_json::json!([["ended", "0"]]));
 }
+
+/// GAP Q21·Q22 (ADR-0106): 칸 역할 — 마감일(D-day·진행 중/마감 거르기), 제휴 링크 고지, 출처 줄, 목록/카드 보기 전환.
+#[test]
+fn event_deadline_roles_and_view_switch() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("사이트");
+    maru(&data, &["init", "--preset", "blog", "--yes"]);
+
+    // 역할은 맞는 타입에 한 칸씩만.
+    let bad = tmp.path().join("bad.json");
+    std::fs::write(
+        &bad,
+        r#"[{"key": "end", "label": "마감", "type": "text", "role": "deadline"}]"#,
+    )
+    .unwrap();
+    let refused = run(
+        &data,
+        &[
+            "board",
+            "create",
+            "event",
+            "--name",
+            "이벤트",
+            "--kind",
+            "free",
+            "--fields",
+            bad.to_str().unwrap(),
+        ],
+    );
+    assert_eq!(refused["error"]["code"], "VALIDATION", "{refused}");
+    assert!(
+        refused["error"]["message"].to_string().contains("역할"),
+        "{refused}"
+    );
+
+    let file = tmp.path().join("event.json");
+    std::fs::write(
+        &file,
+        r#"[
+          {"key": "deadline", "label": "마감일", "type": "date", "role": "deadline", "list": true, "filter": true},
+          {"key": "link", "label": "응모 주소", "type": "url", "role": "sponsored"},
+          {"key": "src", "label": "출처", "type": "url", "role": "source"}
+        ]"#,
+    )
+    .unwrap();
+    maru(
+        &data,
+        &[
+            "board",
+            "create",
+            "event",
+            "--name",
+            "이벤트",
+            "--kind",
+            "free",
+            "--layout",
+            "card",
+            "--fields",
+            file.to_str().unwrap(),
+        ],
+    );
+    for (slug, day) in [("past", "2000-01-01"), ("future", "2999-12-31")] {
+        let deadline = format!("deadline={day}");
+        maru(
+            &data,
+            &[
+                "post",
+                "new",
+                "--board",
+                "event",
+                "--title",
+                slug,
+                "--slug",
+                slug,
+                "--publish",
+                "--field",
+                &deadline,
+                "--field",
+                "link=https://shop.example.test/item",
+                "--field",
+                "src=https://www.example.test/news/1",
+            ],
+        );
+    }
+
+    let (_server, info) = start_server(&data);
+    let bind = info["bind"].as_str().unwrap();
+    let (_, page) = get(bind, "/b/event");
+    assert!(page.contains("class=\"dday closed\">마감</span>"), "{page}");
+    assert!(page.contains("class=\"dday\">D-"), "{page}");
+    assert!(
+        page.contains(">진행 중</a>") && page.contains("f.deadline=closed"),
+        "{page}"
+    );
+    let (_, open) = get(bind, "/b/event?f.deadline=open");
+    assert!(
+        open.contains("href=\"/b/event/future\"") && !open.contains("href=\"/b/event/past\""),
+        "{open}"
+    );
+    let (_, closed) = get(bind, "/b/event?f.deadline=closed");
+    assert!(
+        closed.contains("href=\"/b/event/past\"") && !closed.contains("href=\"/b/event/future\""),
+        "{closed}"
+    );
+    let (status, body) = get(bind, "/api/v1/boards/event/posts?f.deadline=open");
+    assert_eq!(status, 200, "{body}");
+    let v: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(v["data"]["posts"]["total"], 1);
+    assert_eq!(
+        v["data"]["filters"],
+        serde_json::json!([["deadline", "open"]])
+    );
+
+    // 글 화면: 출처 줄(도메인), 제휴 링크는 sponsored 와 고지
+    let (_, post) = get(bind, "/b/event/future");
+    assert!(
+        post.contains("class=\"post-source\">출처 <a href=\"https://www.example.test/news/1\""),
+        "{post}"
+    );
+    assert!(post.contains(">example.test</a>"), "{post}");
+    assert!(
+        post.contains("rel=\"sponsored nofollow noopener\""),
+        "{post}"
+    );
+    assert!(post.contains("class=\"sponsored-note\""), "{post}");
+
+    // 보기 전환: 카드 게시판을 목록으로 보고, 다른 주소도 그 보기를 유지한다
+    assert!(page.contains("aria-label=\"보기 방식\""), "{page}");
+    assert!(page.contains("href=\"/b/event?view=list\""), "{page}");
+    let (_, listed_view) = get(bind, "/b/event?view=list&order=views");
+    assert!(
+        listed_view.contains("class=\"post-table\""),
+        "{listed_view}"
+    );
+    assert!(
+        listed_view.contains("view=list&amp;order=comments"),
+        "{listed_view}"
+    );
+    assert!(
+        listed_view.contains("href=\"/b/event?order=views\""),
+        "카드로 돌아가는 단추: {listed_view}"
+    );
+    // 웹진 게시판은 전환이 없다
+    let (_, blog) = get(bind, "/b/blog?view=card");
+    assert!(
+        !blog.contains("보기 방식") && !blog.contains("post-grid-card"),
+        "{blog}"
+    );
+}

@@ -62,7 +62,18 @@ pub struct FieldDef {
     /// 게시판 목록을 이 칸으로 거를 수 있다. select·multiselect·boolean 만 (ADR-0089)
     #[serde(default, skip_serializing_if = "is_false")]
     pub filter: bool,
+    /// 칸의 쓰임 (GAP Q21·Q22, ADR-0106). url: `sponsored`(제휴 링크, 고지와 함께)·`source`(글 머리 출처 줄),
+    /// date: `deadline`(마감일 — 목록 D-day, 진행 중·마감 거르기). 게시판에 역할마다 한 칸까지
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub role: Option<String>,
 }
+
+/// 칸 역할과 그 역할을 가질 수 있는 타입
+pub const ROLES: [(&str, &str); 3] = [
+    ("sponsored", "url"),
+    ("source", "url"),
+    ("deadline", "date"),
+];
 
 fn is_false(b: &bool) -> bool {
     !*b
@@ -79,11 +90,19 @@ pub struct MetaFilter {
     pub mode: &'static str,
     #[serde(rename = "v")]
     pub value: String,
+    /// 주소에 있던 값(마감 거르기는 `open`·`closed`, 나머지는 `value` 와 같다)
+    #[serde(skip)]
+    pub token: String,
 }
 
 /// 주소의 거르기 값(`f.<키>=<값>`)을 칸 정의로 고른다. 거를 수 없는 칸·없는 선택지·잘못된 값은
 /// 조용히 버린다(오래된 링크도 목록을 연다). 같은 칸은 처음 값만.
-pub fn filters(schema: &[FieldDef], pairs: &[(String, String)]) -> Vec<(FieldDef, MetaFilter)> {
+/// `today` 는 사이트 시간대의 오늘(`YYYY-MM-DD`): 마감 칸은 `open`(오늘 포함 아직)·`closed`(지남)로 거른다.
+pub fn filters(
+    schema: &[FieldDef],
+    pairs: &[(String, String)],
+    today: &str,
+) -> Vec<(FieldDef, MetaFilter)> {
     let mut out: Vec<(FieldDef, MetaFilter)> = Vec::new();
     for (key, value) in pairs {
         let Some(d) = schema.iter().find(|d| d.filter && d.key == *key) else {
@@ -93,12 +112,14 @@ pub fn filters(schema: &[FieldDef], pairs: &[(String, String)]) -> Vec<(FieldDef
             continue;
         }
         let value = value.trim();
-        let mode = match d.kind.as_str() {
+        let (mode, compare) = match d.kind.as_str() {
             "select" | "multiselect" if d.options.iter().any(|o| o.value == value) => {
-                if d.kind == "select" { "eq" } else { "has" }
+                (if d.kind == "select" { "eq" } else { "has" }, value)
             }
-            "boolean" if value == "1" => "on",
-            "boolean" if value == "0" => "off",
+            "boolean" if value == "1" => ("on", value),
+            "boolean" if value == "0" => ("off", value),
+            "date" if value == "open" => ("ge", today),
+            "date" if value == "closed" => ("lt", today),
             _ => continue,
         };
         out.push((
@@ -106,7 +127,8 @@ pub fn filters(schema: &[FieldDef], pairs: &[(String, String)]) -> Vec<(FieldDef
             MetaFilter {
                 path: format!("$.{}", d.key),
                 mode,
-                value: value.to_owned(),
+                value: compare.to_owned(),
+                token: value.to_owned(),
             },
         ));
     }
@@ -185,7 +207,21 @@ pub fn check_schema(defs: Vec<FieldDef>) -> Result<Vec<FieldDef>> {
         } else {
             d.options.clear();
         }
-        if d.filter && !matches!(d.kind.as_str(), "select" | "multiselect" | "boolean") {
+        d.role = d
+            .role
+            .map(|r| r.trim().to_ascii_lowercase())
+            .filter(|r| !r.is_empty());
+        if let Some(role) = d.role.as_deref() {
+            let fits = ROLES.iter().any(|(r, t)| *r == role && *t == d.kind);
+            if !fits || out.iter().any(|o| o.role.as_deref() == Some(role)) {
+                return Err(invalid("error.field_role")
+                    .arg("key", d.key.clone())
+                    .arg("value", role.to_owned()));
+            }
+        }
+        let deadline = d.kind == "date" && d.role.as_deref() == Some("deadline");
+        if d.filter && !matches!(d.kind.as_str(), "select" | "multiselect" | "boolean") && !deadline
+        {
             return Err(invalid("error.field_filter").arg("key", d.key));
         }
         out.push(d);
@@ -385,6 +421,9 @@ pub struct Shown {
     /// url·email·phone 은 누를 수 있는 주소
     #[serde(skip_serializing_if = "Option::is_none")]
     pub href: Option<String>,
+    /// 칸 역할 (ADR-0106)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub role: Option<String>,
 }
 
 pub fn display(schema: &[FieldDef], meta: &Map<String, Value>) -> Vec<Shown> {
@@ -444,9 +483,20 @@ pub fn display(schema: &[FieldDef], meta: &Map<String, Value>) -> Vec<Shown> {
             kind: d.kind.clone(),
             text,
             href,
+            role: d.role.clone(),
         });
     }
     out
+}
+
+/// 마감 칸(역할 `deadline`)까지 남은 날 수. 오늘이면 0, 지났으면 음수. 칸·값이 없으면 `None`.
+pub fn days_left(schema: &[FieldDef], meta: &Map<String, Value>, today: &str) -> Option<i64> {
+    let d = schema
+        .iter()
+        .find(|d| d.kind == "date" && d.role.as_deref() == Some("deadline"))?;
+    let end = time::Date::parse(meta.get(&d.key)?.as_str()?, DATE).ok()?;
+    let now = time::Date::parse(today, DATE).ok()?;
+    Some((end - now).whole_days())
 }
 
 /// `2026-11-04` → `2026. 11. 4.`
@@ -477,6 +527,53 @@ fn group_digits(n: &str) -> String {
 }
 
 #[cfg(test)]
+mod role_tests {
+    use super::*;
+
+    fn def(key: &str, kind: &str, role: Option<&str>, filter: bool) -> FieldDef {
+        FieldDef {
+            key: key.into(),
+            label: key.into(),
+            kind: kind.into(),
+            required: false,
+            options: Vec::new(),
+            help: None,
+            list: false,
+            filter,
+            role: role.map(String::from),
+        }
+    }
+
+    #[test]
+    fn roles_fit_types_once_and_deadline_filters_by_today() {
+        assert!(check_schema(vec![def("a", "text", Some("source"), false)]).is_err());
+        assert!(
+            check_schema(vec![
+                def("a", "url", Some("source"), false),
+                def("b", "url", Some("source"), false)
+            ])
+            .is_err()
+        );
+        assert!(check_schema(vec![def("d", "date", None, true)]).is_err());
+        let ok = check_schema(vec![
+            def("link", "url", Some(" Sponsored "), false),
+            def("end", "date", Some("deadline"), true),
+        ])
+        .unwrap();
+        assert_eq!(ok[0].role.as_deref(), Some("sponsored"));
+        let pairs = vec![("end".to_owned(), "open".to_owned())];
+        let got = filters(&ok, &pairs, "2026-11-06");
+        assert_eq!(got[0].1.mode, "ge");
+        assert_eq!(got[0].1.value, "2026-11-06");
+        assert_eq!(got[0].1.token, "open");
+        let mut meta = Map::new();
+        meta.insert("end".into(), json!("2026-11-09"));
+        assert_eq!(days_left(&ok, &meta, "2026-11-06"), Some(3));
+        assert_eq!(days_left(&ok, &meta, "2026-11-10"), Some(-1));
+    }
+}
+
+#[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used)]
     use super::*;
@@ -491,6 +588,7 @@ mod tests {
             help: None,
             list: false,
             filter: false,
+            role: None,
         }
     }
 

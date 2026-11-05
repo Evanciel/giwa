@@ -21,7 +21,7 @@
   <li class="post-row">
     <span class="board-col">{% if post.board %}<a href="{{ post.board.url }}">{{ post.board.name }}</a>{% endif %}</span>
     <span class="subject"><a class="title" href="{{ post.url }}">{{ post.title }}</a>{% include "_title_marks.html" %}</span>
-    <span class="writer">{% if post.author %}<span class="author-name"{% if not post.author.guest %} data-member="{{ post.author.name }}"{% endif %}>{{ post.author.name }}</span>{% if post.author.badge %} <span class="level-badge" title="{{ post.author.badge.title }}">{{ post.author.badge.label }}</span>{% endif %}{% if post.author.guest %} <span class="comment-badge">비회원</span>{% endif %}{% endif %}</span>
+    <span class="writer">{% if post.author %}<span class="author-name"{% if not post.author.guest %} data-member="{{ post.author.name }}"{% endif %}>{{ post.author.name }}</span>{% if post.author.badge %} <span class="level-badge{% if post.author.badge.staff %} staff{% endif %}" title="{{ post.author.badge.title }}">{{ post.author.badge.label }}</span>{% endif %}{% if post.author.guest %} <span class="comment-badge">비회원</span>{% endif %}{% endif %}</span>
     <time class="date" datetime="{{ post.published_at }}" title="{{ post.date }}">{{ post.published_at|ago(site.tz) }}</time>
     <span class="hits">{% if post.views is not none %}<span class="hits-label">조회 </span>{{ post.views|short_count }}{% endif %}</span>
   </li>

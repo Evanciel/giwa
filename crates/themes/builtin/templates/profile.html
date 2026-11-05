@@ -4,7 +4,7 @@
 {% block main %}
 <section class="account profile" aria-labelledby="profile-title">
   <div class="me-head">
-    <h1 id="profile-title">{{ profile.name }}{% if profile.badge %} <span class="level-badge" title="{{ profile.badge.title }}">{{ profile.badge.label }}</span>{% endif %}</h1>
+    <h1 id="profile-title">{{ profile.name }}{% if profile.badge %} <span class="level-badge{% if profile.badge.staff %} staff{% endif %}" title="{{ profile.badge.title }}">{{ profile.badge.label }}</span>{% endif %}</h1>
     <p class="hint">{{ profile.joined }} 가입 · 글 {{ profile.post_count }} · 댓글 {{ profile.comment_count }}</p>
     {% if profile.bio %}<p class="profile-bio">{{ profile.bio }}</p>{% endif %}
   </div>

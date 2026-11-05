@@ -43,6 +43,21 @@ kind = "gallery"
 layout = "gallery"
 sort_order = 3
 
+# 이벤트 게시판 (GAP Q22, ADR-0106): 카드, 마감 칸으로 D-day·진행 중/마감 거르기, 참여 = 댓글
+[[ops]]
+op = "board.ensure"
+slug = "event"
+name = "이벤트"
+kind = "free"
+layout = "card"
+sort_order = 5
+field_schema = [
+  { key = "kind", label = "종류", type = "select", list = true, filter = true, options = [{ value = "giveaway", label = "증정" }, { value = "review", label = "리뷰" }, { value = "quiz", label = "맞히기" }, { value = "etc", label = "기타" }] },
+  { key = "starts", label = "시작일", type = "date" },
+  { key = "deadline", label = "마감일", type = "date", role = "deadline", list = true, filter = true },
+  { key = "link", label = "응모 주소", type = "url" },
+]
+
 [[ops]]
 op = "board.ensure"
 slug = "forum"

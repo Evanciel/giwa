@@ -597,8 +597,9 @@ pub struct MenuItem {
 
 /// 위젯을 놓는 영역 (SPEC §8.3, ADR-0059). 테마가 그리지 않는 영역의 위젯은 빠진다.
 /// `popup` 은 팝업 종류 전용 자리다 (ADR-0060). `masthead` 는 머리글의 사이트 이름 옆(광고·배너)이다 (ADR-0097).
-pub const WIDGET_REGIONS: [&str; 7] = [
-    "header", "hero", "main", "sidebar", "footer", "popup", "masthead",
+/// `sponsor`(바닥글 위 접는 후원 띠)·`rail`(넓은 화면 양옆)·`sticky`(휴대폰 아래 고정)는 광고 자리다 (ADR-0109).
+pub const WIDGET_REGIONS: [&str; 10] = [
+    "header", "hero", "main", "sidebar", "footer", "popup", "masthead", "sponsor", "rail", "sticky",
 ];
 
 /// 감사 기록 한 줄 (GAP S14, ADR-0062). `actor_name` 은 회원 표시 이름·토큰 이름(없으면 빈 값).

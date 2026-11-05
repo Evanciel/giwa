@@ -117,6 +117,9 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "error.board_description" => {
             "게시판 안내 문구는 {max}자 이하 평문으로, 제어 문자 없이 적어 주세요."
         }
+        "error.field_role" => {
+            "`{key}` 칸의 역할 `{value}` 는 쓸 수 없습니다. url 칸은 sponsored·source, date 칸은 deadline, 역할마다 한 칸까지입니다."
+        }
         "error.field_filter" => {
             "칸 `{key}`: 거르기(filter)는 select·multiselect·boolean 칸에만 켤 수 있습니다."
         }

@@ -793,6 +793,7 @@ impl Module for ReportModule {
             help: Some(help.to_owned()),
             list: false,
             filter: false,
+            role: None,
         };
         vec![
             number(

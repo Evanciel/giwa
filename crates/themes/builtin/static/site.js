@@ -88,7 +88,10 @@
   clear.textContent = "지우기";
   clear.addEventListener("click", () => {
     save([]);
-    nav.hidden = true;
+    label.remove();
+    ul.remove();
+    clear.remove();
+    if (!box.children.length) nav.hidden = true;
   });
   box.append(label, ul, clear);
   nav.hidden = false;
@@ -307,4 +310,140 @@
       setTimeout(() => { b.textContent = "공유"; }, 1500);
     }, () => {});
   });
+})();
+
+// 게시판 즐겨찾기 (GAP Q26, ADR-0108). 로그인한 회원의 /me/bar 에 board_star 가 있으면(스크랩 모듈)
+// 게시판 머리에 별 단추를, 머리글 아래 줄 맨 앞에 즐겨찾는 게시판을 보인다. 공개 HTML 은 모두에게 같다.
+(() => {
+  if (!window.fetch) return;
+  const head = document.querySelector("[data-board]");
+  const nav = document.querySelector("[data-recent-boards]");
+  if (!head && !nav) return;
+  const bar = window.maruBar || (window.maruBar = fetch("/me/bar", { credentials: "same-origin", headers: { "Accept": "application/json" } })
+    .then((r) => (r.ok ? r.json() : null))
+    .catch(() => null));
+  const inside = (u) => typeof u === "string" && /^\/(?!\/)/.test(u);
+  bar.then((me) => {
+    if (!me || !me.signed_in || !inside(me.board_star)) return;
+    let favs = (Array.isArray(me.favorite_boards) ? me.favorite_boards : [])
+      .filter((b) => b && inside(b.url) && typeof b.name === "string" && b.name.trim() !== "");
+    let group = null;
+    const draw = () => {
+      if (!nav) return;
+      const box = nav.firstElementChild || nav;
+      if (group) group.remove();
+      group = null;
+      if (!favs.length) {
+        if (!box.children.length) nav.hidden = true;
+        return;
+      }
+      group = document.createElement("div");
+      group.className = "fav-boards";
+      const label = document.createElement("span");
+      label.className = "recent-boards-label";
+      label.textContent = "즐겨찾기";
+      const ul = document.createElement("ul");
+      for (const b of favs) {
+        const li = document.createElement("li");
+        const a = document.createElement("a");
+        a.href = b.url;
+        a.textContent = b.name.slice(0, 40);
+        if (location.pathname === b.url) a.setAttribute("aria-current", "page");
+        li.append(a);
+        ul.append(li);
+      }
+      group.append(label, ul);
+      box.prepend(group);
+      nav.hidden = false;
+    };
+    draw();
+    if (!head || !head.dataset.board) return;
+    const url = head.dataset.visit;
+    let on = favs.some((b) => b.url === url);
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "board-star";
+    const paint = () => {
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+      btn.textContent = (on ? "★" : "☆") + " 즐겨찾기";
+      btn.title = on ? "즐겨찾기에서 빼기" : "즐겨찾기에 넣기";
+    };
+    paint();
+    btn.addEventListener("click", () => {
+      btn.disabled = true;
+      fetch(me.board_star + encodeURIComponent(head.dataset.board), { method: "POST", credentials: "same-origin", headers: { "Accept": "application/json" } })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((v) => {
+          if (!v || typeof v.favorite !== "boolean") return;
+          on = v.favorite;
+          favs = favs.filter((b) => b.url !== url);
+          if (on) favs.push({ url, name: (head.dataset.visitName || head.dataset.board).slice(0, 40) });
+          paint();
+          draw();
+        })
+        .catch(() => {})
+        .finally(() => { btn.disabled = false; });
+    });
+    const title = head.querySelector(".page-title");
+    if (title) title.after(btn);
+    else head.append(btn);
+  });
+})();
+
+// 광고 자리 (GAP Q24, ADR-0109): 후원 띠 접기(이 브라우저에 기억), 휴대폰 아래 고정 광고 닫기(이번 방문 동안),
+// 긴 화면의 맨 위·맨 아래 단추. 스크립트가 없으면 후원 띠는 펼친 채, 아래 광고는 닫기 단추 없이 둔다.
+(() => {
+  const keep = (store, key, value) => {
+    try {
+      if (value) store.setItem(key, value);
+      else store.removeItem(key);
+    } catch { /* 저장 못 함: 이번 화면만 */ }
+  };
+  const read = (store, key) => {
+    try { return store.getItem(key); } catch { return null; }
+  };
+  const band = document.querySelector("[data-sponsor]");
+  if (band) {
+    const btn = band.querySelector(".sponsor-toggle");
+    const items = band.querySelector(".sponsor-items");
+    const KEY = "maru.sponsorFolded";
+    const paint = (folded) => {
+      items.hidden = folded;
+      btn.setAttribute("aria-expanded", folded ? "false" : "true");
+      btn.textContent = folded ? "펼치기" : "접기";
+    };
+    paint(read(localStorage, KEY) === "1");
+    btn.hidden = false;
+    btn.addEventListener("click", () => {
+      const folded = !items.hidden;
+      paint(folded);
+      keep(localStorage, KEY, folded ? "1" : "");
+    });
+  }
+  const sticky = document.querySelector("[data-sticky-ad]");
+  if (sticky) {
+    const KEY = "maru.stickyClosed";
+    if (read(sessionStorage, KEY) === "1") {
+      sticky.hidden = true;
+    } else {
+      document.body.classList.add("has-sticky-ad");
+      const close = sticky.querySelector(".sticky-close");
+      const measure = () => document.body.style.setProperty("--sticky-h", sticky.offsetHeight + "px");
+      measure();
+      addEventListener("resize", measure, { passive: true });
+      close.hidden = false;
+      close.addEventListener("click", () => {
+        sticky.hidden = true;
+        document.body.classList.remove("has-sticky-ad");
+        keep(sessionStorage, KEY, "1");
+      });
+    }
+  }
+  const jump = document.querySelector(".page-jump");
+  if (jump) {
+    const check = () => { jump.hidden = document.documentElement.scrollHeight < innerHeight * 2 || scrollY < innerHeight / 2; };
+    check();
+    addEventListener("scroll", check, { passive: true });
+    addEventListener("resize", check, { passive: true });
+  }
 })();

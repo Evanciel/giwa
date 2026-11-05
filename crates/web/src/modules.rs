@@ -116,12 +116,16 @@ pub(crate) async fn add_list_slots(state: &AppState, view: &mut Value) {
 /// 회원 이름 옆 표시 (GAP Q1, ADR-0086). 화면 값에서 `member_id` 를 가진 칸(글쓴이·댓글)을 찾아
 /// 모듈이 준 `{label, title}` 를 `badge` 로 붙인다. 보는 사람과 무관하게 손님으로 묻는다(목록 캐시).
 pub(crate) async fn add_member_badges(state: &AppState, view: &mut Value) {
-    if state.modules.enabled(&state.ctx).await.is_empty() {
-        return;
-    }
     let mut ids = Vec::new();
     collect_member_ids(view, &mut ids);
     if ids.is_empty() {
+        return;
+    }
+    let mut badges = staff_badges(state, &ids).await;
+    if state.modules.enabled(&state.ctx).await.is_empty() {
+        if !badges.is_empty() {
+            attach_badges(view, &badges);
+        }
         return;
     }
     let viewer = Actor::anonymous([]);
@@ -136,8 +140,7 @@ pub(crate) async fn add_member_badges(state: &AppState, view: &mut Value) {
         .modules
         .slots(&state.ctx, &[MEMBER_BADGE], &slot_view)
         .await;
-    // 모듈이 여럿이면 먼저 켠 모듈의 표시를 쓴다.
-    let mut badges = serde_json::Map::new();
+    // 모듈이 여럿이면 먼저 켠 모듈의 표시를 쓴다. 운영진 표시가 있으면 그것이 먼저다.
     for item in slots
         .get(MEMBER_BADGE)
         .and_then(Value::as_array)
@@ -153,6 +156,31 @@ pub(crate) async fn add_member_badges(state: &AppState, view: &mut Value) {
     if !badges.is_empty() {
         attach_badges(view, &badges);
     }
+}
+
+/// 운영진 표시 (GAP Q25, ADR-0107): 편집자 이상 역할을 가진 회원. 모듈과 무관하게 코어 역할로 정한다.
+async fn staff_badges(state: &AppState, ids: &[String]) -> serde_json::Map<String, Value> {
+    const EDITOR_RANK: i64 = 20;
+    const ADMIN_RANK: i64 = 30;
+    let mut out = serde_json::Map::new();
+    for id in ids {
+        let Ok(roles) = state.ctx.store.member_roles(id).await else {
+            continue;
+        };
+        let rank = roles.iter().map(|r| r.rank).max().unwrap_or(0);
+        let label = if rank >= ADMIN_RANK {
+            "관리자"
+        } else if rank >= EDITOR_RANK {
+            "운영진"
+        } else {
+            continue;
+        };
+        out.insert(
+            id.clone(),
+            json!({ "label": label, "title": label, "staff": true }),
+        );
+    }
+    out
 }
 
 fn collect_member_ids(v: &Value, out: &mut Vec<String>) {

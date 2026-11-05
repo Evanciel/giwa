@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT board_id FROM mod_scrap_board WHERE member_id = ? ORDER BY at, board_id LIMIT ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "board_id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_scrap_board",
+            "name": "board_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "1093ccf8fb0f5ac09644563264f7ed3706d113493545f6c8790395ef7248fc18"
+}

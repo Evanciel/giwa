@@ -70,6 +70,9 @@ struct PageQuery {
     /// 목록 순서 latest·views·comments (GAP Q7, ADR-0092). 검색 순서 `sort` 와 다르다.
     #[serde(default)]
     order: String,
+    /// 방문자가 고른 보기 `list`·`card` (GAP Q21, ADR-0106). 목록·카드 게시판에서만
+    #[serde(default)]
+    view: String,
 }
 
 /// 템플릿에 넘기는 사이트 공통 값. 설정·메뉴를 못 읽어도 화면은 기본값으로 뜬다.
@@ -294,6 +297,21 @@ async fn board_inner(
         posts::public_board_filtered(&state.ctx, &actor, &board, category, fields, sort, page)
             .await?;
     let cats = &found.categories;
+    let today = clock::today(site.settings.tz_offset_min);
+    // 보기 전환 (GAP Q21): 목록·카드 게시판만, 게시판 기본과 다를 때만 주소에 남긴다.
+    let base_layout = board.effective_layout();
+    let switchable = matches!(base_layout, "list" | "card");
+    let layout = match q.view.as_str() {
+        v @ ("list" | "card") if switchable => v.to_owned(),
+        _ => base_layout.to_owned(),
+    };
+    let viewed = |path: String, v: &str| {
+        if v == base_layout {
+            path
+        } else {
+            urls::with_query(&path, &[("view", v)])
+        }
+    };
     let target = match &found.category {
         Some(c) => Target::Category {
             board: &board.slug,
@@ -309,6 +327,19 @@ async fn board_inner(
                 let (shown, flags) = list_fields(&board.field_schema, &p.meta);
                 view["fields"] = json!(shown);
                 view["flags"] = json!(flags);
+                // 마감 칸이 있는 게시판(이벤트 등): D-day (GAP Q22, ADR-0106)
+                if let Some(days) =
+                    maru_core::fields::days_left(&board.field_schema, &p.meta, &today)
+                {
+                    view["deadline"] = json!({
+                        "label": match days {
+                            0 => "D-day".to_owned(),
+                            d if d > 0 => format!("D-{d}"),
+                            _ => "마감".to_owned(),
+                        },
+                        "closed": days < 0,
+                    });
+                }
                 view
             })
             .collect::<Vec<_>>()
@@ -346,7 +377,7 @@ async fn board_inner(
     .map(|(s, label)| {
         json!({
             "label": label,
-            "url": filtered_path(&sorted_path(&urls::path(&target), *s), &found.filters, None),
+            "url": filtered_path(&sorted_path(&viewed(urls::path(&target), &layout), *s), &found.filters, None),
             "current": *s == sort,
         })
     })
@@ -367,11 +398,21 @@ async fn board_inner(
         "category": found.category.as_ref().map(|c| category_json(&board.slug, c)),
         "notices": notices,
         "posts": items,
-        "pagination": pagination(&found.posts, &filtered_path(&sorted_path(&urls::path(&target), sort), &found.filters, None)),
-        "field_filters": field_filters(&board.field_schema, &sorted_path(&urls::path(&target), sort), &found.filters),
+        "pagination": pagination(&found.posts, &filtered_path(&sorted_path(&viewed(urls::path(&target), &layout), sort), &found.filters, None)),
+        "field_filters": field_filters(&board.field_schema, &sorted_path(&viewed(urls::path(&target), &layout), sort), &found.filters),
         "sorts": sorts,
+        "views": if switchable {
+            json!(["list", "card"].iter().map(|v| json!({
+                "label": if *v == "list" { "목록" } else { "카드" },
+                "url": filtered_path(&sorted_path(&viewed(urls::path(&target), v), sort), &found.filters, None),
+                "current": *v == layout,
+            })).collect::<Vec<_>>())
+        } else {
+            Value::Null
+        },
         "search": search_form(&urls::path(&Target::Board { board: &board.slug }), "", Range::All, Sort::Rank),
     });
+    out["board"]["layout"] = json!(layout);
     // 위키 게시판: 필요한 문서·외톨이 문서 (GAP C13).
     if board.kind == "wiki" {
         out["wiki"] = json!(wiki::index_of(&state.ctx, &board).await?);
@@ -699,6 +740,11 @@ fn field_filters(
                     ("0".to_owned(), format!("{} 빼기", d.label)),
                     ("1".to_owned(), format!("{}만", d.label)),
                 ]
+            } else if d.kind == "date" {
+                vec![
+                    ("open".to_owned(), "진행 중".to_owned()),
+                    ("closed".to_owned(), "마감".to_owned()),
+                ]
             } else {
                 d.options
                     .iter()
@@ -870,7 +916,22 @@ async fn post_inner(
         view["delete_url"] = json!(format!("{base}/delete"));
     }
     // 여분 칸 (ADR-0057). 지금 정의에 있는 키만, 정의 순서대로.
-    view["fields"] = json!(maru_core::fields::display(&board.field_schema, &post.meta));
+    let shown = maru_core::fields::display(&board.field_schema, &post.meta);
+    // 출처 줄(글 머리)과 제휴 링크 고지 (GAP Q21, ADR-0106)
+    if let Some(s) = shown.iter().find(|s| s.role.as_deref() == Some("source")) {
+        let host = s
+            .text
+            .split("://")
+            .nth(1)
+            .unwrap_or(&s.text)
+            .split('/')
+            .next()
+            .unwrap_or_default()
+            .trim_start_matches("www.");
+        view["source"] = json!({ "label": s.label, "host": host, "href": s.href });
+    }
+    view["sponsored"] = json!(shown.iter().any(|s| s.role.as_deref() == Some("sponsored")));
+    view["fields"] = json!(shown);
     // 답변 단추: 회원(이하)에게 답변을 여는 게시판만 (ADR-0056). 운영자 답변은 관리 화면에서.
     if public_write(&board)
         && matches!(board.policy.reply.as_str(), "guest" | "member")
@@ -901,6 +962,7 @@ async fn post_inner(
             range: String::new(),
             sort: String::new(),
             order: String::new(),
+            view: String::new(),
         };
         match Box::pin(board_inner(state, &board.slug, first, &[])).await {
             Ok(mut list) => {
@@ -1354,6 +1416,8 @@ async fn not_found(State(state): State<AppState>) -> Response {
 
 fn board_json(board: &Board) -> Value {
     json!({
+        // 목록 줄에 작은 그림 (GAP Q21): 목록에 보이는 여분 칸이 있는 게시판(핫딜·장터 등)
+        "row_thumbs": board.field_schema.iter().any(|d| d.list),
         "description": board.description,
         "slug": board.slug,
         "name": board.name,

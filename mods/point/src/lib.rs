@@ -987,6 +987,7 @@ impl Module for PointModule {
             help: Some(help.to_owned()),
             list: false,
             filter: false,
+            role: None,
         };
         vec![
             number_field("post", "글", "글 하나를 발행할 때 주는 점수"),
@@ -1007,6 +1008,7 @@ impl Module for PointModule {
                 help: Some("쉼표로 나눈 점수. 넘을 때마다 레벨이 하나 오릅니다".to_owned()),
                 list: false,
                 filter: false,
+                role: None,
             },
             FieldDef {
                 key: "level_names".to_owned(),
@@ -1020,6 +1022,7 @@ impl Module for PointModule {
                 ),
                 list: false,
                 filter: false,
+                role: None,
             },
         ]
     }

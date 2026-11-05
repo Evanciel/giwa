@@ -5,14 +5,16 @@
   <header>
     <p class="crumb"><a href="{{ board.url }}">{{ board.name }}</a>{% if post.category %} <span aria-hidden="true">›</span> <a href="{{ post.category.url }}">{{ post.category.name }}</a>{% endif %}</p>
     <h1>{{ post.title }}</h1>
-    <p class="meta">{% if post.author and board.write_url %}<span class="author"{% if not post.author.guest %} data-member="{{ post.author.name }}"{% endif %}>{{ post.author.name }}</span>{% if post.author.badge %} <span class="level-badge" title="{{ post.author.badge.title }}">{{ post.author.badge.label }}</span>{% endif %}{% if post.author.guest %} <span class="comment-badge">비회원</span>{% endif %} · {% endif %}<time datetime="{{ post.published_at }}">{{ post.date }}</time>{% if post.views is not none %} · <span class="views">조회 {{ post.views|short_count }}</span>{% endif %}</p>
+    {% if post.source %}<p class="post-source">{{ post.source.label }} <a href="{{ post.source.href }}" rel="nofollow noopener ugc" target="_blank">{{ post.source.host }}</a></p>{% endif %}
+    <p class="meta">{% if post.author and board.write_url %}<span class="author"{% if not post.author.guest %} data-member="{{ post.author.name }}"{% endif %}>{{ post.author.name }}</span>{% if post.author.badge %} <span class="level-badge{% if post.author.badge.staff %} staff{% endif %}" title="{{ post.author.badge.title }}">{{ post.author.badge.label }}</span>{% endif %}{% if post.author.guest %} <span class="comment-badge">비회원</span>{% endif %} · {% endif %}<time datetime="{{ post.published_at }}">{{ post.date }}</time>{% if post.views is not none %} · <span class="views">조회 {{ post.views|short_count }}</span>{% endif %}</p>
   </header>
   {% with toc = post.toc %}{% include "_toc.html" %}{% endwith %}
   {# body_html 은 서버가 ammonia 로 정화한 값만 들어온다. |safe 는 여기에만 쓴다. #}
   {% if post.fields %}
   <dl class="post-fields">
-    {% for f in post.fields %}<div class="post-field post-field-{{ f.type }}"><dt>{{ f.label }}</dt><dd>{% if f.href %}<a href="{{ f.href }}" rel="nofollow ugc">{{ f.text }}</a>{% else %}{{ f.text }}{% endif %}</dd></div>{% endfor %}
+    {% for f in post.fields if f.role != "source" %}<div class="post-field post-field-{{ f.type }}"><dt>{{ f.label }}</dt><dd>{% if f.href %}<a href="{{ f.href }}" rel="{% if f.role == "sponsored" %}sponsored nofollow noopener{% else %}nofollow ugc{% endif %}">{{ f.text }}</a>{% else %}{{ f.text }}{% endif %}</dd></div>{% endfor %}
   </dl>
+  {% if post.sponsored %}<p class="sponsored-note">제휴 링크가 있는 글입니다. 링크로 구매하면 사이트가 수수료를 받을 수 있습니다.</p>{% endif %}
   {% endif %}
   <div class="prose">{{ post.body_html | safe }}</div>
   {% if post.tags %}
@@ -36,7 +38,7 @@
   {% endif %}
   {% if board.write_url and post.author and post.author.url %}
   <aside class="author-card" aria-label="글쓴이">
-    <p class="author-card-name"><a href="{{ post.author.url }}">{{ post.author.name }}</a>{% if post.author.badge %} <span class="level-badge" title="{{ post.author.badge.title }}">{{ post.author.badge.label }}</span>{% endif %}</p>
+    <p class="author-card-name"><a href="{{ post.author.url }}">{{ post.author.name }}</a>{% if post.author.badge %} <span class="level-badge{% if post.author.badge.staff %} staff{% endif %}" title="{{ post.author.badge.title }}">{{ post.author.badge.label }}</span>{% endif %}</p>
     {% if post.author.bio %}<p class="author-card-bio">{{ post.author.bio }}</p>{% endif %}
     <p class="author-card-meta">가입 {{ post.author.joined }} · <a href="{{ post.author.url }}">프로필 보기</a></p>
   </aside>
@@ -73,5 +75,6 @@
 </section>
 {% endif %}
 {# 긴 글에서 손이 닿는 곳에: 맨 위·목록. 스크립트 없이 화면에 붙어 있다 (ADR-0054). #}
-<nav class="float-nav" aria-label="빠른 이동"><a href="#main">맨 위</a><a class="float-wide" href="{{ board.url }}">목록</a>{% if slots and slots.post_footer %}<a class="float-wide" href="#reactions">추천</a>{% endif %}{% if comments.open or comments.locked or comments.items %}<a href="#comments">댓글</a>{% endif %}<button type="button" data-share hidden>공유</button></nav>
+<nav class="float-nav" aria-label="빠른 이동"><a href="#main">맨 위</a><a href="#page-end">맨 아래</a><a class="float-wide" href="{{ board.url }}">목록</a>{% if slots and slots.post_footer %}<a class="float-wide" href="#reactions">추천</a>{% endif %}{% if comments.open or comments.locked or comments.items %}<a href="#comments">댓글</a>{% endif %}<button type="button" data-share hidden>공유</button></nav>
 {% endblock %}
+{% block page_jump %}{% endblock %}

@@ -44,6 +44,13 @@ pub fn seconds_since(s: &str) -> Option<i64> {
     parse(s).map(|t| (OffsetDateTime::now_utc() - t).whole_seconds())
 }
 
+/// 사이트 시간대의 오늘 `YYYY-MM-DD` (마감 칸 비교용, ADR-0106).
+pub fn today(offset_minutes: i32) -> String {
+    let offset = UtcOffset::from_whole_seconds(offset_minutes * 60).unwrap_or(UtcOffset::UTC);
+    let d = OffsetDateTime::now_utc().to_offset(offset).date();
+    format!("{:04}-{:02}-{:02}", d.year(), u8::from(d.month()), d.day())
+}
+
 /// 화면용 날짜 `2026. 11. 2.` (한국 표기). `offset_minutes` 는 사이트 시간대(기본 +540).
 pub fn display_date(s: &str, offset_minutes: i32) -> String {
     let Some(t) = parse(s) else {

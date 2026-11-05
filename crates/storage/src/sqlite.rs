@@ -919,6 +919,12 @@ impl Store for SqliteStore {
                            json_extract(p.meta, json_extract(f.value, '$.p')), 0) = 1
                          WHEN 'off' THEN coalesce(
                            json_extract(p.meta, json_extract(f.value, '$.p')), 0) != 1
+                         WHEN 'ge' THEN coalesce(
+                           json_extract(p.meta, json_extract(f.value, '$.p'))
+                             >= json_extract(f.value, '$.v'), 0)
+                         WHEN 'lt' THEN coalesce(
+                           json_extract(p.meta, json_extract(f.value, '$.p'))
+                             < json_extract(f.value, '$.v'), 0)
                          ELSE 0 END))
                ORDER BY CASE ?11
                           WHEN 'views' THEN p.view_count
@@ -979,6 +985,12 @@ impl Store for SqliteStore {
                            json_extract(p.meta, json_extract(f.value, '$.p')), 0) = 1
                          WHEN 'off' THEN coalesce(
                            json_extract(p.meta, json_extract(f.value, '$.p')), 0) != 1
+                         WHEN 'ge' THEN coalesce(
+                           json_extract(p.meta, json_extract(f.value, '$.p'))
+                             >= json_extract(f.value, '$.v'), 0)
+                         WHEN 'lt' THEN coalesce(
+                           json_extract(p.meta, json_extract(f.value, '$.p'))
+                             < json_extract(f.value, '$.v'), 0)
                          ELSE 0 END))"#,
             q.max_read_rank,
             q.board_id,

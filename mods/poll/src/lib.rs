@@ -662,6 +662,7 @@ impl Module for PollModule {
             help: Some("끄면 누구나 언제든 결과를 봅니다.".to_owned()),
             list: false,
             filter: false,
+            role: None,
         }]
     }
 

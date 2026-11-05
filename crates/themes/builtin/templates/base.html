@@ -52,13 +52,25 @@
 </main>
 {% if widgets.sidebar %}<aside class="region region-sidebar" aria-label="곁가지">{% for w in widgets.sidebar %}{% include "_widget.html" %}{% endfor %}</aside>{% endif %}
 </div>
+{# 광고 자리 (GAP Q24, ADR-0109): 후원 띠는 접고 펼친다(이 브라우저에 기억), 양옆은 넓은 화면만,
+   아래 고정은 휴대폰만(닫으면 이번 방문 동안 숨김). 비어 있으면 아무것도 그리지 않는다. #}
+{% if widgets.sponsor %}<section class="region region-sponsor" aria-label="후원" data-sponsor><div class="wrap">
+  <div class="sponsor-head"><span class="sponsor-title">후원</span><button type="button" class="sponsor-toggle" aria-controls="sponsor-items" aria-expanded="true" hidden>접기</button></div>
+  <div class="sponsor-items" id="sponsor-items">{% for w in widgets.sponsor %}{% include "_widget.html" %}{% endfor %}</div>
+</div></section>{% endif %}
 <footer class="site-footer">
   {% if widgets.footer %}<div class="region region-footer"><div class="wrap">{% for w in widgets.footer %}{% include "_widget.html" %}{% endfor %}</div></div>{% endif %}
   <div class="wrap">
     {% if site.menus and site.menus.footer %}<nav class="footer-nav" aria-label="하단 메뉴">{% with items = site.menus.footer %}{% include "_menu.html" %}{% endwith %}</nav>{% endif %}
-    <p>{{ site.name }} · <a href="{{ site.rss_url }}">RSS</a></p>
+    <p id="page-end">{{ site.name }} · <a href="{{ site.rss_url }}">RSS</a></p>
   </div>
 </footer>
+{% if widgets.rail %}<aside class="region region-rail" aria-label="광고">
+  <div class="rail-side rail-left">{% for w in widgets.rail %}{% if loop.index is odd %}{% include "_widget.html" %}{% endif %}{% endfor %}</div>
+  <div class="rail-side rail-right">{% for w in widgets.rail %}{% if loop.index is even %}{% include "_widget.html" %}{% endif %}{% endfor %}</div>
+</aside>{% endif %}
+{% if widgets.sticky %}<div class="region region-sticky" data-sticky-ad>{% for w in widgets.sticky %}{% include "_widget.html" %}{% endfor %}<button type="button" class="sticky-close" hidden><span aria-hidden="true">×</span><span class="visually-hidden">아래 광고 닫기</span></button></div>{% endif %}
+{% block page_jump %}<nav class="page-jump" aria-label="쪽 이동" hidden><a href="#main">맨 위</a><a href="#page-end">맨 아래</a></nav>{% endblock %}
 {% if widgets.popup %}
 {# 팝업 (ADR-0060). 처음엔 숨겨 두고 site.js 가 「보지 않기」 기한을 보고 연다. JS 가 없으면 뜨지 않는다. #}
 <div class="popups">{% for w in widgets.popup %}{% include "widgets/popup.html" %}{% endfor %}</div>

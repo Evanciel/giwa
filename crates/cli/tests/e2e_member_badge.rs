@@ -320,4 +320,17 @@ fn level_badges_next_to_member_names() {
             .body
             .contains("level-badge")
     );
+
+    // 운영진 표시 (GAP Q25, ADR-0107): 모듈 없이도 붙고, 등급 표시보다 앞선다.
+    let staff = "<span class=\"level-badge staff\" title=\"운영진\">운영진</span>";
+    maru(&data, &["member", "role", "sun@example.test", "editor"]);
+    let page = http(&bind, "GET", &url, &[], "").body;
+    assert!(page.contains(&format!("햇살이</strong> {staff}")), "{page}");
+    maru(&data, &["module", "enable", "point"]);
+    let page = http(&bind, "GET", &url, &[], "").body;
+    assert!(page.contains(&format!("햇살이</strong> {staff}")), "{page}");
+    assert!(page.contains(&badge(3, "나무")), "{page}");
+    maru(&data, &["member", "role", "sun@example.test", "member"]);
+    let page = http(&bind, "GET", &url, &[], "").body;
+    assert!(!page.contains("level-badge staff"), "{page}");
 }

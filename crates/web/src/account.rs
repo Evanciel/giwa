@@ -715,6 +715,7 @@ async fn require(state: &AppState, headers: &HeaderMap) -> Result<SignedIn, Box<
 
 /// `/me/bar` 의 `hidden_members` 최대 수
 const MAX_HIDDEN_MEMBERS: usize = 1000;
+const MAX_FAVORITE_BOARDS: usize = 30;
 
 /// 공개 화면 윗줄 회원 막대 (ADR-0081). 공개 HTML 은 모두에게 같아 캐시하므로
 /// 로그인한 사람의 이름·알림 수는 여기서 따로 준다. `no-store` 는 이 라우터 전체에 걸려 있다.
@@ -752,6 +753,19 @@ async fn account_bar(State(state): State<AppState>, headers: HeaderMap) -> Respo
     hidden.sort_unstable();
     hidden.dedup();
     hidden.truncate(MAX_HIDDEN_MEMBERS);
+    // 즐겨찾는 게시판과 별 단추 주소 (GAP Q26, ADR-0108). 사이트 안 주소만.
+    let site_url = |u: &str| u.starts_with('/') && !u.starts_with("//");
+    let favorite_boards: Vec<Value> = slots
+        .iter()
+        .filter_map(|s| s["data"]["favorite_boards"].as_array())
+        .flatten()
+        .filter(|b| b["name"].is_string() && b["url"].as_str().is_some_and(site_url))
+        .take(MAX_FAVORITE_BOARDS)
+        .map(|b| json!({ "name": b["name"], "url": b["url"] }))
+        .collect();
+    let board_star = slots
+        .iter()
+        .find_map(|s| s["data"]["board_star"].as_str().filter(|u| site_url(u)));
     let items: Vec<Value> = slots
         .iter()
         .filter_map(|s| {
@@ -785,6 +799,8 @@ async fn account_bar(State(state): State<AppState>, headers: HeaderMap) -> Respo
         "logout": { "url": "/logout", "csrf": who.session.csrf_token },
         "items": items,
         "hidden_members": hidden,
+        "favorite_boards": favorite_boards,
+        "board_star": board_star,
     }))
     .into_response()
 }

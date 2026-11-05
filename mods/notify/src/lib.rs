@@ -849,6 +849,7 @@ impl Module for NotifyModule {
                 ),
                 list: false,
                 filter: false,
+                role: None,
             },
             FieldDef {
                 key: "keep_days".to_owned(),
@@ -861,6 +862,7 @@ impl Module for NotifyModule {
                 )),
                 list: false,
                 filter: false,
+                role: None,
             },
         ]
     }

@@ -134,6 +134,7 @@ mod tests {
             help: None,
             list: false,
             filter: false,
+            role: None,
         };
         check_schema(vec![
             d("price", "number"),

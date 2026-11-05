@@ -544,6 +544,7 @@ impl Module for ReactionModule {
             help: Some(help.to_owned()),
             list: false,
             filter: false,
+            role: None,
         };
         vec![
             field(

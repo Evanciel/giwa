@@ -266,3 +266,6 @@
 .cm .list-pager .board-search { border-top: 1px dashed var(--border); padding-top: calc(var(--space) * 3); margin-top: calc(var(--space) * 3); }
 .cm .list-pager:not(:has(.pagination)) .board-search { border-top: 0; padding-top: 0; margin-top: 0; }
 .cm .list-pager .pagination [aria-current="page"] { background: var(--primary); border-color: var(--primary); color: #fff; }
+
+/* 양옆 광고는 본문 폭(1200px) 바깥에 (GAP Q24, ADR-0109) */
+.cm { --rail-gap: calc(600px + 1rem); }

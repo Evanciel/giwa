@@ -2546,6 +2546,9 @@ fn region_label(region: &str) -> &'static str {
         "sidebar" => "곁가지",
         "popup" => "팝업",
         "masthead" => "머리글 이름 옆",
+        "sponsor" => "바닥글 위 후원 띠 (접기)",
+        "rail" => "넓은 화면 양옆",
+        "sticky" => "휴대폰 아래 고정",
         _ => "바닥글",
     }
 }

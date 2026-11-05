@@ -1002,7 +1002,8 @@ pub struct WidgetPlaceArgs {
     /// latest_posts, popular_posts, post_tabs, markdown_block, menu, notice_bar, search, account_box,
     /// image_banner, gallery_grid, popup
     pub kind: String,
-    /// header, hero, main, sidebar, footer, masthead(머리글 이름 옆), popup
+    /// header, hero, main, sidebar, footer, masthead(머리글 이름 옆), popup,
+    /// sponsor(바닥글 위 후원 띠), rail(넓은 화면 양옆), sticky(휴대폰 아래 고정)
     #[arg(long)]
     pub region: String,
     /// all, home, boards, board:<주소>, page:<주소>
