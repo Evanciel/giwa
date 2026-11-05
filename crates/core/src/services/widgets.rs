@@ -43,11 +43,17 @@ pub struct LatestPostsConfig {
     /// 1~20, 기본 5
     #[serde(default = "five")]
     pub limit: u32,
-    /// `list`(제목 줄) 또는 `card`(사진 카드)
+    /// `list`(제목 줄), `card`(사진 카드), `row`(옆으로 넘기는 카드 줄)
     #[serde(default = "list_view")]
     pub view: String,
     #[serde(default = "yes")]
     pub show_date: bool,
+    /// 쪽 수 1~5, 기본 1. 2 이상이면 `limit` 개씩 「1/3」 쪽으로 넘긴다 (GAP Q23, ADR-0110)
+    #[serde(default = "one")]
+    pub pages: u32,
+    /// 쪽을 저절로 넘긴다. 기본 끔. 멈춤 단추가 붙고, 움직임 줄이기 설정이면 넘기지 않는다
+    #[serde(default)]
+    pub auto: bool,
 }
 
 /// 인기 글: 최근 `days` 일 안에 발행된 공개 글을 조회수 → 댓글 수 → 최신 순으로.
@@ -64,6 +70,12 @@ pub struct PopularPostsConfig {
     /// 모양: lines(제목 줄, 기본)·cards(그림 카드, 게시판 베스트) (GAP Q9, ADR-0094)
     #[serde(default = "lines")]
     pub style: String,
+    /// 쪽 수 1~5, 기본 1. 2 이상이면 `limit` 개씩 「1/3」 쪽으로 넘긴다 (GAP Q23, ADR-0110)
+    #[serde(default = "one")]
+    pub pages: u32,
+    /// 쪽을 저절로 넘긴다. 기본 끔. 멈춤 단추가 붙고, 움직임 줄이기 설정이면 넘기지 않는다
+    #[serde(default)]
+    pub auto: bool,
 }
 
 fn lines() -> String {
@@ -173,6 +185,9 @@ pub struct BannerSlide {
 pub struct ImageBannerConfig {
     /// 1~8장. 여러 장이면 옆으로 넘기는 띠
     pub slides: Vec<BannerSlide>,
+    /// 여러 장이면 저절로 넘긴다(회전 배너, GAP Q23). 기본 끔. 멈춤 단추가 붙는다
+    #[serde(default)]
+    pub auto: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -711,8 +726,9 @@ async fn check_config(ctx: &Ctx, kind: &str, config: Value) -> Result<Value> {
         "latest_posts" => {
             let mut c: LatestPostsConfig = parse(kind, config)?;
             in_range(kind, "limit", c.limit, 1, 20)?;
-            if !["list", "card"].contains(&c.view.as_str()) {
-                return Err(bad_config(kind, "view 는 list 또는 card"));
+            in_range(kind, "pages", c.pages, 1, 5)?;
+            if !["list", "card", "row"].contains(&c.view.as_str()) {
+                return Err(bad_config(kind, "view 는 list·card·row"));
             }
             c.board = check_board(ctx, kind, &c.board, true).await?;
             json!(c)
@@ -720,6 +736,7 @@ async fn check_config(ctx: &Ctx, kind: &str, config: Value) -> Result<Value> {
         "popular_posts" => {
             let mut c: PopularPostsConfig = parse(kind, config)?;
             in_range(kind, "limit", c.limit, 1, 20)?;
+            in_range(kind, "pages", c.pages, 1, 5)?;
             in_range(kind, "days", c.days, 0, 365)?;
             if !POPULAR_STYLES.contains(&c.style.as_str()) {
                 return Err(bad_config(kind, "style 은 lines·cards"));

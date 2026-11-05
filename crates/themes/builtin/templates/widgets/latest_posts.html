@@ -1,6 +1,6 @@
-{% if w.data.view == "card" %}
+{% if w.data.view == "card" or w.data.view == "row" %}
 {% if w.data.posts %}
-<ul class="widget-cards">
+<ul class="widget-cards{% if w.data.view == "row" %} widget-row{% endif %}"{% if w.data.view == "row" %} data-scroller tabindex="0" aria-label="{{ w.title or w.label }} — 옆으로 넘겨 보세요"{% if w.data.auto %} data-auto{% endif %}{% elif w.data.pages and w.data.pages > 1 %} data-page-size="{{ w.data.page_size }}"{% if w.data.auto %} data-auto{% endif %}{% endif %}>
   {% for post in w.data.posts %}
   <li>
     <a class="tile" href="{{ post.url }}" tabindex="-1" aria-hidden="true">{% if post.thumb %}<img src="{{ post.thumb.src }}" alt="" width="{{ post.thumb.width }}" height="{{ post.thumb.height }}" loading="lazy" decoding="async">{% else %}<span class="tile-fallback">{{ post.initial }}</span>{% endif %}</a>

@@ -447,3 +447,89 @@
     addEventListener("resize", check, { passive: true });
   }
 })();
+
+// 첫 화면 판 (GAP Q23, ADR-0110). [data-page-size] 목록은 그 수만큼 쪽으로 나누고, [data-scroller] 띠(회전 배너·카드 줄)는
+// 이전·다음 단추로 넘긴다. [data-auto] 면 저절로 넘기되 멈춤 단추를 두고, 가리키거나 초점이 들어오면 쉬며,
+// 움직임 줄이기 설정이면 아예 넘기지 않는다. 스크립트가 없으면 목록은 다 보이고 띠는 손으로 넘긴다.
+(() => {
+  const reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const AUTO_MS = 6000;
+  const nav = (host, list, total, show, auto) => {
+    let at = 0;
+    const box = document.createElement("div");
+    box.className = "panel-nav";
+    const btn = (text, label) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = text;
+      b.setAttribute("aria-label", label);
+      return b;
+    };
+    const prev = btn("‹", "이전");
+    const next = btn("›", "다음");
+    const count = document.createElement("span");
+    count.className = "panel-count";
+    count.setAttribute("aria-live", "polite");
+    const go = (i, fromScroll) => {
+      at = (i + total) % total;
+      count.textContent = at + 1 + " / " + total;
+      if (!fromScroll) show(at);
+    };
+    prev.addEventListener("click", () => go(at - 1));
+    next.addEventListener("click", () => go(at + 1));
+    box.append(prev, count, next);
+    let timer = null;
+    let paused = false;
+    let resting = false;
+    if (auto && !reduce) {
+      const pause = btn("❚❚", "자동 넘김 멈춤");
+      const tick = () => {
+        clearInterval(timer);
+        timer = null;
+        if (!paused && !resting && !document.hidden) timer = setInterval(() => go(at + 1), AUTO_MS);
+      };
+      pause.addEventListener("click", () => {
+        paused = !paused;
+        pause.textContent = paused ? "▶" : "❚❚";
+        pause.setAttribute("aria-label", paused ? "자동 넘김 다시" : "자동 넘김 멈춤");
+        tick();
+      });
+      const rest = (v) => () => { resting = v; tick(); };
+      host.addEventListener("mouseenter", rest(true));
+      host.addEventListener("mouseleave", rest(false));
+      host.addEventListener("focusin", rest(true));
+      host.addEventListener("focusout", rest(false));
+      document.addEventListener("visibilitychange", tick);
+      box.append(pause);
+      tick();
+    }
+    const head = host.querySelector(":scope > .widget-head");
+    if (head) head.insertBefore(box, head.querySelector(".widget-more"));
+    else {
+      box.classList.add("panel-nav-below");
+      list.after(box);
+    }
+    go(0);
+    return go;
+  };
+  for (const list of document.querySelectorAll("[data-page-size]")) {
+    const size = parseInt(list.dataset.pageSize, 10);
+    const items = [...list.children];
+    if (!(size > 0) || items.length <= size) continue;
+    const total = Math.ceil(items.length / size);
+    const host = list.closest(".widget") || list.parentElement;
+    nav(host, list, total, (p) => items.forEach((li, i) => { li.hidden = Math.floor(i / size) !== p; }), list.hasAttribute("data-auto"));
+  }
+  for (const strip of document.querySelectorAll("[data-scroller]")) {
+    const pages = () => Math.max(1, Math.round(strip.scrollWidth / Math.max(1, strip.clientWidth)));
+    const total = pages();
+    if (total < 2) continue;
+    const host = strip.closest(".widget") || strip.parentElement;
+    const go = nav(host, strip, total, (p) => strip.scrollTo({ left: p * strip.clientWidth, behavior: reduce ? "auto" : "smooth" }), strip.hasAttribute("data-auto"));
+    let wait = null;
+    strip.addEventListener("scroll", () => {
+      clearTimeout(wait);
+      wait = setTimeout(() => go(Math.round(strip.scrollLeft / Math.max(1, strip.clientWidth)), true), 120);
+    }, { passive: true });
+  }
+})();

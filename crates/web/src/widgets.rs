@@ -99,23 +99,38 @@ async fn view(
                 actor,
                 board.as_ref(),
                 &filter,
-                PageReq::new(1, c.limit),
+                PageReq::new(1, c.limit * c.pages),
             )
             .await?;
             let items = summaries_any_board(state, &list.items, site).await?;
-            json!({ "posts": items, "view": c.view, "show_date": c.show_date })
+            json!({
+                "posts": items,
+                "view": c.view,
+                "show_date": c.show_date,
+                "page_size": c.limit,
+                "pages": c.pages,
+                "auto": c.auto,
+            })
         }
         "popular_posts" => {
             let c: PopularPostsConfig = cfg(w)?;
             let Some(board) = readable(state, actor, &c.board).await? else {
                 return Ok(None);
             };
-            let list = posts::public_popular(ctx, actor, board.as_ref(), c.days, c.limit).await?;
+            let list = posts::public_popular(ctx, actor, board.as_ref(), c.days, c.limit * c.pages)
+                .await?;
             if board.is_none() {
                 more_url = json!(recent_popular_url());
             }
             let items = summaries_any_board(state, &list, site).await?;
-            json!({ "posts": items, "days": c.days, "style": c.style })
+            json!({
+                "posts": items,
+                "days": c.days,
+                "style": c.style,
+                "page_size": c.limit,
+                "pages": c.pages,
+                "auto": c.auto,
+            })
         }
         "post_tabs" => {
             let c: PostTabsConfig = cfg(w)?;
@@ -226,7 +241,7 @@ async fn view(
             if slides.is_empty() {
                 return Ok(None);
             }
-            json!({ "slides": slides })
+            json!({ "slides": slides, "auto": c.auto })
         }
         "gallery_grid" => {
             let c: GalleryGridConfig = cfg(w)?;

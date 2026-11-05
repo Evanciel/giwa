@@ -369,6 +369,25 @@ fn forum_orders_by_activity_accepts_answers_and_locks() {
     assert!(page.body.contains("채택된 답변"));
     let list = http(&bind, "GET", "/b/qa", &[], "");
     assert!(list.body.contains("solved-mark"), "목록에 해결 표시");
+    // 첫 화면 위젯 줄에도 해결 표시 (GAP Q23, ADR-0110). 위젯은 놓자마자 보인다.
+    maru(
+        &data,
+        &[
+            "widget",
+            "place",
+            "latest_posts",
+            "--region",
+            "sidebar",
+            "--config",
+            r#"{"board":"qa"}"#,
+        ],
+    );
+    let home = http(&bind, "GET", "/", &[], "");
+    let side = &home.body[home.body.find("widget-latest_posts").expect("위젯")..];
+    assert!(
+        side.contains("<span class=\"solved-mark\">해결</span>"),
+        "{side}"
+    );
 
     // 비밀번호·폼 POST 는 분당 10번으로 센다. 서버를 다시 띄워 칸을 비운다 (세션은 DB 에 있다).
     drop(server);

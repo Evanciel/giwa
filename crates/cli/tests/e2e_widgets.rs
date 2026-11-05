@@ -331,3 +331,125 @@ fn popups_render_hidden_with_script_only_in_period_and_scope() {
     assert_eq!(status, 200);
     assert!(js.contains("maru-popup:"));
 }
+
+/// GAP Q23 (ADR-0110): 쪽 넘김·자동 넘김·옆으로 넘기는 카드 줄·회전 배너·해결 표시
+#[test]
+fn home_panels_page_rotate_and_scroll() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("사이트");
+    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    for n in 1..=5 {
+        let title = format!("소식 {n}");
+        maru(
+            &data,
+            &[
+                "post",
+                "new",
+                "--publish",
+                "--title",
+                &title,
+                "--body",
+                "본문",
+            ],
+        );
+    }
+    let bad = run(
+        &data,
+        &[
+            "widget",
+            "place",
+            "latest_posts",
+            "--region",
+            "main",
+            "--config",
+            r#"{"pages":6}"#,
+        ],
+    );
+    assert!(
+        bad["error"]["message"].as_str().unwrap().contains("pages"),
+        "{bad}"
+    );
+    let bad = run(
+        &data,
+        &[
+            "widget",
+            "place",
+            "latest_posts",
+            "--region",
+            "main",
+            "--config",
+            r#"{"view":"strip"}"#,
+        ],
+    );
+    assert_eq!(bad["ok"], false, "{bad}");
+    maru(
+        &data,
+        &[
+            "widget",
+            "place",
+            "latest_posts",
+            "--region",
+            "main",
+            "--title",
+            "새 소식",
+            "--config",
+            r#"{"limit":2,"pages":3,"auto":true}"#,
+        ],
+    );
+    maru(
+        &data,
+        &[
+            "widget",
+            "place",
+            "popular_posts",
+            "--region",
+            "main",
+            "--title",
+            "많이 본",
+            "--config",
+            r#"{"limit":2,"pages":2,"days":0}"#,
+        ],
+    );
+    maru(
+        &data,
+        &[
+            "widget",
+            "place",
+            "latest_posts",
+            "--region",
+            "main",
+            "--title",
+            "카드 줄",
+            "--config",
+            r#"{"limit":5,"view":"row"}"#,
+        ],
+    );
+    let (_server, info) = start_server(&data);
+    let bind = info["bind"].as_str().unwrap().to_owned();
+    let (_, home) = get(&bind, "/");
+    let news = &home[home.find(">새 소식</h2>").expect("새 소식")..];
+    let news = &news[..news.find("</section>").unwrap()];
+    assert!(news.contains("data-page-size=\"2\" data-auto>"), "{news}");
+    assert_eq!(
+        news.matches("<li>").count(),
+        5,
+        "2×3 쪽까지, 글은 5개: {news}"
+    );
+    let popular = &home[home.find(">많이 본</h2>").expect("많이 본")..];
+    let popular = &popular[..popular.find("</section>").unwrap()];
+    assert!(
+        popular.contains("data-page-size=\"2\">"),
+        "자동 넘김은 기본 끔: {popular}"
+    );
+    let row = &home[home.find(">카드 줄</h2>").expect("카드 줄")..];
+    assert!(
+        row.contains("class=\"widget-cards widget-row\" data-scroller tabindex=\"0\""),
+        "{row}"
+    );
+    assert!(
+        !home.contains("style=\""),
+        "CSP 가 막는 style 속성을 쓰지 않는다"
+    );
+    let (_, js) = get(&bind, "/assets/site.js");
+    assert!(js.contains("prefers-reduced-motion") && js.contains("data-page-size"));
+}

@@ -114,7 +114,7 @@ async fn place_normalizes_config_and_is_idempotent() {
     .unwrap();
     assert_eq!(
         w.config,
-        json!({ "board": "notice", "limit": 5, "view": "list", "show_date": true })
+        json!({ "board": "notice", "limit": 5, "view": "list", "show_date": true, "pages": 1, "auto": false })
     );
     assert_eq!(w.sort_order, 0);
     // 같은 설정을 다시 놓으면 같은 위젯 (원칙 3)
@@ -142,7 +142,7 @@ async fn place_normalizes_config_and_is_idempotent() {
     assert_eq!(second.sort_order, 1);
     assert_eq!(
         second.config,
-        json!({ "board": "", "limit": 5, "days": 7, "style": "lines" })
+        json!({ "board": "", "limit": 5, "days": 7, "style": "lines", "pages": 1, "auto": false })
     );
     assert_eq!(widgets::list(&e.ctx, &local).await.unwrap().len(), 2);
     assert_eq!(audits(&e.db, "widget.place").await, 2);
