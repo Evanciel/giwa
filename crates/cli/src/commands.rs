@@ -25,10 +25,10 @@ use serde_json::{Value, json};
 use crate::output;
 use crate::{
     AuditCmd, AuditListArgs, BackupArgs, BackupCmd, BoardCmd, CategoryCmd, Command, CommentCmd,
-    DesignCmd, FileCmd, FontCmd, Global, InitArgs, LoginLinkArgs, MailCmd, MediaCmd, MemberCmd,
-    MenuCmd, MenuSetArgs, PageCmd, PostCmd, PostListArgs, PostNewArgs, PrivacyCmd, RestoreArgs,
-    SearchArgs, SearchCmd, ServeArgs, SignalsArgs, SignalsCmd, SiteCmd, StatsArgs, TagCmd,
-    TemplateCmd, TokenCmd, TokenCreateArgs, WidgetCmd,
+    DesignCmd, FileCmd, FontCmd, Global, InitArgs, LoginLinkArgs, MailCmd, MailSetupArgs, MediaCmd,
+    MemberCmd, MenuCmd, MenuSetArgs, PageCmd, PostCmd, PostListArgs, PostNewArgs, PrivacyCmd,
+    RestoreArgs, SearchArgs, SearchCmd, ServeArgs, SignalsArgs, SignalsCmd, SiteCmd, StatsArgs,
+    TagCmd, TemplateCmd, TokenCmd, TokenCreateArgs, WidgetCmd,
 };
 
 pub async fn run(g: &Global, command: Command) -> ExitCode {
@@ -122,7 +122,12 @@ async fn init(g: &Global, args: InitArgs) -> Out {
 
     let bind = args.bind.unwrap_or_else(|| DEFAULT_BIND.to_owned());
     let site_url = args.site_url.unwrap_or_else(|| format!("http://{bind}"));
-    let config = Config { bind, site_url }.validated()?;
+    let config = Config {
+        bind,
+        site_url,
+        mail: None,
+    }
+    .validated()?;
     let wrote_config = dir.write_config_if_absent(&config)?;
     let config = dir.read_config()?;
 
@@ -271,7 +276,7 @@ async fn serve_inner(g: &Global, args: ServeArgs) -> Result<()> {
     let (ctx, config, db) = open(g).await?;
     let modules = crate::modules::registry(&db)?;
     maru_modules::service::upgrade_enabled(&ctx, &modules).await?;
-    let bind = args.bind.unwrap_or(config.bind);
+    let bind = args.bind.unwrap_or_else(|| config.bind.clone());
     let addr: SocketAddr = bind.parse().map_err(|_| {
         Error::new(Code::Validation)
             .with_message("error.config_bind")
@@ -300,22 +305,22 @@ async fn serve_inner(g: &Global, args: ServeArgs) -> Result<()> {
         theme_dir.is_dir().then_some(theme_dir),
         modules.iter().flat_map(|m| m.templates()).collect(),
     );
-    // 편지는 지금 파일로만 남긴다 (SMTP 는 ADR-0051 승인 뒤).
-    let mailer = maru_storage::mailer::FileMailer::new(dir.mail_dir(), &config.site_url);
-    let mail_dir = mailer.dir().display().to_string();
+    // 편지: 설정 [mail] 대로 파일 또는 SMTP (ADR-0051·0083)
+    let (mailer, mail_about) = maru_storage::mailer::from_config(&dir, &config)?;
+    let mail_info = mail_json(&dir, &config);
     let archiver = maru_storage::backup::FsArchiver::new(dir.clone(), db.clone());
     let state = maru_web::AppState::new(ctx, theme)
-        .with_mailer(Arc::new(mailer))
+        .with_mailer(mailer)
         .with_archiver(Arc::new(archiver))
         .with_modules(modules);
     let started = json!({
         "url": url,
         "bind": local.to_string(),
         "site_url": config.site_url,
-        "mail": { "transport": "file", "dir": mail_dir },
+        "mail": mail_info,
     });
     let human = format!(
-        "서버를 시작했습니다: {url}\n편지(가입 인증·비밀번호 찾기)는 파일로만 남습니다: {mail_dir}\n멈추려면 Ctrl+C"
+        "서버를 시작했습니다: {url}\n편지(가입 인증·비밀번호 찾기): {mail_about}\n멈추려면 Ctrl+C"
     );
     output::success(started, g.json, |_| human);
     if !g.quiet {
@@ -2483,23 +2488,162 @@ async fn mail_cmd(g: &Global, cmd: MailCmd) -> Out {
             }
             MailCmd::Send => {
                 mail::list(&ctx, &actor, None, 1).await?; // 로컬 운영자만
-                let mailer =
-                    maru_storage::mailer::FileMailer::new(dir.mail_dir(), &config.site_url);
-                let r = mail::deliver_pending(&ctx, &mailer).await?;
+                let (mailer, about) = maru_storage::mailer::from_config(&dir, &config)?;
+                let r = mail::deliver_pending(&ctx, mailer.as_ref()).await?;
                 let human = format!(
-                    "보냄 {}통, 다시 시도 {}통, 실패 {}통 → {}",
-                    r.sent,
-                    r.retry,
-                    r.failed,
-                    mailer.dir().display()
+                    "보냄 {}통, 다시 시도 {}통, 실패 {}통 — {about}",
+                    r.sent, r.retry, r.failed
                 );
                 Ok((to_value(&r)?, human))
+            }
+            MailCmd::Setup(args) => mail_setup(&ctx, &actor, &dir, config, args).await,
+            MailCmd::Test { to } => {
+                let key = mail::queue_test(&ctx, &actor, &to).await?;
+                let (mailer, about) = maru_storage::mailer::from_config(&dir, &config)?;
+                mail::deliver_pending(&ctx, mailer.as_ref()).await?;
+                let m = mail::list(&ctx, &actor, None, 200)
+                    .await?
+                    .into_iter()
+                    .find(|m| m.idem_key == key)
+                    .ok_or_else(|| Error::internal("시험 편지가 편지함에 없습니다"))?;
+                if m.status != maru_core::model::MailStatus::Sent {
+                    return Err(Error::new(Code::External)
+                        .with_message("error.mail_test_failed")
+                        .arg("detail", m.last_error.unwrap_or_default())
+                        .next("maru mail setup --transport smtp --host <서버> --user <이름> --password-stdin"));
+                }
+                let v = json!({ "id": m.id, "to": m.to_addr, "status": "sent", "transport": mailer.kind() });
+                Ok((v, format!("시험 편지를 보냈습니다 → {} ({about})", m.to_addr)))
             }
         }
     }
     .await;
     db.close().await;
     res
+}
+
+/// 시작 JSON·`mail setup` 결과에 쓰는 지금 편지 설정(비밀번호 값은 넣지 않는다)
+fn mail_json(dir: &DataDir, config: &Config) -> Value {
+    use maru_core::config::MailTransport;
+    let from = maru_storage::mailer::from_address(config);
+    match config.mail.as_ref().map(|m| (m.transport, m.smtp.as_ref())) {
+        Some((MailTransport::Smtp, Some(s))) => {
+            let password = match (&s.username, dir.smtp_password()) {
+                (None, _) => "not_needed",
+                (Some(_), Some((_, from))) => from,
+                (Some(_), None) => "missing",
+            };
+            json!({
+                "transport": "smtp",
+                "from": from,
+                "smtp": {
+                    "host": s.host,
+                    "port": s.port,
+                    "security": maru_storage::mailer::security_name(s.security),
+                    "username": s.username,
+                },
+                "password": password,
+            })
+        }
+        _ => {
+            json!({ "transport": "file", "from": from, "dir": dir.mail_dir().display().to_string() })
+        }
+    }
+}
+
+async fn mail_setup(
+    ctx: &Ctx,
+    actor: &Actor,
+    dir: &DataDir,
+    mut config: Config,
+    args: MailSetupArgs,
+) -> Result<(Value, String)> {
+    use maru_core::config::{MailConfig, MailTransport, SmtpConfig, SmtpSecurity};
+    let transport = match args.transport.as_str() {
+        "file" => MailTransport::File,
+        "smtp" => MailTransport::Smtp,
+        other => {
+            return Err(Error::new(Code::Usage)
+                .with_message("error.mail_transport")
+                .arg("value", other)
+                .next("maru mail setup --transport smtp --host smtp.example.test --user me --password-stdin"));
+        }
+    };
+    let smtp = match transport {
+        MailTransport::File => None,
+        MailTransport::Smtp => {
+            let security = SmtpSecurity::parse(&args.security).ok_or_else(|| {
+                Error::new(Code::Usage)
+                    .with_message("error.mail_security")
+                    .arg("value", args.security.clone())
+                    .next("maru mail setup --transport smtp --security starttls …")
+            })?;
+            let host = args.host.clone().ok_or_else(|| {
+                Error::new(Code::Usage)
+                    .with_message("error.mail_smtp_missing")
+                    .next("maru mail setup --transport smtp --host smtp.example.test --port 587 --user me --password-stdin")
+            })?;
+            let port = args.port.unwrap_or(match security {
+                SmtpSecurity::Starttls => 587,
+                SmtpSecurity::Tls => 465,
+                SmtpSecurity::None => 25,
+            });
+            Some(SmtpConfig {
+                host: host.trim().to_owned(),
+                port,
+                security,
+                username: args.user.clone().filter(|u| !u.is_empty()),
+            })
+        }
+    };
+    let mail = MailConfig {
+        transport,
+        from: args.from.clone().map(|f| f.trim().to_owned()),
+        smtp,
+    };
+    mail.check()?;
+    // 파일 방식에 다른 설정이 없으면 [mail] 을 아예 빼서 처음 상태와 같게 둔다
+    config.mail = (mail
+        != MailConfig {
+            transport: MailTransport::File,
+            from: None,
+            smtp: None,
+        })
+    .then_some(mail);
+    if args.password_stdin {
+        let mut line = String::new();
+        std::io::stdin()
+            .read_line(&mut line)
+            .map_err(Error::internal)?;
+        let pw = line.trim_end_matches(['\r', '\n']);
+        if pw.is_empty() {
+            return Err(Error::new(Code::Usage)
+                .with_message("error.usage_detail")
+                .arg("detail", "--password-stdin: 표준 입력이 비었습니다")
+                .next("printf '%s' \"$SMTP_PASSWORD\" | maru mail setup --transport smtp … --password-stdin"));
+        }
+        dir.write_smtp_password(pw)?;
+    }
+    dir.write_config(&config)?;
+    let mut v = mail_json(dir, &config);
+    mail::record_setup(ctx, actor, v.clone()).await?;
+    v["restart"] = json!(true);
+    let mut human = match config.mail.as_ref().and_then(|m| m.smtp.as_ref()) {
+        Some(s) => format!(
+            "편지를 SMTP {}:{} ({}) 로 보내도록 정했습니다.",
+            s.host,
+            s.port,
+            maru_storage::mailer::security_name(s.security)
+        ),
+        None => "편지를 파일로만 남기도록 정했습니다.".to_owned(),
+    };
+    if v["password"] == "missing" {
+        human.push_str(
+            "\n비밀번호가 없습니다. --password-stdin 으로 넣거나 MARU_SMTP_PASSWORD 를 정하세요.",
+        );
+    }
+    human.push_str("\nserve 를 다시 시작하면 적용됩니다. 시험: maru mail test --to <받을 주소>");
+    Ok((v, human))
 }
 
 async fn tag_cmd(g: &Global, cmd: TagCmd) -> Out {

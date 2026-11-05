@@ -934,3 +934,22 @@
 - **대안:** 목록 쿼리에 반응 수를 더하기 — 코어가 모듈 표를 알게 된다. 이름 메뉴를 서버에서 그리기 — 로그인 상태가 HTML 에 들어가 캐시를 깬다. 회원 ID 를 공개 HTML 에 싣기 — 받는 사람은 이미 이름으로 찾으므로 필요 없다.
 - **결과:** `crates/cli/tests/e2e_skin.rs` 가 쪽지 항목의 `member_action`·알림 항목엔 없음, `?to=` 로 채워진 쓰기 화면, 회원 댓글 이름의 표지, 목록의 `추천 2` 와 한 사람이 비추천으로 바꾸면 `추천 1`(비추천은 더하지 않음)을 본다. 브라우저에서 운영자가 회원 글에 추천 → 목록에 「추천 1」, 이름 단추 → 메뉴(단추 바로 아래·맨 위·첫 링크 초점·바깥 누르면 닫힘·Esc 로 단추 초점) → 이름이 채워진 쪽지 쓰기 → 보내면 받는 회원의 막대 쪽지 수 1 을 확인했다.
 - **한계:** 메뉴 항목은 쪽지 하나다(차단·작성 글 보기는 아직). 첫 화면 위젯 목록엔 추천 수를 넣지 않았다.
+
+## ADR-0083 승인된 새 의존성(lettre·qrcode·reqwest)과 SMTP 발송·2단계 인증 QR
+
+- **배경:** 2026-11-05 사용자가 미뤄 둔 의존성 셋(HTTP 클라이언트·lettre·qrcode)을 「권장대로」 승인했다. 편지는 지금까지 파일로만 남았고(ADR-0051), 2단계 인증 등록은 키를 손으로 넣어야 했다(ADR-0072).
+- **결정 — 의존성:**
+  - TLS 는 하나로 맞춘다: **rustls + ring** 암호 엔진, 인증서는 **운영체제 인증서 저장소**(rustls-platform-verifier). aws-lc-rs(빌드에 cmake·nasm 이 필요할 수 있음)·native-tls(OpenSSL·schannel 차이)는 쓰지 않는다.
+  - `lettre 0.11` — 기본 기능을 끄고 `builder`·`smtp-transport`·`tokio1`·`tokio1-rustls`·`ring`·`rustls-platform-verifier` 만. 연결 묶음(pool)은 5초마다 몇 통 보내는 규모에 필요 없다.
+  - `qrcode 0.14` — `svg` 기능만(그림 크레이트 기능 끔).
+  - `reqwest 0.13`(링크 카드·나가는 웹훅용, 다음 단위) — 기본 기능을 끄고 `rustls-no-provider` 로 같은 ring 엔진을 쓴다.
+- **결정 — SMTP(S5):**
+  - 설정 `config.toml` 의 `[mail]`(`transport = file|smtp`, `from`, `[mail.smtp] host·port·security·username`). `security` 는 `starttls`(587)·`tls`(465)·`none`. **`none` 은 이 컴퓨터 안(127.0.0.1·localhost) 중계 서버에만** 허락한다 — 비밀번호·편지를 암호화 없이 밖으로 보내지 않는다.
+  - **비밀번호는 설정 파일에 두지 않는다**(백업 파일에 `config.toml` 이 들어간다, ADR-0063). 환경 변수 `MARU_SMTP_PASSWORD` 가 먼저, 없으면 `데이터/secrets/smtp-password`(백업 대상 밖, 유닉스에선 0600). CLI 는 `--password-stdin` 으로만 받는다(명령줄 인자는 프로세스 목록에 보인다).
+  - `maru mail setup --transport smtp|file …` 은 같은 입력이면 같은 파일을 쓴다(멱등). 비밀번호 없이 다시 부르면 둔 비밀번호를 그대로 쓴다. 결과 JSON 의 `password` 는 `env`·`file`·`missing`·`not_needed` — 값은 어디에도(출력·감사·시작 정보) 나오지 않는다. 감사 `mail.setup`.
+  - `maru mail test --to` 는 시험 편지(`mail.test.*`)를 쌓고 바로 보낸 뒤, 못 보내면 `EXTERNAL` 과 서버가 준 이유로 끝난다. 편지는 다시 시도할 상태로 남는다. 감사 `mail.test`(받는 주소의 도메인만).
+  - `Mailer::send` 는 비동기가 됐다(SMTP 가 서버 작업 스레드를 막지 않게). `serve` 시작 정보 `mail` 에 지금 방식이 나온다. 설정을 바꾸면 serve 를 다시 시작한다.
+- **결정 — 2단계 인증 QR(M16):** 등록 화면의 `otpauth://` 주소를 서버가 SVG QR 로 그린다(오류 정정 M, 흰 바탕·검은 점 — 어두운 화면에서도 앱이 읽게). 외부 QR 서비스로 비밀 키를 보내지 않는다. 그림은 `aria-hidden`, 감싼 상자가 `role="img"` 와 「아래 키와 같은 내용」 설명을 가진다. 키 직접 입력·링크는 그대로 둔다.
+- **대안:** SMTP 비밀번호를 DB 설정에 — REST·백업으로 새기 쉽다. 동기 SMTP(`SmtpTransport`) — 배달 주기가 작업 스레드를 막는다. QR 을 PNG 로 — 그림 크레이트 경로가 늘고 확대하면 흐려진다. 브라우저 JS 로 QR 그리기 — 스크립트 없이 동작하는 계정 화면 원칙(ADR-0051)과 어긋난다.
+- **결과:** `crates/cli/tests/e2e_mail_smtp.rs` 가 테스트 안의 작은 SMTP 서버로 암호화 없는 바깥 서버 거부, 비밀번호가 설정·출력·감사·SMTP 대화의 맨 글자에 없음(AUTH PLAIN 으로만 전달), 다시 설정해도 같은 파일, EHLO·MAIL FROM·RCPT TO·Message-ID·글자 집합, 서버가 없을 때 `EXTERNAL`·편지 대기, serve 시작 정보, 파일 방식으로 되돌리면 `[mail]` 이 빠짐을 본다. `e2e_totp.rs` 는 QR SVG 가 있고 XML 선언·비밀 키 글자가 없음을 본다. 데모에서 QR 을 OpenCV 로 읽어 otpauth 링크와 같은지 확인했다.
+- **한계:** SMTP 설정 화면(관리 화면)은 없다 — 비밀번호를 다루므로 로컬 CLI 만. DKIM 서명은 하지 않는다(메일 서비스 쪽 설정에 맡긴다).

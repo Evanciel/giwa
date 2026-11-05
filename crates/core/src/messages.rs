@@ -122,6 +122,25 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "error.member_withdrawn" => "탈퇴한 회원입니다.",
         "error.member_role" => "역할 `{value}` 은 줄 수 없습니다. 가능한 값: {allowed}",
         "error.mail_not_found" => "`{id}` 편지를 찾을 수 없습니다.",
+        "error.mail_from" => "보낸 사람 주소 `{value}` 는 메일 주소 모양이 아닙니다.",
+        "error.mail_smtp_missing" => {
+            "transport 가 smtp 이면 [mail.smtp] 의 host·port·security 가 있어야 합니다."
+        }
+        "error.mail_smtp_host" => "SMTP 서버 이름 `{value}` 가 올바르지 않습니다.",
+        "error.mail_smtp_port" => "SMTP 포트가 비었습니다. 보통 587(starttls) 또는 465(tls)입니다.",
+        "error.mail_smtp_plain" => {
+            "암호화 없는 SMTP(security = none)는 이 컴퓨터 안의 중계 서버에만 쓸 수 있습니다: {host}"
+        }
+        "error.mail_test_failed" => "시험 편지를 보내지 못했습니다: {detail}",
+        "error.mail_transport" => "편지 보내는 방식 `{value}` 는 없습니다. 가능한 값: file, smtp",
+        "error.mail_security" => {
+            "SMTP 보안 방식 `{value}` 는 없습니다. 가능한 값: starttls, tls, none"
+        }
+        "error.mail_to" => "받는 사람 주소 `{value}` 는 메일 주소 모양이 아닙니다.",
+        "mail.test.subject" => "[{site}] 시험 편지",
+        "mail.test.body" => {
+            "{site}에서 보낸 시험 편지입니다. 이 편지가 왔다면 편지 보내기 설정이 맞습니다.\n\n가입 인증·비밀번호 찾기 편지도 같은 길로 나갑니다.\n"
+        }
         "error.mail_local_only" => {
             "편지 본문에는 1회용 링크가 들어 있어 이 컴퓨터의 `maru mail` 로만 볼 수 있습니다."
         }

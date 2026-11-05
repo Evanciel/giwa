@@ -4,6 +4,8 @@
 //! <data>/
 //! ├─ maru.db  config.toml
 //! ├─ media/  themes/  backups/
+//! ├─ mail/     파일로 남긴 편지
+//! └─ secrets/  smtp-password (백업에 넣지 않는다)
 //! ```
 
 use std::fs;
@@ -51,6 +53,42 @@ impl DataDir {
         self.root.join("mail")
     }
 
+    /// 백업에 넣지 않는 비밀 값 (ADR-0083)
+    pub fn secrets_dir(&self) -> PathBuf {
+        self.root.join("secrets")
+    }
+
+    pub fn smtp_password_path(&self) -> PathBuf {
+        self.secrets_dir().join("smtp-password")
+    }
+
+    /// SMTP 비밀번호: 환경 변수 `MARU_SMTP_PASSWORD` 가 먼저, 없으면 `secrets/smtp-password`.
+    /// 돌려주는 두 번째 값은 어디서 읽었는지(`env`·`file`).
+    pub fn smtp_password(&self) -> Option<(String, &'static str)> {
+        if let Ok(v) = std::env::var("MARU_SMTP_PASSWORD")
+            && !v.is_empty()
+        {
+            return Some((v, "env"));
+        }
+        let text = fs::read_to_string(self.smtp_password_path()).ok()?;
+        let v = text.trim_end_matches(['\r', '\n']).to_owned();
+        (!v.is_empty()).then_some((v, "file"))
+    }
+
+    pub fn write_smtp_password(&self, password: &str) -> Result<()> {
+        let dir = self.secrets_dir();
+        fs::create_dir_all(&dir).map_err(|e| io_error(&dir, e))?;
+        let path = self.smtp_password_path();
+        fs::write(&path, password).map_err(|e| io_error(&path, e))?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o600))
+                .map_err(|e| io_error(&path, e))?;
+        }
+        Ok(())
+    }
+
     /// DB 파일이 있으면 초기화된 디렉터리로 본다.
     pub fn is_initialized(&self) -> bool {
         self.db_path().is_file()
@@ -90,18 +128,25 @@ impl DataDir {
 
     /// 설정 파일이 없을 때만 쓴다. 썼으면 `true`.
     pub fn write_config_if_absent(&self, cfg: &Config) -> Result<bool> {
-        let path = self.config_path();
-        if path.exists() {
+        if self.config_path().exists() {
             return Ok(false);
         }
-        let body = toml::to_string_pretty(cfg).map_err(Error::internal)?;
+        self.write_config(cfg)?;
+        Ok(true)
+    }
+
+    /// 설정 파일을 통째로 다시 쓴다(검사를 통과한 값만). 주석은 매번 같은 안내로 새로 붙는다.
+    pub fn write_config(&self, cfg: &Config) -> Result<()> {
+        let cfg = cfg.clone().validated()?;
+        let path = self.config_path();
+        let body = toml::to_string_pretty(&cfg).map_err(Error::internal)?;
         let text = format!(
             "# maru 설정. 바꾼 뒤에는 serve 를 다시 시작한다.\n\
              # bind: 서버 주소 (기본은 이 컴퓨터에서만 접속 가능)\n\
-             # site_url: 사이트맵·RSS 등 절대 URL 의 기준\n{body}"
+             # site_url: 사이트맵·RSS 등 절대 URL 의 기준\n\
+             # [mail]: 편지 보내는 방식 (`maru mail setup`). SMTP 비밀번호는 여기 두지 않는다\n{body}"
         );
-        fs::write(&path, text).map_err(|e| io_error(&path, e))?;
-        Ok(true)
+        fs::write(&path, text).map_err(|e| io_error(&path, e))
     }
 }
 

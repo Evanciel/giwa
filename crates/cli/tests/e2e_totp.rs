@@ -253,6 +253,14 @@ fn totp_setup_login_recovery_and_reset() {
     let secret = secret_on(&me.body);
     assert_eq!(secret.len(), 32);
     assert!(me.body.contains("otpauth://totp/"));
+    // QR 그림은 서버가 SVG 로 그린다(외부 QR 서비스 없음). 비밀 키는 그림 글자로 새지 않는다.
+    let qr_at = me.body.find("class=\"totp-qr\"").expect("QR 그림");
+    let qr = &me.body[qr_at
+        ..me.body[qr_at..]
+            .find("</div>")
+            .map_or(me.body.len(), |e| qr_at + e)];
+    assert!(qr.contains("<svg aria-hidden=\"true\""), "{qr}");
+    assert!(!qr.contains("<?xml") && !qr.contains(&secret), "{qr}");
 
     // 틀린 코드는 켜지지 않는다. 맞는 코드면 복구 코드가 한 번 보이고 세션이 바뀐다.
     let res = http(

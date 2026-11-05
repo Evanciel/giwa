@@ -217,6 +217,40 @@ pub enum MailCmd {
     Show { id: String },
     /// 쌓인 편지를 지금 배달한다 (서버가 5초마다 하는 일)
     Send,
+    /// 편지 보내는 방식을 정한다 (`config.toml` 의 [mail]). serve 를 다시 시작하면 적용된다
+    Setup(MailSetupArgs),
+    /// 시험 편지를 쌓고 지금 보낸다. 못 보내면 실패로 끝난다
+    Test {
+        /// 받을 주소
+        #[arg(long)]
+        to: String,
+    },
+}
+
+#[derive(Debug, Args)]
+pub struct MailSetupArgs {
+    /// file(데이터 디렉터리에 .eml 로만 남김, 기본) 또는 smtp
+    #[arg(long)]
+    pub transport: String,
+    /// SMTP 서버 이름
+    #[arg(long)]
+    pub host: Option<String>,
+    /// 없으면 starttls 587 · tls 465 · none 25
+    #[arg(long)]
+    pub port: Option<u16>,
+    /// starttls · tls · none(이 컴퓨터 안의 중계 서버만)
+    #[arg(long, default_value = "starttls")]
+    pub security: String,
+    /// SMTP 로그인 이름
+    #[arg(long)]
+    pub user: Option<String>,
+    /// 표준 입력 첫 줄을 SMTP 비밀번호로 `secrets/smtp-password` 에 둔다(백업에 들어가지 않음).
+    /// 환경 변수 MARU_SMTP_PASSWORD 가 있으면 그것이 먼저다
+    #[arg(long)]
+    pub password_stdin: bool,
+    /// 보낸 사람 주소. 없으면 noreply@<site_url 호스트>
+    #[arg(long)]
+    pub from: Option<String>,
 }
 
 #[derive(Debug, Args)]

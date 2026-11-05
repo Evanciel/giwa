@@ -77,7 +77,7 @@
 | M13 | 포인트(글·댓글·로그인 적립, 레벨) | ✅ | ADR-0067. `mods/point`, 모듈 틀은 ADR-0066 |
 | M14 | 투표 | ✅ | `poll` 모듈 (ADR-0070). 글 하나에 투표 하나, 다시 투표하면 대신한다 |
 | M15 | 소셜 로그인(네이버·카카오·구글) | ❌ | 사용자가 앱 키를 발급해 넣어야 함. 신원은 (제공자, 제공자 사용자 ID). 이메일 자동 연결은 제공자별 인증 이메일 + Maru 쪽도 인증된 경우만, 콜백에서 바로 가입시키지 않고 약관 동의 단계 |
-| M16 | 2단계 인증(TOTP) | ✅ | ADR-0072. 코어 인증. 복구 코드 10개, 운영자 해제(관리 화면·`maru member totp-reset`). QR 그림은 없음(키 직접 입력·`otpauth://` 링크) |
+| M16 | 2단계 인증(TOTP) | ✅ | ADR-0072. 코어 인증. 복구 코드 10개, 운영자 해제(관리 화면·`maru member totp-reset`). 등록 QR 은 서버가 SVG 로 그린다(ADR-0083, 외부 QR 서비스 없음) |
 | M17 | 개인정보 보유기간 파기·휴면 회원 | ✅ | ADR-0073. 휴면은 켜는 설정(기본 끔, 30일 전 메일), 메일 주소 분리 보관·로그인하면 복귀. 지난 메일 정리, 모듈 정리 훅(알림 `keep_days`). `maru privacy run`, `POST /api/v1/privacy/run` |
 | M19 | 운영 신호: 댓글 급증·신고 집중·묵은 신고 알림 | ✅ | ADR-0074. 관리 화면 첫 쪽 「살펴볼 일」, `maru signals`, `GET /api/v1/signals`, 관리자·소유자 메일(같은 신호는 한 번). 신고 신호는 `Module::signals` 로 신고 모듈이 |
 
@@ -89,7 +89,7 @@
 | S2 | 팝업(레이어) | ✅ | 위젯 종류 `popup`·전용 영역, 기간·N일 보지 않기·모바일 아래쪽 판 (ADR-0060) |
 | S3 | 방문자 통계(쿠키 없는 집계, IP 마스킹) | ✅ | 하루 소금 해시·쿼리 제거·DNT·GPC·봇·운영자 제외, 날짜별 표 3개, CSV 수식 방어, 보존 설정, CLI·REST·관리 화면 (ADR-0061) |
 | S4 | 관리 화면: 게시판·메뉴·페이지·회원·설정·디자인 | ✅ | `/admin/boards`·`pages`·`menus`·`members`·`settings`·`design`, 실패하면 쓴 값 유지 (ADR-0064) |
-| S5 | 메일 발송 설정(SMTP) | 일부 | ADR-0051. 보낼 편지함·`Mailer` 트레이트·파일 전송(`데이터/mail/*.eml`)·`maru mail`. SMTP 는 lettre 의존성 승인 뒤 |
+| S5 | 메일 발송 설정(SMTP) | ✅ | ADR-0051·0083. 보낼 편지함·파일 전송(기본)·SMTP(starttls·tls, 이 컴퓨터 안 중계만 암호화 없음). `maru mail setup|test`, 비밀번호는 `secrets/`·환경 변수(백업 밖) |
 | S6 | 백업·복원 화면 | ✅ | `.tar.gz` 하나(manifest·VACUUM INTO 사본·media·themes·config), 비밀 빼기, 서버 잠금으로 켜진 동안 복원 거부, CLI·REST·관리 화면(복원은 CLI 안내) (ADR-0063) |
 | S7 | 다국어 | ❌ | 전역 지침: 출시 직전에 한꺼번에 |
 | S8 | 외부 공개(`maru expose`), MCP 서버 | ❌ | SPEC Phase 3 |

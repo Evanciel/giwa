@@ -807,7 +807,7 @@ async fn me_page_with(
             .map(|c| String::from_utf8_lossy(c).into_owned())
             .collect::<Vec<_>>()
             .join(" ");
-        json!({ "secret": grouped, "uri": s.uri })
+        json!({ "secret": grouped, "uri": s.uri, "qr": totp_qr_svg(&s.uri) })
     });
     let posts = my_posts(state, who, site.tz_offset_min).await;
     let comments = my_comments(state, who, site.tz_offset_min, PageReq::new(1, 5)).await;
@@ -1179,4 +1179,19 @@ async fn totp_action(
         }
         Err(e) => crate::error::page(&state, &e).await,
     }
+}
+
+/// 인증 앱 등록용 QR 그림(SVG). 외부 QR 서비스에 비밀 키를 보내지 않으려고 서버에서 그린다.
+/// 그림 안에는 경로 좌표만 있고 주소 글자는 들어가지 않는다. 실패하면 키 직접 입력만 보인다.
+fn totp_qr_svg(uri: &str) -> Option<String> {
+    let code = qrcode::QrCode::with_error_correction_level(uri, qrcode::EcLevel::M).ok()?;
+    let svg = code
+        .render::<qrcode::render::svg::Color>()
+        .min_dimensions(180, 180)
+        .dark_color(qrcode::render::svg::Color("#000000"))
+        .light_color(qrcode::render::svg::Color("#ffffff"))
+        .build();
+    // 문서 안에 넣으므로 XML 선언은 뺀다
+    let start = svg.find("<svg")?;
+    Some(svg[start..].replacen("<svg ", "<svg aria-hidden=\"true\" focusable=\"false\" ", 1))
 }

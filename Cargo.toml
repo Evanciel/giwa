@@ -64,6 +64,10 @@ futures-core = "0.3.34"
 flate2 = "1.1.10"
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
 percent-encoding = "2.3.2"
+# 편지를 SMTP 로 보낸다. TLS 는 rustls(ring) + 운영체제 인증서 저장소. 연결 묶음(pool)·native-tls 는 끔 (S5, ADR-0083)
+lettre = { version = "0.11.23", default-features = false, features = ["builder", "smtp-transport", "tokio1", "tokio1-rustls", "ring", "rustls-platform-verifier"] }
+# 2단계 인증 등록 QR 그림을 서버에서 SVG 로 그린다. 그림 크레이트(image) 기능은 끔 (M16, ADR-0083)
+qrcode = { version = "0.14.1", default-features = false, features = ["svg"] }
 unicode-normalization = "0.1.26"
 # 개발 의존성
 insta = { version = "1.49.0", features = ["json"] }

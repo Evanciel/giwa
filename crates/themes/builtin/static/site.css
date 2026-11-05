@@ -202,6 +202,9 @@ main { min-height: 50vh; }
 .totp-steps { padding-left: 1.25em; display: grid; gap: calc(var(--space) * 2); }
 .totp-secret code, .code-list code { font-family: var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: .04em; }
 .totp-secret code { display: inline-block; font-size: var(--fs-base); padding: calc(var(--space) * .75) calc(var(--space) * 1.25); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); overflow-wrap: anywhere; }
+/* QR 은 어두운 화면에서도 흰 바탕·검은 점이어야 앱이 읽는다 */
+.totp-qr { display: block; width: fit-content; margin: calc(var(--space) * 1) 0; padding: calc(var(--space) * 1); background: #fff; border: 1px solid var(--border); border-radius: var(--radius-sm); line-height: 0; }
+.totp-qr svg { width: 180px; height: auto; max-width: 100%; }
 .totp-codes { margin-bottom: calc(var(--space) * 2.5); padding: calc(var(--space) * 2); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); }
 .totp-codes h3 { margin-top: 0; }
 .code-list { margin: 0; padding-left: 1.75em; columns: 2; column-gap: calc(var(--space) * 3); }

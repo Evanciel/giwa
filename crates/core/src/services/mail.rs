@@ -2,16 +2,19 @@
 //!
 //! - 편지는 회원 쓰기와 같은 트랜잭션에서 `mail_outbox` 에 쌓는다. 같은 `idem_key` 는 한 번만 쌓인다.
 //! - 배달은 서버가 주기적으로(`deliver_pending`) 한다. 실패하면 `MAX_ATTEMPTS` 번까지 다시 하고, 그 뒤엔 `failed` 로 남긴다.
-//! - 전송 방식은 `Mailer` 트레이트. 지금은 데이터 디렉터리에 .eml 로 남기는 방식만 있다(SMTP 는 승인 뒤).
+//! - 전송 방식은 `Mailer` 트레이트. 데이터 디렉터리에 .eml 로 남기는 방식(기본)과 SMTP(ADR-0083)가 있다.
 //! - 편지 본문에는 1회용 링크가 들어 있어 REST 로 내보내지 않는다. 로컬 CLI 만 읽는다.
 
 use std::collections::BTreeMap;
 
 use schemars::JsonSchema;
 use serde::Serialize;
+use serde_json::json;
 
 use crate::actor::{Actor, ActorKind};
+use crate::audit::Target;
 use crate::clock;
+use crate::config::looks_like_email;
 use crate::error::{Code, Error, Result};
 use crate::messages;
 use crate::model::{MailOut, MailStatus};
@@ -24,10 +27,11 @@ pub const BATCH: i64 = 20;
 pub const REPEAT_WINDOW_SECS: i64 = 600;
 
 /// 편지를 실제로 내보내는 곳.
+#[async_trait::async_trait]
 pub trait Mailer: Send + Sync {
     /// `file`, `smtp` …
     fn kind(&self) -> &'static str;
-    fn send(&self, mail: &MailOut) -> std::result::Result<(), String>;
+    async fn send(&self, mail: &MailOut) -> std::result::Result<(), String>;
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, JsonSchema)]
@@ -72,7 +76,7 @@ pub async fn deliver_pending(ctx: &Ctx, mailer: &dyn Mailer) -> Result<Delivery>
     queued.reverse(); // 오래된 것부터
     for mut m in queued {
         m.attempts += 1;
-        match mailer.send(&m) {
+        match mailer.send(&m).await {
             Ok(()) => {
                 m.status = MailStatus::Sent;
                 m.sent_at = Some(clock::now());
@@ -92,6 +96,44 @@ pub async fn deliver_pending(ctx: &Ctx, mailer: &dyn Mailer) -> Result<Delivery>
         ctx.store.update_mail(&m).await?;
     }
     Ok(report)
+}
+
+/// 설정을 확인하는 시험 편지를 쌓는다(로컬 운영자만). 돌려주는 값은 편지의 `idem_key`.
+/// 같은 주소로 10분 안에 다시 부르면 새로 쌓지 않고 같은 키를 돌려준다.
+pub async fn queue_test(ctx: &Ctx, actor: &Actor, to: &str) -> Result<String> {
+    require_local(actor)?;
+    let to = to.trim();
+    if !looks_like_email(to) {
+        return Err(Error::new(Code::Validation)
+            .with_message("error.mail_to")
+            .arg("value", to)
+            .next("maru mail test --to you@example.test"));
+    }
+    let site = crate::services::settings::site(ctx).await?;
+    let key = format!("test:{}:{}", to.to_lowercase(), window());
+    let mut tx = Tx::begin(ctx).await?;
+    let args = BTreeMap::from([("site", site.name)]);
+    if queue(&mut tx, key.clone(), to, "test", &args).await? {
+        let domain = to.rsplit('@').next().unwrap_or_default();
+        tx.audit(
+            actor,
+            "mail.test",
+            Target::new("mail", "test"),
+            json!({ "to_domain": domain }),
+        )
+        .await?;
+    }
+    tx.commit().await?;
+    Ok(key)
+}
+
+/// 편지 보내는 방식을 바꾼 일을 감사에 남긴다(설정 파일은 storage 가 쓴다). 비밀번호는 남기지 않는다.
+pub async fn record_setup(ctx: &Ctx, actor: &Actor, diff: serde_json::Value) -> Result<()> {
+    require_local(actor)?;
+    let mut tx = Tx::begin(ctx).await?;
+    tx.audit(actor, "mail.setup", Target::new("mail", "config"), diff)
+        .await?;
+    tx.commit().await
 }
 
 /// 편지함 보기. 본문에 1회용 링크가 들어 있어 로컬 운영자(CLI)만 읽는다.

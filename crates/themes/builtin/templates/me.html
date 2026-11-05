@@ -93,7 +93,8 @@
     </details>
     {% elif me.totp.setup %}
     <ol class="totp-steps">
-      <li>휴대폰의 인증 앱(OTP 앱)에서 「키 직접 입력」을 고르고 아래 키를 넣습니다. 종류는 「시간 기준」입니다.
+      <li>휴대폰의 인증 앱(OTP 앱)으로 아래 QR 코드를 찍습니다. 찍을 수 없으면 「키 직접 입력」을 고르고 아래 키를 넣습니다. 종류는 「시간 기준」입니다.
+        {% if me.totp.setup.qr %}<div class="totp-qr" role="img" aria-label="인증 앱 등록용 QR 코드. 아래 키와 같은 내용입니다.">{{ me.totp.setup.qr|safe }}</div>{% endif %}
         <p class="totp-secret"><code>{{ me.totp.setup.secret }}</code></p>
         <p class="hint">이 기기에 인증 앱이 있으면 <a href="{{ me.totp.setup.uri }}">링크로 바로 넣기</a>.</p>
       </li>
