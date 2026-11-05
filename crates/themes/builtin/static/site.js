@@ -556,7 +556,8 @@
     const items = [...list.children];
     if (!(size > 0) || items.length <= size) continue;
     const total = Math.ceil(items.length / size);
-    const host = list.closest(".widget") || list.parentElement;
+    // 글 탭(GAP Q29)은 탭 칸마다 따로 넘긴다: 단추는 그 칸의 목록 아래.
+    const host = list.closest(".tab-panel, .widget") || list.parentElement;
     nav(host, list, total, (p) => items.forEach((li, i) => { li.hidden = Math.floor(i / size) !== p; }), list.hasAttribute("data-auto"));
   }
   for (const strip of document.querySelectorAll("[data-scroller]")) {

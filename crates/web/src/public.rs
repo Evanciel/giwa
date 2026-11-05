@@ -101,6 +101,7 @@ async fn site_value(state: &AppState, s: &SiteSettings) -> Value {
         "rss_url": urls::path(&Target::Rss),
         "search_url": urls::path(&Target::Search),
         "show_search": s.show_search,
+        "list_votes": s.list_votes,
         "skin": s.skin,
         // 상대 시간 필터의 날짜 표시용 시간대(분) (ADR-0096)
         "tz": s.tz_offset_min,

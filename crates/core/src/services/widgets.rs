@@ -113,6 +113,12 @@ pub struct PostTabsConfig {
     pub limit: u32,
     #[serde(default = "yes")]
     pub show_date: bool,
+    /// 탭마다 쪽 수 1~5, 기본 1. 2 이상이면 `limit` 개씩 「1/3」 쪽으로 넘긴다 (GAP Q29, ADR-0112)
+    #[serde(default = "one")]
+    pub pages: u32,
+    /// 쪽을 저절로 넘긴다. 기본 끔. 탭은 저절로 바뀌지 않는다
+    #[serde(default)]
+    pub auto: bool,
 }
 
 pub const POST_TAB_SOURCES: [&str; 2] = ["latest", "popular"];
@@ -747,6 +753,7 @@ async fn check_config(ctx: &Ctx, kind: &str, config: Value) -> Result<Value> {
         "post_tabs" => {
             let mut c: PostTabsConfig = parse(kind, config)?;
             in_range(kind, "limit", c.limit, 1, 20)?;
+            in_range(kind, "pages", c.pages, 1, 5)?;
             if !(2..=6).contains(&c.tabs.len()) {
                 return Err(bad_config(kind, "tabs 는 2~6개"));
             }

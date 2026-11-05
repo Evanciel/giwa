@@ -1089,6 +1089,9 @@ pub struct SiteSetArgs {
     /// 글 화면 아래에 그 게시판 목록을 다시 보일지 (true/false). 켜면 이전·다음 글 링크는 숨긴다
     #[arg(long)]
     pub list_under_post: Option<bool>,
+    /// 표 목록 왼쪽 칸에 글 번호 대신 추천 수를 보일지 (true/false). 반응 모듈이 꺼져 있으면 번호
+    #[arg(long)]
+    pub list_votes: Option<bool>,
     /// 방문자 통계를 며칠 남길지 (30~3650)
     #[arg(long)]
     pub stats_retention_days: Option<u32>,

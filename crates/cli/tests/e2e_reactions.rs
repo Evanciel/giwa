@@ -322,6 +322,23 @@ fn reactions_and_scraps_from_the_public_post_page() {
     );
     assert_eq!(counts(&post_id)[0]["count"], 1);
 
+    // 표 목록 왼쪽 추천 수 칸 (GAP Q29): 켜면 번호 대신 첫 반응 수, 0 은 흐리게.
+    let board = url[..url.rfind('/').unwrap()].to_owned();
+    let list = http(&bind, "GET", &board, &[], "").body;
+    assert!(!list.contains("has-votes"), "{list}");
+    let s = maru(&data, &["site", "set", "--list-votes", "true"]);
+    assert_eq!(s["list_votes"], true, "{s}");
+    let list = http(&bind, "GET", &board, &[], "").body;
+    assert!(
+        list.contains("<div class=\"post-table has-votes\">"),
+        "{list}"
+    );
+    assert!(
+        list.contains("<span class=\"vote-box\" title=\"추천 1\">1</span>"),
+        "{list}"
+    );
+    maru(&data, &["site", "set", "--list-votes", "false"]);
+
     // 설정: 종류를 늘리고 손님을 받으면 손님 단추가 동작한다. 같은 브라우저는 한 번만.
     maru(
         &data,

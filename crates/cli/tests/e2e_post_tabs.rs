@@ -145,6 +145,10 @@ fn post_tabs_group_lists_and_skip_unreadable_boards() {
             r#"{"tabs":[{"label":"가"},{"label":"나","board":"없는판"}]}"#,
             "없는판",
         ),
+        (
+            r#"{"tabs":[{"label":"가"},{"label":"나"}],"pages":9}"#,
+            "pages",
+        ),
     ] {
         let bad = place(config);
         assert_eq!(bad["ok"], false, "{config}");
@@ -155,7 +159,7 @@ fn post_tabs_group_lists_and_skip_unreadable_boards() {
         {"label":"블로그","board":"blog"},
         {"label":"회원방","board":"vip"},
         {"label":"인기","source":"popular","days":0}
-    ],"limit":5}"#;
+    ],"limit":5,"pages":2}"#;
     let w = place(config);
     assert_eq!(w["ok"], true, "{w}");
     assert_eq!(
@@ -198,6 +202,8 @@ fn post_tabs_group_lists_and_skip_unreadable_boards() {
         "{tabs}"
     );
     assert!(tabs.contains("블로그 새 소식"), "{tabs}");
+    // 쪽 넘김 (GAP Q29): 탭 칸마다 limit 개씩 나눌 수 있게 표시한다.
+    assert_eq!(tabs.matches("data-page-size=\"5\"").count(), 2, "{tabs}");
     assert!(
         tabs.contains("<time class=\"date\""),
         "날짜를 보인다: {tabs}"

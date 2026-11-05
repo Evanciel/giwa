@@ -141,7 +141,8 @@ async fn view(
                     continue;
                 };
                 let list = if t.source == "popular" {
-                    posts::public_popular(ctx, actor, board.as_ref(), t.days, c.limit).await?
+                    posts::public_popular(ctx, actor, board.as_ref(), t.days, c.limit * c.pages)
+                        .await?
                 } else {
                     let filter = PublicFilter {
                         exclude_secret: true,
@@ -152,7 +153,7 @@ async fn view(
                         actor,
                         board.as_ref(),
                         &filter,
-                        PageReq::new(1, c.limit),
+                        PageReq::new(1, c.limit * c.pages),
                     )
                     .await?
                     .items
@@ -172,7 +173,13 @@ async fn view(
             if tabs.is_empty() {
                 return Ok(None);
             }
-            json!({ "tabs": tabs, "show_date": c.show_date })
+            json!({
+                "tabs": tabs,
+                "show_date": c.show_date,
+                "page_size": c.limit,
+                "pages": c.pages,
+                "auto": c.auto,
+            })
         }
         "markdown_block" => {
             let c: MarkdownBlockConfig = cfg(w)?;

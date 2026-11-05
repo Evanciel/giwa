@@ -124,6 +124,10 @@ main { min-height: 50vh; }
 .list-pager .pagination + .board-search { margin-top: calc(var(--space) * 4); }
 .post-row .rank { display: inline-block; min-width: 1.75rem; font-weight: 700; color: var(--fg); }
 .post-row .rank-top { color: var(--primary); }
+/* 추천 수 칸 (GAP Q29): 0 이면 흐리게. 넓은 화면에서는 제목 옆 「추천 n」을 겹쳐 보이지 않는다(휴대폰은 칸이 숨어 제목 옆에 남는다). */
+.post-row .vote-box { display: inline-grid; place-items: center; min-width: 2.25rem; padding: 2px 6px; border: 1px solid color-mix(in srgb, var(--primary) 40%, var(--border)); border-radius: 6px; background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--primary); font-weight: 700; line-height: 1.4; }
+.post-row .vote-box.zero { color: var(--muted); border-color: var(--border); background: none; font-weight: 400; }
+@media (min-width: 641px) { .post-table.has-votes .subject .reaction-count { display: none; } }
 
 /* 검색 (GAP C5): 머리글 칸, 검색 화면·게시판 안 검색 폼, 결과 */
 .site-search { display: flex; align-items: center; margin-left: auto; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); transition: border-color var(--motion) ease-out; }

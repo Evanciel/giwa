@@ -41,6 +41,9 @@ pub struct SettingsPatch {
     /// 글 아래에 게시판 목록을 보일지 (GAP Q19)
     #[serde(default)]
     pub list_under_post: Option<bool>,
+    /// 표 목록 왼쪽 칸에 번호 대신 추천 수를 보일지 (GAP Q29)
+    #[serde(default)]
+    pub list_votes: Option<bool>,
     /// 회원 가입: off · open (회원 관리 권한 필요)
     #[serde(default)]
     pub signup: Option<String>,
@@ -143,6 +146,9 @@ pub async fn update(ctx: &Ctx, actor: &Actor, patch: SettingsPatch) -> Result<Si
     }
     if let Some(b) = patch.list_under_post {
         changes.push(("list_under_post", json!(b)));
+    }
+    if let Some(b) = patch.list_votes {
+        changes.push(("list_votes", json!(b)));
     }
     if let Some(b) = patch.show_search {
         changes.push(("show_search", json!(b)));

@@ -735,6 +735,9 @@ pub struct SiteSettings {
     /// 글 화면 아래에 그 게시판 목록(첫 쪽)을 다시 보인다. 켜면 이전·다음 글 링크는 숨긴다 (GAP Q19)
     #[serde(default)]
     pub list_under_post: bool,
+    /// 표 목록 왼쪽 칸에 글 번호 대신 추천 수(반응 모듈의 첫 반응)를 보인다. 모듈이 꺼져 있으면 번호 (GAP Q29)
+    #[serde(default)]
+    pub list_votes: bool,
     /// 회원 가입: off(받지 않음) · open(누구나). 꺼도 이미 있는 회원은 로그인한다
     #[serde(default)]
     pub signup: SignupMode,
@@ -864,6 +867,7 @@ impl Default for SiteSettings {
             show_views: true,
             show_search: true,
             list_under_post: false,
+            list_votes: false,
             signup: SignupMode::Off,
             signup_verify: true,
             captcha: CaptchaMode::Guest,

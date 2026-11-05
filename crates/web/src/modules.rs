@@ -110,6 +110,16 @@ pub(crate) async fn add_list_slots(state: &AppState, view: &mut Value) {
         .modules
         .slots(&state.ctx, &[POST_LIST], &slot_view)
         .await;
+    // 표 목록 왼쪽 추천 수 칸 (GAP Q29, ADR-0112): 글마다 수를 주는 첫 모듈의 것. 없는 글은 0.
+    if let Some(v) = slots
+        .get(POST_LIST)
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .find(|s| s["data"]["by_id"].is_object())
+    {
+        view["vote_counts"] = json!({ "label": v["data"]["label"], "by_id": v["data"]["by_id"] });
+    }
     view["slots"] = Value::Object(slots);
 }
 

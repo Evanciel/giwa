@@ -2,12 +2,14 @@
 {% set layout = board.layout if board is defined else "webzine" %}
 {% if posts %}
 {% if layout == "list" %}
-<div class="post-table">
-  <div class="post-row post-row-head" aria-hidden="true"><span class="num">번호</span><span class="subject">제목</span>{% if board.write_url %}<span class="writer">글쓴이</span>{% endif %}<span class="date">{% if board.order == "activity" %}최근 활동{% else %}날짜{% endif %}</span><span class="hits">조회</span></div>
+{# 추천 수 칸 (GAP Q29): 사이트 설정 list_votes 를 켜고 반응 모듈이 수를 줄 때만. 순위 목록은 순위가 먼저다. #}
+{% set votes = vote_counts if (site.list_votes and vote_counts is defined and vote_counts) else none %}
+<div class="post-table{% if votes %} has-votes{% endif %}">
+  <div class="post-row post-row-head" aria-hidden="true"><span class="num">{% if votes %}{{ votes.label }}{% else %}번호{% endif %}</span><span class="subject">제목</span>{% if board.write_url %}<span class="writer">글쓴이</span>{% endif %}<span class="date">{% if board.order == "activity" %}최근 활동{% else %}날짜{% endif %}</span><span class="hits">조회</span></div>
   <ul>
   {% for post in posts %}
   <li class="post-row{% if post.current %} is-current{% endif %}"{% if post.current %} aria-current="page"{% endif %}>
-    <span class="num">{% if post.rank %}<span class="rank{% if post.rank <= 3 %} rank-top{% endif %}" title="{{ post.rank }}위">{{ post.rank }}</span>{% else %}{{ post.number }}{% endif %}</span>
+    <span class="num">{% if post.rank %}<span class="rank{% if post.rank <= 3 %} rank-top{% endif %}" title="{{ post.rank }}위">{{ post.rank }}</span>{% elif votes %}{% set n = votes.by_id[post.id] or 0 %}<span class="vote-box{% if not n %} zero{% endif %}" title="{{ votes.label }} {{ n }}">{{ n }}</span>{% else %}{{ post.number }}{% endif %}</span>
     <span class="subject">{% include "_reply_mark.html" %}{% if post.category and not post.reply %}<a class="cat" href="{{ post.category.url }}">{{ post.category.name }}</a> {% endif %}{% if board.row_thumbs and post.thumb and not post.is_secret %}<span class="row-thumb" aria-hidden="true"><img src="{{ post.thumb.src }}" alt="" width="{{ post.thumb.width }}" height="{{ post.thumb.height }}" loading="lazy" decoding="async"></span>{% endif %}{% if post.deadline %}<span class="dday{% if post.deadline.closed %} closed{% endif %}">{{ post.deadline.label }}</span> {% endif %}<a class="title" href="{{ post.url }}">{% if post.is_secret %}{% include "_lock.html" %}{% endif %}{{ post.title }}</a>{% include "_title_marks.html" %}{% if post.fields %}<span class="list-fields">{% for f in post.fields %}<span class="list-field" title="{{ f.label }}">{{ f.text }}</span>{% endfor %}</span>{% endif %}</span>
     {% if board.write_url %}<span class="writer">{% if post.author %}<span class="author-name"{% if not post.author.guest %} data-member="{{ post.author.name }}"{% endif %}>{{ post.author.name }}</span>{% if post.author.badge %} <span class="level-badge{% if post.author.badge.staff %} staff{% endif %}" title="{{ post.author.badge.title }}">{{ post.author.badge.label }}</span>{% endif %}{% if post.author.guest %} <span class="comment-badge">비회원</span>{% endif %}{% endif %}</span>{% endif %}
     {% if board.order == "activity" %}<time class="date" datetime="{{ post.activity_at }}" title="{{ post.activity_date }}">{{ post.activity_at|ago(site.tz) }}</time>{% else %}<time class="date" datetime="{{ post.published_at }}" title="{{ post.date }}">{{ post.published_at|ago(site.tz) }}</time>{% endif %}
