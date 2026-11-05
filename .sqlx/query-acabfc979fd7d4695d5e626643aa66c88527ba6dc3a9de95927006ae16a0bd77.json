@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT day, streak FROM mod_point_attend\n             WHERE member_id = ? AND day LIKE ? ORDER BY day",
+  "describe": {
+    "columns": [
+      {
+        "name": "day",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_point_attend",
+            "name": "day"
+          }
+        }
+      },
+      {
+        "name": "streak",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_point_attend",
+            "name": "streak"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "acabfc979fd7d4695d5e626643aa66c88527ba6dc3a9de95927006ae16a0bd77"
+}

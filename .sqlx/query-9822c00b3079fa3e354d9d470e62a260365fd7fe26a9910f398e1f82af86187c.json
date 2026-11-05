@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR IGNORE INTO mod_point_attend (member_id, day, streak, at) VALUES (?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "9822c00b3079fa3e354d9d470e62a260365fd7fe26a9910f398e1f82af86187c"
+}

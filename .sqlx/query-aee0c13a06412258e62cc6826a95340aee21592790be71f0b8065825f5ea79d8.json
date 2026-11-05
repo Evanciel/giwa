@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT streak, at FROM mod_point_attend WHERE member_id = ? AND day = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "streak",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_point_attend",
+            "name": "streak"
+          }
+        }
+      },
+      {
+        "name": "at",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_point_attend",
+            "name": "at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "aee0c13a06412258e62cc6826a95340aee21592790be71f0b8065825f5ea79d8"
+}

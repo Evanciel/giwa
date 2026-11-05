@@ -448,7 +448,11 @@ fn point_module_lifecycle_through_cli_rest_and_screens() {
     let refused = run(&data, &["module", "remove", "point"]);
     assert_eq!(refused["error"]["code"], "VALIDATION", "{refused}");
     let removed = maru(&data, &["module", "remove", "point", "--purge", "--yes"]);
-    assert_eq!(removed["reverted"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        removed["reverted"].as_array().unwrap().len(),
+        2,
+        "포인트·출석"
+    );
     assert_eq!(maru(&data, &["module", "list"])[0]["installed"], false);
     assert_eq!(get(&bind, "/m/point/ranking").0, 404);
     let (status, home) = get(&bind, "/");

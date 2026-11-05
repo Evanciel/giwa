@@ -247,7 +247,7 @@ async fn enable_disable_remove_leaves_core_data_alone() {
     let removed = service::remove(&e.ctx, &local, &reg, "point")
         .await
         .unwrap();
-    assert_eq!(removed.reverted.len(), 1);
+    assert_eq!(removed.reverted.len(), 2, "포인트·출석 두 마이그레이션");
     let left: i64 =
         sqlx::query_scalar("SELECT COUNT(*) FROM sqlite_master WHERE name LIKE 'mod_point%'")
             .fetch_one(e.db.read_pool())
@@ -499,4 +499,99 @@ async fn failures_retry_then_give_up_and_do_not_block_others() {
             .unwrap()
             .is_empty()
     );
+}
+
+/// 출석체크 (ADR-0095): 연달아 출석하면 연속 일수가 이어지고 7일째에 보너스, 하루 비면 1부터.
+#[tokio::test]
+async fn attendance_streak_and_bonus() {
+    let e = env().await;
+    let reg = point(&e.db);
+    let local = Actor::local();
+    service::enable(&e.ctx, &local, &reg, "point")
+        .await
+        .unwrap();
+    let moon = seed_member(&e.ctx, "moon@example.test").await;
+    let sun = seed_member(&e.ctx, "sun@example.test").await;
+    let today = service::call_tool(&e.ctx, &local, &reg, "point", "attendance", json!({}))
+        .await
+        .unwrap()["day"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    // moon: 어제까지 6일 연속. sun: 그저께까지 5일 연속(어제 빠짐).
+    let past = |member: &str, back: i64, streak: i64| {
+        let (db, member, today) = (e.db.clone(), member.to_owned(), today.clone());
+        async move {
+            sqlx::query(
+                "INSERT INTO mod_point_attend (member_id, day, streak, at)
+                 VALUES (?, date(?, ?), ?, '2026-01-01T00:00:00Z')",
+            )
+            .bind(member)
+            .bind(today)
+            .bind(format!("-{back} day"))
+            .bind(streak)
+            .execute(db.write_pool())
+            .await
+            .unwrap();
+        }
+    };
+    for n in 1..=6 {
+        past(&moon, 7 - n, n).await;
+    }
+    past(&sun, 2, 5).await;
+
+    let as_member = |id: &str| Actor::human(id.to_owned(), [], rank::MEMBER);
+    let out = service::call_tool(
+        &e.ctx,
+        &as_member(&moon),
+        &reg,
+        "point",
+        "attend",
+        json!({}),
+    )
+    .await
+    .unwrap();
+    assert_eq!(out["streak"], 7, "{out}");
+    assert_eq!(out["points"], 25, "출석 5 + 7일 보너스 20: {out}");
+    assert_eq!(out["rank"], 1);
+    assert_eq!(balance(&e.ctx, &reg, &moon).await, 25);
+    let again = service::call_tool(
+        &e.ctx,
+        &as_member(&moon),
+        &reg,
+        "point",
+        "attend",
+        json!({}),
+    )
+    .await
+    .unwrap();
+    assert_eq!(again["already"], true, "{again}");
+    assert_eq!(again["points"], 0);
+    assert_eq!(balance(&e.ctx, &reg, &moon).await, 25, "두 번 주지 않는다");
+
+    let out = service::call_tool(&e.ctx, &as_member(&sun), &reg, "point", "attend", json!({}))
+        .await
+        .unwrap();
+    assert_eq!(out["streak"], 1, "하루 비면 처음부터: {out}");
+    assert_eq!(out["points"], 5);
+    assert_eq!(out["rank"], 2);
+
+    // 남의 달력은 회원 관리 권한이 있어야
+    let err = service::call_tool(
+        &e.ctx,
+        &as_member(&sun),
+        &reg,
+        "point",
+        "attendance",
+        json!({ "member": "moon@example.test" }),
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(err.code(), Code::Forbidden);
+    let audited: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM audit_log WHERE action = 'point.attend'")
+            .fetch_one(e.db.read_pool())
+            .await
+            .unwrap();
+    assert_eq!(audited, 2, "출석한 날마다 한 줄");
 }

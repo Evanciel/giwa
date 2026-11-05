@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT COUNT(*) FROM mod_point_attend\n             WHERE day = ? AND (at < ? OR (at = ? AND member_id <= ?))",
+  "describe": {
+    "columns": [
+      {
+        "name": "COUNT(*)",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "48303d1d2c7b406fb9d23543d5f1701ba0d16568b3d68f4bbaf135ca1972a862"
+}
