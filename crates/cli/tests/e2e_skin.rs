@@ -261,6 +261,14 @@ fn community_preset_skin_and_account_bar() {
     let board = http(&bind, "GET", "/b/free", &[], "");
     assert_eq!(board.status, 200);
     assert!(board.body.contains("community.css"));
+    // 최근 방문 줄은 메뉴 줄 바로 아래, 검색 줄 위 (GAP Q27, ADR-0111). 첫 화면만 cm-home.
+    let recent = home.body.find("data-recent-boards").unwrap();
+    assert!(
+        recent < home.body.find("class=\"cm-searchbar\"").unwrap(),
+        "최근 방문이 검색 줄 위"
+    );
+    assert!(home.body.contains("<body class=\"cm cm-home\">"));
+    assert!(board.body.contains("<body class=\"cm\">"));
     assert!(board.body.contains("post-table") || board.body.contains("아직 글이 없습니다"));
     let css = http(&bind, "GET", "/assets/community.css", &[], "");
     assert_eq!(css.status, 200);

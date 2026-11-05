@@ -5,6 +5,10 @@
 <div class="board-head" data-visit="{{ board.url }}" data-visit-name="{{ board.name }}" data-board="{{ board.slug }}">
   <h1 class="page-title">{{ board.name }}{% if category %} <span class="page-sub">· {{ category.name }}</span>{% endif %}{% if search.searched %} <span class="page-sub">· 검색</span>{% endif %}</h1>
   {% if slots and slots.post_list and not search.searched %}{% for s in slots.post_list %}{% if s.data.hot_url %}<a class="hot-link" href="{{ s.data.hot_url }}?board={{ board.slug }}" rel="nofollow">인기글만</a>{% endif %}{% endfor %}{% endif %}
+  {% if posts and sorts and not search.searched %}<details class="head-sort">
+    <summary><span class="visually-hidden">목록 순서: </span>{% for s in sorts %}{% if s.current %}{{ s.label }}{% endif %}{% endfor %} 순</summary>
+    <ul>{% for s in sorts %}<li><a href="{{ s.url }}" rel="nofollow"{% if s.current %} aria-current="page"{% endif %}>{{ s.label }} 순</a></li>{% endfor %}</ul>
+  </details>{% endif %}
   {% if board.write_url and not search.searched %}<a class="write-button" href="{{ board.write_url }}">글쓰기</a>{% endif %}
 </div>
 {% if board.description and not search.searched %}<p class="board-desc">{{ board.description }}</p>{% endif %}
@@ -13,7 +17,7 @@
 {% include "_hits.html" %}
 {% else %}
 {% if categories %}
-<nav class="cats" aria-label="분류">
+<nav class="cats board-cats" aria-label="분류">
   <ul>
     <li><a href="{{ board.url }}"{% if not category %} aria-current="page"{% endif %}>전체</a></li>
     {% for c in categories %}
@@ -62,6 +66,8 @@
   {% if board.write_url %}<a class="write-button" href="{{ board.write_url }}">글쓰기</a>{% endif %}
 </div>
 {% endif %}
+{# 휴대폰 떠 있는 글쓰기 단추 (GAP Q28, ADR-0111). 넓은 화면에서는 숨는다. #}
+{% if board.write_url %}<a class="fab-write" href="{{ board.write_url }}"><span aria-hidden="true">✎</span><span class="visually-hidden">글쓰기</span></a>{% endif %}
 {% if wiki %}
 <section class="wiki-index" aria-label="위키 살피기">
   <div>

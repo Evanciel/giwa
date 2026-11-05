@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {# 커뮤니티 첫 화면: 게시판별 최신 글 위젯(main 영역)이 있으면 그것이 첫 화면이다. 없으면 기본처럼 최신 글 목록. #}
+{% block body_class %} cm-home{% endblock %}
 {% block main %}
 <h1 class="visually-hidden">{{ site.name }}</h1>
 {% if not widgets.main %}{% include "_list.html" %}{% endif %}

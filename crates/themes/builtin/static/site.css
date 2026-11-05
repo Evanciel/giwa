@@ -1002,3 +1002,35 @@ article.post > .member-fold { margin: calc(var(--space) * 6) 0; padding: calc(va
 .widget-row > li { scroll-snap-align: start; min-width: 0; }
 .widget-row:focus-visible { outline: 2px solid var(--primary); outline-offset: 4px; }
 @media (max-width: 640px) { .widget-row { grid-auto-columns: 70%; } }
+
+/* 최근 방문 줄 칩 지우기·펼치기 (GAP Q27, ADR-0111) */
+.recent-boards li { display: inline-flex; align-items: center; gap: 2px; }
+.recent-board-drop { border: 0; background: none; color: var(--muted); font: inherit; line-height: 1; padding: 0 2px; cursor: pointer; border-radius: 4px; }
+.recent-board-drop:hover, .recent-board-drop:focus-visible { color: var(--fg); background: color-mix(in srgb, var(--fg) 8%, transparent); }
+.recent-boards-more { flex: none; border: 0; background: none; color: var(--muted); font: inherit; cursor: pointer; padding: 0; }
+.recent-boards-more[hidden] { display: none; }
+.recent-boards-more:hover, .recent-boards-more:focus-visible { color: var(--fg); text-decoration: underline; }
+.recent-boards > div > ul { overflow: hidden; min-width: 5rem; }
+@media (max-width: 640px) {
+  /* 좁은 화면은 칩 자리가 먼저다: 묶음 이름은 화면에서만 숨기고 읽기 프로그램에는 남긴다. */
+  .recent-boards-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
+.recent-boards.is-open ul { flex-wrap: wrap; row-gap: calc(var(--space) * .5); overflow: visible; }
+.recent-boards.is-open > div { align-items: flex-start; overflow-x: visible; }
+/* 휴대폰 목록 (GAP Q28, ADR-0111): 머리 정렬 선택, 붙는 분류 탭, 떠 있는 글쓰기 */
+.head-sort, .fab-write { display: none; }
+@media (max-width: 640px) {
+  .board-head { align-items: center; }
+  .head-sort { display: block; position: relative; flex: none; margin-left: auto; font-size: var(--fs-sm); }
+  .head-sort summary { list-style: none; cursor: pointer; border: 1px solid var(--border); border-radius: 999px; padding: calc(var(--space) * .4) calc(var(--space) * 1.4); color: var(--fg); }
+  .head-sort summary::-webkit-details-marker { display: none; }
+  .head-sort summary::after { content: " ▾"; color: var(--muted); }
+  .head-sort ul { position: absolute; right: 0; top: calc(100% + 4px); z-index: 25; list-style: none; margin: 0; padding: 4px; min-width: 8rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: 0 6px 20px rgb(0 0 0 / .15); }
+  .head-sort a { display: block; padding: calc(var(--space) * .75) calc(var(--space) * 1.25); color: var(--fg); text-decoration: none; border-radius: 4px; }
+  .head-sort a[aria-current] { color: var(--primary); font-weight: 700; }
+  .list-foot .list-sort { display: none; }
+  .board-cats { position: sticky; top: var(--sticky-top, 0px); z-index: 15; background: var(--bg); padding-block: calc(var(--space) * .75); }
+  .fab-write { display: grid; place-items: center; position: fixed; right: 1rem; bottom: 6.5rem; z-index: 31; width: 3rem; height: 3rem; border-radius: 999px; background: var(--primary); color: var(--surface); font-size: 1.25rem; text-decoration: none; box-shadow: 0 4px 14px rgb(0 0 0 / .25); }
+  .fab-write:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+  .has-sticky-ad .fab-write { bottom: calc(var(--sticky-h, 6rem) + 6.25rem); }
+}

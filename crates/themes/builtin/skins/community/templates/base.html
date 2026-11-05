@@ -28,7 +28,7 @@
 <link rel="stylesheet" href="/assets/community.css">
 <script src="/assets/community.js" defer{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %}></script>
 </head>
-<body class="cm">
+<body class="cm{% block body_class %}{% endblock %}">
 <a class="skip" href="#main">본문 바로가기</a>
 <div class="cm-topbar">
   <div class="cm-inner">
@@ -63,6 +63,8 @@
     </div></div>
   </details>
 </div></nav>{% endif %}
+{# 최근 본 게시판 (GAP Q11·Q27, ADR-0096·0111): 메뉴 줄 바로 아래. HTML 은 모두에게 같고(캐시) 목록은 이 브라우저에만 있다. site.js 가 채운다. #}
+<nav class="recent-boards" aria-label="최근 본 게시판" data-recent-boards hidden><div class="cm-inner"></div></nav>
 {# 검색 + 바로가기 단추 (메뉴 위치 quick) #}
 {% if site.show_search or (site.menus and site.menus.quick) %}<div class="cm-searchbar"><div class="cm-inner">
   {% if site.show_search %}<form class="cm-search" role="search" action="{{ site.search_url }}" method="get">
@@ -72,8 +74,6 @@
   </form>{% endif %}
   {% if site.menus and site.menus.quick %}<nav class="cm-quick" aria-label="바로가기"><ul>{% for item in site.menus.quick %}<li><a href="{{ item.href }}"{% if item.external %} rel="noopener noreferrer"{% endif %}>{{ item.label }}</a></li>{% endfor %}</ul></nav>{% endif %}
 </div></div>{% endif %}
-{# 최근 본 게시판 (GAP Q11, ADR-0096). HTML 은 모두에게 같고(캐시) 목록은 이 브라우저에만 있다. site.js 가 채운다. #}
-<nav class="recent-boards" aria-label="최근 본 게시판" data-recent-boards hidden><div class="cm-inner"></div></nav>
 {% if widgets.header %}<div class="region region-header"><div class="cm-inner">{% for w in widgets.header %}{% include "_widget.html" %}{% endfor %}</div></div>{% endif %}
 {% if widgets.hero %}<div class="region region-hero"><div class="cm-inner">{% for w in widgets.hero %}{% include "_widget.html" %}{% endfor %}</div></div>{% endif %}
 <div class="cm-body cm-inner{% if widgets.sidebar %} has-side{% endif %}">

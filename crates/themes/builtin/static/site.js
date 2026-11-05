@@ -73,28 +73,67 @@
   label.className = "recent-boards-label";
   label.textContent = "최근 본 게시판";
   const ul = document.createElement("ul");
+  const clear = document.createElement("button");
+  const more = document.createElement("button");
+  const drop = () => {
+    label.remove();
+    ul.remove();
+    more.remove();
+    clear.remove();
+    if (!box.children.length) nav.hidden = true;
+  };
+  // 칩 하나씩 지우기 (GAP Q27, ADR-0111): 지운 칩 자리의 다음 칩(없으면 앞 칩)으로 초점을 옮긴다.
   for (const b of list) {
     const li = document.createElement("li");
     const a = document.createElement("a");
     a.href = b.url;
     a.textContent = b.name.slice(0, 40);
     if (current && b.url === current.url) a.setAttribute("aria-current", "page");
-    li.append(a);
+    const x = document.createElement("button");
+    x.type = "button";
+    x.className = "recent-board-drop";
+    x.setAttribute("aria-label", b.name.slice(0, 40) + " 지우기");
+    x.textContent = "×";
+    x.addEventListener("click", () => {
+      list = list.filter((v) => v.url !== b.url);
+      save(list);
+      const next = li.nextElementSibling || li.previousElementSibling;
+      li.remove();
+      if (!list.length) return drop();
+      const focus = next && next.querySelector(".recent-board-drop");
+      if (focus) focus.focus();
+      fit();
+    });
+    li.append(a, x);
     ul.append(li);
   }
-  const clear = document.createElement("button");
+  // 넘치면 「펼치기」로 여러 줄로 다 보인다.
+  more.type = "button";
+  more.className = "recent-boards-more";
+  more.setAttribute("aria-expanded", "false");
+  more.textContent = "펼치기";
+  more.hidden = true;
+  more.addEventListener("click", () => {
+    const open = !nav.classList.contains("is-open");
+    nav.classList.toggle("is-open", open);
+    more.setAttribute("aria-expanded", open ? "true" : "false");
+    more.textContent = open ? "접기" : "펼치기";
+  });
+  const fit = () => {
+    if (!nav.classList.contains("is-open")) more.hidden = ul.scrollWidth <= ul.clientWidth + 1;
+  };
   clear.type = "button";
   clear.className = "recent-boards-clear";
   clear.textContent = "지우기";
   clear.addEventListener("click", () => {
+    list = [];
     save([]);
-    label.remove();
-    ul.remove();
-    clear.remove();
-    if (!box.children.length) nav.hidden = true;
+    drop();
   });
-  box.append(label, ul, clear);
+  box.append(label, ul, more, clear);
   nav.hidden = false;
+  fit();
+  addEventListener("resize", fit, { passive: true });
 })();
 
 // 로그인 상자 위젯 (GAP Q15, ADR-0100). HTML 은 손님 모양으로 모두에게 같고(캐시), 로그인했으면

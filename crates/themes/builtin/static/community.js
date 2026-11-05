@@ -300,7 +300,14 @@
         if (ev.target === dlg || (ev.target.closest && ev.target.closest("[data-close]"))) dlg.close();
       });
     });
-    if (ok) root.classList.add("cm-js");
+    if (ok) {
+      root.classList.add("cm-js");
+      // 붙는 머리글 높이: 휴대폰 분류 탭이 그 아래에 붙는다 (GAP Q28, ADR-0111)
+      var head = document.querySelector(".cm-header");
+      var measure = function () { if (head) root.style.setProperty("--cm-head-h", head.offsetHeight + "px"); };
+      measure();
+      window.addEventListener("resize", measure, { passive: true });
+    }
   }
 
   // 최근 검색어: 이 브라우저 localStorage 에만 10개. 서버로 보내지 않는다.

@@ -269,3 +269,10 @@
 
 /* 양옆 광고는 본문 폭(1200px) 바깥에 (GAP Q24, ADR-0109) */
 .cm { --rail-gap: calc(600px + 1rem); }
+
+/* 휴대폰 (GAP Q28, ADR-0111): 붙는 머리글 아래에 분류 탭이 붙고, 검색 줄은 첫 화면에만 */
+@media (max-width: 640px) {
+  .cm .board-cats { background: var(--surface); }
+  .cm-js .board-cats { --sticky-top: var(--cm-head-h, 3.5rem); }
+  .cm-js .cm:not(.cm-home) .cm-searchbar { display: none; }
+}

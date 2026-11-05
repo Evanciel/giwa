@@ -344,6 +344,14 @@ fn list_sort_and_comment_author_search() {
     );
     assert!(page[pager..].contains("aria-label=\"페이지\""), "{page}");
     assert!(page[pager..].contains("class=\"board-search\""), "{page}");
+    // 휴대폰 머리 정렬 선택 (GAP Q28, ADR-0111): 지금 순서가 접힌 제목, 펼치면 세 순서
+    let head = &page[page.find("class=\"board-head\"").unwrap()..table];
+    assert!(head.contains("<details class=\"head-sort\">"), "{head}");
+    assert!(
+        head.contains("<span class=\"visually-hidden\">목록 순서: </span>최신 순</summary>"),
+        "{head}"
+    );
+    assert!(head.contains("aria-current=\"page\">최신 순</a>"), "{head}");
     // 모르는 순서는 최신으로
     let page = http(&bind, "GET", "/b/free?order=random", &[], "").body;
     assert_eq!(listed(&page), [sc.clone(), sb.clone()], "{page}");
