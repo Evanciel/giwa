@@ -791,6 +791,8 @@ impl Module for ReportModule {
             required: true,
             options: Vec::new(),
             help: Some(help.to_owned()),
+            list: false,
+            filter: false,
         };
         vec![
             number(

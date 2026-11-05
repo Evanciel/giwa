@@ -111,6 +111,9 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         }
         "error.name_reserved" => "`{value}` 는 쓸 수 없는 닉네임입니다.",
         "error.bio_invalid" => "자기소개는 {max}자 이하로, 제어 문자 없이 적어 주세요.",
+        "error.field_filter" => {
+            "칸 `{key}`: 거르기(filter)는 select·multiselect·boolean 칸에만 켤 수 있습니다."
+        }
         "error.name_taken" => "`{value}` 닉네임은 이미 쓰이고 있습니다.",
         "error.email_unverified" => {
             "메일 인증이 아직 끝나지 않았습니다. 인증 메일을 다시 보냈으니 메일함을 확인하세요."

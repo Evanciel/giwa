@@ -257,12 +257,23 @@ async fn board(
     State(state): State<AppState>,
     Path(slug): Path<String>,
     Query(q): Query<PageQuery>,
+    Query(raw): Query<Vec<(String, String)>>,
 ) -> Response {
-    let v = board_inner(&state, &slug, q).await;
+    // 여분 필드 거르기 `f.<키>=<값>` (GAP Q4, ADR-0089)
+    let fields: Vec<(String, String)> = raw
+        .into_iter()
+        .filter_map(|(k, v)| k.strip_prefix("f.").map(|k| (k.to_owned(), v)))
+        .collect();
+    let v = board_inner(&state, &slug, q, &fields).await;
     render(&state, "board.html", v).await
 }
 
-async fn board_inner(state: &AppState, slug: &str, q: PageQuery) -> Result<Value> {
+async fn board_inner(
+    state: &AppState,
+    slug: &str,
+    q: PageQuery,
+    fields: &[(String, String)],
+) -> Result<Value> {
     let site = load_site(state).await?;
     let actor = anonymous_actor(&state.ctx).await?;
     let board = boards::readable(&state.ctx, &actor, slug).await?;
@@ -271,7 +282,8 @@ async fn board_inner(state: &AppState, slug: &str, q: PageQuery) -> Result<Value
     }
     let page = PageReq::new(q.page.unwrap_or(1), site.settings.posts_per_page);
     let category = q.category.as_deref().filter(|c| !c.is_empty());
-    let found = posts::public_board(&state.ctx, &actor, &board, category, page).await?;
+    let found =
+        posts::public_board_filtered(&state.ctx, &actor, &board, category, fields, page).await?;
     let cats = &found.categories;
     let target = match &found.category {
         Some(c) => Target::Category {
@@ -285,6 +297,9 @@ async fn board_inner(state: &AppState, slug: &str, q: PageQuery) -> Result<Value
             .map(|p| {
                 let mut view = post_summary(&board.slug, p, &site.settings);
                 view["category"] = category_of(&board.slug, cats, p);
+                let (shown, flags) = list_fields(&board.field_schema, &p.meta);
+                view["fields"] = json!(shown);
+                view["flags"] = json!(flags);
                 view
             })
             .collect::<Vec<_>>()
@@ -323,7 +338,8 @@ async fn board_inner(state: &AppState, slug: &str, q: PageQuery) -> Result<Value
         "category": found.category.as_ref().map(|c| category_json(&board.slug, c)),
         "notices": notices,
         "posts": items,
-        "pagination": pagination(&found.posts, &urls::path(&target)),
+        "pagination": pagination(&found.posts, &filtered_path(&urls::path(&target), &found.filters, None)),
+        "field_filters": field_filters(&board.field_schema, &urls::path(&target), &found.filters),
         "search": search_form(&urls::path(&Target::Board { board: &board.slug }), "", Range::All, Sort::Rank),
     });
     // 위키 게시판: 필요한 문서·외톨이 문서 (GAP C13).
@@ -572,6 +588,97 @@ async fn search_inner(state: &AppState, p: SearchParams) -> Result<Value> {
         "search": found,
         "pagination": pager,
     }))
+}
+
+/// 목록 줄에 보일 여분 필드 (ADR-0089): 글자 칸들과, 켜진 참거짓 칸의 이름(표시).
+fn list_fields(
+    schema: &[maru_core::fields::FieldDef],
+    meta: &serde_json::Map<String, Value>,
+) -> (Vec<Value>, Vec<String>) {
+    let listed: Vec<_> = schema.iter().filter(|d| d.list).cloned().collect();
+    if listed.is_empty() {
+        return (Vec::new(), Vec::new());
+    }
+    let mut shown = Vec::new();
+    let mut flags = Vec::new();
+    for s in maru_core::fields::display(&listed, meta) {
+        if s.kind == "boolean" {
+            flags.push(s.label);
+        } else {
+            shown.push(json!({ "key": s.key, "label": s.label, "text": s.text }));
+        }
+    }
+    (shown, flags)
+}
+
+/// 거르기를 유지한 주소. `change` 가 있으면 그 칸만 바꾸거나(값) 뺀다(`None` 값).
+fn filtered_path(
+    base: &str,
+    active: &[(String, String)],
+    change: Option<(&str, Option<&str>)>,
+) -> String {
+    let mut pairs: Vec<(String, String)> = active
+        .iter()
+        .filter(|(k, _)| change.is_none_or(|(c, _)| c != k))
+        .map(|(k, v)| (format!("f.{k}"), v.clone()))
+        .collect();
+    if let Some((k, Some(v))) = change {
+        pairs.push((format!("f.{k}"), v.to_owned()));
+    }
+    let refs: Vec<(&str, &str)> = pairs
+        .iter()
+        .map(|(k, v)| (k.as_str(), v.as_str()))
+        .collect();
+    urls::with_query(base, &refs)
+}
+
+/// 거르기 단추 묶음 (ADR-0089): 거를 수 있는 칸마다 「전체」와 값들.
+fn field_filters(
+    schema: &[maru_core::fields::FieldDef],
+    base: &str,
+    active: &[(String, String)],
+) -> Vec<Value> {
+    schema
+        .iter()
+        .filter(|d| d.filter)
+        .map(|d| {
+            let now = active
+                .iter()
+                .find(|(k, _)| *k == d.key)
+                .map(|(_, v)| v.as_str());
+            let mut choices = vec![json!({
+                "label": "전체",
+                "url": filtered_path(base, active, Some((&d.key, None))),
+                "current": now.is_none(),
+            })];
+            let values: Vec<(String, String)> = if d.kind == "boolean" {
+                vec![
+                    ("0".to_owned(), format!("{} 빼기", d.label)),
+                    ("1".to_owned(), format!("{}만", d.label)),
+                ]
+            } else {
+                d.options
+                    .iter()
+                    .map(|o| {
+                        let label = if o.label.is_empty() {
+                            &o.value
+                        } else {
+                            &o.label
+                        };
+                        (o.value.clone(), label.clone())
+                    })
+                    .collect()
+            };
+            for (value, label) in values {
+                choices.push(json!({
+                    "label": label,
+                    "url": filtered_path(base, active, Some((&d.key, Some(&value)))),
+                    "current": now == Some(value.as_str()),
+                }));
+            }
+            json!({ "key": d.key, "label": d.label, "choices": choices })
+        })
+        .collect()
 }
 
 fn category_json(board_slug: &str, c: &Category) -> Value {

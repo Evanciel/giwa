@@ -555,6 +555,8 @@ impl Module for PointModule {
             required: true,
             options: Vec::new(),
             help: Some(help.to_owned()),
+            list: false,
+            filter: false,
         };
         vec![
             number_field("post", "글", "글 하나를 발행할 때 주는 점수"),
@@ -567,6 +569,8 @@ impl Module for PointModule {
                 required: true,
                 options: Vec::new(),
                 help: Some("쉼표로 나눈 점수. 넘을 때마다 레벨이 하나 오릅니다".to_owned()),
+                list: false,
+                filter: false,
             },
             FieldDef {
                 key: "level_names".to_owned(),
@@ -578,6 +582,8 @@ impl Module for PointModule {
                     "쉼표로 나눈 이름. 레벨 기준보다 하나 많게 적습니다. 비우면 Lv.1, Lv.2 …"
                         .to_owned(),
                 ),
+                list: false,
+                filter: false,
             },
         ]
     }

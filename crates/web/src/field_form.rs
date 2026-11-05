@@ -132,6 +132,8 @@ mod tests {
                 Vec::new()
             },
             help: None,
+            list: false,
+            filter: false,
         };
         check_schema(vec![
             d("price", "number"),

@@ -56,6 +56,61 @@ pub struct FieldDef {
     /// 입력 칸 아래 도움말
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub help: Option<String>,
+    /// 게시판 목록의 글 줄에도 보인다 (GAP Q4, ADR-0089). 참거짓 칸은 켜졌을 때 이름이 표시로 붙는다
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub list: bool,
+    /// 게시판 목록을 이 칸으로 거를 수 있다. select·multiselect·boolean 만 (ADR-0089)
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub filter: bool,
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
+}
+
+/// 목록 거르기 한 조건 (ADR-0089). 저장소가 `posts.meta` 에 그대로 맞춰 본다.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct MetaFilter {
+    /// JSON 경로 (`$.키`)
+    #[serde(rename = "p")]
+    pub path: String,
+    /// `eq`(select), `has`(multiselect), `on`·`off`(boolean)
+    #[serde(rename = "m")]
+    pub mode: &'static str,
+    #[serde(rename = "v")]
+    pub value: String,
+}
+
+/// 주소의 거르기 값(`f.<키>=<값>`)을 칸 정의로 고른다. 거를 수 없는 칸·없는 선택지·잘못된 값은
+/// 조용히 버린다(오래된 링크도 목록을 연다). 같은 칸은 처음 값만.
+pub fn filters(schema: &[FieldDef], pairs: &[(String, String)]) -> Vec<(FieldDef, MetaFilter)> {
+    let mut out: Vec<(FieldDef, MetaFilter)> = Vec::new();
+    for (key, value) in pairs {
+        let Some(d) = schema.iter().find(|d| d.filter && d.key == *key) else {
+            continue;
+        };
+        if out.iter().any(|(o, _)| o.key == d.key) {
+            continue;
+        }
+        let value = value.trim();
+        let mode = match d.kind.as_str() {
+            "select" | "multiselect" if d.options.iter().any(|o| o.value == value) => {
+                if d.kind == "select" { "eq" } else { "has" }
+            }
+            "boolean" if value == "1" => "on",
+            "boolean" if value == "0" => "off",
+            _ => continue,
+        };
+        out.push((
+            d.clone(),
+            MetaFilter {
+                path: format!("$.{}", d.key),
+                mode,
+                value: value.to_owned(),
+            },
+        ));
+    }
+    out
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -129,6 +184,9 @@ pub fn check_schema(defs: Vec<FieldDef>) -> Result<Vec<FieldDef>> {
             d.options = seen;
         } else {
             d.options.clear();
+        }
+        if d.filter && !matches!(d.kind.as_str(), "select" | "multiselect" | "boolean") {
+            return Err(invalid("error.field_filter").arg("key", d.key));
         }
         out.push(d);
     }
@@ -431,6 +489,8 @@ mod tests {
             required,
             options: Vec::new(),
             help: None,
+            list: false,
+            filter: false,
         }
     }
 

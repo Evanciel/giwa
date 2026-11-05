@@ -776,3 +776,9 @@ a.wikilink-new { color: #b3261e; text-decoration-style: dashed; }
 .post-tabs .tab-panel-title { margin: 0 0 calc(var(--space) * .75); font-size: var(--fs-sm); }
 .post-tabs.tabs-on .tab-panel-title { display: none; }
 .post-tabs .tab-more { margin: calc(var(--space) * 1) 0 0; text-align: right; }
+/* 여분 필드 목록 표시·거르기 (GAP Q4, ADR-0089). 글자 칸은 제목 아래 한 줄, 켜진 참거짓 칸은 제목 옆 표시. */
+.list-fields { display: flex; flex-wrap: wrap; gap: 0 calc(var(--space) * 1); margin: calc(var(--space) * .25) 0 0; font-size: var(--fs-sm); color: var(--muted); }
+.post-row .list-fields { width: 100%; }
+.list-field + .list-field::before { content: "·"; margin-right: calc(var(--space) * 1); }
+.field-flag { display: inline-block; font-size: .72rem; font-weight: 700; line-height: 1.5; color: var(--muted); border: 1px solid var(--border); border-radius: 4px; padding: 0 calc(var(--space) * .75); vertical-align: .1em; white-space: nowrap; }
+.cats + .field-filter { margin-top: calc(var(--space) * -3); }

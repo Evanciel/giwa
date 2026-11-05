@@ -695,6 +695,8 @@ impl Module for MessageModule {
             required: true,
             options: Vec::new(),
             help: Some("회원 한 명이 24시간 동안 보낼 수 있는 쪽지 수입니다.".to_owned()),
+            list: false,
+            filter: false,
         }]
     }
 

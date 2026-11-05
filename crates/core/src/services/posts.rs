@@ -405,6 +405,8 @@ pub struct PublicFilter {
     pub exclude_secret: bool,
     /// 마지막 활동이 늦은 스레드부터 (ADR-0058)
     pub by_activity: bool,
+    /// 여분 필드 거르기 (ADR-0089)
+    pub meta: Vec<crate::fields::MetaFilter>,
 }
 
 /// 공개 글 목록. `board` 가 없으면 읽을 수 있는 모든 게시판.
@@ -461,6 +463,11 @@ pub async fn public_posts_where(
         tag_id: filter.tag_id.clone(),
         exclude_secret: filter.exclude_secret,
         by_activity: filter.by_activity,
+        meta_filters: if filter.meta.is_empty() {
+            None
+        } else {
+            Some(serde_json::to_string(&filter.meta).map_err(Error::internal)?)
+        },
         ..PublishedQuery::new(actor.rank(), page.limit(), page.offset())
     };
     let total = ctx.store.count_published(&q).await?;
@@ -483,6 +490,8 @@ pub struct BoardPage {
     pub categories: Vec<Category>,
     /// 고른 분류
     pub category: Option<Category>,
+    /// 실제로 건 여분 필드 거르기 (칸 키, 값). 버려진 값은 없다 (ADR-0089)
+    pub filters: Vec<(String, String)>,
 }
 
 const MAX_NOTICES: u32 = 20;
@@ -495,6 +504,20 @@ pub async fn public_board(
     category: Option<&str>,
     page: PageReq,
 ) -> Result<BoardPage> {
+    public_board_filtered(ctx, actor, board, category, &[], page).await
+}
+
+/// 여분 필드로 거른 게시판 목록 (GAP Q4, ADR-0089). `fields` 는 주소의 `f.<키>=<값>` 쌍(앞머리 뗀 것).
+/// 거를 수 없는 칸·값은 버리고, 실제로 쓴 조건을 `BoardPage::filters` 로 돌려준다. 공지는 거르지 않는다.
+pub async fn public_board_filtered(
+    ctx: &Ctx,
+    actor: &Actor,
+    board: &Board,
+    category: Option<&str>,
+    fields: &[(String, String)],
+    page: PageReq,
+) -> Result<BoardPage> {
+    let applied = crate::fields::filters(&board.field_schema, fields);
     let categories = ctx.store.categories_of_board(&board.id).await?;
     let category = match category.map(str::trim).filter(|c| !c.is_empty()) {
         Some(c) => {
@@ -534,6 +557,7 @@ pub async fn public_board(
             notices: Some(false),
             category_id: category.as_ref().map(|c| c.id.clone()),
             by_activity: board.effective_order() == "activity",
+            meta: applied.iter().map(|(_, f)| f.clone()).collect(),
             ..PublicFilter::default()
         },
         page,
@@ -544,6 +568,7 @@ pub async fn public_board(
         posts,
         categories,
         category,
+        filters: applied.into_iter().map(|(d, f)| (d.key, f.value)).collect(),
     })
 }
 

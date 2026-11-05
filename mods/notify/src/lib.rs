@@ -844,6 +844,8 @@ impl Module for NotifyModule {
                     "끄면 사이트 안에서만 알립니다. 회원은 알림 화면에서 따로 끌 수 있습니다."
                         .to_owned(),
                 ),
+                list: false,
+                filter: false,
             },
             FieldDef {
                 key: "keep_days".to_owned(),
@@ -854,6 +856,8 @@ impl Module for NotifyModule {
                 help: Some(format!(
                     "이 날수가 지난 알림은 하루 한 번 지웁니다 ({MIN_KEEP_DAYS}~{MAX_KEEP_DAYS})."
                 )),
+                list: false,
+                filter: false,
             },
         ]
     }

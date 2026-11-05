@@ -904,6 +904,20 @@ impl Store for SqliteStore {
                  AND (?7 IS NULL OR EXISTS (SELECT 1 FROM post_tags x
                                              WHERE x.post_id = p.id AND x.tag_id = ?7))
                  AND (?8 = 0 OR p.is_secret = 0)
+                 AND (?10 IS NULL OR NOT EXISTS (
+                       SELECT 1 FROM json_each(?10) f
+                       WHERE NOT CASE json_extract(f.value, '$.m')
+                         WHEN 'eq' THEN coalesce(
+                           json_extract(p.meta, json_extract(f.value, '$.p'))
+                             = json_extract(f.value, '$.v'), 0)
+                         WHEN 'has' THEN EXISTS (
+                           SELECT 1 FROM json_each(p.meta, json_extract(f.value, '$.p')) x
+                            WHERE x.value = json_extract(f.value, '$.v'))
+                         WHEN 'on' THEN coalesce(
+                           json_extract(p.meta, json_extract(f.value, '$.p')), 0) = 1
+                         WHEN 'off' THEN coalesce(
+                           json_extract(p.meta, json_extract(f.value, '$.p')), 0) != 1
+                         ELSE 0 END))
                ORDER BY CASE WHEN ?9 = 1
                           THEN COALESCE((SELECT COALESCE(t.last_activity_at, t.published_at)
                                            FROM posts t WHERE t.id = p.thread_id),
@@ -921,7 +935,8 @@ impl Store for SqliteStore {
             notice,
             q.tag_id,
             q.exclude_secret,
-            q.by_activity
+            q.by_activity,
+            q.meta_filters
         )
         .fetch_all(&self.db.read)
         .await
@@ -942,13 +957,28 @@ impl Store for SqliteStore {
                  AND (?4 IS NULL OR p.is_notice = ?4)
                  AND (?5 IS NULL OR EXISTS (SELECT 1 FROM post_tags x
                                              WHERE x.post_id = p.id AND x.tag_id = ?5))
-                 AND (?6 = 0 OR p.is_secret = 0)"#,
+                 AND (?6 = 0 OR p.is_secret = 0)
+                 AND (?7 IS NULL OR NOT EXISTS (
+                       SELECT 1 FROM json_each(?7) f
+                       WHERE NOT CASE json_extract(f.value, '$.m')
+                         WHEN 'eq' THEN coalesce(
+                           json_extract(p.meta, json_extract(f.value, '$.p'))
+                             = json_extract(f.value, '$.v'), 0)
+                         WHEN 'has' THEN EXISTS (
+                           SELECT 1 FROM json_each(p.meta, json_extract(f.value, '$.p')) x
+                            WHERE x.value = json_extract(f.value, '$.v'))
+                         WHEN 'on' THEN coalesce(
+                           json_extract(p.meta, json_extract(f.value, '$.p')), 0) = 1
+                         WHEN 'off' THEN coalesce(
+                           json_extract(p.meta, json_extract(f.value, '$.p')), 0) != 1
+                         ELSE 0 END))"#,
             q.max_read_rank,
             q.board_id,
             q.category_id,
             notice,
             q.tag_id,
-            q.exclude_secret
+            q.exclude_secret,
+            q.meta_filters
         )
         .fetch_one(&self.db.read)
         .await

@@ -523,6 +523,8 @@ impl Module for ReactionModule {
             required: kind == "text",
             options: Vec::new(),
             help: Some(help.to_owned()),
+            list: false,
+            filter: false,
         };
         vec![
             field(

@@ -1029,10 +1029,24 @@ async fn board_posts(
     ApiActor(actor): ApiActor,
     Path(slug): Path<String>,
     Query(q): Query<PublicListQuery>,
+    Query(raw): Query<Vec<(String, String)>>,
 ) -> Result<Response, ApiError> {
     let board = boards::readable(&state.ctx, &actor, &slug).await?;
     let page = PageReq::new(q.page.unwrap_or(1), q.per_page.unwrap_or(20));
-    let out = posts::public_board(&state.ctx, &actor, &board, q.category.as_deref(), page).await?;
+    // 여분 필드 거르기 `f.<키>=<값>` (ADR-0089). 실제로 건 조건은 응답의 `filters`.
+    let fields: Vec<(String, String)> = raw
+        .into_iter()
+        .filter_map(|(k, v)| k.strip_prefix("f.").map(|k| (k.to_owned(), v)))
+        .collect();
+    let out = posts::public_board_filtered(
+        &state.ctx,
+        &actor,
+        &board,
+        q.category.as_deref(),
+        &fields,
+        page,
+    )
+    .await?;
     Ok(ok(StatusCode::OK, out))
 }
 

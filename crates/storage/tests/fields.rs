@@ -35,6 +35,8 @@ fn def(key: &str, label: &str, kind: &str, required: bool, options: &[&str]) -> 
             })
             .collect(),
         help: None,
+        list: false,
+        filter: false,
     }
 }
 

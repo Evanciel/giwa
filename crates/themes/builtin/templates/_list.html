@@ -8,7 +8,7 @@
   {% for post in posts %}
   <li class="post-row">
     <span class="num">{{ post.number }}</span>
-    <span class="subject">{% include "_reply_mark.html" %}{% if post.category and not post.reply %}<a class="cat" href="{{ post.category.url }}">{{ post.category.name }}</a> {% endif %}<a class="title" href="{{ post.url }}">{% if post.is_secret %}{% include "_lock.html" %}{% endif %}{{ post.title }}</a>{% include "_title_marks.html" %}</span>
+    <span class="subject">{% include "_reply_mark.html" %}{% if post.category and not post.reply %}<a class="cat" href="{{ post.category.url }}">{{ post.category.name }}</a> {% endif %}<a class="title" href="{{ post.url }}">{% if post.is_secret %}{% include "_lock.html" %}{% endif %}{{ post.title }}</a>{% include "_title_marks.html" %}{% if post.fields %}<span class="list-fields">{% for f in post.fields %}<span class="list-field" title="{{ f.label }}">{{ f.text }}</span>{% endfor %}</span>{% endif %}</span>
     {% if board.write_url %}<span class="writer">{% if post.author %}<span class="author-name"{% if not post.author.guest %} data-member="{{ post.author.name }}"{% endif %}>{{ post.author.name }}</span>{% if post.author.badge %} <span class="level-badge" title="{{ post.author.badge.title }}">{{ post.author.badge.label }}</span>{% endif %}{% if post.author.guest %} <span class="comment-badge">비회원</span>{% endif %}{% endif %}</span>{% endif %}
     {% if board.order == "activity" %}<time class="date" datetime="{{ post.activity_at }}">{{ post.activity_date }}</time>{% else %}<time class="date" datetime="{{ post.published_at }}">{{ post.date }}</time>{% endif %}
     <span class="hits">{% if post.views is not none %}<span class="hits-label">조회 </span>{{ post.views }}{% endif %}</span>
@@ -23,6 +23,7 @@
     <article>
       <a class="tile" href="{{ post.url }}" tabindex="-1" aria-hidden="true">{% if post.thumb and not post.is_secret %}<img src="{{ post.thumb.src }}" alt="" width="{{ post.thumb.width }}" height="{{ post.thumb.height }}" loading="lazy" decoding="async">{% else %}<span class="tile-fallback">{% if post.is_secret %}{% include "_lock.html" %}{% elif post.category %}{{ post.category.name }}{% else %}{{ post.initial }}{% endif %}</span>{% endif %}</a>
       <h2>{% include "_reply_mark.html" %}<a href="{{ post.url }}">{% if post.is_secret %}{% include "_lock.html" %}{% endif %}{{ post.title }}</a>{% include "_title_marks.html" %}</h2>
+      {% if post.fields %}<p class="list-fields">{% for f in post.fields %}<span class="list-field" title="{{ f.label }}">{{ f.text }}</span>{% endfor %}</p>{% endif %}
       {% if layout == "card" %}
       {% if post.is_secret %}<p class="summary secret">작성자와 관리자만 읽을 수 있는 글입니다.</p>
       {% elif post.summary %}<p class="summary">{{ post.summary }}</p>{% endif %}
@@ -39,6 +40,7 @@
     <article{% if post.thumb %} class="has-thumb"{% endif %}>
       {% if post.thumb %}<a class="thumb" href="{{ post.url }}" tabindex="-1" aria-hidden="true"><img src="{{ post.thumb.src }}" alt="" width="{{ post.thumb.width }}" height="{{ post.thumb.height }}" loading="lazy" decoding="async"></a>{% endif %}
       <h2>{% include "_reply_mark.html" %}<a href="{{ post.url }}">{% if post.is_secret %}{% include "_lock.html" %}{% endif %}{{ post.title }}</a>{% include "_title_marks.html" %}</h2>
+      {% if post.fields %}<p class="list-fields">{% for f in post.fields %}<span class="list-field" title="{{ f.label }}">{{ f.text }}</span>{% endfor %}</p>{% endif %}
       <p class="meta">{% if post.author and board.write_url %}<span class="author"{% if not post.author.guest %} data-member="{{ post.author.name }}"{% endif %}>{{ post.author.name }}</span>{% if post.author.badge %} <span class="level-badge" title="{{ post.author.badge.title }}">{{ post.author.badge.label }}</span>{% endif %}{% if post.author.guest %} <span class="comment-badge">비회원</span>{% endif %} · {% endif %}{% if post.category %}<a class="cat" href="{{ post.category.url }}">{{ post.category.name }}</a> · {% endif %}<time datetime="{{ post.published_at }}">{{ post.date }}</time>{% if post.views is not none %} · <span class="views">조회 {{ post.views }}</span>{% endif %}</p>
       {% if post.is_secret %}<p class="summary secret">작성자와 관리자만 읽을 수 있는 글입니다.</p>
       {% elif post.summary %}<p class="summary">{{ post.summary }}</p>{% endif %}

@@ -142,6 +142,8 @@ pub struct PublishedQuery {
     pub exclude_secret: bool,
     /// 마지막 활동(댓글·답변)이 늦은 스레드부터 (ADR-0058).
     pub by_activity: bool,
+    /// 여분 필드 거르기 (ADR-0089): `fields::MetaFilter` 배열의 JSON. 없으면 거르지 않는다.
+    pub meta_filters: Option<String>,
 }
 
 impl PublishedQuery {
@@ -157,6 +159,7 @@ impl PublishedQuery {
             tag_id: None,
             exclude_secret: false,
             by_activity: false,
+            meta_filters: None,
         }
     }
 }

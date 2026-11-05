@@ -20,6 +20,13 @@
   </ul>
 </nav>
 {% endif %}
+{% for g in field_filters %}
+<nav class="cats field-filter" aria-label="{{ g.label }}(으)로 거르기">
+  <ul>
+    {% for c in g.choices %}<li><a href="{{ c.url }}" rel="nofollow"{% if c.current %} aria-current="page"{% endif %}>{{ c.label }}</a></li>{% endfor %}
+  </ul>
+</nav>
+{% endfor %}
 {% if notices %}
 <ul class="notice-list" aria-label="공지">
   {% for post in notices %}
