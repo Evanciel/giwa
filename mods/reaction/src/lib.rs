@@ -8,16 +8,16 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use axum::extract::{ConnectInfo, Form, Path, State};
+use axum::extract::{ConnectInfo, Form, Path, Query, State};
 use axum::http::{Extensions, HeaderMap, StatusCode, header};
 use axum::response::{IntoResponse, Redirect, Response};
-use axum::routing::post;
+use axum::routing::{get, post};
 use axum::{Extension, Router};
 use maru_core::actor::{Actor, Permission};
 use maru_core::audit::{AuditRecord, Target};
 use maru_core::fields::FieldDef;
 use maru_core::model::{AuditEvent, CommentStatus};
-use maru_core::services::{auth, posts};
+use maru_core::services::{anonymous_actor, auth, boards, posts, settings};
 use maru_core::store::ModuleMigration;
 use maru_core::urls::{self, Target as UrlTarget};
 use maru_core::{Code, Ctx, Error, Result, clock};
@@ -50,6 +50,12 @@ const KINDS: [(&str, &str); 6] = [
     ("sad", "😢 슬퍼요"),
 ];
 const DEFAULT_KINDS: &str = "up,down";
+/// 인기 기준 기본값: 첫 반응(기본 「추천」)이 이만큼이면 「인기」 (GAP Q5, ADR-0090)
+const DEFAULT_HOT: i64 = 10;
+/// 인기글 화면 한 쪽
+const HOT_PER_PAGE: usize = 20;
+/// 인기글 화면이 살피는 최대 글 수 (최근에 반응이 붙은 순)
+const HOT_SCAN: i64 = 500;
 
 #[derive(Clone)]
 pub struct ReactionModule {
@@ -132,6 +138,14 @@ fn kinds_of(settings: &Map<String, Value>) -> Vec<(&'static str, &'static str)> 
 
 fn flag(settings: &Map<String, Value>, key: &str) -> bool {
     settings.get(key).and_then(Value::as_bool).unwrap_or(false)
+}
+
+/// 인기 기준. 0 이면 끈다.
+fn hot_of(settings: &Map<String, Value>) -> i64 {
+    settings
+        .get("hot")
+        .and_then(Value::as_i64)
+        .unwrap_or(DEFAULT_HOT)
 }
 
 impl ReactionModule {
@@ -452,6 +466,7 @@ impl Module for ReactionModule {
     fn routes(&self) -> Option<Router<ModuleState>> {
         Some(
             Router::new()
+                .route("/hot", get(hot_page))
                 .route("/{target_type}/{target_id}", post(press_form))
                 .layer(Extension(Arc::new(self.clone()))),
         )
@@ -466,6 +481,10 @@ impl Module for ReactionModule {
             (
                 "mod/reaction/comment.html",
                 include_str!("../templates/comment.html"),
+            ),
+            (
+                "mod/reaction/hot.html",
+                include_str!("../templates/hot.html"),
             ),
         ]
     }
@@ -545,6 +564,15 @@ impl Module for ReactionModule {
                 "boolean",
                 "연결 주소와 브라우저로 사람을 가립니다. 완전한 한 사람 보장은 아닙니다",
             ),
+            FieldDef {
+                required: true,
+                ..field(
+                    "hot",
+                    "인기 기준",
+                    "number",
+                    "첫 반응(기본 추천)이 이만큼 모이면 목록에 「인기」를 붙입니다. 0 이면 끕니다",
+                )
+            },
         ]
     }
 
@@ -553,6 +581,7 @@ impl Module for ReactionModule {
         m.insert("kinds".into(), json!(DEFAULT_KINDS));
         m.insert("comments".into(), json!(true));
         m.insert("guest".into(), json!(false));
+        m.insert("hot".into(), json!(DEFAULT_HOT));
         m
     }
 
@@ -570,6 +599,14 @@ impl Module for ReactionModule {
                     "모르는 반응 종류입니다: {}. up, down, heart, laugh, wow, sad 중에서 고르세요.",
                     unknown.join(", ")
                 ),
+            ));
+        }
+        if let Some(h) = settings.get("hot")
+            && !h.as_i64().is_some_and(|n| (0..=100_000).contains(&n))
+        {
+            return Err(module_error(
+                Code::Validation,
+                "인기 기준은 0~100000 사이 정수입니다. 0 이면 「인기」 표시를 끕니다.",
             ));
         }
         Ok(())
@@ -621,9 +658,25 @@ impl Module for ReactionModule {
                         (n > 0).then(|| (id, json!(n)))
                     })
                     .collect();
+                // 인기 (GAP Q5): 기준 이상인 글. 기준이 0 이면 표시도 인기글 화면 링크도 없다.
+                let hot = hot_of(&settings);
+                let hot_ids: Vec<&String> = if hot > 0 {
+                    by_id
+                        .iter()
+                        .filter(|(_, n)| n.as_i64().is_some_and(|n| n >= hot))
+                        .map(|(id, _)| id)
+                        .collect()
+                } else {
+                    Vec::new()
+                };
                 Ok(Some(SlotContent {
                     template: "",
-                    data: json!({ "label": label, "by_id": by_id }),
+                    data: json!({
+                        "label": label,
+                        "by_id": by_id,
+                        "hot": hot_ids,
+                        "hot_url": (hot > 0).then_some("/m/reaction/hot"),
+                    }),
                 }))
             }
             COMMENT_ACTIONS => {
@@ -651,6 +704,122 @@ struct PressForm {
 }
 
 /// 공개 글 화면의 단추. 자바스크립트 없이 동작한다.
+#[derive(Debug, Default, Deserialize)]
+struct HotQuery {
+    #[serde(default)]
+    board: String,
+    page: Option<usize>,
+}
+
+/// 인기글만 보기 (GAP Q5, ADR-0090). 손님이 읽을 수 있는 공개 글 가운데 첫 반응이 기준 이상인 것, 최신부터.
+async fn hot_page(
+    State(state): State<ModuleState>,
+    Extension(module): Extension<Arc<ReactionModule>>,
+    Query(q): Query<HotQuery>,
+) -> Response {
+    match module.hot_view(&state.ctx, &q).await {
+        Ok((title, data)) => state.host.page("mod/reaction/hot.html", &title, data).await,
+        Err(e) => state.host.error(&e).await,
+    }
+}
+
+impl ReactionModule {
+    async fn hot_view(&self, ctx: &Ctx, q: &HotQuery) -> Result<(String, Value)> {
+        let settings = settings_of(ctx, self).await?;
+        let hot = hot_of(&settings);
+        let kinds = kinds_of(&settings);
+        let (first, label) = kinds.first().copied().unwrap_or(("up", "추천"));
+        let actor = anonymous_actor(ctx).await?;
+        let only = match q.board.trim() {
+            "" => None,
+            slug => Some(boards::readable(ctx, &actor, slug).await?),
+        };
+        if hot <= 0 {
+            return Err(module_error(Code::NotFound, "인기 표시가 꺼져 있습니다."));
+        }
+        let rows = sqlx::query!(
+            r#"SELECT target_id AS "id!: String", count(*) AS "n!: i64", max(at) AS "last!: String"
+               FROM mod_reaction_item WHERE target_type = 'post' AND kind = ?
+               GROUP BY target_id HAVING count(*) >= ?
+               ORDER BY max(at) DESC LIMIT ?"#,
+            first,
+            hot,
+            HOT_SCAN
+        )
+        .fetch_all(self.db.read_pool())
+        .await
+        .map_err(Error::internal)?;
+        let tz = settings::site(ctx).await?.tz_offset_min;
+        let mut readable: HashMap<String, Option<maru_core::model::Board>> = HashMap::new();
+        let mut items = Vec::new();
+        for r in rows {
+            let Some(p) = ctx.store.post_by_id(&r.id).await? else {
+                continue;
+            };
+            if !p.is_public() || p.is_secret || only.as_ref().is_some_and(|b| b.id != p.board_id) {
+                continue;
+            }
+            if !readable.contains_key(&p.board_id) {
+                let ok = match ctx.store.board_by_id(&p.board_id).await? {
+                    Some(b) => boards::readable(ctx, &actor, &b.slug).await.ok(),
+                    None => None,
+                };
+                readable.insert(p.board_id.clone(), ok);
+            }
+            let Some(Some(b)) = readable.get(&p.board_id) else {
+                continue;
+            };
+            let at = p.published_at.clone().unwrap_or_default();
+            items.push((
+                at.clone(),
+                json!({
+                    "title": p.title,
+                    "url": urls::path(&UrlTarget::Post { board: &b.slug, post: &p.slug }),
+                    "board": b.name,
+                    "count": r.n,
+                    "date": clock::display_date(&at, tz),
+                }),
+            ));
+        }
+        items.sort_by(|a, b| b.0.cmp(&a.0));
+        let total = items.len();
+        let pages = total.div_ceil(HOT_PER_PAGE).max(1);
+        let page = q.page.unwrap_or(1).clamp(1, pages);
+        let shown: Vec<Value> = items
+            .into_iter()
+            .skip((page - 1) * HOT_PER_PAGE)
+            .take(HOT_PER_PAGE)
+            .map(|(_, v)| v)
+            .collect();
+        let board_q = only.as_ref().map(|b| b.slug.clone()).unwrap_or_default();
+        let page_url = |n: usize| {
+            urls::with_query(
+                "/m/reaction/hot",
+                &[("board", board_q.as_str()), ("page", &n.to_string())],
+            )
+        };
+        let title = match &only {
+            Some(b) => format!("{} 인기글", b.name),
+            None => "인기글".to_owned(),
+        };
+        Ok((
+            title.clone(),
+            json!({
+                "noindex": true,
+                "hot": {
+                    "title": title,
+                    "label": label,
+                    "threshold": hot,
+                    "board_url": only.as_ref().map(|b| urls::path(&UrlTarget::Board { board: &b.slug })),
+                    "items": shown,
+                    "prev": (page > 1).then(|| page_url(page - 1)),
+                    "next": (page < pages).then(|| page_url(page + 1)),
+                },
+            }),
+        ))
+    }
+}
+
 async fn press_form(
     State(state): State<ModuleState>,
     Extension(module): Extension<Arc<ReactionModule>>,

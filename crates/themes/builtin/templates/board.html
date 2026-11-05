@@ -4,6 +4,7 @@
 {% block main %}
 <div class="board-head">
   <h1 class="page-title">{{ board.name }}{% if category %} <span class="page-sub">· {{ category.name }}</span>{% endif %}{% if search.searched %} <span class="page-sub">· 검색</span>{% endif %}</h1>
+  {% if slots and slots.post_list and not search.searched %}{% for s in slots.post_list %}{% if s.data.hot_url %}<a class="hot-link" href="{{ s.data.hot_url }}?board={{ board.slug }}" rel="nofollow">인기글만</a>{% endif %}{% endfor %}{% endif %}
   {% if board.write_url and not search.searched %}<a class="write-button" href="{{ board.write_url }}">글쓰기</a>{% endif %}
 </div>
 {% if search.searched %}

@@ -782,3 +782,9 @@ a.wikilink-new { color: #b3261e; text-decoration-style: dashed; }
 .list-field + .list-field::before { content: "·"; margin-right: calc(var(--space) * 1); }
 .field-flag { display: inline-block; font-size: .72rem; font-weight: 700; line-height: 1.5; color: var(--muted); border: 1px solid var(--border); border-radius: 4px; padding: 0 calc(var(--space) * .75); vertical-align: .1em; white-space: nowrap; }
 .cats + .field-filter { margin-top: calc(var(--space) * -3); }
+
+/* 인기 표시와 인기글만 보기 (GAP Q5, ADR-0090) */
+.hot-mark { display: inline-block; font-size: .72rem; font-weight: 700; line-height: 1.5; color: var(--surface); background: var(--accent, var(--primary)); border-radius: 4px; padding: 0 calc(var(--space) * .75); vertical-align: .1em; white-space: nowrap; }
+.board-head .hot-link { margin-left: auto; font-size: .9rem; font-weight: 600; color: var(--muted); }
+.board-head .hot-link:hover, .board-head .hot-link:focus-visible { color: var(--fg); }
+.hot-list li { display: flex; flex-wrap: wrap; align-items: baseline; gap: calc(var(--space) * 1); }

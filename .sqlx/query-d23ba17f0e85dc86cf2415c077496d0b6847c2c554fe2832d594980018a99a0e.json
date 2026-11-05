@@ -1,0 +1,40 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT target_id AS \"id!: String\", count(*) AS \"n!: i64\", max(at) AS \"last!: String\"\n               FROM mod_reaction_item WHERE target_type = 'post' AND kind = ?\n               GROUP BY target_id HAVING count(*) >= ?\n               ORDER BY max(at) DESC LIMIT ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: String",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_reaction_item",
+            "name": "target_id"
+          }
+        }
+      },
+      {
+        "name": "n!: i64",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": "Expression"
+      },
+      {
+        "name": "last!: String",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "d23ba17f0e85dc86cf2415c077496d0b6847c2c554fe2832d594980018a99a0e"
+}
