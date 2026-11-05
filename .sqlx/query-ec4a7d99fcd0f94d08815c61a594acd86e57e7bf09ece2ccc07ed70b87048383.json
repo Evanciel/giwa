@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT count(*) AS \"n!: i64\"\n                   FROM posts p\n                   JOIN boards b ON b.id = p.board_id\n                   JOIN roles r ON r.name = json_extract(b.policy, '$.read')\n                   LEFT JOIN members m ON m.id = p.author_id\n                   WHERE p.status = 'published' AND p.kind = 'post' AND p.is_secret = 0\n                     AND r.rank <= ?1 AND (?2 IS NULL OR p.board_id = ?2)\n                     AND ((p.guest_name IS NOT NULL AND p.guest_name LIKE ?3 ESCAPE '\\')\n                       OR (p.guest_name IS NULL AND m.status = 'active' AND m.withdrawn_at IS NULL\n                           AND m.display_name LIKE ?3 ESCAPE '\\'))",
+  "describe": {
+    "columns": [
+      {
+        "name": "n!: i64",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "ec4a7d99fcd0f94d08815c61a594acd86e57e7bf09ece2ccc07ed70b87048383"
+}

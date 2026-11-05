@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT p.id AS \"id!\",\n                          (SELECT c.body FROM comments c\n                            WHERE c.post_id = p.id AND c.status = 'published'\n                              AND c.body LIKE ?3 ESCAPE '\\'\n                            ORDER BY c.created_at DESC LIMIT 1) AS \"body: String\"\n                   FROM posts p\n                   JOIN boards b ON b.id = p.board_id\n                   JOIN roles r ON r.name = json_extract(b.policy, '$.read')\n                   WHERE p.status = 'published' AND p.kind = 'post' AND p.is_secret = 0\n                     AND r.rank <= ?1 AND (?2 IS NULL OR p.board_id = ?2)\n                     AND EXISTS (SELECT 1 FROM comments c\n                                  WHERE c.post_id = p.id AND c.status = 'published'\n                                    AND c.body LIKE ?3 ESCAPE '\\')\n                   ORDER BY p.published_at DESC, p.id DESC\n                   LIMIT ?4 OFFSET ?5",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "posts",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "body: String",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "comments",
+            "name": "body"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "14762f8589b1f55268c3a4f4b780316a2ac2db5dddbf5a203e0ef7a55cd47d5d"
+}

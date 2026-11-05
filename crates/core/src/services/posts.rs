@@ -394,6 +394,38 @@ pub async fn public_post(
     Ok((board, post))
 }
 
+/// 게시판 목록 순서 (GAP Q7, ADR-0092). 추천 순은 반응 모듈의 인기글 화면이 맡는다.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ListSort {
+    /// 최신(또는 게시판이 정한 최근 활동) 순
+    #[default]
+    Latest,
+    /// 조회 많은 순
+    Views,
+    /// 공개 댓글 많은 순
+    Comments,
+}
+
+impl ListSort {
+    /// 모르는 값은 최신 순으로 (오래된 링크도 열린다).
+    pub fn parse(s: &str) -> Self {
+        match s.trim() {
+            "views" => Self::Views,
+            "comments" => Self::Comments,
+            _ => Self::Latest,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Latest => "latest",
+            Self::Views => "views",
+            Self::Comments => "comments",
+        }
+    }
+}
+
 /// 공개 목록 조건 (`public_posts_where`).
 #[derive(Debug, Clone, Default)]
 pub struct PublicFilter {
@@ -407,6 +439,8 @@ pub struct PublicFilter {
     pub by_activity: bool,
     /// 여분 필드 거르기 (ADR-0089)
     pub meta: Vec<crate::fields::MetaFilter>,
+    /// 목록 순서 (ADR-0092)
+    pub sort: ListSort,
 }
 
 /// 공개 글 목록. `board` 가 없으면 읽을 수 있는 모든 게시판.
@@ -468,6 +502,7 @@ pub async fn public_posts_where(
         } else {
             Some(serde_json::to_string(&filter.meta).map_err(Error::internal)?)
         },
+        sort: (filter.sort != ListSort::Latest).then(|| filter.sort.as_str().to_owned()),
         ..PublishedQuery::new(actor.rank(), page.limit(), page.offset())
     };
     let total = ctx.store.count_published(&q).await?;
@@ -492,6 +527,8 @@ pub struct BoardPage {
     pub category: Option<Category>,
     /// 실제로 건 여분 필드 거르기 (칸 키, 값). 버려진 값은 없다 (ADR-0089)
     pub filters: Vec<(String, String)>,
+    /// 목록 순서 (ADR-0092)
+    pub sort: ListSort,
 }
 
 const MAX_NOTICES: u32 = 20;
@@ -504,7 +541,7 @@ pub async fn public_board(
     category: Option<&str>,
     page: PageReq,
 ) -> Result<BoardPage> {
-    public_board_filtered(ctx, actor, board, category, &[], page).await
+    public_board_filtered(ctx, actor, board, category, &[], ListSort::Latest, page).await
 }
 
 /// 여분 필드로 거른 게시판 목록 (GAP Q4, ADR-0089). `fields` 는 주소의 `f.<키>=<값>` 쌍(앞머리 뗀 것).
@@ -515,6 +552,7 @@ pub async fn public_board_filtered(
     board: &Board,
     category: Option<&str>,
     fields: &[(String, String)],
+    sort: ListSort,
     page: PageReq,
 ) -> Result<BoardPage> {
     let applied = crate::fields::filters(&board.field_schema, fields);
@@ -558,6 +596,7 @@ pub async fn public_board_filtered(
             category_id: category.as_ref().map(|c| c.id.clone()),
             by_activity: board.effective_order() == "activity",
             meta: applied.iter().map(|(_, f)| f.clone()).collect(),
+            sort,
             ..PublicFilter::default()
         },
         page,
@@ -569,6 +608,7 @@ pub async fn public_board_filtered(
         categories,
         category,
         filters: applied.into_iter().map(|(d, f)| (d.key, f.value)).collect(),
+        sort,
     })
 }
 

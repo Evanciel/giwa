@@ -12,8 +12,8 @@ use maru_core::model::{
 };
 use maru_core::model::{LinkPreview, LinkStatus, MemberActivity, MemberTotp};
 use maru_core::store::{
-    AuditFilter, CommentQuery, MenuRow, ModuleMigration, PopularQuery, PostFilter, PublishedQuery,
-    SearchQuery, SearchRef, Store, WikiPage, WriteTx,
+    AuditFilter, CommentQuery, LiteralSearchQuery, MenuRow, ModuleMigration, PopularQuery,
+    PostFilter, PublishedQuery, SearchQuery, SearchRef, Store, WikiPage, WriteTx,
 };
 use maru_core::{Code, Error, Result, clock, slug, urls};
 use serde_json::Value;
@@ -918,7 +918,12 @@ impl Store for SqliteStore {
                          WHEN 'off' THEN coalesce(
                            json_extract(p.meta, json_extract(f.value, '$.p')), 0) != 1
                          ELSE 0 END))
-               ORDER BY CASE WHEN ?9 = 1
+               ORDER BY CASE ?11
+                          WHEN 'views' THEN p.view_count
+                          WHEN 'comments' THEN (SELECT count(*) FROM comments c
+                                                 WHERE c.post_id = p.id AND c.status = 'published')
+                        END DESC,
+                        CASE WHEN ?9 = 1
                           THEN COALESCE((SELECT COALESCE(t.last_activity_at, t.published_at)
                                            FROM posts t WHERE t.id = p.thread_id),
                                         p.last_activity_at, p.published_at)
@@ -936,7 +941,8 @@ impl Store for SqliteStore {
             q.tag_id,
             q.exclude_secret,
             q.by_activity,
-            q.meta_filters
+            q.meta_filters,
+            q.sort
         )
         .fetch_all(&self.db.read)
         .await
@@ -2158,6 +2164,13 @@ impl Store for SqliteStore {
 
     async fn search(&self, q: &SearchQuery) -> Result<(Vec<SearchRef>, i64)> {
         crate::search::search(&self.db.read, q).await
+    }
+
+    async fn search_literal(
+        &self,
+        q: &LiteralSearchQuery,
+    ) -> Result<(Vec<(String, Option<String>)>, i64)> {
+        crate::search::search_literal(&self.db.read, q).await
     }
 }
 

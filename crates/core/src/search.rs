@@ -153,6 +153,10 @@ pub enum Range {
     Title,
     Body,
     Tag,
+    /// 공개 댓글 내용 (GAP Q7, ADR-0092). 색인이 아니라 글자 그대로 찾는다.
+    Comment,
+    /// 글쓴이 이름(닉네임·손님 이름) (GAP Q7, ADR-0092)
+    Author,
 }
 
 impl Range {
@@ -162,6 +166,8 @@ impl Range {
             "title" => Some(Self::Title),
             "body" => Some(Self::Body),
             "tag" | "tags" => Some(Self::Tag),
+            "comment" | "comments" => Some(Self::Comment),
+            "author" | "name" => Some(Self::Author),
             _ => None,
         }
     }
@@ -172,12 +178,19 @@ impl Range {
             Self::Title => "title",
             Self::Body => "body",
             Self::Tag => "tag",
+            Self::Comment => "comment",
+            Self::Author => "author",
         }
+    }
+
+    /// 색인(FTS) 대신 글자 그대로 찾는 곳인가 (댓글·글쓴이).
+    pub fn is_literal(self) -> bool {
+        matches!(self, Self::Comment | Self::Author)
     }
 
     fn column(self) -> Option<&'static str> {
         match self {
-            Self::All => None,
+            Self::All | Self::Comment | Self::Author => None,
             Self::Title => Some("title"),
             Self::Body => Some("body"),
             Self::Tag => Some("tags"),

@@ -1009,6 +1009,9 @@ struct PublicListQuery {
     category: Option<String>,
     page: Option<u32>,
     per_page: Option<u32>,
+    /// 목록 순서 latest·views·comments (ADR-0092)
+    #[serde(default)]
+    order: String,
 }
 
 /// `GET /boards/{slug}/posts?category=` 공개 화면과 같은 목록(공지 따로, 비밀글은 제목만).
@@ -1044,6 +1047,7 @@ async fn board_posts(
         &board,
         q.category.as_deref(),
         &fields,
+        posts::ListSort::parse(&q.order),
         page,
     )
     .await?;

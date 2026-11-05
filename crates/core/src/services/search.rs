@@ -17,7 +17,7 @@ use crate::error::{Code, Error, Result};
 use crate::markdown;
 use crate::model::{Board, PageReq};
 use crate::search::{Query, Range, SNIPPET_CHARS, Segment, snippet};
-use crate::store::{Ctx, SearchQuery, SearchRef, Tx};
+use crate::store::{Ctx, LiteralSearchQuery, LiteralTarget, SearchQuery, SearchRef, Tx};
 use crate::urls::{self, Target};
 
 use super::boards;
@@ -65,7 +65,7 @@ pub struct SearchInput {
     /// 이 게시판 안에서만 (게시판 주소).
     #[serde(default)]
     pub board: Option<String>,
-    /// 찾을 곳: all(제목·내용·태그) · title · body · tag
+    /// 찾을 곳: all(제목·내용·태그) · title · body · tag · comment(댓글) · author(글쓴이 이름)
     #[serde(default, rename = "in")]
     pub range: Range,
     #[serde(default)]
@@ -83,7 +83,8 @@ pub fn parse_options(range: &str, sort: &str) -> Result<(Range, Sort)> {
             .arg("value", value)
             .arg("allowed", allowed)
     };
-    let r = Range::parse(range.trim()).ok_or_else(|| bad("in", range, "all, title, body, tag"))?;
+    let r = Range::parse(range.trim())
+        .ok_or_else(|| bad("in", range, "all, title, body, tag, comment, author"))?;
     let s = Sort::parse(sort.trim()).ok_or_else(|| bad("sort", sort, "rank, new"))?;
     Ok((r, s))
 }
@@ -163,15 +164,19 @@ pub async fn search(ctx: &Ctx, actor: &Actor, input: SearchInput) -> Result<Sear
         None => None,
     };
     let page = PageReq::new(input.page, PER_PAGE);
+    // 글 읽기 권한이 없으면 어떤 게시판도 걸리지 않게 한다.
+    let max_read_rank = if actor.has(Permission::PostRead) {
+        actor.rank()
+    } else {
+        i64::MIN
+    };
+    if input.range.is_literal() {
+        return search_literal(ctx, &input, &query, board, max_read_rank, page).await;
+    }
     let q = SearchQuery {
         fts: query.to_fts(input.range),
         board_id: board.as_ref().map(|b| b.id.clone()),
-        // 글 읽기 권한이 없으면 어떤 게시판도 걸리지 않게 한다.
-        max_read_rank: if actor.has(Permission::PostRead) {
-            actor.rank()
-        } else {
-            i64::MIN
-        },
+        max_read_rank,
         pages: actor.has(Permission::SiteView) && input.range != Range::Tag,
         newest: input.sort == Sort::New,
         limit: page.limit(),
@@ -187,39 +192,9 @@ pub async fn search(ctx: &Ctx, actor: &Actor, input: SearchInput) -> Result<Sear
         match r {
             SearchRef::Post(id) => {
                 // 저장소가 이미 거른 것을 한 번 더 확인한다 (비밀글이 새지 않게).
-                let Some(p) = ctx.store.post_by_id(&id).await? else {
-                    continue;
-                };
-                if !p.is_public() || p.is_secret {
-                    continue;
+                if let Some(hit) = post_hit(ctx, &mut boards_by_id, &id, &query, None).await? {
+                    items.push(hit);
                 }
-                if !boards_by_id.contains_key(&p.board_id) {
-                    let Some(b) = ctx.store.board_by_id(&p.board_id).await? else {
-                        continue;
-                    };
-                    boards_by_id.insert(b.id.clone(), b);
-                }
-                let Some(b) = boards_by_id.get(&p.board_id) else {
-                    continue;
-                };
-                let plain = markdown::plain_text(&p.body_md, usize::MAX);
-                items.push(Hit {
-                    kind: HitKind::Post,
-                    url: urls::path(&Target::Post {
-                        board: &b.slug,
-                        post: &p.slug,
-                    }),
-                    board: Some(HitBoard {
-                        slug: b.slug.clone(),
-                        name: b.name.clone(),
-                    }),
-                    snippet: snippet(&plain, &query, SNIPPET_CHARS),
-                    id: p.id,
-                    title: p.title,
-                    published_at: p.published_at,
-                    tags: p.tags,
-                    cover: p.cover,
-                });
             }
             SearchRef::Page(id) => {
                 let Some(p) = ctx.store.page_by_id(&id).await? else {
@@ -247,6 +222,113 @@ pub async fn search(ctx: &Ctx, actor: &Actor, input: SearchInput) -> Result<Sear
         q: input.q.trim().to_owned(),
         range: input.range,
         sort: input.sort,
+        board: board.map(|b| b.slug),
+        items,
+        total,
+        page: page.page,
+        per_page: page.per_page,
+    })
+}
+
+/// 검색 결과로 보일 글 한 건. 저장소가 이미 거른 것을 한 번 더 확인한다 (비밀글이 새지 않게).
+/// `text` 가 있으면 본문 대신 그 글자(맞은 댓글)에서 토막을 낸다.
+async fn post_hit(
+    ctx: &Ctx,
+    boards_by_id: &mut HashMap<String, Board>,
+    id: &str,
+    query: &Query,
+    text: Option<&str>,
+) -> Result<Option<Hit>> {
+    let Some(p) = ctx.store.post_by_id(id).await? else {
+        return Ok(None);
+    };
+    if !p.is_public() || p.is_secret {
+        return Ok(None);
+    }
+    if !boards_by_id.contains_key(&p.board_id) {
+        let Some(b) = ctx.store.board_by_id(&p.board_id).await? else {
+            return Ok(None);
+        };
+        boards_by_id.insert(b.id.clone(), b);
+    }
+    let Some(b) = boards_by_id.get(&p.board_id) else {
+        return Ok(None);
+    };
+    let plain = match text {
+        Some(t) => t.to_owned(),
+        None => markdown::plain_text(&p.body_md, usize::MAX),
+    };
+    Ok(Some(Hit {
+        kind: HitKind::Post,
+        url: urls::path(&Target::Post {
+            board: &b.slug,
+            post: &p.slug,
+        }),
+        board: Some(HitBoard {
+            slug: b.slug.clone(),
+            name: b.name.clone(),
+        }),
+        snippet: snippet(&plain, query, SNIPPET_CHARS),
+        id: p.id,
+        title: p.title,
+        published_at: p.published_at,
+        tags: p.tags,
+        cover: p.cover,
+    }))
+}
+
+/// `LIKE` 패턴: 앞뒤 `%`, 안의 `%`·`_`·`\` 는 글자 그대로.
+fn like_pattern(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('%');
+    for c in s.chars() {
+        if matches!(c, '%' | '_' | '\\') {
+            out.push('\\');
+        }
+        out.push(c);
+    }
+    out.push('%');
+    out
+}
+
+/// 댓글·글쓴이 검색 (GAP Q7, ADR-0092): 검색어 전체를 글자 그대로 찾는다(띄어쓰기 포함). 늘 최신순, 페이지 없음.
+async fn search_literal(
+    ctx: &Ctx,
+    input: &SearchInput,
+    query: &Query,
+    board: Option<Board>,
+    max_read_rank: i64,
+    page: PageReq,
+) -> Result<SearchResult> {
+    let needle = input.q.trim();
+    let target = if input.range == Range::Comment {
+        LiteralTarget::Comment
+    } else {
+        LiteralTarget::Author
+    };
+    let q = LiteralSearchQuery {
+        target,
+        pattern: like_pattern(needle),
+        board_id: board.as_ref().map(|b| b.id.clone()),
+        max_read_rank,
+        limit: page.limit(),
+        offset: page.offset(),
+    };
+    let (rows, total) = ctx.store.search_literal(&q).await?;
+    let mut boards_by_id: HashMap<String, Board> = HashMap::new();
+    if let Some(b) = &board {
+        boards_by_id.insert(b.id.clone(), b.clone());
+    }
+    let mut items = Vec::with_capacity(rows.len());
+    for (id, comment) in rows {
+        if let Some(hit) = post_hit(ctx, &mut boards_by_id, &id, query, comment.as_deref()).await? {
+            items.push(hit);
+        }
+    }
+    Ok(SearchResult {
+        q: needle.to_owned(),
+        range: input.range,
+        sort: Sort::New,
         board: board.map(|b| b.slug),
         items,
         total,

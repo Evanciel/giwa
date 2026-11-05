@@ -8,7 +8,7 @@
 use maru_core::Result;
 use maru_core::model::{Page, Post};
 use maru_core::search::{Document, INDEX_VERSION};
-use maru_core::store::{SearchQuery, SearchRef};
+use maru_core::store::{LiteralSearchQuery, LiteralTarget, SearchQuery, SearchRef};
 use sqlx::{SqliteConnection, SqlitePool};
 
 use crate::sqlite::db_error;
@@ -211,4 +211,106 @@ pub(crate) async fn search(pool: &SqlitePool, q: &SearchQuery) -> Result<(Vec<Se
     .map_err(db_error)?;
     let rows = rows.into_iter().map(|r| (r.post_id, r.page_id)).collect();
     Ok((refs(rows), total))
+}
+
+// 댓글·글쓴이 검색 (GAP Q7, ADR-0092). 공개 기준은 search 와 같다. 글자 그대로라 색인이 없고,
+// 작은 사이트(SQLite 한 파일) 규모를 전제로 LIKE 로 찾는다.
+pub(crate) async fn search_literal(
+    pool: &SqlitePool,
+    q: &LiteralSearchQuery,
+) -> Result<(Vec<(String, Option<String>)>, i64)> {
+    match q.target {
+        LiteralTarget::Comment => {
+            let rows = sqlx::query!(
+                r#"SELECT p.id AS "id!",
+                          (SELECT c.body FROM comments c
+                            WHERE c.post_id = p.id AND c.status = 'published'
+                              AND c.body LIKE ?3 ESCAPE '\'
+                            ORDER BY c.created_at DESC LIMIT 1) AS "body: String"
+                   FROM posts p
+                   JOIN boards b ON b.id = p.board_id
+                   JOIN roles r ON r.name = json_extract(b.policy, '$.read')
+                   WHERE p.status = 'published' AND p.kind = 'post' AND p.is_secret = 0
+                     AND r.rank <= ?1 AND (?2 IS NULL OR p.board_id = ?2)
+                     AND EXISTS (SELECT 1 FROM comments c
+                                  WHERE c.post_id = p.id AND c.status = 'published'
+                                    AND c.body LIKE ?3 ESCAPE '\')
+                   ORDER BY p.published_at DESC, p.id DESC
+                   LIMIT ?4 OFFSET ?5"#,
+                q.max_read_rank,
+                q.board_id,
+                q.pattern,
+                q.limit,
+                q.offset
+            )
+            .fetch_all(pool)
+            .await
+            .map_err(db_error)?;
+            let total = sqlx::query_scalar!(
+                r#"SELECT count(*) AS "n!: i64"
+                   FROM posts p
+                   JOIN boards b ON b.id = p.board_id
+                   JOIN roles r ON r.name = json_extract(b.policy, '$.read')
+                   WHERE p.status = 'published' AND p.kind = 'post' AND p.is_secret = 0
+                     AND r.rank <= ?1 AND (?2 IS NULL OR p.board_id = ?2)
+                     AND EXISTS (SELECT 1 FROM comments c
+                                  WHERE c.post_id = p.id AND c.status = 'published'
+                                    AND c.body LIKE ?3 ESCAPE '\')"#,
+                q.max_read_rank,
+                q.board_id,
+                q.pattern
+            )
+            .fetch_one(pool)
+            .await
+            .map_err(db_error)?;
+            Ok((
+                rows.into_iter().map(|r| (r.id, Some(r.body))).collect(),
+                total,
+            ))
+        }
+        LiteralTarget::Author => {
+            // 탈퇴·비활성 회원의 이름으로는 찾지 않는다.
+            let rows = sqlx::query_scalar!(
+                r#"SELECT p.id AS "id!"
+                   FROM posts p
+                   JOIN boards b ON b.id = p.board_id
+                   JOIN roles r ON r.name = json_extract(b.policy, '$.read')
+                   LEFT JOIN members m ON m.id = p.author_id
+                   WHERE p.status = 'published' AND p.kind = 'post' AND p.is_secret = 0
+                     AND r.rank <= ?1 AND (?2 IS NULL OR p.board_id = ?2)
+                     AND ((p.guest_name IS NOT NULL AND p.guest_name LIKE ?3 ESCAPE '\')
+                       OR (p.guest_name IS NULL AND m.status = 'active' AND m.withdrawn_at IS NULL
+                           AND m.display_name LIKE ?3 ESCAPE '\'))
+                   ORDER BY p.published_at DESC, p.id DESC
+                   LIMIT ?4 OFFSET ?5"#,
+                q.max_read_rank,
+                q.board_id,
+                q.pattern,
+                q.limit,
+                q.offset
+            )
+            .fetch_all(pool)
+            .await
+            .map_err(db_error)?;
+            let total = sqlx::query_scalar!(
+                r#"SELECT count(*) AS "n!: i64"
+                   FROM posts p
+                   JOIN boards b ON b.id = p.board_id
+                   JOIN roles r ON r.name = json_extract(b.policy, '$.read')
+                   LEFT JOIN members m ON m.id = p.author_id
+                   WHERE p.status = 'published' AND p.kind = 'post' AND p.is_secret = 0
+                     AND r.rank <= ?1 AND (?2 IS NULL OR p.board_id = ?2)
+                     AND ((p.guest_name IS NOT NULL AND p.guest_name LIKE ?3 ESCAPE '\')
+                       OR (p.guest_name IS NULL AND m.status = 'active' AND m.withdrawn_at IS NULL
+                           AND m.display_name LIKE ?3 ESCAPE '\'))"#,
+                q.max_read_rank,
+                q.board_id,
+                q.pattern
+            )
+            .fetch_one(pool)
+            .await
+            .map_err(db_error)?;
+            Ok((rows.into_iter().map(|id| (id, None)).collect(), total))
+        }
+    }
 }

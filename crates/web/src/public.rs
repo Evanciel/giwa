@@ -67,6 +67,9 @@ struct PageQuery {
     range: String,
     #[serde(default)]
     sort: String,
+    /// 목록 순서 latest·views·comments (GAP Q7, ADR-0092). 검색 순서 `sort` 와 다르다.
+    #[serde(default)]
+    order: String,
 }
 
 /// 템플릿에 넘기는 사이트 공통 값. 설정·메뉴를 못 읽어도 화면은 기본값으로 뜬다.
@@ -283,8 +286,10 @@ async fn board_inner(
     }
     let page = PageReq::new(q.page.unwrap_or(1), site.settings.posts_per_page);
     let category = q.category.as_deref().filter(|c| !c.is_empty());
+    let sort = posts::ListSort::parse(&q.order);
     let found =
-        posts::public_board_filtered(&state.ctx, &actor, &board, category, fields, page).await?;
+        posts::public_board_filtered(&state.ctx, &actor, &board, category, fields, sort, page)
+            .await?;
     let cats = &found.categories;
     let target = match &found.category {
         Some(c) => Target::Category {
@@ -323,6 +328,21 @@ async fn board_inner(
             v
         })
         .collect::<Vec<_>>();
+    // 목록 순서 단추 (GAP Q7): 분류·거르기를 유지한다.
+    let sorts = [
+        (posts::ListSort::Latest, "최신"),
+        (posts::ListSort::Views, "조회"),
+        (posts::ListSort::Comments, "댓글"),
+    ]
+    .iter()
+    .map(|(s, label)| {
+        json!({
+            "label": label,
+            "url": filtered_path(&sorted_path(&urls::path(&target), *s), &found.filters, None),
+            "current": *s == sort,
+        })
+    })
+    .collect::<Vec<_>>();
     let title = match &found.category {
         Some(c) => format!("{} · {} · {}", c.name, board.name, site.settings.name),
         None => format!("{} · {}", board.name, site.settings.name),
@@ -339,8 +359,9 @@ async fn board_inner(
         "category": found.category.as_ref().map(|c| category_json(&board.slug, c)),
         "notices": notices,
         "posts": items,
-        "pagination": pagination(&found.posts, &filtered_path(&urls::path(&target), &found.filters, None)),
-        "field_filters": field_filters(&board.field_schema, &urls::path(&target), &found.filters),
+        "pagination": pagination(&found.posts, &filtered_path(&sorted_path(&urls::path(&target), sort), &found.filters, None)),
+        "field_filters": field_filters(&board.field_schema, &sorted_path(&urls::path(&target), sort), &found.filters),
+        "sorts": sorts,
         "search": search_form(&urls::path(&Target::Board { board: &board.slug }), "", Range::All, Sort::Rank),
     });
     // 위키 게시판: 필요한 문서·외톨이 문서 (GAP C13).
@@ -395,11 +416,13 @@ struct SearchParams {
     page: Option<u32>,
 }
 
-const RANGES: [(Range, &str); 4] = [
+const RANGES: [(Range, &str); 6] = [
     (Range::All, "제목+내용"),
     (Range::Title, "제목"),
     (Range::Body, "내용"),
     (Range::Tag, "태그"),
+    (Range::Comment, "댓글"),
+    (Range::Author, "글쓴이"),
 ];
 
 /// 검색 칸 값 (아직 찾지 않은 상태).
@@ -435,6 +458,8 @@ async fn search_view(
         return Ok((view, Value::Null));
     }
     view["searched"] = json!(true);
+    // 댓글·글쓴이는 글자 그대로 찾고 늘 최신순이다 (ADR-0092).
+    view["literal"] = json!(range.is_literal());
     let keep = |sort: Sort| {
         urls::with_query(
             base,
@@ -610,6 +635,15 @@ fn list_fields(
         }
     }
     (shown, flags)
+}
+
+/// 목록 순서를 붙인 주소 (기본 순서면 그대로).
+fn sorted_path(base: &str, sort: posts::ListSort) -> String {
+    if sort == posts::ListSort::Latest {
+        base.to_owned()
+    } else {
+        urls::with_query(base, &[("order", sort.as_str())])
+    }
 }
 
 /// 거르기를 유지한 주소. `change` 가 있으면 그 칸만 바꾸거나(값) 뺀다(`None` 값).

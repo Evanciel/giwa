@@ -7,7 +7,7 @@
 {% else %}
 <div class="search-head">
   <p class="search-count" role="status"><strong>“{{ search.q }}”</strong> 검색 결과 {{ search.total }}건</p>
-  {% if search.total > 1 %}
+  {% if search.total > 1 and not search.literal %}
   <ul class="search-sort" aria-label="정렬">
     {% for s in search.sorts %}<li><a href="{{ s.url }}"{% if s.current %} aria-current="true"{% endif %}>{{ s.label }}</a></li>{% endfor %}
   </ul>
@@ -30,7 +30,8 @@
 {% else %}
 <div class="empty">
   <p>찾는 글이 없습니다. 다른 말로 찾아 보세요.</p>
-  <p class="hint">2글자 이상 낱말로, 띄어쓰기를 바꿔서, 또는 「제목+내용」 으로 넓혀 보세요.</p>
+  {% if search.literal %}<p class="hint">댓글·글쓴이는 적은 글자 그대로(띄어쓰기 포함) 찾습니다. 더 짧게 적어 보세요.</p>
+  {% else %}<p class="hint">2글자 이상 낱말로, 띄어쓰기를 바꿔서, 또는 「제목+내용」 으로 넓혀 보세요.</p>{% endif %}
 </div>
 {% endif %}
 {% endif %}

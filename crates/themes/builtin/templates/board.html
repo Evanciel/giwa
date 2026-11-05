@@ -21,6 +21,13 @@
   </ul>
 </nav>
 {% endif %}
+{% if posts and sorts %}
+<nav class="cats list-sort" aria-label="목록 순서">
+  <ul>
+    {% for s in sorts %}<li><a href="{{ s.url }}" rel="nofollow"{% if s.current %} aria-current="page"{% endif %}>{{ s.label }}</a></li>{% endfor %}
+  </ul>
+</nav>
+{% endif %}
 {% for g in field_filters %}
 <nav class="cats field-filter" aria-label="{{ g.label }}(으)로 거르기">
   <ul>

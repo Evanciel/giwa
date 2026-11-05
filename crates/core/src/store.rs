@@ -144,6 +144,8 @@ pub struct PublishedQuery {
     pub by_activity: bool,
     /// 여분 필드 거르기 (ADR-0089): `fields::MetaFilter` 배열의 JSON. 없으면 거르지 않는다.
     pub meta_filters: Option<String>,
+    /// 목록 순서 (ADR-0092): `views`·`comments`. 없으면 최신(스레드) 순.
+    pub sort: Option<String>,
 }
 
 impl PublishedQuery {
@@ -160,6 +162,7 @@ impl PublishedQuery {
             exclude_secret: false,
             by_activity: false,
             meta_filters: None,
+            sort: None,
         }
     }
 }
@@ -177,6 +180,27 @@ pub struct SearchQuery {
     pub pages: bool,
     /// 참이면 최신순, 거짓이면 정확도순(같으면 최신).
     pub newest: bool,
+    pub limit: i64,
+    pub offset: i64,
+}
+
+/// 글자 그대로 찾는 곳 (GAP Q7, ADR-0092).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LiteralTarget {
+    /// 공개 댓글 내용
+    Comment,
+    /// 글쓴이: 활동 중인 회원의 닉네임 또는 손님 이름
+    Author,
+}
+
+/// 댓글·글쓴이 검색 조건. 공개 기준은 [`SearchQuery`] 와 같다(글만, 페이지 없음, 최신순).
+#[derive(Debug, Clone)]
+pub struct LiteralSearchQuery {
+    pub target: LiteralTarget,
+    /// `LIKE` 패턴. `%`·`_`·`\` 는 `\` 로 이미 막았다 (`ESCAPE '\'`).
+    pub pattern: String,
+    pub board_id: Option<String>,
+    pub max_read_rank: i64,
     pub limit: i64,
     pub offset: i64,
 }
@@ -428,6 +452,12 @@ pub trait Store: Send + Sync {
 
     /// 공개 검색: 공개된 글(비밀글 제외, 읽을 수 있는 게시판)·공개 페이지. 맞은 수도 돌려준다.
     async fn search(&self, q: &SearchQuery) -> Result<(Vec<SearchRef>, i64)>;
+
+    /// 댓글·글쓴이 검색 (ADR-0092). (글 ID, 맞은 댓글 내용) 과 맞은 글 수.
+    async fn search_literal(
+        &self,
+        q: &LiteralSearchQuery,
+    ) -> Result<(Vec<(String, Option<String>)>, i64)>;
 }
 
 #[async_trait]
