@@ -140,7 +140,10 @@ async fn place_normalizes_config_and_is_idempotent() {
     .await
     .unwrap();
     assert_eq!(second.sort_order, 1);
-    assert_eq!(second.config, json!({ "board": "", "limit": 5, "days": 7 }));
+    assert_eq!(
+        second.config,
+        json!({ "board": "", "limit": 5, "days": 7, "style": "lines" })
+    );
     assert_eq!(widgets::list(&e.ctx, &local).await.unwrap().len(), 2);
     assert_eq!(audits(&e.db, "widget.place").await, 2);
 }

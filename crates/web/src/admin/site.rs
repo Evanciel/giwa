@@ -171,6 +171,8 @@ struct BoardForm {
     write_approval: String,
     #[serde(default)]
     field_schema: String,
+    #[serde(default)]
+    description: String,
 }
 
 impl BoardForm {
@@ -198,6 +200,7 @@ impl BoardForm {
             } else {
                 serde_json::to_string_pretty(&b.field_schema).unwrap_or_default()
             },
+            description: b.description.clone(),
         }
     }
 
@@ -241,6 +244,7 @@ impl BoardForm {
             layout: Some(self.layout.clone()),
             field_schema: Some(field_schema),
             list_order: Some(self.list_order.clone()),
+            description: Some(self.description.clone()),
         })
     }
 }

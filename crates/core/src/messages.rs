@@ -111,6 +111,9 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         }
         "error.name_reserved" => "`{value}` 는 쓸 수 없는 닉네임입니다.",
         "error.bio_invalid" => "자기소개는 {max}자 이하로, 제어 문자 없이 적어 주세요.",
+        "error.board_description" => {
+            "게시판 안내 문구는 {max}자 이하 평문으로, 제어 문자 없이 적어 주세요."
+        }
         "error.field_filter" => {
             "칸 `{key}`: 거르기(filter)는 select·multiselect·boolean 칸에만 켤 수 있습니다."
         }

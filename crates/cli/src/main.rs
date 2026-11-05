@@ -768,6 +768,9 @@ pub struct BoardUpdateArgs {
     /// 목록 순서: latest, activity. 빈 값("")이면 종류의 기본값으로
     #[arg(long)]
     pub order: Option<String>,
+    /// 목록 위 안내 문구(평문 300자, 줄바꿈 가능). 빈 값("")이면 지운다
+    #[arg(long)]
+    pub description: Option<String>,
     /// 읽기 최소 역할 (guest, member, editor, admin, owner)
     #[arg(long)]
     pub read: Option<String>,

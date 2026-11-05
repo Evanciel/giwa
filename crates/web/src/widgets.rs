@@ -114,7 +114,7 @@ async fn view(
                 more_url = json!(recent_popular_url());
             }
             let items = summaries_any_board(state, &list, site).await?;
-            json!({ "posts": items, "days": c.days })
+            json!({ "posts": items, "days": c.days, "style": c.style })
         }
         "post_tabs" => {
             let c: PostTabsConfig = cfg(w)?;

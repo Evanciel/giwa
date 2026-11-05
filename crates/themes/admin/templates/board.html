@@ -17,6 +17,11 @@
         <input id="b-name" name="name" value="{{ form.name }}" maxlength="60" required autocomplete="off">
       </div>
       <div class="stack">
+        <label for="b-description">안내 문구</label>
+        <textarea id="b-description" name="description" rows="3" maxlength="300" aria-describedby="b-description-hint">{{ form.description }}</textarea>
+        <p id="b-description-hint" class="hint">목록 위에 보입니다. 평문 300자까지, 줄바꿈 가능. 비우면 보이지 않습니다.</p>
+      </div>
+      <div class="stack">
         <label for="b-kind">종류</label>
         <select id="b-kind" name="kind">
           {% for c in choices.kinds %}<option value="{{ c.id }}"{% if form.kind == c.id %} selected{% endif %}>{{ c.label }}</option>{% endfor %}

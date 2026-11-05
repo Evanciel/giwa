@@ -1,1 +1,12 @@
+{% if w.data.style == "cards" %}
+{# 게시판 베스트 카드 (GAP Q9, ADR-0094): 순위·그림·제목·조회. 그림이 없으면 첫 글자. #}
+{% if w.data.posts %}
+<ol class="widget-gallery widget-best cols-3">
+  {% for post in w.data.posts %}
+  <li><a href="{{ post.url }}"><span class="rank" aria-hidden="true">{{ loop.index }}</span>{% if post.thumb %}<img src="{{ post.thumb.src }}" alt="" width="{{ post.thumb.width }}" height="{{ post.thumb.height }}" loading="lazy" decoding="async">{% else %}<span class="tile-fallback" aria-hidden="true">{{ post.initial }}</span>{% endif %}<span class="caption">{{ post.title }}{% if post.comments %} <span class="comment-count" aria-label="댓글 {{ post.comments }}개">[{{ post.comments }}]</span>{% endif %}</span></a></li>
+  {% endfor %}
+</ol>
+{% else %}<p class="widget-empty">아직 글이 없습니다.</p>{% endif %}
+{% else %}
 {% with numbered = true, show_date = false %}{% include "widgets/_post_lines.html" %}{% endwith %}
+{% endif %}

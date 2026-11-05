@@ -970,6 +970,7 @@ async fn board(g: &Global, cmd: BoardCmd) -> Out {
                 layout: args.layout,
                 field_schema: args.fields.as_deref().map(read_fields).transpose()?,
                 list_order: args.order,
+                description: args.description,
             };
             let b = boards::update(&ctx, &actor, &args.slug, patch).await?;
             Ok((to_value(&b)?, format!("게시판을 고쳤습니다: {}", b.slug)))

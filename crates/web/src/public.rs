@@ -1309,6 +1309,7 @@ async fn not_found(State(state): State<AppState>) -> Response {
 
 fn board_json(board: &Board) -> Value {
     json!({
+        "description": board.description,
         "slug": board.slug,
         "name": board.name,
         "kind": board.kind,

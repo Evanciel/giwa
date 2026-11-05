@@ -107,6 +107,7 @@ async fn create_inner(
         policy,
         sort_order: input.sort_order,
         field_schema,
+        description: String::new(),
         created_at: now.clone(),
         updated_at: now,
     };
@@ -145,6 +146,24 @@ pub struct BoardPatch {
     /// 목록 순서. 빈 문자열이면 종류의 기본값으로 되돌린다 (ADR-0058)
     #[serde(default)]
     pub list_order: Option<String>,
+    /// 목록 위 안내 문구, 평문 300자까지 (줄바꿈 가능). 빈 문자열이면 지운다 (GAP Q9, ADR-0094)
+    #[serde(default)]
+    pub description: Option<String>,
+}
+
+/// 게시판 안내 문구 최대 글자 수 (ADR-0094)
+pub const MAX_DESCRIPTION_CHARS: usize = 300;
+
+/// 안내 문구 검사: 앞뒤 공백을 떼고 줄바꿈은 `\n` 으로, 줄바꿈 말고 제어 문자는 받지 않는다.
+pub fn check_description(s: &str) -> Result<String> {
+    let d = s.replace("\r\n", "\n").trim().to_owned();
+    let bad = d.chars().any(|c| c.is_control() && c != '\n');
+    if d.chars().count() > MAX_DESCRIPTION_CHARS || bad {
+        return Err(Error::new(Code::Validation)
+            .with_message("error.board_description")
+            .arg("max", MAX_DESCRIPTION_CHARS.to_string()));
+    }
+    Ok(d)
 }
 
 pub async fn update(ctx: &Ctx, actor: &Actor, slug: &str, patch: BoardPatch) -> Result<Board> {
@@ -179,6 +198,9 @@ pub async fn update(ctx: &Ctx, actor: &Actor, slug: &str, patch: BoardPatch) -> 
     if let Some(o) = patch.list_order {
         check_order(&o)?;
         after.list_order = o;
+    }
+    if let Some(d) = &patch.description {
+        after.description = check_description(d)?;
     }
     if after == before {
         return Ok(before);

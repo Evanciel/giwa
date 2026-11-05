@@ -807,3 +807,9 @@ a.wikilink-new { color: #b3261e; text-decoration-style: dashed; }
 .comment-order a[aria-current] { color: var(--fg); font-weight: 700; }
 .comment-order a:hover, .comment-order a:focus-visible { color: var(--primary); text-decoration: underline; }
 .op-badge { font-size: .75rem; font-weight: 700; color: var(--primary); border: 1px solid currentColor; border-radius: 999px; padding: 0 calc(var(--space) * .75); }
+
+
+/* 게시판 안내 문구와 베스트 카드 (GAP Q9, ADR-0094) */
+.board-desc { margin: calc(var(--space) * -1) 0 calc(var(--space) * 4); color: var(--muted); white-space: pre-line; max-width: 70ch; }
+.widget-best .rank { position: absolute; top: var(--space); left: var(--space); z-index: 1; min-width: 1.6em; padding: 0 .4em; border-radius: 999px; background: var(--fg); color: var(--bg); font-size: var(--fs-sm); font-weight: 700; line-height: 1.6; text-align: center; font-variant-numeric: tabular-nums; }
+.widget-best .caption .comment-count { color: inherit; opacity: .85; }

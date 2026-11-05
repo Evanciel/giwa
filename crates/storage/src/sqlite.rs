@@ -52,6 +52,7 @@ struct BoardRow {
     policy: String,
     sort_order: i64,
     field_schema: String,
+    description: String,
     created_at: String,
     updated_at: String,
 }
@@ -71,6 +72,7 @@ impl TryFrom<BoardRow> for Board {
             policy,
             sort_order: r.sort_order,
             field_schema: serde_json::from_str(&r.field_schema).map_err(Error::internal)?,
+            description: r.description,
             created_at: r.created_at,
             updated_at: r.updated_at,
         })
@@ -395,7 +397,7 @@ async fn settings<'e>(e: impl SqliteExecutor<'e>) -> Result<Vec<(String, Value)>
 async fn board_by_id<'e>(e: impl SqliteExecutor<'e>, id: &str) -> Result<Option<Board>> {
     sqlx::query_as!(
         BoardRow,
-        "SELECT id, slug, name, kind, layout, list_order, policy, sort_order, field_schema, created_at, updated_at
+        "SELECT id, slug, name, kind, layout, list_order, policy, sort_order, field_schema, description, created_at, updated_at
          FROM boards WHERE id = ?",
         id
     )
@@ -409,7 +411,7 @@ async fn board_by_id<'e>(e: impl SqliteExecutor<'e>, id: &str) -> Result<Option<
 async fn board_by_slug<'e>(e: impl SqliteExecutor<'e>, slug: &str) -> Result<Option<Board>> {
     sqlx::query_as!(
         BoardRow,
-        "SELECT id, slug, name, kind, layout, list_order, policy, sort_order, field_schema, created_at, updated_at
+        "SELECT id, slug, name, kind, layout, list_order, policy, sort_order, field_schema, description, created_at, updated_at
          FROM boards WHERE slug = ?",
         slug
     )
@@ -839,7 +841,7 @@ impl Store for SqliteStore {
     async fn list_boards(&self) -> Result<Vec<Board>> {
         let rows = sqlx::query_as!(
             BoardRow,
-            "SELECT id, slug, name, kind, layout, list_order, policy, sort_order, field_schema, created_at, updated_at
+            "SELECT id, slug, name, kind, layout, list_order, policy, sort_order, field_schema, description, created_at, updated_at
              FROM boards ORDER BY sort_order, slug"
         )
         .fetch_all(&self.db.read)
@@ -2358,8 +2360,8 @@ impl WriteTx for SqliteWriteTx {
         let fields = json(&b.field_schema)?;
         sqlx::query!(
             "INSERT INTO boards (id, slug, name, kind, layout, list_order, policy, sort_order,
-                                 field_schema, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                 field_schema, description, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             b.id,
             b.slug,
             b.name,
@@ -2369,6 +2371,7 @@ impl WriteTx for SqliteWriteTx {
             policy,
             b.sort_order,
             fields,
+            b.description,
             b.created_at,
             b.updated_at
         )
@@ -2383,7 +2386,7 @@ impl WriteTx for SqliteWriteTx {
         let fields = json(&b.field_schema)?;
         sqlx::query!(
             "UPDATE boards SET name = ?, kind = ?, layout = ?, list_order = ?, policy = ?,
-                              sort_order = ?, field_schema = ?, updated_at = ?
+                              sort_order = ?, field_schema = ?, description = ?, updated_at = ?
              WHERE id = ?",
             b.name,
             b.kind,
@@ -2392,6 +2395,7 @@ impl WriteTx for SqliteWriteTx {
             policy,
             b.sort_order,
             fields,
+            b.description,
             b.updated_at,
             b.id
         )

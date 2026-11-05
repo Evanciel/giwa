@@ -246,6 +246,7 @@ async fn comments_can_be_closed() {
             layout: None,
             field_schema: None,
             list_order: None,
+            description: None,
         },
     )
     .await

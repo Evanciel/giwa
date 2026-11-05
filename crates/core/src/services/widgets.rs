@@ -61,7 +61,17 @@ pub struct PopularPostsConfig {
     /// 0 이면 전체 기간, 최대 365. 기본 7
     #[serde(default = "seven")]
     pub days: u32,
+    /// 모양: lines(제목 줄, 기본)·cards(그림 카드, 게시판 베스트) (GAP Q9, ADR-0094)
+    #[serde(default = "lines")]
+    pub style: String,
 }
+
+fn lines() -> String {
+    "lines".into()
+}
+
+/// 인기 글 위젯 모양
+pub const POPULAR_STYLES: [&str; 2] = ["lines", "cards"];
 
 /// 글 탭의 탭 하나: 한 게시판(또는 전체)의 최신 글이나 인기 글.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -684,6 +694,9 @@ async fn check_config(ctx: &Ctx, kind: &str, config: Value) -> Result<Value> {
             let mut c: PopularPostsConfig = parse(kind, config)?;
             in_range(kind, "limit", c.limit, 1, 20)?;
             in_range(kind, "days", c.days, 0, 365)?;
+            if !POPULAR_STYLES.contains(&c.style.as_str()) {
+                return Err(bad_config(kind, "style 은 lines·cards"));
+            }
             c.board = check_board(ctx, kind, &c.board, true).await?;
             json!(c)
         }

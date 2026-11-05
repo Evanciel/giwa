@@ -135,6 +135,9 @@ pub struct Board {
     /// 글에 붙일 여분 칸 정의 (ADR-0057)
     #[serde(default)]
     pub field_schema: Vec<crate::fields::FieldDef>,
+    /// 목록 위 안내 문구, 평문 (GAP Q9, ADR-0094). 빈 값이면 보이지 않는다
+    #[serde(default)]
+    pub description: String,
     pub created_at: String,
     pub updated_at: String,
 }
