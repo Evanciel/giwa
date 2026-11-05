@@ -2545,6 +2545,7 @@ fn region_label(region: &str) -> &'static str {
         "main" => "본문 위",
         "sidebar" => "곁가지",
         "popup" => "팝업",
+        "masthead" => "머리글 이름 옆",
         _ => "바닥글",
     }
 }

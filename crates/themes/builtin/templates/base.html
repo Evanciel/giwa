@@ -30,6 +30,7 @@
 <header class="site-header">
   <div class="wrap">
     <a class="brand" href="{{ site.home_url }}">{{ site.name }}</a>
+    {% if widgets.masthead %}<div class="region region-masthead">{% for w in widgets.masthead %}{% include "_widget.html" %}{% endfor %}</div>{% endif %}
     {% if site.menus and site.menus.header %}<nav class="site-nav" aria-label="주 메뉴">{% with items = site.menus.header %}{% include "_menu.html" %}{% endwith %}</nav>{% endif %}
     {% if site.show_search %}<form class="site-search" role="search" action="{{ site.search_url }}" method="get">
       <label class="visually-hidden" for="site-q">사이트 검색</label>

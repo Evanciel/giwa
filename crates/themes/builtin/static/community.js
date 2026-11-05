@@ -118,7 +118,7 @@
   // 지금 보는 게시판의 메뉴 칸에 표시. 메뉴 HTML 도 캐시하므로 주소를 보고 여기서 단다.
   function markCurrent() {
     var here = location.pathname;
-    var links = document.querySelectorAll(".cm-nav a[href^='/']");
+    var links = document.querySelectorAll(".cm-nav-groups a[href^='/']");
     for (var i = 0; i < links.length; i++) {
       var href = links[i].getAttribute("href").replace(/\/+$/, "");
       if (href && (here === href || here.indexOf(href + "/") === 0)) {
@@ -128,8 +128,24 @@
     }
   }
 
+  // 전체 메뉴 (GAP Q12, ADR-0097). details 라 스크립트 없이도 열고 닫힌다. 여기선 바깥 누름·Esc 로 닫기만.
+  function allMenu() {
+    var d = document.querySelector(".cm-allmenu");
+    if (!d) return;
+    document.addEventListener("click", function (ev) {
+      if (d.open && !d.contains(ev.target)) d.open = false;
+    });
+    document.addEventListener("keydown", function (ev) {
+      if (ev.key === "Escape" && d.open) {
+        d.open = false;
+        d.querySelector("summary").focus();
+      }
+    });
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     markCurrent();
+    allMenu();
     var btn = document.querySelector(".cm-mode");
     if (btn) {
       btn.hidden = false;

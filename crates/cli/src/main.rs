@@ -891,7 +891,7 @@ pub struct PageEditArgs {
 pub enum MenuCmd {
     /// 메뉴 보기
     Show {
-        /// header, footer
+        /// header, footer, quick(바로가기 단추)
         #[arg(default_value = "header")]
         location: String,
     },
@@ -901,7 +901,7 @@ pub enum MenuCmd {
 
 #[derive(Debug, Args)]
 pub struct MenuSetArgs {
-    /// header, footer
+    /// header, footer, quick(바로가기 단추)
     pub location: String,
     /// `라벨=링크`. 링크는 home, board:<슬러그>, page:<슬러그>, /경로, https://...
     /// 하위 메뉴는 `상위라벨>라벨=링크`. 순서대로 쌓인다
@@ -1001,7 +1001,7 @@ pub enum WidgetCmd {
 pub struct WidgetPlaceArgs {
     /// latest_posts, popular_posts, markdown_block, menu, notice_bar, search, image_banner, gallery_grid
     pub kind: String,
-    /// header, hero, main, sidebar, footer
+    /// header, hero, main, sidebar, footer, masthead(머리글 이름 옆), popup
     #[arg(long)]
     pub region: String,
     /// all, home, boards, board:<주소>, page:<주소>

@@ -850,3 +850,8 @@ a.wikilink-new { color: #b3261e; text-decoration-style: dashed; }
 .recent-boards a:hover, .recent-boards a:focus-visible { text-decoration: underline; }
 .recent-boards-clear { flex: none; border: 0; background: none; color: var(--muted); font: inherit; cursor: pointer; padding: 0; }
 .recent-boards-clear:hover, .recent-boards-clear:focus-visible { color: var(--fg); text-decoration: underline; }
+
+/* 머리글 이름 옆 자리 (GAP Q12, ADR-0097): 광고·배너를 판 없이 */
+.region-masthead { display: flex; align-items: center; gap: calc(var(--space) * 2); min-width: 0; }
+.region-masthead .widget { border: 0; padding: 0; background: none; }
+.region-masthead img { max-height: 5.5rem; width: auto; }

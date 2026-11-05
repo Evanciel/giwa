@@ -860,6 +860,7 @@ fn menu_items(rows: &[MenuRow]) -> Result<Vec<MenuItem>, Error> {
 fn menu_location_label(location: &str) -> &'static str {
     match location {
         "header" => "머리글 메뉴",
+        "quick" => "바로가기 단추",
         _ => "바닥글 메뉴",
     }
 }

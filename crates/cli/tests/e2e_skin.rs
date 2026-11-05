@@ -246,6 +246,87 @@ fn community_preset_skin_and_account_bar() {
     let js = http(&bind, "GET", "/assets/community.js", &[], "");
     assert_eq!(js.status, 200);
     assert!(js.header("content-type").contains("javascript"));
+    // 머리글 배치 (GAP Q12, ADR-0097): 붙는 메뉴 줄 + 전체 메뉴, 검색 + 프리셋 바로가기 단추
+    assert!(
+        home.body.contains("class=\"cm-nav-groups\""),
+        "{}",
+        home.body
+    );
+    assert!(home.body.contains("<details class=\"cm-allmenu\">"));
+    assert!(
+        home.body
+            .contains("<nav class=\"cm-quick\" aria-label=\"바로가기\">")
+    );
+    assert!(
+        home.body.contains("<a href=\"/recent\">전체 새 글</a>"),
+        "{}",
+        home.body
+    );
+    assert!(
+        !home.body.contains("region-masthead"),
+        "빈 자리는 그리지 않는다"
+    );
+    // 그룹 + 하위 게시판: 메뉴 줄엔 펼침 목록, 전체 메뉴엔 그룹마다 묶음
+    maru(
+        &data,
+        &[
+            "menu",
+            "set",
+            "header",
+            "--item",
+            "공지사항=board:notice",
+            "--item",
+            "커뮤니티=board:free",
+            "--item",
+            "커뮤니티>사진=board:photo",
+            "--item",
+            "커뮤니티>토론=board:forum",
+        ],
+    );
+    let menu = maru(&data, &["menu", "show", "quick"]);
+    assert_eq!(menu.as_array().unwrap().len(), 4, "{menu}");
+    // 이름 옆 자리(광고·배너)
+    maru(
+        &data,
+        &[
+            "widget",
+            "place",
+            "markdown_block",
+            "--region",
+            "masthead",
+            "--config",
+            r#"{"body":"이름 옆 안내"}"#,
+        ],
+    );
+    let bad = run(&data, &["widget", "place", "search", "--region", "nope"]);
+    assert!(
+        bad["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("masthead"),
+        "{bad}"
+    );
+    let home = http(&bind, "GET", "/", &[], "");
+    let nav = home.body.split("class=\"cm-nav-groups\"").nth(1).unwrap();
+    let nav = nav.split("</details>").next().unwrap();
+    let after = nav
+        .split("<a href=\"/b/free\">커뮤니티</a>")
+        .nth(1)
+        .unwrap();
+    assert!(after.trim_start().starts_with("<ul>"), "{nav}");
+    assert!(nav.contains("<a href=\"/b/photo\">사진</a>"));
+    assert!(
+        nav.contains("<a class=\"cm-allmenu-head\" href=\"/b/free\">커뮤니티</a>"),
+        "{nav}"
+    );
+    assert!(home.body.contains("<div class=\"region region-masthead\">"));
+    assert!(home.body.contains("이름 옆 안내"));
+    let board = http(&bind, "GET", "/b/free", &[], "");
+    assert!(
+        board.body.contains("region-masthead"),
+        "이름 옆 자리는 모든 화면"
+    );
+
     let tokens = http(&bind, "GET", "/assets/tokens.css", &[], "");
     assert!(
         tokens.body.contains(":root[data-mode=\"dark\"]"),

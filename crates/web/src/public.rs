@@ -111,6 +111,7 @@ async fn site_value(state: &AppState, s: &SiteSettings) -> Value {
         "menus": {
             "header": menu_value(state, "header").await,
             "footer": menu_value(state, "footer").await,
+            "quick": menu_value(state, "quick").await,
         },
     })
 }

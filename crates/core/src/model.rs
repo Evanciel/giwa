@@ -567,8 +567,8 @@ pub struct Page {
     pub updated_at: String,
 }
 
-/// 메뉴 위치.
-pub const MENU_LOCATIONS: [&str; 2] = ["header", "footer"];
+/// 메뉴 위치. `quick` 은 검색 칸 옆 바로가기 단추 줄이다 (GAP Q12, ADR-0097).
+pub const MENU_LOCATIONS: [&str; 3] = ["header", "footer", "quick"];
 
 /// 메뉴 항목이 가리키는 곳. 주소는 렌더할 때 `urls` 로 만든다 (ADR-0017).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -596,8 +596,10 @@ pub struct MenuItem {
 }
 
 /// 위젯을 놓는 영역 (SPEC §8.3, ADR-0059). 테마가 그리지 않는 영역의 위젯은 빠진다.
-/// `popup` 은 팝업 종류 전용 자리다 (ADR-0060).
-pub const WIDGET_REGIONS: [&str; 6] = ["header", "hero", "main", "sidebar", "footer", "popup"];
+/// `popup` 은 팝업 종류 전용 자리다 (ADR-0060). `masthead` 는 머리글의 사이트 이름 옆(광고·배너)이다 (ADR-0097).
+pub const WIDGET_REGIONS: [&str; 7] = [
+    "header", "hero", "main", "sidebar", "footer", "popup", "masthead",
+];
 
 /// 감사 기록 한 줄 (GAP S14, ADR-0062). `actor_name` 은 회원 표시 이름·토큰 이름(없으면 빈 값).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]

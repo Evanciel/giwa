@@ -43,14 +43,32 @@
 <header class="cm-header">
   <div class="cm-inner">
     <a class="cm-brand" href="{{ site.home_url }}">{{ site.name }}</a>
-    {% if site.show_search %}<form class="cm-search" role="search" action="{{ site.search_url }}" method="get">
-      <label class="visually-hidden" for="site-q">사이트 검색</label>
-      <input id="site-q" type="search" name="q" maxlength="100" placeholder="게시판 전체에서 찾기" autocomplete="off" enterkeyhint="search">
-      <button type="submit" aria-label="검색"><svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="7" cy="7" r="4.8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10.6 10.6 14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
-    </form>{% endif %}
+    {% if widgets.masthead %}<div class="region region-masthead">{% for w in widgets.masthead %}{% include "_widget.html" %}{% endfor %}</div>{% endif %}
   </div>
-  {% if site.menus and site.menus.header %}<nav class="cm-nav" aria-label="게시판"><div class="cm-inner">{% with items = site.menus.header %}{% include "_menu.html" %}{% endwith %}</div></nav>{% endif %}
 </header>
+{# 메뉴 줄 (GAP Q12, ADR-0097): 스크롤하면 위에 붙는다. 하위 게시판이 있는 그룹은 가리키거나 초점을 주면 펼치고,
+   「전체 메뉴」는 모든 그룹을 한 판에 보인다(스크립트 없이 details). #}
+{% if site.menus and site.menus.header %}<nav class="cm-nav" aria-label="게시판"><div class="cm-inner">
+  <div class="cm-nav-groups">{% with items = site.menus.header %}{% include "_menu.html" %}{% endwith %}</div>
+  <details class="cm-allmenu">
+    <summary>전체 메뉴</summary>
+    <div class="cm-allmenu-panel"><div class="cm-inner">
+      {% for item in site.menus.header %}<div class="cm-allmenu-group">
+        <a class="cm-allmenu-head" href="{{ item.href }}"{% if item.external %} rel="noopener noreferrer"{% endif %}>{{ item.label }}</a>
+        {% if item.children %}<ul>{% for child in item.children %}<li><a href="{{ child.href }}"{% if child.external %} rel="noopener noreferrer"{% endif %}>{{ child.label }}</a></li>{% endfor %}</ul>{% endif %}
+      </div>{% endfor %}
+    </div></div>
+  </details>
+</div></nav>{% endif %}
+{# 검색 + 바로가기 단추 (메뉴 위치 quick) #}
+{% if site.show_search or (site.menus and site.menus.quick) %}<div class="cm-searchbar"><div class="cm-inner">
+  {% if site.show_search %}<form class="cm-search" role="search" action="{{ site.search_url }}" method="get">
+    <label class="visually-hidden" for="site-q">사이트 검색</label>
+    <input id="site-q" type="search" name="q" maxlength="100" placeholder="게시판 전체에서 찾기" autocomplete="off" enterkeyhint="search">
+    <button type="submit" aria-label="검색"><svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="7" cy="7" r="4.8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10.6 10.6 14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+  </form>{% endif %}
+  {% if site.menus and site.menus.quick %}<nav class="cm-quick" aria-label="바로가기"><ul>{% for item in site.menus.quick %}<li><a href="{{ item.href }}"{% if item.external %} rel="noopener noreferrer"{% endif %}>{{ item.label }}</a></li>{% endfor %}</ul></nav>{% endif %}
+</div></div>{% endif %}
 {# 최근 본 게시판 (GAP Q11, ADR-0096). HTML 은 모두에게 같고(캐시) 목록은 이 브라우저에만 있다. site.js 가 채운다. #}
 <nav class="recent-boards" aria-label="최근 본 게시판" data-recent-boards hidden><div class="cm-inner"></div></nav>
 {% if widgets.header %}<div class="region region-header"><div class="cm-inner">{% for w in widgets.header %}{% include "_widget.html" %}{% endfor %}</div></div>{% endif %}
