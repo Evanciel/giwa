@@ -48,13 +48,22 @@ fn install_command(g: &Global) -> String {
 /// 표준 입출력 서버. stdout 은 프로토콜 전용이라 성공해도 아무것도 찍지 않는다.
 pub(crate) async fn serve(g: &Global, args: McpServeArgs) -> Result<()> {
     let secret = secret(g, &args)?;
-    let (ctx, _config, db) = open(g).await?;
+    let (mut ctx, config, db) = open(g).await?;
+    // 미리보기 주소가 지금 도는 서버를 가리키게 한다.
+    ctx.site_url = crate::commands::running_url(g, &config, &config.site_url).await;
     let res = async {
         tokens::authenticate(&ctx, &secret)
             .await
             .map_err(|e| e.next(install_command(g)))?;
         let registry = crate::modules::registry(&db)?;
-        maru_agent::serve_stdio(ctx.clone(), registry, secret).await
+        let sandbox = maru_storage::sandbox::FsSandbox::new(&DataDir::new(&g.data), db.clone());
+        maru_agent::serve_stdio(
+            ctx.clone(),
+            registry,
+            secret,
+            Some(std::sync::Arc::new(sandbox)),
+        )
+        .await
     }
     .await;
     db.close().await;
@@ -183,6 +192,7 @@ async fn ensure_token(
             name: name.to_owned(),
             scopes: wanted.to_vec(),
             board_ids: None,
+            auto_apply: false,
             expires_at: None,
         },
     )

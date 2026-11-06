@@ -9,8 +9,9 @@ use axum::http::request::Parts;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, patch, post};
 use axum::{Json, Router};
-use maru_core::model::{MenuItem, PageReq, PageStatus, PostStatus};
+use maru_core::model::{ChangesetStatus, MenuItem, PageReq, PageStatus, PostStatus};
 use maru_core::output::Success;
+use maru_core::services::changesets;
 use maru_core::services::{
     anonymous_actor, audit_log, backups, boards, categories, comments, design, files, fonts, links,
     media, members, menus, pages, posts, retention, search, settings, signals, stats, tags,
@@ -123,6 +124,10 @@ pub fn routes() -> Router<AppState> {
         .route("/search/reindex", post(reindex_search))
         .route("/privacy/run", post(run_privacy))
         .route("/signals", get(list_signals))
+        .route("/changesets", get(list_changesets).post(create_changeset))
+        .route("/changesets/{id}", get(get_changeset))
+        .route("/changesets/{id}/ops", post(add_changeset_ops))
+        .route("/changesets/{id}/{action}", post(changeset_action))
         .route("/links", get(list_links))
         .route("/links/refresh", post(refresh_link))
         .route("/posts/{id}/comments", get(post_comments))
@@ -944,6 +949,109 @@ async fn list_signals(
 struct LinksQuery {
     status: Option<String>,
     limit: Option<i64>,
+}
+
+#[derive(Deserialize)]
+struct ChangesetsQuery {
+    status: Option<String>,
+    limit: Option<i64>,
+}
+
+async fn list_changesets(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Query(q): Query<ChangesetsQuery>,
+) -> Result<Response, ApiError> {
+    let status = match q.status.as_deref() {
+        None => None,
+        Some(s) => Some(ChangesetStatus::parse(s).ok_or_else(|| {
+            Error::new(Code::Validation)
+                .with_message("error.changeset_op")
+                .arg("detail", format!("상태 `{s}` 는 없습니다"))
+        })?),
+    };
+    let list = changesets::list(&state.ctx, &actor, status, q.limit.unwrap_or(50)).await?;
+    Ok(ok(StatusCode::OK, serde_json::json!({ "items": list })))
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NewChangeset {
+    title: String,
+    #[serde(default)]
+    ops: Vec<serde_json::Value>,
+}
+
+async fn create_changeset(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    body: Result<Json<NewChangeset>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let Json(body) = body.map_err(bad_json)?;
+    Ok(ok(
+        StatusCode::CREATED,
+        changesets::create(&state.ctx, &actor, &body.title, body.ops).await?,
+    ))
+}
+
+async fn get_changeset(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(id): Path<String>,
+) -> Result<Response, ApiError> {
+    Ok(ok(
+        StatusCode::OK,
+        changesets::get(&state.ctx, &actor, &id).await?,
+    ))
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AddOps {
+    ops: Vec<serde_json::Value>,
+}
+
+async fn add_changeset_ops(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(id): Path<String>,
+    body: Result<Json<AddOps>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let Json(body) = body.map_err(bad_json)?;
+    Ok(ok(
+        StatusCode::OK,
+        changesets::add(&state.ctx, &actor, &id, body.ops).await?,
+    ))
+}
+
+async fn changeset_action(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path((id, action)): Path<(String, String)>,
+) -> Result<Response, ApiError> {
+    let ctx = &state.ctx;
+    let cs = match action.as_str() {
+        "apply" => {
+            let sandbox = state.sandbox()?;
+            changesets::apply(ctx, &actor, sandbox.as_ref(), &id).await?
+        }
+        "discard" => changesets::discard(ctx, &actor, &id).await?,
+        "revert" => changesets::revert(ctx, &actor, &id).await?,
+        "preview-link" => {
+            return Ok(ok(
+                StatusCode::OK,
+                changesets::preview_link(ctx, &actor, &id).await?,
+            ));
+        }
+        _ => {
+            return Err(Error::new(Code::NotFound)
+                .with_message("error.changeset_not_found")
+                .arg("id", id.as_str())
+                .into());
+        }
+    };
+    state.close_preview(&id).await;
+    Ok(ok(StatusCode::OK, cs))
 }
 
 /// 링크 카드 정보 (ADR-0084). 제목·설명은 남의 페이지에서 읽은 값이라 `untrusted`.

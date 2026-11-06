@@ -482,6 +482,7 @@ async fn token_lifecycle() {
             name: "테스트".into(),
             scopes: vec![],
             board_ids: None,
+            auto_apply: false,
             expires_at: None,
         },
     )
@@ -508,6 +509,7 @@ async fn token_lifecycle() {
             name: "x".into(),
             scopes: vec![Scope::Admin],
             board_ids: None,
+            auto_apply: false,
             expires_at: None,
         },
     )

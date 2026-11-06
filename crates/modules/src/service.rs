@@ -133,6 +133,7 @@ pub async fn show(ctx: &Ctx, actor: &Actor, registry: &Registry, id: &str) -> Re
 /// 꺼져 있던 동안의 이벤트는 소급하지 않는다.
 pub async fn enable(ctx: &Ctx, actor: &Actor, registry: &Registry, id: &str) -> Result<ModuleInfo> {
     actor.require(Permission::ModuleManage)?;
+    actor.check_changeset("module.enable")?;
     let m = registry.get(id).ok_or_else(|| not_found(id))?;
     let manifest = m.manifest();
     let applied = ctx.store.module_apply(id, &m.migrations()).await?;
@@ -203,6 +204,7 @@ pub async fn disable(
 /// down 마이그레이션을 실행하고 상태까지 지운다. 모듈의 데이터가 사라진다. 없으면 그대로(멱등).
 pub async fn remove(ctx: &Ctx, actor: &Actor, registry: &Registry, id: &str) -> Result<Removed> {
     actor.require(Permission::ModuleManage)?;
+    actor.check_changeset("module.remove")?;
     let m = registry.get(id).ok_or_else(|| not_found(id))?;
     let reverted = ctx.store.module_revert(id, &m.migrations()).await?;
     if ctx.store.module_row(id).await?.is_some() {

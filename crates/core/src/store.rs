@@ -675,6 +675,7 @@ impl Tx {
         target: Target,
         diff: Value,
     ) -> Result<()> {
+        actor.check_changeset(action)?;
         let rec = AuditRecord::new(actor, action, target, diff);
         self.inner.insert_audit(&rec).await?;
         self.audited += 1;

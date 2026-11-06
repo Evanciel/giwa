@@ -1,0 +1,26 @@
+{% extends "_base.html" %}
+{% block title %}변경 묶음{% endblock %}
+{% block content %}
+<div class="heading-row">
+  <h1>변경 묶음 <span class="count">{{ items | length }}</span></h1>
+</div>
+<p class="hint">에이전트가 담은 구조·디자인·모듈 변경입니다. 미리 보고 승인해야 사이트에 반영되고, 적용한 뒤에도 한 번에 되돌릴 수 있습니다.</p>
+{% if items %}
+<table class="stat-table">
+  <thead><tr><th scope="col">제목</th><th scope="col">상태</th><th scope="col">만든 쪽</th><th scope="col" class="num">연산</th><th scope="col">만든 때</th></tr></thead>
+  <tbody>
+  {% for c in items %}
+    <tr>
+      <th scope="row"><a href="/admin/changesets/{{ c.id }}">{{ c.title }}</a></th>
+      <td><span class="badge">{{ c.status_name }}</span></td>
+      <td>{{ c.who }}</td>
+      <td class="num">{{ c.op_count }}</td>
+      <td>{{ c.created_at }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="hint">아직 변경 묶음이 없습니다.</p>
+{% endif %}
+{% endblock %}

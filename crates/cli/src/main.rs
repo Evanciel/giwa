@@ -939,6 +939,9 @@ pub struct TokenCreateArgs {
     /// read, draft, publish, structure, design, admin (여러 번 지정). 생략하면 read, draft
     #[arg(long = "scope")]
     pub scopes: Vec<String>,
+    /// 사람 승인 없이 변경 묶음을 적용하게 한다. 혼자 운영하며 위험을 아는 경우에만
+    #[arg(long)]
+    pub auto_apply: bool,
     /// 만료 시각 (RFC3339)
     #[arg(long)]
     pub expires_at: Option<String>,

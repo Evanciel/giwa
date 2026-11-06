@@ -192,7 +192,20 @@ pub struct Actor {
     board_ids: Option<Vec<Id>>,
     /// 사람 승인 없이 changeset 을 적용해도 되는 토큰인가 (SPEC §5.3).
     auto_apply: bool,
+    /// changeset 을 적용하는 중인가. 이때만 토큰이 구조·디자인·모듈을 바꾼다.
+    in_changeset: bool,
 }
+
+/// 토큰이 changeset 으로만 할 수 있는 감사 동작의 앞부분 (SPEC §5.3).
+const CHANGESET_ONLY: [&str; 7] = [
+    "board.",
+    "page.",
+    "menu.",
+    "design.",
+    "settings.",
+    "widget.",
+    "module.",
+];
 
 impl Actor {
     pub fn anonymous(perms: impl IntoIterator<Item = Permission>) -> Self {
@@ -202,6 +215,7 @@ impl Actor {
             rank: rank::GUEST,
             board_ids: None,
             auto_apply: false,
+            in_changeset: false,
         }
     }
 
@@ -212,6 +226,7 @@ impl Actor {
             rank: rank::OWNER,
             board_ids: None,
             auto_apply: false,
+            in_changeset: false,
         }
     }
 
@@ -222,6 +237,7 @@ impl Actor {
             rank,
             board_ids: None,
             auto_apply: false,
+            in_changeset: false,
         }
     }
 
@@ -248,6 +264,7 @@ impl Actor {
             rank,
             board_ids,
             auto_apply: false,
+            in_changeset: false,
         }
     }
 
@@ -256,6 +273,28 @@ impl Actor {
     pub fn with_auto_apply(mut self, on: bool) -> Self {
         self.auto_apply = on;
         self
+    }
+
+    /// changeset 을 적용하는 동안의 주체. 서비스는 그대로 권한을 검사한다.
+    #[must_use]
+    pub fn for_changeset(&self) -> Self {
+        let mut actor = self.clone();
+        actor.in_changeset = true;
+        actor
+    }
+
+    /// 토큰이 이 일을 changeset 없이 하려 하면 거절한다. 모든 쓰기가 지나는 `Tx::audit` 가 묻는다.
+    pub fn check_changeset(&self, action: &str) -> Result<()> {
+        if matches!(self.kind, ActorKind::Agent { .. })
+            && !self.in_changeset
+            && CHANGESET_ONLY.iter().any(|p| action.starts_with(p))
+        {
+            return Err(Error::new(Code::Forbidden)
+                .with_message("error.changeset_required")
+                .arg("action", action)
+                .next("maru changeset new --title <제목> --ops '[...]'"));
+        }
+        Ok(())
     }
 
     pub fn can_auto_apply(&self) -> bool {

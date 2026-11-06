@@ -430,3 +430,9 @@ input.short { max-width: 10rem; }
 .module-remove { margin-top: 1rem; padding-top: .75rem; border-top: 1px solid var(--border); }
 .module-remove-row { display: flex; gap: .5rem; flex-wrap: wrap; }
 .module-remove-row input { flex: 1 1 10rem; min-width: 0; }
+
+/* 변경 묶음 */
+.changeset-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; margin: 1rem 0; }
+.changeset-actions form { margin: 0; }
+.changeset-ops { display: flex; flex-direction: column; gap: .75rem; padding-left: 1.5rem; }
+.changeset-ops details { margin-top: .25rem; }

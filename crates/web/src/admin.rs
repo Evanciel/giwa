@@ -31,6 +31,7 @@ use crate::AppState;
 use crate::error::ApiError;
 use crate::field_form;
 
+mod changesets;
 mod modules;
 mod site;
 
@@ -82,6 +83,7 @@ pub fn routes() -> Router<AppState> {
         .route("/admin/categories", post(create_category))
         .route("/admin/assets/{*path}", get(asset))
         .merge(site::routes())
+        .merge(changesets::routes())
         .merge(modules::routes())
         .layer(middleware::map_response(admin_headers))
 }

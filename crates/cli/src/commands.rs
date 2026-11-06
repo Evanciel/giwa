@@ -178,6 +178,7 @@ async fn init(g: &Global, args: InitArgs) -> Out {
                     name: "init".into(),
                     scopes: vec![],
                     board_ids: None,
+                    auto_apply: false,
                     expires_at: None,
                 },
             )
@@ -274,7 +275,7 @@ async fn login_link(g: &Global, args: LoginLinkArgs) -> Out {
 
 /// `serve --bind` 로 설정과 다른 주소에서 돌고 있으면 링크를 그 주소로 바꾼다.
 /// `site_url` 이 이 컴퓨터 주소일 때만이다. 내 도메인은 터널 뒤라 그대로 둔다 (ADR-0120).
-async fn running_url(g: &Global, config: &Config, url: &str) -> String {
+pub(crate) async fn running_url(g: &Global, config: &Config, url: &str) -> String {
     let base = config.site_url.trim_end_matches('/');
     let local = base.strip_prefix("http://").is_some_and(|h| {
         h.starts_with("127.0.0.1") || h.starts_with("localhost") || h.starts_with("[::1]")
@@ -1107,6 +1108,7 @@ async fn token_create(ctx: &Ctx, actor: &Actor, args: TokenCreateArgs) -> Out {
             name: args.name,
             scopes,
             board_ids: None,
+            auto_apply: args.auto_apply,
             expires_at: args.expires_at,
         },
     )

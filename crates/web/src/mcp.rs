@@ -15,7 +15,11 @@ pub fn routes(state: &AppState) -> Router<AppState> {
     Router::new()
         .nest_service(
             "/mcp",
-            maru_agent::http_service(state.ctx.clone(), state.modules.clone()),
+            maru_agent::http_service(
+                state.ctx.clone(),
+                state.modules.clone(),
+                state.previews.as_ref().map(|p| p.sandbox()),
+            ),
         )
         .layer(middleware::from_fn_with_state(state.clone(), require_token))
 }

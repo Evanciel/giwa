@@ -189,6 +189,7 @@ struct TokenRow {
     token_hash: String,
     scopes: String,
     board_ids: Option<String>,
+    auto_apply: bool,
     expires_at: Option<String>,
     last_used_at: Option<String>,
     revoked_at: Option<String>,
@@ -211,6 +212,7 @@ impl TryFrom<TokenRow> for Token {
             token_hash: r.token_hash,
             scopes,
             board_ids,
+            auto_apply: r.auto_apply,
             expires_at: r.expires_at,
             last_used_at: r.last_used_at,
             revoked_at: r.revoked_at,
@@ -797,9 +799,10 @@ impl Store for SqliteStore {
     async fn token_by_hash(&self, hash: &str) -> Result<Option<Token>> {
         sqlx::query_as!(
             TokenRow,
-            "SELECT id, name, token_hash, scopes, board_ids, expires_at, last_used_at,
+            r#"SELECT id, name, token_hash, scopes, board_ids,
+                    auto_apply AS "auto_apply: bool", expires_at, last_used_at,
                     revoked_at, created_at, updated_at
-             FROM tokens WHERE token_hash = ?",
+             FROM tokens WHERE token_hash = ?"#,
             hash
         )
         .fetch_optional(&self.db.read)
@@ -820,9 +823,10 @@ impl Store for SqliteStore {
     async fn list_tokens(&self) -> Result<Vec<Token>> {
         let rows = sqlx::query_as!(
             TokenRow,
-            "SELECT id, name, token_hash, scopes, board_ids, expires_at, last_used_at,
+            r#"SELECT id, name, token_hash, scopes, board_ids,
+                    auto_apply AS "auto_apply: bool", expires_at, last_used_at,
                     revoked_at, created_at, updated_at
-             FROM tokens ORDER BY created_at, id"
+             FROM tokens ORDER BY created_at, id"#
         )
         .fetch_all(&self.db.read)
         .await
@@ -2651,14 +2655,15 @@ impl WriteTx for SqliteWriteTx {
         let scopes = json(&t.scopes)?;
         let board_ids = t.board_ids.as_ref().map(json).transpose()?;
         sqlx::query!(
-            "INSERT INTO tokens (id, name, token_hash, scopes, board_ids, expires_at,
+            "INSERT INTO tokens (id, name, token_hash, scopes, board_ids, auto_apply, expires_at,
                                  last_used_at, revoked_at, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             t.id,
             t.name,
             t.token_hash,
             scopes,
             board_ids,
+            t.auto_apply,
             t.expires_at,
             t.last_used_at,
             t.revoked_at,
@@ -2674,9 +2679,10 @@ impl WriteTx for SqliteWriteTx {
     async fn token_by_id(&mut self, id: &str) -> Result<Option<Token>> {
         sqlx::query_as!(
             TokenRow,
-            "SELECT id, name, token_hash, scopes, board_ids, expires_at, last_used_at,
+            r#"SELECT id, name, token_hash, scopes, board_ids,
+                    auto_apply AS "auto_apply: bool", expires_at, last_used_at,
                     revoked_at, created_at, updated_at
-             FROM tokens WHERE id = ?",
+             FROM tokens WHERE id = ?"#,
             id
         )
         .fetch_optional(&mut *self.tx)

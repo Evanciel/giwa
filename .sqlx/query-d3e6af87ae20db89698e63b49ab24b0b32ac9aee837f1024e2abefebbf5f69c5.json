@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, name, token_hash, scopes, board_ids, expires_at, last_used_at,\n                    revoked_at, created_at, updated_at\n             FROM tokens WHERE token_hash = ?",
+  "query": "SELECT id, name, token_hash, scopes, board_ids,\n                    auto_apply AS \"auto_apply: bool\", expires_at, last_used_at,\n                    revoked_at, created_at, updated_at\n             FROM tokens WHERE token_hash = ?",
   "describe": {
     "columns": [
       {
@@ -59,8 +59,19 @@
         }
       },
       {
-        "name": "expires_at",
+        "name": "auto_apply: bool",
         "ordinal": 5,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "tokens",
+            "name": "auto_apply"
+          }
+        }
+      },
+      {
+        "name": "expires_at",
+        "ordinal": 6,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -71,7 +82,7 @@
       },
       {
         "name": "last_used_at",
-        "ordinal": 6,
+        "ordinal": 7,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -82,7 +93,7 @@
       },
       {
         "name": "revoked_at",
-        "ordinal": 7,
+        "ordinal": 8,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -93,7 +104,7 @@
       },
       {
         "name": "created_at",
-        "ordinal": 8,
+        "ordinal": 9,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -104,7 +115,7 @@
       },
       {
         "name": "updated_at",
-        "ordinal": 9,
+        "ordinal": 10,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -123,6 +134,7 @@
       false,
       false,
       true,
+      false,
       true,
       true,
       true,
@@ -130,5 +142,5 @@
       false
     ]
   },
-  "hash": "363b72e6caa56b2e67a02c3422e27fb116993dc02a52daab6de55d7a230fefdc"
+  "hash": "d3e6af87ae20db89698e63b49ab24b0b32ac9aee837f1024e2abefebbf5f69c5"
 }

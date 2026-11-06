@@ -197,19 +197,22 @@ fn headings_get_anchors_and_toc_follows_site_setting() {
     let html = http(&bind, "GET", &page_path, &[]).text();
     assert_eq!(toc_items(&html), Some(2), "{html}");
 
-    // 3. REST 로 0 → 목차 끔 (제목 id 는 남는다)
+    // 3. 토큰은 REST 로 변경 묶음을 담고, 적용하면 0 → 목차 끔 (제목 id 는 남는다)
     let auth = format!("Bearer {token}");
     let res = send(
         &bind,
-        "PATCH",
-        "/api/v1/settings",
+        "POST",
+        "/api/v1/changesets",
         &[
             ("Authorization", &auth),
             ("Content-Type", "application/json"),
         ],
-        r#"{"toc_min_headings":0}"#,
+        r#"{"title":"목차 끔","ops":[{"op":"settings.set","values":{"toc_min_headings":0}}]}"#,
     );
-    assert_eq!(res.status, 200, "{}", res.text());
+    assert_eq!(res.status, 201, "{}", res.text());
+    let staged: Value = serde_json::from_str(&res.text()).unwrap();
+    let id = staged["data"]["id"].as_str().unwrap();
+    maru(&data, &["changeset", "apply", id]);
     let html = http(&bind, "GET", &post_path, &[]).text();
     assert_eq!(toc_items(&html), None);
     assert!(html.contains("<h2 id=\"h-준비물\">"), "{html}");

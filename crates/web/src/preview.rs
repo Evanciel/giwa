@@ -40,7 +40,7 @@ const BAND_CSS: &str = ".maru-preview-band{position:sticky;top:0;z-index:9999;di
 flex-wrap:wrap;gap:.25rem .75rem;align-items:center;padding:.5rem 1rem;background:#1f2933;\
 color:#fff;font:600 .875rem/1.5 system-ui,sans-serif}.maru-preview-band strong{color:#ffd166}\
 .maru-preview-band span{font-weight:400;min-width:0;overflow-wrap:anywhere}\
-.maru-preview-band a{margin-left:auto;color:#fff;text-decoration:underline}\n@media (max-width:640px){.maru-preview-band{position:static}}";
+.maru-preview-band span{margin-right:auto}.maru-preview-band a{color:#fff;text-decoration:underline}\n@media (max-width:640px){.maru-preview-band{position:static}}";
 
 struct Open {
     id: String,
@@ -77,6 +77,10 @@ impl Previews {
             inner: Mutex::new(Inner::default()),
             building: AsyncMutex::new(()),
         }
+    }
+
+    pub fn sandbox(&self) -> Arc<dyn Sandbox> {
+        self.sandbox.clone()
     }
 
     fn locked(&self) -> Result<std::sync::MutexGuard<'_, Inner>> {
@@ -321,8 +325,10 @@ fn band(cs: &Changeset) -> String {
         "<link rel=\"stylesheet\" href=\"/__preview/band.css\">\
          <div class=\"maru-preview-band\" role=\"status\"><strong>미리보기</strong>\
          <span>{}. 아직 사이트에 반영되지 않았습니다.</span>\
+         <a href=\"/admin/changesets/{}\">적용·버리기</a>\
          <a href=\"/__preview/exit\">미리보기 끝내기</a></div>",
-        escape(&cs.title)
+        escape(&cs.title),
+        escape(&cs.id)
     )
 }
 

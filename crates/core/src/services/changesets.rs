@@ -278,6 +278,7 @@ pub async fn list(
 /// 버린다. 이미 버렸으면 그대로 돌려준다.
 pub async fn discard(ctx: &Ctx, actor: &Actor, id: &str) -> Result<Changeset> {
     let mut cs = get(ctx, actor, id).await?;
+    checked(actor, &cs.ops)?;
     match cs.status {
         ChangesetStatus::Discarded => return Ok(cs),
         ChangesetStatus::Preview => {}
@@ -595,6 +596,7 @@ fn recreate_board(before: &Board) -> Vec<ChangeOp> {
 
 /// 연산 하나를 실행하고 역연산을 돌려준다. 바뀐 것이 없으면 역연산도 없다.
 async fn run(ctx: &Ctx, actor: &Actor, op: &ChangeOp) -> Result<Vec<ChangeOp>> {
+    let actor = &actor.for_changeset();
     Ok(match op {
         ChangeOp::BoardCreate(input) => {
             let b = boards::create(ctx, actor, (**input).clone()).await?;

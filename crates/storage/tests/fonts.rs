@@ -340,18 +340,26 @@ async fn design_tokens_use_uploaded_fonts_and_block_removal() {
     let e = env().await;
     let a = designer();
     // 없는 서체는 토큰에 못 넣는다.
-    let err = design::update(&e.ctx, &a, json!({ "font": { "body": "company-gothic" } }))
-        .await
-        .unwrap_err();
+    let err = design::update(
+        &e.ctx,
+        &a.for_changeset(),
+        json!({ "font": { "body": "company-gothic" } }),
+    )
+    .await
+    .unwrap_err();
     assert_eq!(err.code(), Code::Validation);
     assert!(err.next_commands().iter().any(|c| c == "maru font list"));
 
     fonts::add(&e.ctx, &a, new_font("Company Gothic", None))
         .await
         .unwrap();
-    let tokens = design::update(&e.ctx, &a, json!({ "font": { "body": "company-gothic" } }))
-        .await
-        .unwrap();
+    let tokens = design::update(
+        &e.ctx,
+        &a.for_changeset(),
+        json!({ "font": { "body": "company-gothic" } }),
+    )
+    .await
+    .unwrap();
     let css = tokens.to_css(&fonts::list(&e.ctx).await.unwrap());
     assert!(css.contains("--font-body: \"maru-u-company-gothic\", "));
 
@@ -364,8 +372,12 @@ async fn design_tokens_use_uploaded_fonts_and_block_removal() {
             .iter()
             .any(|c| c == "maru design set --set font.body=Pretendard")
     );
-    design::update(&e.ctx, &a, json!({ "font": { "body": "Pretendard" } }))
-        .await
-        .unwrap();
+    design::update(
+        &e.ctx,
+        &a.for_changeset(),
+        json!({ "font": { "body": "Pretendard" } }),
+    )
+    .await
+    .unwrap();
     fonts::remove(&e.ctx, &a, "company-gothic").await.unwrap();
 }

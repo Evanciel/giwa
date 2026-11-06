@@ -426,9 +426,13 @@ fn point_module_lifecycle_through_cli_rest_and_screens() {
     let (status, body) = http(&bind, "DELETE", "/api/v1/modules/point", &headers, "");
     assert_eq!(status, 400, "purge 없이는 지우지 않는다: {body}");
 
-    // 끄기: 주소 404, 위젯 조용히 빠짐, 위젯 설정·데이터 유지.
+    // 토큰은 끄지 못하고 묶음에 담아야 한다.
     let (status, body) = http(&bind, "POST", "/api/v1/modules/point/disable", &headers, "");
-    assert_eq!(status, 200, "{body}");
+    assert_eq!(status, 403, "{body}");
+    assert!(body.contains("maru changeset new"), "{body}");
+
+    // 끄기: 주소 404, 위젯 조용히 빠짐, 위젯 설정·데이터 유지.
+    maru(&data, &["module", "disable", "point"]);
     assert_eq!(get(&bind, "/m/point/ranking").0, 404);
     let (status, home) = get(&bind, "/");
     assert_eq!(status, 200);

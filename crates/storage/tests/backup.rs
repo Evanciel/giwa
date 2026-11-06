@@ -71,6 +71,7 @@ async fn seed(ctx: &Ctx) -> String {
             name: "에이전트".into(),
             scopes: vec![],
             board_ids: None,
+            auto_apply: false,
             expires_at: None,
         },
     )

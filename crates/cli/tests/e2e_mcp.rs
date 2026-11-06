@@ -386,7 +386,7 @@ fn 표준_입출력으로_스코프만큼_툴이_보이고_서비스의_권한�
     for want in ["get_site", "list_boards", "create_draft", "get_post"] {
         assert!(tools.iter().any(|t| t == want), "{want}: {tools:?}");
     }
-    // 기본 스코프에는 발행·심사가 없다. 구조·디자인을 바꾸는 툴은 누구에게도 없다.
+    // 기본 스코프에는 발행·심사도, 구조·디자인을 담는 툴도 없다.
     for not in [
         "publish_post",
         "moderate_comment",
@@ -562,4 +562,178 @@ fn http_입구는_토큰으로만_열리고_터널의_host도_받는다() {
     maru(&data, &["token", "revoke", issued["id"].as_str().unwrap()]);
     let (status, _, _) = post_mcp(&bind, &bind, Some(&token), &call);
     assert_eq!(status, 401);
+}
+
+#[test]
+fn 변경_툴은_묶음에_담기만_하고_사람이_적용한다() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("사이트");
+    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    let config = tmp.path().join("mcp.json");
+    let installed = install(
+        &data,
+        "claude-code",
+        &config,
+        &["read", "structure", "design"],
+    );
+    let (file, _) = secret(&installed);
+    let mut c = Stdio2::start(&data, &file);
+
+    let tools = c.tools();
+    for want in [
+        "create_board",
+        "set_tokens",
+        "place_widget",
+        "create_site_from_preset",
+        "list_changesets",
+        "discard_changeset",
+    ] {
+        assert!(tools.iter().any(|t| t == want), "{want}: {tools:?}");
+    }
+    for not in ["apply_changeset", "revert_changeset", "enable_module"] {
+        assert!(!tools.iter().any(|t| t == not), "{not}: {tools:?}");
+    }
+    let has = |data: &Path, slug: &str| {
+        maru(data, &["board", "list"])
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|b| b["slug"] == slug)
+    };
+
+    // 담기만 한다. 사이트는 그대로고 사람에게 건넬 주소가 나온다.
+    let (err, first) = c.call(
+        "create_board",
+        json!({
+            "changeset_title": "새 판",
+            "slug": "from-mcp",
+            "name": "담은 판",
+            "kind": "forum",
+        }),
+    );
+    assert!(!err, "{first}");
+    assert_eq!(first["status"], "preview");
+    assert_eq!(first["ops"], 1);
+    assert!(
+        first["preview_url"].as_str().unwrap().contains("token="),
+        "{first}"
+    );
+    assert!(!has(&data, "from-mcp"));
+    let id = first["changeset_id"].as_str().unwrap().to_owned();
+
+    // 같은 묶음에 이어 담는다.
+    let (err, second) = c.call(
+        "update_board",
+        json!({ "changeset_id": id, "slug": "from-mcp", "patch": { "name": "고친 판" } }),
+    );
+    assert!(!err, "{second}");
+    assert_eq!(second["changeset_id"], id.as_str());
+    assert_eq!(second["ops"], 2);
+
+    // 형식이 틀리면 담기지 않는다.
+    let (err, bad) = c.call(
+        "create_board",
+        json!({ "changeset_id": id, "slug": "no-name" }),
+    );
+    assert!(err, "{bad}");
+    let (err, shown) = c.call("get_changeset", json!({ "id": id }));
+    assert!(!err, "{shown}");
+    assert_eq!(shown["ops"].as_array().unwrap().len(), 2);
+
+    // 토큰은 적용하지 못하고, 사람이 하면 들어간다.
+    let (err, denied) = c.call("apply_changeset", json!({ "id": id }));
+    assert!(err, "{denied}");
+    assert!(!has(&data, "from-mcp"));
+    assert_eq!(
+        maru(&data, &["changeset", "apply", &id])["status"],
+        "applied"
+    );
+    assert_eq!(
+        maru(&data, &["board", "show", "from-mcp"])["name"],
+        "고친 판"
+    );
+
+    // 프리셋도 담기만 한다.
+    let (err, preset) = c.call("create_site_from_preset", json!({ "preset": "community" }));
+    assert!(!err, "{preset}");
+    assert!(preset["ops"].as_u64().unwrap() > 1, "{preset}");
+    let (err, gone) = c.call("discard_changeset", json!({ "id": preset["changeset_id"] }));
+    assert!(!err, "{gone}");
+    assert_eq!(gone["status"], "discarded");
+
+    // 글만 쓰는 토큰에게는 묶음 툴이 없다.
+    let plain = install(&data, "cursor", &tmp.path().join("plain.json"), &[]);
+    let (plain_file, _) = secret(&plain);
+    let tools = Stdio2::start(&data, &plain_file).tools();
+    assert!(!tools.iter().any(|t| t.contains("changeset")), "{tools:?}");
+}
+
+#[test]
+fn 자동_적용_토큰은_표준_입출력과_http_모두에서_적용한다() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("사이트");
+    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    let issued = maru(
+        &data,
+        &[
+            "token",
+            "create",
+            "--name",
+            "자동",
+            "--scope",
+            "read",
+            "--scope",
+            "structure",
+            "--auto-apply",
+        ],
+    );
+    let token = issued["secret"].as_str().unwrap().to_owned();
+    let file = tmp.path().join("token.txt");
+    std::fs::write(&file, &token).unwrap();
+
+    let mut c = Stdio2::start(&data, &file);
+    let tools = c.tools();
+    assert!(tools.iter().any(|t| t == "apply_changeset"), "{tools:?}");
+    let (err, staged) = c.call(
+        "create_board",
+        json!({ "slug": "auto-stdio", "name": "자동 판", "kind": "forum" }),
+    );
+    assert!(!err, "{staged}");
+    let id = staged["changeset_id"].as_str().unwrap().to_owned();
+    let (err, applied) = c.call("apply_changeset", json!({ "id": id }));
+    assert!(!err, "{applied}");
+    assert_eq!(applied["status"], "applied");
+    let (err, reverted) = c.call("revert_changeset", json!({ "id": id }));
+    assert!(!err, "{reverted}");
+    assert_eq!(reverted["status"], "reverted");
+    drop(c);
+
+    let (_server, bind) = start_server(&data);
+    let call = |n: u64, name: &str, args: Value| {
+        let (status, _, body) = post_mcp(
+            &bind,
+            &bind,
+            Some(&token),
+            &rpc(n, "tools/call", json!({ "name": name, "arguments": args })),
+        );
+        assert_eq!(status, 200, "{body}");
+        parse_call(&json_of(&body)["result"])
+    };
+    let (err, staged) = call(
+        1,
+        "create_board",
+        json!({ "slug": "auto-http", "name": "자동 판", "kind": "forum" }),
+    );
+    assert!(!err, "{staged}");
+    let (err, applied) = call(
+        2,
+        "apply_changeset",
+        json!({ "id": staged["changeset_id"] }),
+    );
+    assert!(!err, "{applied}");
+    assert_eq!(applied["status"], "applied");
+    assert_eq!(
+        maru(&data, &["board", "show", "auto-http"])["name"],
+        "자동 판"
+    );
 }

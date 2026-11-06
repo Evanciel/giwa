@@ -23,6 +23,9 @@ pub struct NewToken {
     pub scopes: Vec<Scope>,
     #[serde(default)]
     pub board_ids: Option<Vec<String>>,
+    /// 사람 승인 없이 changeset 을 적용하게 한다. 원칙 4 의 예외이니 명시적으로만 켠다.
+    #[serde(default)]
+    pub auto_apply: bool,
     /// RFC3339
     #[serde(default)]
     pub expires_at: Option<String>,
@@ -64,6 +67,7 @@ pub async fn create(ctx: &Ctx, actor: &Actor, input: NewToken) -> Result<IssuedT
         token_hash: hash(&secret),
         scopes,
         board_ids: input.board_ids,
+        auto_apply: input.auto_apply,
         expires_at,
         last_used_at: None,
         revoked_at: None,
@@ -108,7 +112,7 @@ pub async fn authenticate(ctx: &Ctx, secret: &str) -> Result<Actor> {
         return Err(invalid());
     }
     ctx.store.touch_token(&token.id, &now).await?;
-    Ok(Actor::agent(token.id, &token.scopes, token.board_ids))
+    Ok(Actor::agent(token.id, &token.scopes, token.board_ids).with_auto_apply(token.auto_apply))
 }
 
 /// 토큰 목록. 원문·해시는 내보내지 않는다. 운영자만.

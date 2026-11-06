@@ -32,6 +32,7 @@ use maru_core::Actor;
 use maru_core::actor::Permission;
 use maru_core::model::Media;
 use maru_core::services::backups::Archiver;
+use maru_core::services::changesets::Sandbox;
 use maru_core::services::links::{self, LinkFetcher};
 use maru_core::services::mail::{self, Mailer};
 use maru_core::services::stats::{self, StatCounter};
@@ -145,6 +146,21 @@ impl AppState {
     pub fn with_archiver(mut self, archiver: Arc<dyn Archiver>) -> Self {
         self.archiver = Some(archiver);
         self
+    }
+
+    /// 변경 묶음을 시험할 사본. 없으면 내부 오류(서버를 이 저장소 없이 띄운 경우).
+    pub(crate) fn sandbox(&self) -> Result<Arc<dyn Sandbox>> {
+        self.previews
+            .as_ref()
+            .map(|p| p.sandbox())
+            .ok_or_else(|| Error::internal("사본 보관소가 연결되지 않았습니다"))
+    }
+
+    /// 적용·버림·되돌림 뒤에는 그 묶음의 미리보기를 닫는다.
+    pub(crate) async fn close_preview(&self, id: &str) {
+        if let Some(previews) = &self.previews {
+            previews.close(id).await;
+        }
     }
 
     /// 백업 보관소. 없으면 내부 오류(서버를 이 저장소 없이 띄운 경우).

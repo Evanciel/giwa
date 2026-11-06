@@ -1,0 +1,52 @@
+{% extends "_base.html" %}
+{% block title %}{{ cs.title }}{% endblock %}
+{% block content %}
+<p><a href="/admin/changesets">변경 묶음 목록</a></p>
+<div class="heading-row">
+  <h1>{{ cs.title }} <span class="badge">{{ cs.status_name }}</span></h1>
+</div>
+<p class="hint">만든 쪽: {{ cs.who }} · 만든 때: {{ cs.created_at }}{% if cs.applied_at %} · 적용: {{ cs.applied_at }}{% endif %}{% if cs.reverted_at %} · 되돌림: {{ cs.reverted_at }}{% endif %}</p>
+{% if cs.error %}<p class="error" role="alert">{{ cs.error }}</p>{% endif %}
+
+<div class="changeset-actions">
+  {% if approver %}
+  {% if cs.can_preview %}<a href="/__preview/{{ cs.id }}">사이트에서 미리 보기</a>{% endif %}
+  {% if cs.can_apply %}
+  <form method="post" action="/admin/changesets/{{ cs.id }}/apply" class="inline">
+    <input type="hidden" name="_csrf" value="{{ csrf }}">
+    <button type="submit">사이트에 적용</button>
+  </form>
+  {% endif %}
+  {% if cs.can_discard %}
+  <form method="post" action="/admin/changesets/{{ cs.id }}/discard" class="inline">
+    <input type="hidden" name="_csrf" value="{{ csrf }}">
+    <button type="submit" class="secondary">버리기</button>
+  </form>
+  {% endif %}
+  {% if cs.can_revert %}
+  <form method="post" action="/admin/changesets/{{ cs.id }}/revert" class="inline">
+    <input type="hidden" name="_csrf" value="{{ csrf }}">
+    <button type="submit" class="warn">되돌리기</button>
+  </form>
+  {% endif %}
+  {% else %}
+  <p class="hint">적용·버리기·되돌리기는 소유자와 관리자만 할 수 있습니다.</p>
+  {% endif %}
+</div>
+
+<section class="site-section" aria-labelledby="cs-ops">
+  <h2 id="cs-ops">연산 {{ cs.op_count }}개</h2>
+  {% if cs.ops %}
+  <ol class="changeset-ops">
+  {% for op in cs.ops %}
+    <li>
+      <strong>{{ op.label }}</strong>{% if op.target %} <code>{{ op.target }}</code>{% endif %}
+      <details><summary>자세히</summary><pre class="audit-diff">{{ op.json }}</pre></details>
+    </li>
+  {% endfor %}
+  </ol>
+  {% else %}
+  <p class="hint">담긴 연산이 없습니다.</p>
+  {% endif %}
+</section>
+{% endblock %}

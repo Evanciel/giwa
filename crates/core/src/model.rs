@@ -371,6 +371,8 @@ pub struct Token {
     pub token_hash: String,
     pub scopes: Vec<Scope>,
     pub board_ids: Option<Vec<Id>>,
+    /// 사람 승인 없이 changeset 을 적용해도 되는가
+    pub auto_apply: bool,
     pub expires_at: Option<String>,
     pub last_used_at: Option<String>,
     pub revoked_at: Option<String>,
