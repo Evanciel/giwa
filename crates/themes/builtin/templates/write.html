@@ -23,7 +23,8 @@
     <label for="title">제목</label>
     <input id="title" type="text" name="title" value="{{ write.title }}" maxlength="200" required{% if not write.error %} autofocus{% endif %}>
     <label for="body">내용</label>
-    <textarea id="body" name="body" rows="14" required aria-describedby="body-hint">{{ write.body }}</textarea>
+    <textarea id="body" name="body" rows="14" required aria-describedby="body-hint"{% if site.stickers %} data-stickers="markdown"{% endif %}>{{ write.body }}</textarea>
+    {% if site.stickers %}<script src="/assets/stickers.js" defer{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %}></script>{% endif %}
     <p id="body-hint" class="hint">빈 줄로 문단을 나눕니다. <code>**굵게**</code>, <code>- 목록</code>, 주소는 그대로 붙여 넣으면 됩니다.</p>
     {% if write.upload %}
     <div class="write-attach" data-attach-url="{{ write.upload }}" hidden>

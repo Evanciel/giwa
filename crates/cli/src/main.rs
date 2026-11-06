@@ -94,6 +94,8 @@ enum Command {
     /// 올린 서체 (글 안 꾸밈·사이트 본문 서체에 쓴다)
     #[command(subcommand)]
     Font(FontCmd),
+    /// 내장 스티커 목록. 글에는 `![이름](src)`, 댓글에는 `:id:` 로 넣는다
+    Stickers,
     /// 사이트 검색 (공개 화면 `/search` 와 같은 결과). `maru search reindex` 는 색인 다시 만들기
     Search(SearchArgs),
     /// 회원 목록·상태·역할 (회원 관리 권한)
@@ -1092,6 +1094,9 @@ pub struct SiteSetArgs {
     /// 표 목록 왼쪽 칸에 글 번호 대신 추천 수를 보일지 (true/false). 반응 모듈이 꺼져 있으면 번호
     #[arg(long)]
     pub list_votes: Option<bool>,
+    /// 댓글·공개 글쓰기의 스티커를 쓸지 (true/false)
+    #[arg(long)]
+    pub stickers: Option<bool>,
     /// 방문자 통계를 며칠 남길지 (30~3650)
     #[arg(long)]
     pub stats_retention_days: Option<u32>,

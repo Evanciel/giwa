@@ -56,6 +56,7 @@ pub async fn run(g: &Global, command: Command) -> ExitCode {
         Command::Site(cmd) => site(g, cmd).await,
         Command::Design(cmd) => design_cmd(g, cmd).await,
         Command::Font(cmd) => font_cmd(g, cmd).await,
+        Command::Stickers => stickers_cmd(),
         Command::Search(args) => search_cmd(g, args).await,
         Command::Member(cmd) => member_cmd(g, cmd).await,
         Command::Comment(cmd) => comment_cmd(g, cmd).await,
@@ -1631,6 +1632,17 @@ fn widget_line(w: &maru_core::model::Widget) -> String {
     )
 }
 
+// ---- stickers ----
+
+fn stickers_cmd() -> Out {
+    let items = maru_themes::stickers();
+    let mut human = format!("스티커 {}종. 글: ![이름](주소)  댓글: :id:", items.len());
+    for s in items {
+        human.push_str(&format!("\n{}  {}  {}", s.id, s.label, s.src));
+    }
+    Ok((json!({ "items": items }), human))
+}
+
 // ---- site ----
 
 async fn site(g: &Global, cmd: SiteCmd) -> Out {
@@ -1652,6 +1664,7 @@ async fn site(g: &Global, cmd: SiteCmd) -> Out {
                 show_search: args.show_search,
                 list_under_post: args.list_under_post,
                 list_votes: args.list_votes,
+                stickers: args.stickers,
                 stats_retention_days: args.stats_retention_days,
                 signup: args.signup,
                 signup_verify: args.signup_verify,

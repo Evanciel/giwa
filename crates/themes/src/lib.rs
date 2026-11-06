@@ -89,6 +89,7 @@ fn public_env(
     env.add_function("url_for", url_for);
     env.add_filter("ago", ago);
     env.add_filter("short_count", short_count);
+    env.add_filter("stickers", stickers_filter);
     env.set_loader(move |name| {
         if let Some(text) = dir.as_deref().and_then(|d| read_user(d, "templates", name)) {
             return Ok(Some(text));
@@ -308,19 +309,90 @@ fn html_formatter(
     if !matches!(state.auto_escape(), AutoEscape::Html) || value.is_safe() {
         return minijinja::escape_formatter(out, state, value);
     }
-    let s = value.to_string();
-    let mut escaped = String::with_capacity(s.len());
+    let mut escaped = String::new();
+    push_escaped(&mut escaped, &value.to_string());
+    out.write_str(&escaped).map_err(minijinja::Error::from)
+}
+
+fn push_escaped(out: &mut String, s: &str) {
+    out.reserve(s.len());
     for c in s.chars() {
         match c {
-            '&' => escaped.push_str("&amp;"),
-            '<' => escaped.push_str("&lt;"),
-            '>' => escaped.push_str("&gt;"),
-            '"' => escaped.push_str("&quot;"),
-            '\'' => escaped.push_str("&#x27;"),
-            c => escaped.push(c),
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            '\'' => out.push_str("&#x27;"),
+            c => out.push(c),
         }
     }
-    out.write_str(&escaped).map_err(minijinja::Error::from)
+}
+
+/// 스티커 하나 (GAP E15, ADR-0115). 목록은 `static/stickers/index.json` 한 곳에 있고 고르기 창도 그 파일을 읽는다.
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
+pub struct Sticker {
+    pub id: String,
+    pub label: String,
+    pub src: String,
+}
+
+/// 내장 스티커 전부.
+pub fn stickers() -> &'static [Sticker] {
+    #[derive(serde::Deserialize)]
+    struct Index {
+        sets: Vec<Set>,
+    }
+    #[derive(serde::Deserialize)]
+    struct Set {
+        items: Vec<Sticker>,
+    }
+    static ALL: std::sync::LazyLock<Vec<Sticker>> = std::sync::LazyLock::new(|| {
+        serde_json::from_str::<Index>(include_str!("../builtin/static/stickers/index.json"))
+            .map(|i| i.sets.into_iter().flat_map(|s| s.items).collect())
+            .unwrap_or_default()
+    });
+    &ALL
+}
+
+/// 댓글 하나에 그림으로 그리는 스티커 수. 넘치면 글자로 둔다(도배 방지).
+const MAX_STICKERS_PER_BODY: usize = 10;
+
+/// 글자 본문의 `:cat-1:` 을 스티커 그림으로 바꾸고 나머지는 이스케이프한다. 모르는 이름은 글자 그대로다.
+fn stickers_html(body: &str) -> String {
+    let mut out = String::with_capacity(body.len());
+    let mut rest = body;
+    let mut shown = 0;
+    while let Some(at) = rest.find(':') {
+        push_escaped(&mut out, &rest[..at]);
+        let after = &rest[at + 1..];
+        let found = after
+            .find(':')
+            .map(|end| &after[..end])
+            .filter(|_| shown < MAX_STICKERS_PER_BODY)
+            .and_then(|id| stickers().iter().find(|s| s.id == id));
+        if let Some(s) = found {
+            out.push_str("<img class=\"sticker\" src=\"");
+            push_escaped(&mut out, &s.src);
+            out.push_str("\" alt=\"");
+            push_escaped(&mut out, &s.label);
+            out.push_str("\" width=\"96\" height=\"96\" loading=\"lazy\" decoding=\"async\">");
+            rest = &after[s.id.len() + 1..];
+            shown += 1;
+        } else {
+            out.push(':');
+            rest = after;
+        }
+    }
+    push_escaped(&mut out, rest);
+    out
+}
+
+/// `{{ c.body|stickers(site.stickers) }}`. 설정이 꺼져 있으면 값을 그대로 돌려줘 평소처럼 이스케이프된다.
+fn stickers_filter(body: minijinja::Value, on: Option<bool>) -> minijinja::Value {
+    match (on.unwrap_or(false), body.as_str()) {
+        (true, Some(s)) => minijinja::Value::from_safe_string(stickers_html(s)),
+        _ => body,
+    }
 }
 
 fn safe_join(base: &Path, rel: &str) -> Option<PathBuf> {
@@ -349,6 +421,7 @@ fn mime_for(path: &str) -> Option<&'static str> {
         "ico" => "image/x-icon",
         "woff2" => "font/woff2",
         "txt" => "text/plain; charset=utf-8",
+        "json" => "application/json",
         _ => return None,
     })
 }
@@ -491,6 +564,38 @@ mod tests {
                 assert!(!body.contains("font-size"), "{selector} {{{body}}}");
             }
         }
+    }
+
+    #[test]
+    fn sticker_catalog_matches_embedded_files() {
+        let all = stickers();
+        assert_eq!(all.len(), 63);
+        let mut ids: Vec<&str> = all.iter().map(|s| s.id.as_str()).collect();
+        ids.sort_unstable();
+        ids.dedup();
+        assert_eq!(ids.len(), 63, "이름이 겹치지 않는다");
+        let theme = Theme::new(None);
+        for s in all {
+            let path = s.src.strip_prefix("/assets/").unwrap();
+            assert!(theme.asset(path).is_some(), "{} 파일 없음", s.src);
+            assert!(!s.label.is_empty());
+        }
+    }
+
+    #[test]
+    fn stickers_html_escapes_text_and_keeps_unknown_codes() {
+        let html = stickers_html("<b>안녕</b> :cat-1: 12:30 :cat-999: :cat-2:");
+        assert!(
+            html.starts_with("&lt;b&gt;안녕&lt;/b&gt; <img class=\"sticker\""),
+            "{html}"
+        );
+        assert_eq!(html.matches("<img").count(), 2, "{html}");
+        assert!(html.contains("12:30 :cat-999: <img"), "{html}");
+        // 그림 수는 정해 둔 데까지만
+        let many = ":cat-1:".repeat(MAX_STICKERS_PER_BODY + 2);
+        let html = stickers_html(&many);
+        assert_eq!(html.matches("<img").count(), MAX_STICKERS_PER_BODY);
+        assert!(html.ends_with(":cat-1::cat-1:"), "{html}");
     }
 
     #[test]

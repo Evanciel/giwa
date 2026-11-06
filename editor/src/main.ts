@@ -467,6 +467,7 @@ class Editor {
             img.setAttribute("src", src);
             img.setAttribute("alt", alt ?? "");
             wrap.className = width ? `me-img img-w${width}` : "me-img";
+            wrap.classList.toggle("me-img-sticker", String(src).startsWith("/assets/stickers/"));
             cap.textContent = title ?? "";
             cap.hidden = !title;
           };
@@ -843,12 +844,59 @@ class Editor {
       t.addEventListener("click", () => show(i));
       tabs.append(t);
     });
+    const stickerTab = el("button", { type: "button", role: "tab", class: "me-chars-tab" }, "스티커");
+    stickerTab.addEventListener("click", () => {
+      tabs.querySelectorAll("button").forEach((b) => b.setAttribute("aria-selected", String(b === stickerTab)));
+      void this.showStickers(grid);
+    });
+    tabs.append(stickerTab);
     const close = el("button", { type: "button", class: "me-link me-chars-close" }, "닫기");
     close.addEventListener("click", () => this.toggleChars(false));
     this.chars.replaceChildren(tabs, grid, close);
     show(0);
     this.chars.hidden = false;
     (grid.querySelector("button") as HTMLButtonElement | null)?.focus();
+  }
+
+  // 스티커는 그림 문법으로 들어간다 (GAP E15, ADR-0115). 목록은 처음 열 때 읽는다.
+  private async showStickers(grid: HTMLElement) {
+    grid.replaceChildren();
+    try {
+      const res = await fetch("/assets/stickers/index.json");
+      if (!res.ok) throw new Error(String(res.status));
+      const data = (await res.json()) as { sets: { items: { label: string; src: string }[] }[] };
+      grid.replaceChildren(
+        ...data.sets.flatMap((set) =>
+          set.items.map((s) => {
+            const b = el("button", { type: "button", class: "me-char me-char-sticker", title: s.label, "aria-label": s.label });
+            b.append(el("img", { src: s.src, alt: "", loading: "lazy" }));
+            b.addEventListener("click", () => this.insertSticker(s.label, s.src));
+            return b;
+          }),
+        ),
+      );
+    } catch {
+      grid.replaceChildren(el("p", { class: "me-chars-error" }, "스티커를 불러오지 못했습니다."));
+    }
+  }
+
+  private insertSticker(label: string, src: string) {
+    const t = this.charTarget;
+    if (this.mode === "rich") {
+      const { state } = this.view;
+      const from = t ? Math.min(t.from, state.doc.content.size) : state.selection.from;
+      const to = t ? Math.min(t.to, state.doc.content.size) : state.selection.to;
+      const node = state.schema.nodes.image.create({ src, alt: label });
+      this.view.dispatch(state.tr.replaceWith(from, to, node));
+      const pos = from + node.nodeSize;
+      this.charTarget = { from: pos, to: pos };
+    } else {
+      const text = `![${label}](${src})`;
+      const from = t?.from ?? this.textarea.selectionStart;
+      const to = t?.to ?? this.textarea.selectionEnd;
+      this.replaceSource(from, to, text, from + text.length, from + text.length);
+      this.charTarget = { from: from + text.length, to: from + text.length };
+    }
   }
 
   private insertChar(c: string) {

@@ -5,7 +5,7 @@ description = "커뮤니티 스킨, 공지·자유·질문·사진·토론 게�
 
 [[ops]]
 op = "settings.ensure"
-values = { skin = "community", flood_seconds = 15, posts_per_page = 20, list_under_post = true, list_votes = true }
+values = { skin = "community", flood_seconds = 15, posts_per_page = 20, list_under_post = true, list_votes = true, stickers = true }
 
 [[ops]]
 op = "tokens.ensure"

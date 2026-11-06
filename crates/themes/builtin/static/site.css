@@ -200,6 +200,16 @@ main { min-height: 50vh; }
 .account-form.inline button { margin-top: 0; }
 .account-links { margin: calc(var(--space) * 3) 0 0; font-size: var(--fs-sm); color: var(--muted); display: flex; flex-wrap: wrap; gap: calc(var(--space) * 1); }
 .account-links a { color: var(--primary); }
+/* 스티커 (GAP E15, ADR-0115). 본문 그림 규칙을 덮어 글자처럼 줄 안에 둔다. */
+img.sticker { display: inline-block; width: 6rem; height: 6rem; margin: 0 .125rem; vertical-align: bottom; border-radius: 0; box-shadow: none; }
+.comment-body img.sticker { width: 4.5rem; height: 4.5rem; }
+.account-form button.sticker-open { justify-self: start; margin-top: 0; font-size: var(--fs-sm); font-weight: 400; color: var(--fg); background: var(--surface); border-color: var(--border); padding: calc(var(--space) * .5) calc(var(--space) * 1.25); }
+.account-form button.sticker-open:hover, .account-form button.sticker-open[aria-expanded="true"] { color: var(--primary); background: var(--surface); border-color: var(--primary); }
+.sticker-panel { border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); padding: calc(var(--space) * 1); max-height: 16rem; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(3.5rem, 1fr)); gap: calc(var(--space) * .5); }
+.sticker-panel[hidden] { display: none; }
+.account-form .sticker-panel button, .account-form .sticker-panel button:hover { margin: 0; padding: calc(var(--space) * .25); line-height: 0; background: none; border-color: transparent; }
+.account-form .sticker-panel button:hover, .account-form .sticker-panel button:focus-visible { border-color: var(--primary); }
+.sticker-panel img { display: block; width: 100%; height: auto; }
 /* 소셜 로그인 단추와 내 정보의 연결 칸 (GAP M15, ADR-0114). 공급자 상표·로고는 쓰지 않고 이름만 적는다. */
 .social-login { margin-top: calc(var(--space) * 3); }
 .social-login-or { display: flex; align-items: center; gap: calc(var(--space) * 1.5); margin: 0 0 calc(var(--space) * 2); font-size: var(--fs-sm); color: var(--muted); }

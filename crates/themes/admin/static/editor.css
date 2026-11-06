@@ -326,6 +326,9 @@
   cursor: pointer;
 }
 .me button.me-char:hover, .me button.me-char:focus-visible { background: var(--bg); }
+.me button.me-char-sticker { height: 3rem; padding: .125rem; }
+.me-char-sticker img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.me-chars-error { margin: 0; font-size: .85rem; color: var(--muted); }
 .me-chars-close { margin-top: .375rem; font-size: .85rem; }
 
 
@@ -463,6 +466,8 @@
 /* 사진 크기·캡션·갤러리 (ADR-0035). 미리보기는 공개 화면과 같은 HTML 이라 같은 규칙을 둔다. */
 .me-img { display: inline-block; max-width: 100%; vertical-align: bottom; }
 .me-img img { display: block; width: 100%; }
+.me-img.me-img-sticker { width: 6rem; }
+.me-preview img.sticker { display: inline-block; width: 6rem; height: 6rem; vertical-align: bottom; }
 .me-img.img-w75, .me-preview img.img-w75, .me-preview .figure.img-w75 { width: 75%; }
 .me-img.img-w50, .me-preview img.img-w50, .me-preview .figure.img-w50 { width: 50%; }
 .me-img.ProseMirror-selectednode { outline: 3px solid var(--primary); outline-offset: 2px; border-radius: 4px; }

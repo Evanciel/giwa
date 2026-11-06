@@ -1,0 +1,325 @@
+{
+ "sets": [
+  {
+   "id": "cat",
+   "name": "고양이",
+   "items": [
+    {
+     "id": "cat-1",
+     "label": "웃음",
+     "src": "/assets/stickers/cat/1.png"
+    },
+    {
+     "id": "cat-2",
+     "label": "미소",
+     "src": "/assets/stickers/cat/2.png"
+    },
+    {
+     "id": "cat-3",
+     "label": "찡긋 웃음",
+     "src": "/assets/stickers/cat/3.png"
+    },
+    {
+     "id": "cat-4",
+     "label": "초롱초롱",
+     "src": "/assets/stickers/cat/4.png"
+    },
+    {
+     "id": "cat-5",
+     "label": "갸웃 놀람",
+     "src": "/assets/stickers/cat/5.png"
+    },
+    {
+     "id": "cat-6",
+     "label": "갸웃 웃음",
+     "src": "/assets/stickers/cat/6.png"
+    },
+    {
+     "id": "cat-7",
+     "label": "못마땅",
+     "src": "/assets/stickers/cat/7.png"
+    },
+    {
+     "id": "cat-8",
+     "label": "불편함",
+     "src": "/assets/stickers/cat/8.png"
+    },
+    {
+     "id": "cat-9",
+     "label": "흐뭇",
+     "src": "/assets/stickers/cat/9.png"
+    },
+    {
+     "id": "cat-10",
+     "label": "쿨쿨",
+     "src": "/assets/stickers/cat/10.png"
+    },
+    {
+     "id": "cat-11",
+     "label": "시큰둥",
+     "src": "/assets/stickers/cat/11.png"
+    },
+    {
+     "id": "cat-12",
+     "label": "찡그림",
+     "src": "/assets/stickers/cat/12.png"
+    },
+    {
+     "id": "cat-13",
+     "label": "갸웃",
+     "src": "/assets/stickers/cat/13.png"
+    },
+    {
+     "id": "cat-14",
+     "label": "신남",
+     "src": "/assets/stickers/cat/14.png"
+    },
+    {
+     "id": "cat-15",
+     "label": "어리둥절",
+     "src": "/assets/stickers/cat/15.png"
+    },
+    {
+     "id": "cat-16",
+     "label": "기절",
+     "src": "/assets/stickers/cat/16.png"
+    },
+    {
+     "id": "cat-17",
+     "label": "메롱 찡긋",
+     "src": "/assets/stickers/cat/17.png"
+    },
+    {
+     "id": "cat-18",
+     "label": "쪽",
+     "src": "/assets/stickers/cat/18.png"
+    },
+    {
+     "id": "cat-19",
+     "label": "방긋",
+     "src": "/assets/stickers/cat/19.png"
+    },
+    {
+     "id": "cat-20",
+     "label": "잔잔한 미소",
+     "src": "/assets/stickers/cat/20.png"
+    },
+    {
+     "id": "cat-21",
+     "label": "발그레 미소",
+     "src": "/assets/stickers/cat/21.png"
+    },
+    {
+     "id": "cat-22",
+     "label": "반짝 눈",
+     "src": "/assets/stickers/cat/22.png"
+    },
+    {
+     "id": "cat-23",
+     "label": "혀 빼물기",
+     "src": "/assets/stickers/cat/23.png"
+    },
+    {
+     "id": "cat-24",
+     "label": "이 드러낸 웃음",
+     "src": "/assets/stickers/cat/24.png"
+    },
+    {
+     "id": "cat-25",
+     "label": "활짝",
+     "src": "/assets/stickers/cat/25.png"
+    },
+    {
+     "id": "cat-26",
+     "label": "싱긋",
+     "src": "/assets/stickers/cat/26.png"
+    },
+    {
+     "id": "cat-27",
+     "label": "윙크",
+     "src": "/assets/stickers/cat/27.png"
+    },
+    {
+     "id": "cat-28",
+     "label": "메롱",
+     "src": "/assets/stickers/cat/28.png"
+    },
+    {
+     "id": "cat-29",
+     "label": "장난꾸러기",
+     "src": "/assets/stickers/cat/29.png"
+    },
+    {
+     "id": "cat-30",
+     "label": "엉엉",
+     "src": "/assets/stickers/cat/30.png"
+    },
+    {
+     "id": "cat-31",
+     "label": "맛있다",
+     "src": "/assets/stickers/cat/31.png"
+    },
+    {
+     "id": "cat-32",
+     "label": "시무룩",
+     "src": "/assets/stickers/cat/32.png"
+    },
+    {
+     "id": "cat-33",
+     "label": "깜짝",
+     "src": "/assets/stickers/cat/33.png"
+    },
+    {
+     "id": "cat-34",
+     "label": "걱정",
+     "src": "/assets/stickers/cat/34.png"
+    },
+    {
+     "id": "cat-35",
+     "label": "겁먹음",
+     "src": "/assets/stickers/cat/35.png"
+    },
+    {
+     "id": "cat-36",
+     "label": "울먹",
+     "src": "/assets/stickers/cat/36.png"
+    },
+    {
+     "id": "cat-37",
+     "label": "오!",
+     "src": "/assets/stickers/cat/37.png"
+    },
+    {
+     "id": "cat-38",
+     "label": "냐옹",
+     "src": "/assets/stickers/cat/38.png"
+    },
+    {
+     "id": "cat-39",
+     "label": "펑펑",
+     "src": "/assets/stickers/cat/39.png"
+    },
+    {
+     "id": "cat-40",
+     "label": "선글라스",
+     "src": "/assets/stickers/cat/40.png"
+    },
+    {
+     "id": "cat-41",
+     "label": "화남",
+     "src": "/assets/stickers/cat/41.png"
+    },
+    {
+     "id": "cat-42",
+     "label": "못 미더움",
+     "src": "/assets/stickers/cat/42.png"
+    },
+    {
+     "id": "cat-43",
+     "label": "무표정",
+     "src": "/assets/stickers/cat/43.png"
+    },
+    {
+     "id": "cat-44",
+     "label": "별 눈",
+     "src": "/assets/stickers/cat/44.png"
+    },
+    {
+     "id": "cat-45",
+     "label": "흰 별 눈",
+     "src": "/assets/stickers/cat/45.png"
+    },
+    {
+     "id": "cat-46",
+     "label": "주황 별 눈",
+     "src": "/assets/stickers/cat/46.png"
+    },
+    {
+     "id": "cat-47",
+     "label": "사랑 가득",
+     "src": "/assets/stickers/cat/47.png"
+    },
+    {
+     "id": "cat-48",
+     "label": "수줍은 웃음",
+     "src": "/assets/stickers/cat/48.png"
+    },
+    {
+     "id": "cat-49",
+     "label": "발그레",
+     "src": "/assets/stickers/cat/49.png"
+    },
+    {
+     "id": "cat-50",
+     "label": "부끄러움",
+     "src": "/assets/stickers/cat/50.png"
+    },
+    {
+     "id": "cat-51",
+     "label": "민망",
+     "src": "/assets/stickers/cat/51.png"
+    },
+    {
+     "id": "cat-52",
+     "label": "난처",
+     "src": "/assets/stickers/cat/52.png"
+    },
+    {
+     "id": "cat-53",
+     "label": "당황",
+     "src": "/assets/stickers/cat/53.png"
+    },
+    {
+     "id": "cat-54",
+     "label": "휘파람",
+     "src": "/assets/stickers/cat/54.png"
+    },
+    {
+     "id": "cat-55",
+     "label": "크게 웃음",
+     "src": "/assets/stickers/cat/55.png"
+    },
+    {
+     "id": "cat-56",
+     "label": "식은땀 웃음",
+     "src": "/assets/stickers/cat/56.png"
+    },
+    {
+     "id": "cat-57",
+     "label": "식은땀",
+     "src": "/assets/stickers/cat/57.png"
+    },
+    {
+     "id": "cat-58",
+     "label": "식은땀 멍",
+     "src": "/assets/stickers/cat/58.png"
+    },
+    {
+     "id": "cat-59",
+     "label": "충격",
+     "src": "/assets/stickers/cat/59.png"
+    },
+    {
+     "id": "cat-60",
+     "label": "말문 막힘",
+     "src": "/assets/stickers/cat/60.png"
+    },
+    {
+     "id": "cat-61",
+     "label": "눈물 놀람",
+     "src": "/assets/stickers/cat/61.png"
+    },
+    {
+     "id": "cat-62",
+     "label": "덤덤",
+     "src": "/assets/stickers/cat/62.png"
+    },
+    {
+     "id": "cat-63",
+     "label": "식은땀 함박",
+     "src": "/assets/stickers/cat/63.png"
+    }
+   ]
+  }
+ ]
+}

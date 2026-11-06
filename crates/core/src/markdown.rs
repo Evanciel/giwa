@@ -285,6 +285,7 @@ fn render_inner(
         .add_allowed_classes("a", ["heading-anchor", "wikilink", "wikilink-new"])
         .add_tag_attributes("img", ["srcset", "sizes", "loading", "decoding"])
         .add_allowed_classes("img", IMAGE_WIDTHS.map(width_class))
+        .add_allowed_classes("img", ["sticker"])
         .add_allowed_classes("figure", ["figure"])
         .add_allowed_classes("figure", IMAGE_WIDTHS.map(width_class))
         .add_allowed_classes("sup", ["fnref"])
@@ -511,6 +512,9 @@ fn image_end(events: &[Event<'_>], start: usize) -> Option<usize> {
 }
 
 /// `<img>` 하나. `inline` 이면 크기 클래스와 제목을 그림에 붙인다(캡션 상자는 상자에 붙인다).
+/// 내장 스티커 그림의 주소 앞머리 (ADR-0115).
+const STICKER_PREFIX: &str = "/assets/stickers/";
+
 fn image_html(
     events: &[Event<'_>],
     images: &dyn Fn(&str) -> Option<ImageInfo>,
@@ -533,7 +537,10 @@ fn image_html(
     if inline && !title.is_empty() {
         html.push_str(&format!(" title=\"{}\"", escape(&title)));
     }
-    if let Some(w) = width.filter(|_| inline) {
+    if src.starts_with(STICKER_PREFIX) {
+        // 스티커는 본문 너비로 늘리지 않고 글자처럼 줄 안에 둔다 (GAP E15, ADR-0115).
+        html.push_str(" class=\"sticker\" width=\"96\" height=\"96\"");
+    } else if let Some(w) = width.filter(|_| inline) {
         html.push_str(&format!(" class=\"{}\"", width_class(w)));
     }
     if let Some(info) = images(src) {

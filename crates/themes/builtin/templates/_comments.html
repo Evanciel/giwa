@@ -10,7 +10,7 @@
   <div class="accepted-answer">
     <p class="accepted-label">채택된 답변</p>
     <p class="comment-head"><strong class="comment-author">{{ comments.accepted.author_name }}</strong> <time>{{ comments.accepted.date }}</time></p>
-    <p class="comment-body">{{ comments.accepted.body }}</p>
+    <p class="comment-body">{{ comments.accepted.body|stickers(site.stickers) }}</p>
     <p class="comment-actions"><a href="#comment-{{ comments.accepted.id }}">댓글 자리로</a></p>
   </div>
   {% endif %}
@@ -26,7 +26,7 @@
         <strong class="comment-author"{% if not c.is_guest %} data-member="{{ c.author_name }}"{% endif %}>{{ c.author_name }}</strong>{% if c.badge %} <span class="level-badge{% if c.badge.staff %} staff{% endif %}" title="{{ c.badge.title }}">{{ c.badge.label }}</span>{% endif %}{% if c.is_guest %} <span class="comment-badge">비회원</span>{% endif %}{% if c.by_post_author %} <span class="op-badge">글쓴이</span>{% endif %}
         <time datetime="{{ c.created_at }}" title="{{ c.date }}">{{ c.created_at|ago(site.tz) }}</time>{% if c.edited %} <span class="muted">· 고침</span>{% endif %}{% if c.accepted %} <span class="solved-mark">채택</span>{% endif %}
       </p>
-      <p class="comment-body">{% if c.reply_to_name %}<span class="comment-to">@{{ c.reply_to_name }}</span> {% endif %}{{ c.body }}</p>
+      <p class="comment-body">{% if c.reply_to_name %}<span class="comment-to">@{{ c.reply_to_name }}</span> {% endif %}{{ c.body|stickers(site.stickers) }}</p>
       <p class="comment-actions">
         {% if comments.open %}<a href="{{ c.reply_url }}">답글</a>{% endif %}
         {% if not comments.locked %}<a href="{{ c.edit_url }}" rel="nofollow">고치기</a>
@@ -47,7 +47,8 @@
     <p class="comment-replying"><strong>{{ comments.reply_to.name }}</strong> 님에게 답글 · <a href="#comments">취소</a></p>
     {% endif %}
     <label for="comment-body">{% if comments.reply_to %}답글{% else %}댓글{% endif %}</label>
-    <textarea id="comment-body" name="body" rows="4" maxlength="{{ comments.rules.max_chars }}" required></textarea>
+    <textarea id="comment-body" name="body" rows="4" maxlength="{{ comments.rules.max_chars }}" required{% if site.stickers %} data-stickers="code"{% endif %}></textarea>
+    {% if site.stickers %}<script src="/assets/stickers.js" defer{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %}></script>{% endif %}
     {% if comments.rules.guest %}
     <fieldset class="comment-guest">
       <legend>비회원으로 쓸 때만 <span class="muted">(<a href="{{ comments.login_url }}">로그인</a>했다면 비워 두세요)</span></legend>

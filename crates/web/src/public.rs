@@ -102,6 +102,7 @@ async fn site_value(state: &AppState, s: &SiteSettings) -> Value {
         "search_url": urls::path(&Target::Search),
         "show_search": s.show_search,
         "list_votes": s.list_votes,
+        "stickers": s.stickers,
         "skin": s.skin,
         // 상대 시간 필터의 날짜 표시용 시간대(분) (ADR-0096)
         "tz": s.tz_offset_min,
@@ -1354,7 +1355,10 @@ async fn font_file(
 
 async fn asset(State(state): State<AppState>, Path(path): Path<String>) -> Response {
     // 내장 폰트는 내용이 바뀌면 파일 이름의 번호를 올리므로(maru-pen-1.woff2) 오래 캐시한다.
-    let cache = if path.starts_with("fonts/") && path.ends_with(".woff2") {
+    // 스티커 그림도 같은 이름에 다른 그림을 넣지 않는다 (ADR-0115). 글에 저장된 주소라 바꾸면 안 된다.
+    let cache = if (path.starts_with("fonts/") && path.ends_with(".woff2"))
+        || (path.starts_with("stickers/") && path.ends_with(".png"))
+    {
         "public, max-age=31536000, immutable"
     } else {
         "no-cache"

@@ -13,6 +13,7 @@ Rust 크레이트 라이선스는 `cargo deny check licenses` 로 따로 검사�
 | 나눔손글씨 펜 → **Maru Pen** | `crates/themes/builtin/static/fonts/maru-pen-1.woff2` | NHN(네이버) 나눔글꼴, https://github.com/google/fonts `ofl/nanumpenscript/NanumPenScript-Regular.ttf` (2026-11-03 받음) | SIL OFL 1.1 | 서체 「손글씨」. ADR-0047 |
 | 나눔손글씨 붓 → **Maru Brush** | `…/fonts/maru-brush-1.woff2` | 같은 저장소 `ofl/nanumbrushscript/NanumBrushScript-Regular.ttf` | SIL OFL 1.1 | 서체 「붓글씨」 |
 | 나눔명조 → **Maru Serif** | `…/fonts/maru-serif-1.woff2` | 같은 저장소 `ofl/nanummyeongjo/NanumMyeongjo-Regular.ttf` | SIL OFL 1.1 | 서체 「명조」 |
+| Cat Emoticons → **고양이 스티커** | `crates/themes/builtin/static/stickers/cat/*.png` | Magory, https://magory.itch.io/cat-emoticons (`catemojis.zip`, 2026-11-06 받음, sha256 `36f9adc3…dd285b`) | CC0 (묶음 안내 파일에 표기, 표시 의무 없음) | 노랑 128px 64칸 중 빈 얼굴을 뺀 63개. 이름표는 자체 작성. ADR-0115 |
 
 세 폰트는 `scripts/subset-fonts.py` 로 한글 11172자·호환 자모·영문·문장부호만 남기고 힌팅을 빼 woff2 로 줄였다.
 OFL 의 예약 글꼴 이름(Nanum, NanumPen, NanumBrush, NanumMyeongjo 등) 때문에 변경본은 폰트 안 이름을

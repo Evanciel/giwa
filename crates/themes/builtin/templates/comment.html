@@ -10,7 +10,8 @@
   <form class="account-form" method="post" action="{{ comment.action }}">
     {% if comment.reply_to %}<input type="hidden" name="reply_to" value="{{ comment.reply_to }}">{% endif %}
     <label for="body">내용</label>
-    <textarea id="body" name="body" rows="5" maxlength="{{ comment.max_chars }}" required>{{ comment.body }}</textarea>
+    <textarea id="body" name="body" rows="5" maxlength="{{ comment.max_chars }}" required{% if site.stickers %} data-stickers="code"{% endif %}>{{ comment.body }}</textarea>
+    {% if site.stickers %}<script src="/assets/stickers.js" defer{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %}></script>{% endif %}
     {% if comment.guest %}
     <label for="name">이름</label>
     <input id="name" type="text" name="name" value="{{ comment.name }}" minlength="2" maxlength="20" autocomplete="nickname" required>
@@ -34,7 +35,8 @@
   <form class="account-form" method="post" action="{{ comment.action }}">
     <input type="hidden" name="_csrf" value="{{ comment.csrf }}">
     <label for="body">내용</label>
-    <textarea id="body" name="body" rows="5" maxlength="{{ comment.max_chars }}" required>{{ comment.body }}</textarea>
+    <textarea id="body" name="body" rows="5" maxlength="{{ comment.max_chars }}" required{% if site.stickers %} data-stickers="code"{% endif %}>{{ comment.body }}</textarea>
+    {% if site.stickers %}<script src="/assets/stickers.js" defer{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %}></script>{% endif %}
     {% if comment.needs_password %}
     <label for="password">쓸 때 정한 비밀번호</label>
     <input id="password" type="password" name="password" autocomplete="current-password" required>

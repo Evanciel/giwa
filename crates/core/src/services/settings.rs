@@ -44,6 +44,9 @@ pub struct SettingsPatch {
     /// 표 목록 왼쪽 칸에 번호 대신 추천 수를 보일지 (GAP Q29)
     #[serde(default)]
     pub list_votes: Option<bool>,
+    /// 댓글·공개 글쓰기의 스티커를 쓸지 (GAP E15)
+    #[serde(default)]
+    pub stickers: Option<bool>,
     /// 회원 가입: off · open (회원 관리 권한 필요)
     #[serde(default)]
     pub signup: Option<String>,
@@ -149,6 +152,9 @@ pub async fn update(ctx: &Ctx, actor: &Actor, patch: SettingsPatch) -> Result<Si
     }
     if let Some(b) = patch.list_votes {
         changes.push(("list_votes", json!(b)));
+    }
+    if let Some(b) = patch.stickers {
+        changes.push(("stickers", json!(b)));
     }
     if let Some(b) = patch.show_search {
         changes.push(("show_search", json!(b)));
