@@ -44,8 +44,8 @@ pub struct BoardPolicy {
     /// 답변글을 달 수 있는 최소 역할. `none` 이면 받지 않는다 (ADR-0056)
     #[serde(default = "no_role")]
     pub reply: String,
-    /// 공개 글쓰기 화면에서 파일을 붙일 수 있는 최소 역할. `none` 이면 받지 않는다.
-    /// 손님은 고를 수 없다 (ADR-0065)
+    /// 공개 글쓰기에 파일을, 댓글에 그림을 붙일 수 있는 최소 역할. `none` 이면 받지 않는다.
+    /// 손님은 고를 수 없다 (ADR-0065·0116)
     #[serde(default = "no_role")]
     pub upload: String,
 }
@@ -1133,6 +1133,8 @@ pub struct Comment {
     pub status: CommentStatus,
     /// 평문. 화면에서 이스케이프한다
     pub body: String,
+    /// 붙인 그림 주소 (`/media/…`, GAP Q8, ADR-0116)
+    pub image: Option<String>,
     pub author_id: Option<Id>,
     pub guest_name: Option<String>,
     /// 비회원 비밀번호 해시. 밖으로 내보내지 않는다

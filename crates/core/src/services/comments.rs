@@ -16,7 +16,7 @@ use crate::error::{Code, Error, Result};
 use crate::model::{
     Approval, Board, CaptchaMode, Comment, CommentAuthor, CommentStatus, Listing, PageReq, Post,
 };
-use crate::services::{auth, captcha, members, moderation, posts, settings};
+use crate::services::{auth, board_posts, captcha, media, members, moderation, posts, settings};
 use crate::store::{CommentQuery, Ctx, Tx};
 use crate::urls;
 
@@ -45,6 +45,8 @@ pub struct CommentView {
     pub untrusted: bool,
     /// 평문. 지운 댓글은 비어 있다
     pub body: String,
+    /// 붙인 그림 주소 (GAP Q8, ADR-0116). 지운 댓글은 없다
+    pub image: Option<String>,
     /// 글을 쓴 회원이 단 댓글 (GAP Q8, ADR-0093). 손님 글·손님 댓글은 이름이 같아도 아니다
     pub by_post_author: bool,
 }
@@ -91,6 +93,9 @@ pub struct NewComment {
     #[serde(default)]
     pub reply_to: Option<String>,
     pub body: String,
+    /// 붙일 그림 주소 (`attach_image` 가 돌려준 것). 게시판 올리기 역할이 필요하다
+    #[serde(default)]
+    pub image: Option<String>,
     /// 로그인하지 않았을 때만 쓴다
     #[serde(default)]
     pub guest: Option<GuestAuthor>,
@@ -251,6 +256,15 @@ pub async fn create(ctx: &Ctx, actor: &Actor, input: NewComment) -> Result<Comme
     }
     posts::check_unlocked(actor, &board, &post)?;
     let body = check_body(&input.body)?;
+    let image = match input
+        .image
+        .as_deref()
+        .map(str::trim)
+        .filter(|u| !u.is_empty())
+    {
+        Some(url) => Some(check_image(ctx, actor, &board, url).await?),
+        None => None,
+    };
     moderation::check_text(&site, actor, &[&body])?;
     moderation::check_flood(ctx, &site, actor).await?;
     moderation::check_same_comment(ctx, &site, actor, &body).await?;
@@ -326,6 +340,7 @@ pub async fn create(ctx: &Ctx, actor: &Actor, input: NewComment) -> Result<Comme
             CommentStatus::Published
         },
         body,
+        image,
         author_id,
         guest_name,
         guest_pw_hash,
@@ -347,6 +362,7 @@ pub async fn create(ctx: &Ctx, actor: &Actor, input: NewComment) -> Result<Comme
             "status": c.status,
             "guest": c.guest_name,
             "chars": c.body.chars().count(),
+            "image": c.image,
         }),
     )
     .await?;
@@ -419,16 +435,36 @@ pub async fn update(
     body: &str,
     guest_password: Option<&str>,
 ) -> Result<CommentView> {
+    update_with_image(ctx, actor, id, body, None, guest_password).await
+}
+
+/// 본문과 그림을 고친다 (GAP Q8, ADR-0116). 그림이 None 이면 그대로, 빈 값이면 뺀다.
+/// 역할은 새 그림을 붙일 때만 본다. 역할을 잃어도 있던 그림을 두거나 뺄 수 있다.
+pub async fn update_with_image(
+    ctx: &Ctx,
+    actor: &Actor,
+    id: &str,
+    body: &str,
+    image: Option<&str>,
+    guest_password: Option<&str>,
+) -> Result<CommentView> {
     let (before, board, post) = live(ctx, id).await?;
     authorize(actor, &board, &before, guest_password)?;
     posts::check_unlocked(actor, &board, &post)?;
     let body = check_body(body)?;
+    let image = match image.map(str::trim) {
+        None => before.image.clone(),
+        Some("") => None,
+        Some(url) if before.image.as_deref() == Some(url) => before.image.clone(),
+        Some(url) => Some(check_image(ctx, actor, &board, url).await?),
+    };
     moderation::check_text(&settings::site(ctx).await?, actor, &[&body])?;
-    if body == before.body {
+    if body == before.body && image == before.image {
         return one(ctx, before).await;
     }
     let mut c = before.clone();
     c.body = body;
+    c.image = image;
     c.updated_at = clock::now();
     let mut tx = Tx::begin(ctx).await?;
     tx.update_comment(&c).await?;
@@ -436,7 +472,10 @@ pub async fn update(
         actor,
         "comment.update",
         Target::new("comment", &c.id),
-        json!({ "chars": [before.body.chars().count(), c.body.chars().count()] }),
+        json!({
+            "chars": [before.body.chars().count(), c.body.chars().count()],
+            "image": [before.image, c.image],
+        }),
     )
     .await?;
     tx.commit().await?;
@@ -606,6 +645,7 @@ async fn set_status(
     c.status = status;
     if status == CommentStatus::Deleted {
         c.body.clear();
+        c.image = None;
     }
     let mut tx = Tx::begin(ctx).await?;
     tx.update_comment(&c).await?;
@@ -700,6 +740,45 @@ async fn readable_post(ctx: &Ctx, actor: &Actor, post_id: &str) -> Result<(Board
         return Err(post_not_found(post_id));
     }
     Ok((board, post))
+}
+
+/// 이 사람이 이 게시판 댓글에 그림을 붙일 수 있나 (GAP Q8, ADR-0116). 글쓰기 첨부와 같은 역할이다.
+pub async fn may_attach_image(ctx: &Ctx, actor: &Actor, board: &str) -> Result<bool> {
+    let board = ctx
+        .store
+        .board_by_slug(board)
+        .await?
+        .ok_or_else(|| crate::services::boards::not_found(board))?;
+    Ok(board_posts::may_upload(actor, &board))
+}
+
+/// 댓글에 붙일 그림 하나를 올린다. 문서는 받지 않는다. 역할·하루 한도는 글쓰기 첨부와 함께 본다.
+pub async fn attach_image(
+    ctx: &Ctx,
+    actor: &Actor,
+    board: &str,
+    filename: String,
+    bytes: Vec<u8>,
+) -> Result<board_posts::Attached> {
+    if !media::is_image(&filename) {
+        return Err(Error::new(Code::Validation).with_message("error.comment_image"));
+    }
+    board_posts::attach(ctx, actor, board, filename, bytes).await
+}
+
+/// 붙일 수 있는 사람인지, 이 사이트에 있는 그림의 원본 주소인지 본다. 바깥 주소는 받지 않는다.
+async fn check_image(ctx: &Ctx, actor: &Actor, board: &Board, url: &str) -> Result<String> {
+    if !board_posts::may_upload(actor, board) {
+        return Err(actor.denied(Permission::PostUpload));
+    }
+    let found = match media::media_id(url) {
+        Some(id) => ctx.store.media_by_id(id).await?,
+        None => None,
+    };
+    if found.is_none_or(|m| m.url != url) {
+        return Err(Error::new(Code::Validation).with_message("error.comment_image"));
+    }
+    Ok(url.to_owned())
 }
 
 fn check_body(body: &str) -> Result<String> {
@@ -802,6 +881,7 @@ async fn views(ctx: &Ctx, items: Vec<Comment>) -> Result<Vec<CommentView>> {
             updated_at: c.updated_at.clone(),
             untrusted: true,
             body: c.body.clone(),
+            image: c.image.clone(),
             by_post_author: false,
         });
     }

@@ -133,6 +133,7 @@ async fn comment(ctx: &Ctx, who: &Actor, post: &str, body: &str) -> String {
         ctx,
         who,
         NewComment {
+            image: None,
             post_id: post.into(),
             reply_to: None,
             body: body.into(),
@@ -342,6 +343,7 @@ async fn locked_post_refuses_everyone_but_moderators() {
         assert!(err.message().contains("잠긴 글"), "{}", err.message());
     };
     let new_comment = NewComment {
+        image: None,
         post_id: q.clone(),
         reply_to: None,
         body: "한마디 더".into(),

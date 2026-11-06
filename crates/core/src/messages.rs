@@ -178,6 +178,9 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "error.comment_not_found" => "댓글을 찾을 수 없습니다: {id}",
         "error.comment_deleted" => "지운 댓글은 되돌리지 않습니다.",
         "error.comment_length" => "댓글은 1~{max}자로 써 주세요.",
+        "error.comment_image" => {
+            "댓글에는 이 사이트에 올린 그림(jpg·png·gif·webp)만 붙일 수 있습니다."
+        }
         "error.comment_password" => "비밀번호가 맞지 않습니다.",
         "error.post_password" => "비밀번호가 맞지 않습니다.",
         "error.guest_secret" => "비회원은 비밀글을 쓸 수 없습니다. 로그인하고 써 주세요.",

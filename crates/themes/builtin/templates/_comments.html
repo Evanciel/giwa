@@ -11,6 +11,7 @@
     <p class="accepted-label">채택된 답변</p>
     <p class="comment-head"><strong class="comment-author">{{ comments.accepted.author_name }}</strong> <time>{{ comments.accepted.date }}</time></p>
     <p class="comment-body">{{ comments.accepted.body|stickers(site.stickers) }}</p>
+    {% if comments.accepted.image %}<p class="comment-image"><a href="{{ comments.accepted.image }}" target="_blank" rel="noopener"><img src="{{ comments.accepted.image }}" alt="{{ comments.accepted.author_name }} 님이 붙인 그림" loading="lazy" decoding="async"></a></p>{% endif %}
     <p class="comment-actions"><a href="#comment-{{ comments.accepted.id }}">댓글 자리로</a></p>
   </div>
   {% endif %}
@@ -27,6 +28,7 @@
         <time datetime="{{ c.created_at }}" title="{{ c.date }}">{{ c.created_at|ago(site.tz) }}</time>{% if c.edited %} <span class="muted">· 고침</span>{% endif %}{% if c.accepted %} <span class="solved-mark">채택</span>{% endif %}
       </p>
       <p class="comment-body">{% if c.reply_to_name %}<span class="comment-to">@{{ c.reply_to_name }}</span> {% endif %}{{ c.body|stickers(site.stickers) }}</p>
+      {% if c.image %}<p class="comment-image"><a href="{{ c.image }}" target="_blank" rel="noopener"><img src="{{ c.image }}" alt="{{ c.author_name }} 님이 붙인 그림" loading="lazy" decoding="async"></a></p>{% endif %}
       <p class="comment-actions">
         {% if comments.open %}<a href="{{ c.reply_url }}">답글</a>{% endif %}
         {% if not comments.locked %}<a href="{{ c.edit_url }}" rel="nofollow">고치기</a>
@@ -49,6 +51,16 @@
     <label for="comment-body">{% if comments.reply_to %}답글{% else %}댓글{% endif %}</label>
     <textarea id="comment-body" name="body" rows="4" maxlength="{{ comments.rules.max_chars }}" required{% if site.stickers %} data-stickers="code"{% endif %}></textarea>
     {% if site.stickers %}<script src="/assets/stickers.js" defer{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %}></script>{% endif %}
+    {% if comments.image_url %}
+    <div class="comment-image-field" data-comment-image data-ask="{{ comments.image_url }}" hidden>
+      <input type="hidden" name="image" value="">
+      <label for="comment-image-file">그림 붙이기 <span class="muted">(한 장)</span></label>
+      <input id="comment-image-file" type="file" data-upload="{{ comments.image_url }}" accept="image/jpeg,image/png,image/gif,image/webp">
+      <p class="comment-image-preview" data-image-preview hidden><img alt="붙일 그림"> <button type="button" data-image-remove>빼기</button></p>
+      <p class="hint" role="status" data-image-status></p>
+    </div>
+    <script src="/assets/comment-image.js" defer{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %}></script>
+    {% endif %}
     {% if comments.rules.guest %}
     <fieldset class="comment-guest">
       <legend>비회원으로 쓸 때만 <span class="muted">(<a href="{{ comments.login_url }}">로그인</a>했다면 비워 두세요)</span></legend>

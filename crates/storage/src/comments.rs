@@ -33,6 +33,7 @@ struct Row {
     actor_type: String,
     created_at: String,
     updated_at: String,
+    image: Option<String>,
 }
 
 impl TryFrom<Row> for Comment {
@@ -50,6 +51,7 @@ impl TryFrom<Row> for Comment {
             parent_id: r.parent_id,
             reply_to_id: r.reply_to_id,
             body: r.body,
+            image: r.image,
             author_id: r.author_id,
             guest_name: r.guest_name,
             guest_pw_hash: r.guest_pw_hash,
@@ -72,7 +74,7 @@ pub(crate) async fn by_id<'e>(e: impl SqliteExecutor<'e>, id: &str) -> Result<Op
     sqlx::query_as!(
         Row,
         "SELECT id, post_id, parent_id, reply_to_id, status, body, author_id, guest_name,
-                guest_pw_hash, actor_type, created_at, updated_at
+                guest_pw_hash, actor_type, created_at, updated_at, image
          FROM comments WHERE id = ?",
         id
     )
@@ -125,7 +127,7 @@ pub(crate) async fn of_post<'e>(
         sqlx::query_as!(
             Row,
             "SELECT id, post_id, parent_id, reply_to_id, status, body, author_id, guest_name,
-                    guest_pw_hash, actor_type, created_at, updated_at
+                    guest_pw_hash, actor_type, created_at, updated_at, image
              FROM comments
              WHERE post_id = ? AND status IN (SELECT value FROM json_each(?))
              ORDER BY created_at, id",
@@ -150,7 +152,7 @@ pub(crate) async fn list<'e>(
         sqlx::query_as!(
             Row,
             "SELECT c.id, c.post_id, c.parent_id, c.reply_to_id, c.status, c.body, c.author_id,
-                    c.guest_name, c.guest_pw_hash, c.actor_type, c.created_at, c.updated_at
+                    c.guest_name, c.guest_pw_hash, c.actor_type, c.created_at, c.updated_at, c.image
              FROM comments c JOIN posts p ON p.id = c.post_id
              WHERE (?1 IS NULL OR c.status = ?1) AND (?2 IS NULL OR c.post_id = ?2)
                AND (?3 IS NULL OR p.board_id IN (SELECT value FROM json_each(?3)))
@@ -193,7 +195,7 @@ pub(crate) async fn of_member<'e>(
         sqlx::query_as!(
             Row,
             "SELECT id, post_id, parent_id, reply_to_id, status, body, author_id, guest_name,
-                    guest_pw_hash, actor_type, created_at, updated_at
+                    guest_pw_hash, actor_type, created_at, updated_at, image
              FROM comments
              WHERE author_id = ?1 AND status != 'deleted'
              ORDER BY created_at DESC, id DESC LIMIT ?2 OFFSET ?3",
@@ -231,7 +233,7 @@ pub(crate) async fn public_of_member<'e>(
         sqlx::query_as!(
             Row,
             "SELECT c.id, c.post_id, c.parent_id, c.reply_to_id, c.status, c.body, c.author_id,
-                    c.guest_name, c.guest_pw_hash, c.actor_type, c.created_at, c.updated_at
+                    c.guest_name, c.guest_pw_hash, c.actor_type, c.created_at, c.updated_at, c.image
              FROM comments c
              JOIN posts p ON p.id = c.post_id
              JOIN boards b ON b.id = p.board_id
@@ -292,8 +294,8 @@ pub(crate) async fn insert(tx: &mut Transaction<'static, Sqlite>, c: &Comment) -
     let actor = c.actor_type.as_str();
     sqlx::query!(
         "INSERT INTO comments (id, post_id, parent_id, reply_to_id, status, body, author_id,
-                               guest_name, guest_pw_hash, actor_type, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                               guest_name, guest_pw_hash, actor_type, created_at, updated_at, image)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         c.id,
         c.post_id,
         c.parent_id,
@@ -305,7 +307,8 @@ pub(crate) async fn insert(tx: &mut Transaction<'static, Sqlite>, c: &Comment) -
         c.guest_pw_hash,
         actor,
         c.created_at,
-        c.updated_at
+        c.updated_at,
+        c.image
     )
     .execute(&mut **tx)
     .await
@@ -313,13 +316,14 @@ pub(crate) async fn insert(tx: &mut Transaction<'static, Sqlite>, c: &Comment) -
     Ok(())
 }
 
-/// 바뀔 수 있는 것은 상태·본문·고친 때뿐이다.
+/// 바뀔 수 있는 것은 상태·본문·그림·고친 때뿐이다.
 pub(crate) async fn update(tx: &mut Transaction<'static, Sqlite>, c: &Comment) -> Result<()> {
     let status = c.status.as_str();
     let done = sqlx::query!(
-        "UPDATE comments SET status = ?, body = ?, updated_at = ? WHERE id = ?",
+        "UPDATE comments SET status = ?, body = ?, image = ?, updated_at = ? WHERE id = ?",
         status,
         c.body,
+        c.image,
         c.updated_at,
         c.id
     )

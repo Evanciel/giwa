@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT c.id, c.post_id, c.parent_id, c.reply_to_id, c.status, c.body, c.author_id,\n                    c.guest_name, c.guest_pw_hash, c.actor_type, c.created_at, c.updated_at\n             FROM comments c JOIN posts p ON p.id = c.post_id\n             WHERE (?1 IS NULL OR c.status = ?1) AND (?2 IS NULL OR c.post_id = ?2)\n               AND (?3 IS NULL OR p.board_id IN (SELECT value FROM json_each(?3)))\n             ORDER BY c.created_at DESC, c.id DESC LIMIT ?4 OFFSET ?5",
+  "query": "SELECT c.id, c.post_id, c.parent_id, c.reply_to_id, c.status, c.body, c.author_id,\n                    c.guest_name, c.guest_pw_hash, c.actor_type, c.created_at, c.updated_at, c.image\n             FROM comments c\n             JOIN posts p ON p.id = c.post_id\n             JOIN boards b ON b.id = p.board_id\n             JOIN roles r ON r.name = json_extract(b.policy, '$.read')\n             WHERE c.author_id = ?1 AND c.status = 'published'\n               AND p.status = 'published' AND p.is_secret = 0 AND r.rank <= ?2\n             ORDER BY c.created_at DESC, c.id DESC LIMIT ?3",
   "describe": {
     "columns": [
       {
@@ -134,10 +134,21 @@
             "name": "updated_at"
           }
         }
+      },
+      {
+        "name": "image",
+        "ordinal": 12,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "comments",
+            "name": "image"
+          }
+        }
       }
     ],
     "parameters": {
-      "Right": 5
+      "Right": 3
     },
     "nullable": [
       false,
@@ -151,8 +162,9 @@
       true,
       false,
       false,
-      false
+      false,
+      true
     ]
   },
-  "hash": "0a6f6389f85916338d4159af198d3a904429338fed788096ef188e0d5fbc4022"
+  "hash": "9d445b57bce05ad97bb5f1dca2fc4fcd13f200d0c3c55562914e983b1c69b2a9"
 }

@@ -321,7 +321,7 @@ pub async fn image_info(ctx: &Ctx, url: &str) -> Result<Option<ImageInfo>> {
 }
 
 /// `/media/2026/11/<id>.jpg` → `<id>`. 축소본(`<id>-640.jpg`)이나 다른 주소는 None.
-fn media_id(url: &str) -> Option<&str> {
+pub(crate) fn media_id(url: &str) -> Option<&str> {
     let file = url.strip_prefix("/media/")?.rsplit('/').next()?;
     let (stem, _) = file.split_once('.')?;
     (!stem.is_empty() && stem.bytes().all(|b| b.is_ascii_alphanumeric())).then_some(stem)

@@ -142,6 +142,7 @@ fn editor() -> Actor {
 
 fn text(post: &str, body: &str) -> NewComment {
     NewComment {
+        image: None,
         post_id: post.into(),
         reply_to: None,
         body: body.into(),
@@ -168,6 +169,7 @@ async fn solved(e: &Env) -> captcha::Answer {
 
 fn as_guest(post: &str, body: &str, answer: Option<captcha::Answer>) -> NewComment {
     NewComment {
+        image: None,
         guest: Some(GuestAuthor {
             name: "지나가던손님".into(),
             password: "1234".into(),
@@ -398,6 +400,7 @@ async fn replies_edit_delete_and_placeholders() {
         &e.ctx,
         &e.guest,
         NewComment {
+            image: None,
             reply_to: Some(root.id.clone()),
             ..as_guest(&e.post, "대댓글", None)
         },
@@ -411,6 +414,7 @@ async fn replies_edit_delete_and_placeholders() {
         &e.ctx,
         &e.member,
         NewComment {
+            image: None,
             reply_to: Some(guest.id.clone()),
             ..text(&e.post, "대댓글의 대댓글")
         },

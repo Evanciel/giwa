@@ -311,6 +311,14 @@ img.sticker { display: inline-block; width: 6rem; height: 6rem; margin: 0 .125re
 .locked-mark { color: var(--muted); border: 1px solid var(--border); }
 .locked-note { padding: calc(var(--space) * 1.5) calc(var(--space) * 2); border: 1px dashed var(--border); border-radius: var(--radius-sm); }
 .comment-to { color: var(--primary); font-weight: 600; }
+.comment-image { margin: calc(var(--space) * .75) 0 0; }
+.comment-image img, .comment-image-preview img { display: block; max-width: min(100%, 20rem); max-height: 20rem; width: auto; height: auto; border-radius: var(--radius-sm); box-shadow: none; }
+.comment-image-field { display: grid; gap: calc(var(--space) * .5); }
+.comment-image-field[hidden] { display: none; }
+.comment-image-preview { margin: 0; display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space); }
+.comment-image-preview[hidden] { display: none; }
+.account-form .comment-image-preview button { margin: 0; font-size: var(--fs-sm); font-weight: 400; color: var(--fg); background: var(--surface); border-color: var(--border); padding: calc(var(--space) * .5) calc(var(--space) * 1.25); }
+.account-form .comment-image-preview button:hover { color: var(--primary); background: var(--surface); border-color: var(--primary); }
 .comment-actions { margin: calc(var(--space) * .75) 0 0; display: flex; gap: calc(var(--space) * 1.5); font-size: var(--fs-sm); }
 .comment-actions a { color: var(--muted); text-decoration: none; }
 .comment-actions a:hover { color: var(--primary); }

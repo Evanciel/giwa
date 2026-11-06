@@ -291,6 +291,7 @@ form.inline { display: inline; margin: 0; }
 .comment-meta { margin: 0; font-size: .875rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: .35rem; align-items: baseline; }
 .comment-meta strong { color: var(--fg); }
 .comment-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.comment-thumb { display: block; max-width: 12rem; max-height: 12rem; width: auto; height: auto; margin-top: .5rem; border-radius: 4px; }
 .badge-pending { border-color: var(--warn); color: var(--warn); }
 
 /* ---- 일괄 관리 · 리비전 (ADR-0055) ---- */

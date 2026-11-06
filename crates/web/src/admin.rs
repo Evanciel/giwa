@@ -670,6 +670,7 @@ async fn comments_page(
             },
             "author_name": c.author_name,
             "is_guest": c.is_guest,
+            "image": c.image,
             "body": c.body,
             "date": maru_core::clock::display_date(&c.created_at, tz),
             "post_title": post.as_ref().map(|p| p.title.clone()).unwrap_or_default(),

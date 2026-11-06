@@ -6,13 +6,15 @@
 //! - 손님이 쓰면 확인 질문 화면(`comment.html`, no-store)을 한 번 거친다. 글 화면 캐시를 깨지 않으려고.
 //! - 고치기·지우기 화면은 진짜 세션으로 렌더한다. 로그인했으면 세션 CSRF, 아니면 로그인 전 CSRF 쿠키.
 
-use axum::Router;
-use axum::extract::{Form, Path, State};
+use axum::body::Bytes;
+use axum::extract::{Form, Path, Query, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::middleware;
 use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
+use axum::{Json, Router};
 use maru_core::Actor;
+use maru_core::output::Success;
 use maru_core::services::comments::{self, CommentRules, Editable, GuestAuthor, NewComment};
 use maru_core::services::{anonymous_actor, captcha, posts, settings};
 use maru_core::urls::{self, Target};
@@ -22,10 +24,17 @@ use serde_json::{Value, json};
 
 use crate::AppState;
 use crate::admin::{current, pre_csrf, pre_csrf_ok, session_csrf_ok};
+use crate::error::ApiError;
 
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/b/{board}/{post}/comments", post(create))
+        .route(
+            "/write/{board}/comment-image",
+            get(image_allowed)
+                .post(attach_image)
+                .layer(crate::upload_limit()),
+        )
         .route("/c/{id}/edit", get(edit_form).post(edit))
         .route("/c/{id}/delete", get(delete_form).post(delete))
         .route("/c/{id}/accept", get(accept_form).post(accept))
@@ -65,6 +74,9 @@ pub(crate) fn same_origin(headers: &HeaderMap) -> bool {
 struct CommentForm {
     #[serde(default)]
     body: String,
+    /// 올려 둔 그림 주소 (ADR-0116)
+    #[serde(default)]
+    image: String,
     #[serde(default)]
     reply_to: String,
     #[serde(default)]
@@ -136,6 +148,7 @@ async fn create(
         post_id: post.id.clone(),
         reply_to: Some(f.reply_to.trim().to_owned()).filter(|s| !s.is_empty()),
         body: f.body.clone(),
+        image: Some(f.image.clone()),
         guest: guest.then(|| GuestAuthor {
             name: f.name.clone(),
             password: f.password.clone(),
@@ -175,6 +188,41 @@ async fn create(
     }
 }
 
+#[derive(Debug, Deserialize)]
+struct ImageQuery {
+    #[serde(default)]
+    filename: String,
+}
+
+/// 글 화면은 손님 기준으로 같아서(ETag), 칸을 보일지는 스크립트가 여기에 묻는다 (ADR-0116).
+async fn image_allowed(
+    State(state): State<AppState>,
+    Path(board): Path<String>,
+    headers: HeaderMap,
+) -> Result<Response, ApiError> {
+    let (actor, _) = viewer(&state, &headers).await?;
+    let allowed = comments::may_attach_image(&state.ctx, &actor, &board).await?;
+    Ok(Json(Success::new(json!({ "allowed": allowed }))).into_response())
+}
+
+/// 댓글에 붙일 그림을 올린다. 글 화면에는 CSRF 값이 없어 댓글 쓰기처럼 같은 출처만 본다.
+async fn attach_image(
+    State(state): State<AppState>,
+    Path(board): Path<String>,
+    Query(q): Query<ImageQuery>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Result<Response, ApiError> {
+    if !same_origin(&headers) {
+        return Err(ApiError(
+            Error::new(Code::Forbidden).with_message("error.csrf"),
+        ));
+    }
+    let (actor, _) = viewer(&state, &headers).await?;
+    let out = comments::attach_image(&state.ctx, &actor, &board, q.filename, body.to_vec()).await?;
+    Ok((StatusCode::CREATED, Json(Success::new(out))).into_response())
+}
+
 /// 댓글 폼을 다시 그린다: 손님 확인 질문, 또는 오류와 함께 적은 내용 그대로.
 #[allow(clippy::too_many_arguments)]
 async fn compose(
@@ -203,6 +251,7 @@ async fn compose(
         "post_title": title,
         "guest": guest,
         "body": f.body,
+        "image": f.image,
         "reply_to": f.reply_to,
         "name": f.name,
         // 같은 요청의 답으로만 돌려준다 (no-store). 손님이 다시 치지 않게.
@@ -280,6 +329,9 @@ struct EditForm {
     csrf: String,
     #[serde(default)]
     body: String,
+    /// 없으면 그대로, 비어 있으면 뺀다 (ADR-0116)
+    #[serde(default)]
+    image: Option<String>,
     #[serde(default)]
     password: String,
 }
@@ -328,8 +380,13 @@ async fn form_page(
         }
         Err(err) => return crate::error::page(state, &err).await,
     };
+    let may_attach = comments::may_attach_image(&state.ctx, &actor, &e.board_slug)
+        .await
+        .unwrap_or(false);
     let view = json!({
         "view": mode,
+        "image": e.comment.image,
+        "image_url": may_attach.then(|| format!("/write/{}/comment-image", e.board_slug)),
         "action": format!("/c/{id}/{mode}"),
         "back": format!("{}#comment-{id}", post_url(&e)),
         "body": body.unwrap_or(&e.comment.body),
@@ -475,7 +532,9 @@ async fn edit(
         return refused(&state, &headers).await;
     }
     let pw = Some(f.password.as_str()).filter(|p| !p.is_empty());
-    match comments::update(&state.ctx, &actor, &id, &f.body, pw).await {
+    match comments::update_with_image(&state.ctx, &actor, &id, &f.body, f.image.as_deref(), pw)
+        .await
+    {
         Ok(_) => match comments::editable(&state.ctx, &actor, &id).await {
             Ok(e) => Redirect::to(&format!("{}#comment-{id}", post_url(&e))).into_response(),
             // 비밀번호로 고친 손님은 다시 열 권한이 없다. 그래도 고쳐졌다.

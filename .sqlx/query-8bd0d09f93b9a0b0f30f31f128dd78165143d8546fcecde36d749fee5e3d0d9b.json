@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, post_id, parent_id, reply_to_id, status, body, author_id, guest_name,\n                guest_pw_hash, actor_type, created_at, updated_at\n         FROM comments WHERE id = ?",
+  "query": "SELECT id, post_id, parent_id, reply_to_id, status, body, author_id, guest_name,\n                    guest_pw_hash, actor_type, created_at, updated_at, image\n             FROM comments\n             WHERE author_id = ?1 AND status != 'deleted'\n             ORDER BY created_at DESC, id DESC LIMIT ?2 OFFSET ?3",
   "describe": {
     "columns": [
       {
@@ -134,10 +134,21 @@
             "name": "updated_at"
           }
         }
+      },
+      {
+        "name": "image",
+        "ordinal": 12,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "comments",
+            "name": "image"
+          }
+        }
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 3
     },
     "nullable": [
       false,
@@ -151,8 +162,9 @@
       true,
       false,
       false,
-      false
+      false,
+      true
     ]
   },
-  "hash": "113d478299aabef74a64c2460d34bd7ca99fa458ef744cc32d0cd08144dbe810"
+  "hash": "8bd0d09f93b9a0b0f30f31f128dd78165143d8546fcecde36d749fee5e3d0d9b"
 }

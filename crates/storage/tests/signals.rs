@@ -87,6 +87,7 @@ async fn comment(e: &Env, n: usize) {
             &e.ctx,
             &Actor::local(),
             NewComment {
+                image: None,
                 post_id: e.post.clone(),
                 reply_to: None,
                 body: format!("댓글 {i}"),

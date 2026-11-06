@@ -19,6 +19,7 @@
       {% if c.url %}<a href="{{ c.url }}" target="_blank" rel="noopener">{{ c.post_title }}</a>{% else %}{{ c.post_title }}{% endif %}
     </p>
     <p class="comment-text">{{ c.body }}</p>
+    {% if c.image %}<p><a href="{{ c.image }}" target="_blank" rel="noopener"><img class="comment-thumb" src="{{ c.image }}" alt="붙인 그림" loading="lazy"></a></p>{% endif %}
     {% if c.status != "deleted" %}
     <div class="actions">
       {% for a in [["approve", "보이기"], ["hide", "숨기기"], ["spam", "스팸"], ["delete", "지우기"]] %}

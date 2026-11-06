@@ -1082,6 +1082,7 @@ async fn comments_json(
                 "member_id": if c.is_guest { None } else { c.author_id.as_deref() },
                 "reply_to_name": c.reply_to_name,
                 "body": c.body,
+                "image": c.image,
                 "created_at": c.created_at,
                 "date": clock::display_date(&c.created_at, s.tz_offset_min),
                 "edited": c.updated_at != c.created_at,
@@ -1109,6 +1110,7 @@ async fn comments_json(
             "id": c.id,
             "author_name": c.author_name,
             "body": c.body,
+            "image": c.image,
             "date": clock::display_date(&c.created_at, s.tz_offset_min),
         })),
         "items": items,
@@ -1132,6 +1134,8 @@ async fn comments_json(
             .collect::<Vec<_>>()
         }),
         "action": format!("{}/comments", urls::path(&Target::Post { board: &board.slug, post: &post.slug })),
+        // 게시판이 올리기를 받을 때만. 이 사람이 되는지는 스크립트가 묻는다 (ADR-0116)
+        "image_url": (board.policy.upload != "none").then(|| format!("/write/{}/comment-image", board.slug)),
         "reply_to": reply_to,
         "pending": q.comment == "pending",
         "login_url": urls::with_query("/login", &[("next", &urls::path(&Target::Post { board: &board.slug, post: &post.slug }))]),

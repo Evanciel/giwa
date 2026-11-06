@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, post_id, parent_id, reply_to_id, status, body, author_id, guest_name,\n                    guest_pw_hash, actor_type, created_at, updated_at\n             FROM comments\n             WHERE author_id = ?1 AND status != 'deleted'\n             ORDER BY created_at DESC, id DESC LIMIT ?2 OFFSET ?3",
+  "query": "SELECT c.id, c.post_id, c.parent_id, c.reply_to_id, c.status, c.body, c.author_id,\n                    c.guest_name, c.guest_pw_hash, c.actor_type, c.created_at, c.updated_at, c.image\n             FROM comments c JOIN posts p ON p.id = c.post_id\n             WHERE (?1 IS NULL OR c.status = ?1) AND (?2 IS NULL OR c.post_id = ?2)\n               AND (?3 IS NULL OR p.board_id IN (SELECT value FROM json_each(?3)))\n             ORDER BY c.created_at DESC, c.id DESC LIMIT ?4 OFFSET ?5",
   "describe": {
     "columns": [
       {
@@ -134,10 +134,21 @@
             "name": "updated_at"
           }
         }
+      },
+      {
+        "name": "image",
+        "ordinal": 12,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "comments",
+            "name": "image"
+          }
+        }
       }
     ],
     "parameters": {
-      "Right": 3
+      "Right": 5
     },
     "nullable": [
       false,
@@ -151,8 +162,9 @@
       true,
       false,
       false,
-      false
+      false,
+      true
     ]
   },
-  "hash": "d994505a2b6ee57fc2dd044cdde867204f5a7cfeab93b90ec6a528942f84536c"
+  "hash": "5947b8fb04ccbb1d1ae69d28c4a36fa563c059792a9ed8abf3d9503c5a53ee0b"
 }
