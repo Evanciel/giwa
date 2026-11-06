@@ -257,6 +257,14 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "error.page_layout" => "레이아웃 `{value}` 는 지원하지 않습니다. 가능한 값: {allowed}",
         "error.menu_location" => "메뉴 위치 `{value}` 는 지원하지 않습니다. 가능한 값: {allowed}",
         "error.menu_depth" => "메뉴는 {max}단까지만 만들 수 있습니다.",
+        "error.changeset_not_found" => "변경 묶음 {id} 을(를) 찾을 수 없습니다.",
+        "error.changeset_status" => "변경 묶음 {id} 은(는) {status} 상태라 이 일을 할 수 없습니다.",
+        "error.changeset_op" => "변경 연산이 올바르지 않습니다: {detail}",
+        "error.changeset_title" => "변경 묶음 제목은 1~200자로 적어 주세요.",
+        "error.changeset_failed" => "{index}번째 연산에서 멈췄습니다: {detail}",
+        "error.changeset_apply_agent" => {
+            "에이전트 토큰은 변경 묶음을 적용할 수 없습니다. 사람이 승인하거나 자동 적용 토큰을 쓰세요."
+        }
         "error.menu_too_many" => "메뉴 항목은 {max}개까지입니다.",
         "error.widget_kind" => "알 수 없는 위젯 종류입니다: {value} (가능: {allowed})",
         "error.widget_region" => "알 수 없는 영역입니다: {value} (가능: {allowed})",

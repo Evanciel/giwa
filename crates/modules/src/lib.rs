@@ -319,6 +319,16 @@ impl Registry {
 
 #[async_trait]
 impl Extensions for Registry {
+    async fn set_module(&self, ctx: &Ctx, actor: &Actor, id: &str, on: bool) -> Result<bool> {
+        let was_on = ctx.store.module_row(id).await?.is_some_and(|r| r.enabled);
+        if on {
+            crate::service::enable(ctx, actor, self, id).await?;
+        } else {
+            crate::service::disable(ctx, actor, self, id).await?;
+        }
+        Ok(was_on)
+    }
+
     async fn widget_types(&self, ctx: &Ctx) -> Vec<WidgetType> {
         self.enabled(ctx)
             .await

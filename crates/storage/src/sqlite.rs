@@ -4,11 +4,11 @@ use async_trait::async_trait;
 use maru_core::actor::{AuthorType, Permission, Scope};
 use maru_core::audit::AuditRecord;
 use maru_core::model::{
-    Attachment, AuditEntry, AuditEvent, Board, BoardPolicy, Category, Comment, CommentStatus, Font,
-    FontFile, Listing, LoginTicket, MailOut, MailStatus, Media, MediaVariant, Member, MemberStatus,
-    ModuleFailure, ModuleRow, Page, PageReq, PageStatus, Post, PostKind, PostStatus, PostTemplate,
-    Revision, Role, Session, StatBatch, StatDay, StatPage, StatReferrer, Tag, TicketPurpose, Token,
-    TotpChallenge, Widget,
+    Attachment, AuditEntry, AuditEvent, Board, BoardPolicy, Category, Changeset, ChangesetStatus,
+    Comment, CommentStatus, Font, FontFile, Listing, LoginTicket, MailOut, MailStatus, Media,
+    MediaVariant, Member, MemberStatus, ModuleFailure, ModuleRow, Page, PageReq, PageStatus, Post,
+    PostKind, PostStatus, PostTemplate, Revision, Role, Session, StatBatch, StatDay, StatPage,
+    StatReferrer, Tag, TicketPurpose, Token, TotpChallenge, Widget,
 };
 use maru_core::model::{LinkPreview, LinkStatus, MemberActivity, MemberTotp};
 use maru_core::store::{
@@ -1375,6 +1375,32 @@ impl Store for SqliteStore {
         crate::mail::update(&self.db.write, m).await
     }
 
+    async fn changeset(&self, id: &str) -> Result<Option<Changeset>> {
+        crate::changesets::by_id(&self.db.read, id).await
+    }
+
+    async fn changesets(
+        &self,
+        status: Option<ChangesetStatus>,
+        limit: i64,
+    ) -> Result<Vec<Changeset>> {
+        crate::changesets::list(&self.db.read, status, limit).await
+    }
+
+    async fn save_changeset(&self, cs: &Changeset) -> Result<()> {
+        crate::changesets::save(&self.db.write, cs).await
+    }
+
+    async fn stamp_audit(
+        &self,
+        id: &str,
+        since: &str,
+        actor_type: &str,
+        actor_id: Option<&str>,
+    ) -> Result<()> {
+        crate::changesets::stamp_audit(&self.db.write, id, since, actor_type, actor_id).await
+    }
+
     async fn note_links(&self, urls: &[String], now: &str) -> Result<()> {
         crate::links::note(&self.db.write, urls, now).await
     }
@@ -1855,7 +1881,7 @@ impl Store for SqliteStore {
             r#"SELECT a.id AS "id!", a.actor_type AS "actor_type!", a.actor_id,
                       COALESCE(m.display_name, t.name, '') AS "actor_name!: String",
                       a.action AS "action!", a.target_type AS "target_type!", a.target_id,
-                      a.diff AS "diff!", a.at AS "at!"
+                      a.diff AS "diff!", a.changeset_id, a.at AS "at!"
                FROM audit_log a
                LEFT JOIN members m ON a.actor_type = 'human' AND m.id = a.actor_id
                LEFT JOIN tokens t ON a.actor_type = 'agent' AND t.id = a.actor_id
@@ -1929,6 +1955,7 @@ impl Store for SqliteStore {
                     target_id: r.target_id,
                     diff: serde_json::from_str(&r.diff).map_err(Error::internal)?,
                     at: r.at,
+                    changeset_id: r.changeset_id,
                 })
             })
             .collect::<Result<Vec<_>>>()?;
@@ -2322,6 +2349,10 @@ async fn write_post_tags(
 
 #[async_trait]
 impl WriteTx for SqliteWriteTx {
+    async fn save_changeset(&mut self, cs: &Changeset) -> Result<()> {
+        crate::changesets::save(&mut *self.tx, cs).await
+    }
+
     async fn insert_audit(&mut self, rec: &AuditRecord) -> Result<()> {
         insert_audit(&mut self.tx, rec).await
     }

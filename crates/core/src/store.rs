@@ -8,7 +8,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use serde_json::Value;
 
-use crate::model::{AuditEvent, ModuleFailure, ModuleRow};
+use crate::model::{AuditEvent, Changeset, ChangesetStatus, ModuleFailure, ModuleRow};
 use crate::services::widgets::WidgetType;
 
 use crate::actor::Actor;
@@ -65,6 +65,8 @@ pub trait Extensions: Send + Sync {
     async fn purge(&self, ctx: &Ctx) -> u64;
     /// 켜진 모듈의 운영 신호 (ADR-0074). 한 모듈이 실패해도 나머지는 한다.
     async fn signals(&self, ctx: &Ctx, actor: &Actor) -> Vec<Signal>;
+    /// 모듈을 켜거나 끈다. 바꾸기 전에 켜져 있었는지 돌려준다 (ADR-0121).
+    async fn set_module(&self, ctx: &Ctx, actor: &Actor, id: &str, on: bool) -> Result<bool>;
 }
 
 struct NoExtensions;
@@ -85,6 +87,10 @@ impl Extensions for NoExtensions {
 
     async fn signals(&self, _ctx: &Ctx, _actor: &Actor) -> Vec<Signal> {
         Vec::new()
+    }
+
+    async fn set_module(&self, _ctx: &Ctx, _actor: &Actor, id: &str, _on: bool) -> Result<bool> {
+        Err(crate::error::Error::new(crate::error::Code::NotFound).arg("id", id))
     }
 }
 
@@ -332,6 +338,23 @@ pub trait Store: Send + Sync {
     async fn update_mail(&self, m: &MailOut) -> Result<()>;
     /// 처음 보는 링크 카드 주소를 가져올 차례로 적는다 (ADR-0084). 감사 대상이 아닌 시스템 기록.
     async fn note_links(&self, urls: &[String], now: &str) -> Result<()>;
+    async fn changeset(&self, id: &str) -> Result<Option<Changeset>>;
+    /// 새것부터. `status` 가 없으면 전부
+    async fn changesets(
+        &self,
+        status: Option<ChangesetStatus>,
+        limit: i64,
+    ) -> Result<Vec<Changeset>>;
+    /// 진행 상황. 시작과 끝은 감사 기록과 함께 `WriteTx::save_changeset` 으로 남긴다.
+    async fn save_changeset(&self, cs: &Changeset) -> Result<()>;
+    /// `since` 뒤로 이 주체가 남긴 감사 기록에 changeset 번호를 붙인다.
+    async fn stamp_audit(
+        &self,
+        id: &str,
+        since: &str,
+        actor_type: &str,
+        actor_id: Option<&str>,
+    ) -> Result<()>;
     async fn link_previews(&self, urls: &[String]) -> Result<Vec<LinkPreview>>;
     /// 가져올 차례인 주소, 오래 기다린 것부터
     async fn pending_links(&self, limit: i64) -> Result<Vec<LinkPreview>>;
@@ -464,6 +487,7 @@ pub trait Store: Send + Sync {
 
 #[async_trait]
 pub trait WriteTx: Send {
+    async fn save_changeset(&mut self, cs: &Changeset) -> Result<()>;
     async fn insert_audit(&mut self, rec: &AuditRecord) -> Result<()>;
     async fn commit(self: Box<Self>) -> Result<()>;
 

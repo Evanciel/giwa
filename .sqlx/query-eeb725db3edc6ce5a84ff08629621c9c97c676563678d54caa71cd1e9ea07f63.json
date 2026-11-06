@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT a.id AS \"id!\", a.actor_type AS \"actor_type!\", a.actor_id,\n                      COALESCE(m.display_name, t.name, '') AS \"actor_name!: String\",\n                      a.action AS \"action!\", a.target_type AS \"target_type!\", a.target_id,\n                      a.diff AS \"diff!\", a.at AS \"at!\"\n               FROM audit_log a\n               LEFT JOIN members m ON a.actor_type = 'human' AND m.id = a.actor_id\n               LEFT JOIN tokens t ON a.actor_type = 'agent' AND t.id = a.actor_id\n               WHERE (? = '' OR a.actor_type = ?)\n                 AND (? = '' OR a.actor_id = ?)\n                 AND (? = '' OR a.action = ? OR a.action LIKE ? ESCAPE '\\')\n                 AND (? = '' OR a.target_type = ?)\n                 AND (? = '' OR a.target_id = ?)\n                 AND (? = '' OR a.at >= ?)\n                 AND (? = '' OR a.at < ?)\n               ORDER BY a.at DESC, a.id DESC LIMIT ? OFFSET ?",
+  "query": "SELECT a.id AS \"id!\", a.actor_type AS \"actor_type!\", a.actor_id,\n                      COALESCE(m.display_name, t.name, '') AS \"actor_name!: String\",\n                      a.action AS \"action!\", a.target_type AS \"target_type!\", a.target_id,\n                      a.diff AS \"diff!\", a.changeset_id, a.at AS \"at!\"\n               FROM audit_log a\n               LEFT JOIN members m ON a.actor_type = 'human' AND m.id = a.actor_id\n               LEFT JOIN tokens t ON a.actor_type = 'agent' AND t.id = a.actor_id\n               WHERE (? = '' OR a.actor_type = ?)\n                 AND (? = '' OR a.actor_id = ?)\n                 AND (? = '' OR a.action = ? OR a.action LIKE ? ESCAPE '\\')\n                 AND (? = '' OR a.target_type = ?)\n                 AND (? = '' OR a.target_id = ?)\n                 AND (? = '' OR a.at >= ?)\n                 AND (? = '' OR a.at < ?)\n               ORDER BY a.at DESC, a.id DESC LIMIT ? OFFSET ?",
   "describe": {
     "columns": [
       {
@@ -87,8 +87,19 @@
         }
       },
       {
-        "name": "at!",
+        "name": "changeset_id",
         "ordinal": 8,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "audit_log",
+            "name": "changeset_id"
+          }
+        }
+      },
+      {
+        "name": "at!",
+        "ordinal": 9,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -110,8 +121,9 @@
       false,
       true,
       false,
+      true,
       false
     ]
   },
-  "hash": "ee902be715102296894538d0d90bd6261fa2058150e5736a2a0831e706aa5b3a"
+  "hash": "eeb725db3edc6ce5a84ff08629621c9c97c676563678d54caa71cd1e9ea07f63"
 }

@@ -8,6 +8,7 @@ pub mod board_posts;
 pub mod boards;
 pub mod captcha;
 pub mod categories;
+pub mod changesets;
 pub mod comments;
 pub mod design;
 pub mod files;

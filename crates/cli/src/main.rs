@@ -125,6 +125,9 @@ enum Command {
     /// 링크 카드(`::link[주소]`) 정보: 가져올 차례·가져옴·실패. 제목·설명은 남의 페이지에서 읽은 값이다
     #[command(subcommand)]
     Link(LinkCmd),
+    /// 구조·디자인·모듈 변경을 묶어 적용하고 한 번에 되돌린다
+    #[command(subcommand)]
+    Changeset(ChangesetCmd),
     /// 운영 신호: 댓글 급증·신고 집중·묵은 신고. `maru signals alert` 는 새 신호를 지금 메일로
     Signals(SignalsArgs),
     /// 관리 화면 로그인 링크를 만든다 (10분, 1회용)
@@ -215,6 +218,51 @@ pub enum SignalsCmd {
 pub enum PrivacyCmd {
     /// 지금 정리한다 (여러 번 해도 안전하다)
     Run,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ChangesetCmd {
+    /// 새 변경 묶음을 만든다. 적용하기 전에는 사이트가 그대로다
+    New {
+        #[arg(long)]
+        title: String,
+        /// 연산 JSON 배열
+        #[arg(long, conflicts_with = "ops_file")]
+        ops: Option<String>,
+        /// 연산 JSON 배열이 든 파일
+        #[arg(long)]
+        ops_file: Option<PathBuf>,
+    },
+    /// 적용 전 변경 묶음에 연산을 더한다
+    Add {
+        id: String,
+        /// 연산 JSON 하나 또는 배열
+        #[arg(long)]
+        op: String,
+    },
+    /// 새것부터
+    List {
+        /// preview, applying, applied, failed, discarded, reverted
+        #[arg(long)]
+        status: Option<String>,
+        #[arg(long, default_value_t = 50)]
+        limit: i64,
+    },
+    Show {
+        id: String,
+    },
+    /// 사본에서 먼저 돌려 본 뒤 사이트에 반영한다
+    Apply {
+        id: String,
+    },
+    /// 적용하지 않고 버린다
+    Discard {
+        id: String,
+    },
+    /// 적용한 것을 한 번에 되돌린다
+    Revert {
+        id: String,
+    },
 }
 
 #[derive(Debug, Subcommand)]

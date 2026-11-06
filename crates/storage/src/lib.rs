@@ -2,6 +2,7 @@
 
 pub mod backup;
 pub mod blobs;
+mod changesets;
 mod comments;
 pub mod data_dir;
 pub mod db;
@@ -10,6 +11,7 @@ mod links;
 pub mod mail;
 pub mod mailer;
 mod profiles;
+pub mod sandbox;
 mod search;
 pub mod sqlite;
 pub mod tls;

@@ -190,6 +190,8 @@ pub struct Actor {
     rank: i64,
     /// 토큰이 게시판을 제한할 때만 `Some`.
     board_ids: Option<Vec<Id>>,
+    /// 사람 승인 없이 changeset 을 적용해도 되는 토큰인가 (SPEC §5.3).
+    auto_apply: bool,
 }
 
 impl Actor {
@@ -199,6 +201,7 @@ impl Actor {
             perms: perms.into_iter().collect(),
             rank: rank::GUEST,
             board_ids: None,
+            auto_apply: false,
         }
     }
 
@@ -208,6 +211,7 @@ impl Actor {
             perms: Permission::ALL.into_iter().collect(),
             rank: rank::OWNER,
             board_ids: None,
+            auto_apply: false,
         }
     }
 
@@ -217,6 +221,7 @@ impl Actor {
             perms: perms.into_iter().collect(),
             rank,
             board_ids: None,
+            auto_apply: false,
         }
     }
 
@@ -242,7 +247,19 @@ impl Actor {
             perms,
             rank,
             board_ids,
+            auto_apply: false,
         }
+    }
+
+    /// 이 토큰에 자동 적용을 허락한다.
+    #[must_use]
+    pub fn with_auto_apply(mut self, on: bool) -> Self {
+        self.auto_apply = on;
+        self
+    }
+
+    pub fn can_auto_apply(&self) -> bool {
+        self.auto_apply
     }
 
     pub fn kind(&self) -> &ActorKind {

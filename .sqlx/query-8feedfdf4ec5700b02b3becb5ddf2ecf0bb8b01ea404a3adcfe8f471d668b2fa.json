@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO changesets (id, title, actor_type, actor_id, status, ops, inverse, error,\n                                 created_at, applied_at, reverted_at)\n         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)\n         ON CONFLICT (id) DO UPDATE SET status = excluded.status, ops = excluded.ops,\n             inverse = excluded.inverse, error = excluded.error,\n             applied_at = excluded.applied_at, reverted_at = excluded.reverted_at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 11
+    },
+    "nullable": []
+  },
+  "hash": "8feedfdf4ec5700b02b3becb5ddf2ecf0bb8b01ea404a3adcfe8f471d668b2fa"
+}

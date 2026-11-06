@@ -74,7 +74,7 @@ pub async fn apply(ctx: &Ctx, actor: &Actor, preset: &Preset) -> Result<Vec<OpRe
     Ok(out)
 }
 
-async fn apply_op(ctx: &Ctx, actor: &Actor, op: &Op) -> Result<OpResult> {
+pub(crate) async fn apply_op(ctx: &Ctx, actor: &Actor, op: &Op) -> Result<OpResult> {
     let result = |op: &str, target: &str, changed: bool| OpResult {
         op: op.to_owned(),
         target: target.to_owned(),

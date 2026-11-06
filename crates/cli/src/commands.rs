@@ -24,11 +24,12 @@ use serde_json::{Value, json};
 
 use crate::output;
 use crate::{
-    AuditCmd, AuditListArgs, BackupArgs, BackupCmd, BoardCmd, CategoryCmd, Command, CommentCmd,
-    DesignCmd, FileCmd, FontCmd, Global, InitArgs, LinkCmd, LoginLinkArgs, MailCmd, MailSetupArgs,
-    McpCmd, MediaCmd, MemberCmd, MenuCmd, MenuSetArgs, PageCmd, PostCmd, PostListArgs, PostNewArgs,
-    PrivacyCmd, RestoreArgs, SearchArgs, SearchCmd, ServeArgs, SignalsArgs, SignalsCmd, SiteCmd,
-    StatsArgs, TagCmd, TemplateCmd, TokenCmd, TokenCreateArgs, WidgetCmd,
+    AuditCmd, AuditListArgs, BackupArgs, BackupCmd, BoardCmd, CategoryCmd, ChangesetCmd, Command,
+    CommentCmd, DesignCmd, FileCmd, FontCmd, Global, InitArgs, LinkCmd, LoginLinkArgs, MailCmd,
+    MailSetupArgs, McpCmd, MediaCmd, MemberCmd, MenuCmd, MenuSetArgs, PageCmd, PostCmd,
+    PostListArgs, PostNewArgs, PrivacyCmd, RestoreArgs, SearchArgs, SearchCmd, ServeArgs,
+    SignalsArgs, SignalsCmd, SiteCmd, StatsArgs, TagCmd, TemplateCmd, TokenCmd, TokenCreateArgs,
+    WidgetCmd,
 };
 
 pub async fn run(g: &Global, command: Command) -> ExitCode {
@@ -70,6 +71,7 @@ pub async fn run(g: &Global, command: Command) -> ExitCode {
         Command::Comment(cmd) => comment_cmd(g, cmd).await,
         Command::Mail(cmd) => mail_cmd(g, cmd).await,
         Command::Link(cmd) => link_cmd(g, cmd).await,
+        Command::Changeset(cmd) => changeset_cmd(g, cmd).await,
         Command::Privacy(cmd) => privacy_cmd(g, cmd).await,
         Command::Signals(args) => signals_cmd(g, args).await,
         Command::Wiki { board } => wiki_cmd(g, &board).await,
@@ -2459,6 +2461,89 @@ fn member_out(v: members::MemberView) -> Out {
         member_flags(&v.member)
     ) + if v.two_factor { "  2단계" } else { "" };
     Ok((to_value(&v)?, human))
+}
+
+fn changeset_usage(detail: impl std::fmt::Display) -> Error {
+    Error::new(Code::Usage)
+        .with_message("error.changeset_op")
+        .arg("detail", detail.to_string())
+        .next("maru changeset new --help")
+}
+
+fn changeset_ops(text: &str) -> Result<Vec<Value>> {
+    Ok(match serde_json::from_str(text).map_err(changeset_usage)? {
+        Value::Array(list) => list,
+        one => vec![one],
+    })
+}
+
+fn changeset_line(cs: &maru_core::model::Changeset) -> String {
+    let mut line = format!(
+        "{}  {}  연산 {}개  {}",
+        cs.id,
+        cs.status.as_str(),
+        cs.ops.len(),
+        cs.title
+    );
+    if let Some(error) = &cs.error {
+        line.push_str(&format!("\n  {error}"));
+    }
+    line
+}
+
+async fn changeset_cmd(g: &Global, cmd: ChangesetCmd) -> Out {
+    use maru_core::model::ChangesetStatus;
+    use maru_core::services::changesets;
+    let (ctx, _config, db) = open(g).await?;
+    let sandbox = maru_storage::sandbox::FsSandbox::new(&DataDir::new(&g.data), db.clone());
+    let res = async {
+        let actor = actor(&ctx).await?;
+        let cs = match cmd {
+            ChangesetCmd::New {
+                title,
+                ops,
+                ops_file,
+            } => {
+                let ops = match (ops, ops_file) {
+                    (Some(text), _) => changeset_ops(&text)?,
+                    (None, Some(path)) => changeset_ops(
+                        &std::fs::read_to_string(&path)
+                            .map_err(|e| changeset_usage(format!("{}: {e}", path.display())))?,
+                    )?,
+                    (None, None) => Vec::new(),
+                };
+                changesets::create(&ctx, &actor, &title, ops).await?
+            }
+            ChangesetCmd::Add { id, op } => {
+                changesets::add(&ctx, &actor, &id, changeset_ops(&op)?).await?
+            }
+            ChangesetCmd::List { status, limit } => {
+                let status = match status.as_deref() {
+                    None => None,
+                    Some(s) => Some(ChangesetStatus::parse(s).ok_or_else(|| {
+                        changeset_usage(format!("상태 `{s}` 는 없습니다"))
+                            .next("maru changeset list --status preview")
+                    })?),
+                };
+                let list = changesets::list(&ctx, &actor, status, limit).await?;
+                let mut human = format!("변경 묶음 {}개", list.len());
+                for cs in &list {
+                    human.push('\n');
+                    human.push_str(&changeset_line(cs));
+                }
+                return Ok((json!({ "items": list }), human));
+            }
+            ChangesetCmd::Show { id } => changesets::get(&ctx, &actor, &id).await?,
+            ChangesetCmd::Apply { id } => changesets::apply(&ctx, &actor, &sandbox, &id).await?,
+            ChangesetCmd::Discard { id } => changesets::discard(&ctx, &actor, &id).await?,
+            ChangesetCmd::Revert { id } => changesets::revert(&ctx, &actor, &id).await?,
+        };
+        let human = changeset_line(&cs);
+        Ok((to_value(&cs)?, human))
+    }
+    .await;
+    db.close().await;
+    res
 }
 
 async fn link_cmd(g: &Global, cmd: LinkCmd) -> Out {

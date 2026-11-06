@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE audit_log SET changeset_id = ?\n         WHERE at >= ? AND actor_type = ? AND actor_id IS ? AND changeset_id IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "b1fd590d5a5b8001c7330b74251a5e389788acf88619361e3ab8c933a2fca4a3"
+}

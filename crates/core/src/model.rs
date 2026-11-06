@@ -614,6 +614,8 @@ pub struct AuditEntry {
     pub target_id: Option<String>,
     pub diff: serde_json::Value,
     pub at: String,
+    /// 변경 묶음이 남긴 기록이면 그 번호 (ADR-0121)
+    pub changeset_id: Option<String>,
 }
 
 /// 모듈 상태 한 줄 (ADR-0066). 줄이 있으면 설치된 것이다.
@@ -1204,4 +1206,61 @@ pub struct MailOut {
     pub last_error: Option<String>,
     pub created_at: String,
     pub sent_at: Option<String>,
+}
+
+/// 변경 묶음의 상태 (SPEC §6, ADR-0121).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ChangesetStatus {
+    /// 미리보기 중. 아직 사이트에 반영되지 않았다
+    Preview,
+    /// 적용 도중. 꺼졌다면 `revert` 로 되돌린다
+    Applying,
+    Applied,
+    /// 되돌리기가 중간에 멈췄다. `revert` 로 이어서 되돌린다
+    Failed,
+    Discarded,
+    Reverted,
+}
+
+impl ChangesetStatus {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Preview => "preview",
+            Self::Applying => "applying",
+            Self::Applied => "applied",
+            Self::Failed => "failed",
+            Self::Discarded => "discarded",
+            Self::Reverted => "reverted",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "preview" => Some(Self::Preview),
+            "applying" => Some(Self::Applying),
+            "applied" => Some(Self::Applied),
+            "failed" => Some(Self::Failed),
+            "discarded" => Some(Self::Discarded),
+            "reverted" => Some(Self::Reverted),
+            _ => None,
+        }
+    }
+}
+
+/// 변경 묶음. `ops`·`inverse` 는 `services::changesets::ChangeOp` 의 JSON.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct Changeset {
+    pub id: Id,
+    pub title: String,
+    pub actor_type: String,
+    pub actor_id: Option<Id>,
+    pub status: ChangesetStatus,
+    pub ops: Vec<serde_json::Value>,
+    /// 되돌릴 연산. 뒤에서부터 실행한다
+    pub inverse: Vec<serde_json::Value>,
+    pub error: Option<String>,
+    pub created_at: String,
+    pub applied_at: Option<String>,
+    pub reverted_at: Option<String>,
 }
