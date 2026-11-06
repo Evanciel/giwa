@@ -431,3 +431,173 @@ fn 터널_뒤_방문자_주소는_설정을_켠_서버의_루프백_연결에서
     exhaust(&bind, Some("주소 아님"));
     assert_eq!(post_login(&bind, None), 429);
 }
+
+const TUNNEL_HOST: &str = "warm-owl-tiny.trycloudflare.com";
+const PASSWORD: &str = "test-pass-1234";
+
+/// `cloudflared` 가 넘기는 대로 보낸다: 공개 주소의 `Host`, 방문자 주소. 브라우저 머리글은 `browser` 로 준다.
+fn through_tunnel(
+    bind: &str,
+    method: &str,
+    path: &str,
+    cookie: &str,
+    browser: &[(&str, &str)],
+    body: &str,
+) -> (u16, String, String) {
+    let mut s = TcpStream::connect(bind).unwrap();
+    let mut req = format!(
+        "{method} {path} HTTP/1.1\r\nHost: {TUNNEL_HOST}\r\nConnection: close\r\n\
+         CF-Connecting-IP: 203.0.113.9\r\nX-Forwarded-Proto: https\r\n"
+    );
+    if !cookie.is_empty() {
+        req.push_str(&format!("Cookie: {cookie}\r\n"));
+    }
+    for (k, v) in browser {
+        req.push_str(&format!("{k}: {v}\r\n"));
+    }
+    if method == "POST" {
+        req.push_str("Content-Type: application/x-www-form-urlencoded\r\n");
+    }
+    req.push_str(&format!("Content-Length: {}\r\n\r\n{body}", body.len()));
+    s.write_all(req.as_bytes()).unwrap();
+    let mut raw = Vec::new();
+    s.read_to_end(&mut raw).unwrap();
+    let text = String::from_utf8_lossy(&raw).into_owned();
+    let (head, body) = text.split_once("\r\n\r\n").unwrap_or((&text, ""));
+    (
+        head[9..12].parse().unwrap(),
+        head.to_owned(),
+        body.to_owned(),
+    )
+}
+
+fn set_cookie(head: &str, name: &str) -> Option<String> {
+    head.lines().find_map(|l| {
+        let (k, v) = l.split_once(':')?;
+        if !k.trim().eq_ignore_ascii_case("set-cookie") {
+            return None;
+        }
+        v.trim()
+            .starts_with(&format!("{name}="))
+            .then(|| v.trim().to_owned())
+    })
+}
+
+fn cookie_value(line: &str) -> String {
+    line.split(';').next().unwrap().to_owned()
+}
+
+fn error_of(page: &str) -> &str {
+    let Some(at) = page.find("form-error") else {
+        return "(오류 문구 없음)";
+    };
+    &page[at..(at + 200).min(page.len())]
+}
+
+fn csrf_of(body: &str) -> String {
+    let at = body.find("name=\"_csrf\" value=\"").unwrap() + 20;
+    body[at..at + body[at..].find('"').unwrap()].to_owned()
+}
+
+/// 터널 주소로 가입하고 로그인한다. 세션 쿠키 줄을 돌려준다.
+fn join_through_tunnel(bind: &str, email: &str) -> String {
+    let same = [
+        ("Origin", "https://warm-owl-tiny.trycloudflare.com"),
+        ("Sec-Fetch-Site", "same-origin"),
+    ];
+    let (_, head, _) = through_tunnel(bind, "GET", "/signup", "", &[], "");
+    let csrf = cookie_value(&set_cookie(&head, "maru_csrf").expect("CSRF 쿠키"));
+    let token = csrf.split_once('=').unwrap().1.to_owned();
+    let body = format!(
+        "_csrf={token}&email={}&display_name={}&password={PASSWORD}&password2={PASSWORD}",
+        email.replace('@', "%40"),
+        email.split('@').next().unwrap()
+    );
+    let (signup, head, signup_page) = through_tunnel(bind, "POST", "/signup", &csrf, &same, &body);
+    if let Some(line) = set_cookie(&head, "maru_session") {
+        return line;
+    }
+    let (_, _, page) = through_tunnel(bind, "GET", "/login", &csrf, &[], "");
+    let body = format!(
+        "_csrf={}&next=%2F&email={}&password={PASSWORD}",
+        csrf_of(&page),
+        email.replace('@', "%40")
+    );
+    let (status, head, _) = through_tunnel(bind, "POST", "/login", &csrf, &same, &body);
+    set_cookie(&head, "maru_session").unwrap_or_else(|| {
+        panic!(
+            "로그인 실패 {status}, 가입 {signup}: {}",
+            error_of(&signup_page)
+        )
+    })
+}
+
+#[test]
+fn 터널_주소로_가입하고_로그인하면_회원이_남고_세션이_통한다() {
+    let tmp = tempfile::tempdir().unwrap();
+    let nothing = tmp.path().join("빈경로");
+    let data = init(tmp.path(), &nothing);
+    ok(
+        &data,
+        &nothing,
+        &[
+            "site",
+            "set",
+            "--signup",
+            "open",
+            "--captcha",
+            "off",
+            "--signup-verify",
+            "false",
+        ],
+    );
+    // `--quick` 과 같은 상태: 방문자 주소는 믿고 site_url 은 그대로다.
+    let config = data.join("config.toml");
+    let text = std::fs::read_to_string(&config).unwrap();
+    std::fs::write(&config, format!("trust_tunnel = true\n{text}")).unwrap();
+
+    {
+        let (_server, bind) = start_server(&data);
+        let line = join_through_tunnel(&bind, "tunnel-a@example.test");
+        let session = cookie_value(&line);
+        assert!(
+            !line.contains("Secure"),
+            "site_url 이 http 면 Secure 가 없다: {line}"
+        );
+        let (status, _, page) = through_tunnel(&bind, "GET", "/me", &session, &[], "");
+        assert_eq!(status, 200, "{page}");
+        assert!(page.contains("tunnel-a"), "내 정보가 보여야 한다");
+        let members = ok(&data, &nothing, &["member", "list"]);
+        assert!(
+            members.to_string().contains("tunnel-a@example.test"),
+            "{members}"
+        );
+
+        // 다른 사이트에서 보낸 POST 는 터널 뒤에서도 막힌다.
+        let (status, head, _) = through_tunnel(
+            &bind,
+            "POST",
+            "/login",
+            "",
+            &[
+                ("Origin", "https://evil.example.test"),
+                ("Sec-Fetch-Site", "cross-site"),
+            ],
+            "",
+        );
+        assert!(set_cookie(&head, "maru_session").is_none());
+        assert_ne!(status, 200);
+    }
+
+    // 내 도메인: site_url 이 https 라 세션 쿠키에 Secure 가 붙는다.
+    let fake = tmp.path().join("가짜");
+    fake_cloudflared(&fake);
+    ok(
+        &data,
+        &fake,
+        &["expose", "--cloudflare", "--hostname", "blog.example.com"],
+    );
+    let (_server, bind) = start_server(&data);
+    let line = join_through_tunnel(&bind, "tunnel-b@example.test");
+    assert!(line.contains("Secure"), "{line}");
+}

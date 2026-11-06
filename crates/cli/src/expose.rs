@@ -4,6 +4,7 @@
 //! - `--hostname`: 내 도메인. 설정을 맞추고 `cloudflared` 명령 순서를 돌려준다. 로그인에 브라우저가 필요하다.
 
 use std::collections::VecDeque;
+use std::ffi::OsString;
 use std::io::{BufRead, BufReader};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::{Path, PathBuf};
@@ -25,6 +26,7 @@ use crate::{ExposeArgs, ExposeCmd, Global};
 /// 공식 설치 안내. 자동으로 받지 않는다.
 const DOWNLOADS: &str = "https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/downloads/";
 const STATE_FILE: &str = "expose.json";
+const QUICK_CONFIG_FILE: &str = "cloudflared-quick.yml";
 const QUICK_WAIT: Duration = Duration::from_secs(60);
 
 /// 돌고 있는 임시 터널 기록. 다시 실행해도 터널을 또 만들지 않고, 프로세스가 사라져도 끌 수 있게 둔다.
@@ -190,6 +192,18 @@ async fn tunnel_alive(metrics: &str) -> bool {
         .unwrap_or(false)
 }
 
+/// 임시 터널 인자. 기본 설정(`~/.cloudflared/config.yml`)의 ingress 가 있으면 `--url` 은 무시되고
+/// 모든 요청이 그 규칙으로 간다. 그래서 빈 설정을 준다.
+fn quick_args(config: &Path, metrics: &str, target: SocketAddr) -> Vec<OsString> {
+    let mut args: Vec<OsString> = ["tunnel", "--no-autoupdate", "--config"]
+        .map(OsString::from)
+        .into();
+    args.push(config.into());
+    args.extend(["--metrics", metrics, "--url"].map(OsString::from));
+    args.push(format!("http://{target}").into());
+    args
+}
+
 fn free_metrics_addr() -> Result<String> {
     let l = std::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).map_err(Error::internal)?;
     Ok(l.local_addr().map_err(Error::internal)?.to_string())
@@ -252,9 +266,14 @@ async fn quick_inner(g: &Global, to: Option<String>) -> Result<ExitCode> {
     }
 
     let metrics = free_metrics_addr()?;
+    let quick_config = DataDir::new(&g.data).root().join(QUICK_CONFIG_FILE);
+    std::fs::write(
+        &quick_config,
+        "# maru expose --quick: 기본 설정을 읽지 않게 하는 빈 설정\n",
+    )
+    .map_err(Error::internal)?;
     let mut child = Command::new(&path)
-        .args(["tunnel", "--no-autoupdate", "--metrics", &metrics, "--url"])
-        .arg(format!("http://{target}"))
+        .args(quick_args(&quick_config, &metrics, target))
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
@@ -346,8 +365,10 @@ async fn quick_inner(g: &Global, to: Option<String>) -> Result<ExitCode> {
     };
     stop_process(child.id());
     let _ = child.wait();
+    // `expose stop` 이 기록을 지우고 껐다면 실패가 아니다.
+    let stopped_by_command = !state_path(g).exists();
     remove_state(g);
-    if ended {
+    if ended && !stopped_by_command {
         let e = Error::new(Code::External)
             .with_message("error.expose_failed")
             .arg("detail", "터널 프로세스가 끝났습니다");
@@ -421,7 +442,7 @@ async fn named(g: &Global, raw: &str, tunnel: &str, to: Option<String>) -> Out {
             json!({ "command": "cloudflared tunnel login", "note": "브라우저에서 Cloudflare 에 로그인하고 도메인을 고릅니다. 사람이 해야 합니다." }),
             json!({ "command": format!("cloudflared tunnel create {tunnel}") }),
             json!({ "command": format!("cloudflared tunnel route dns {tunnel} {host}") }),
-            json!({ "command": format!("cloudflared tunnel run --url http://{target} {tunnel}"), "note": "켜 두는 동안 공개됩니다." }),
+            json!({ "command": format!("cloudflared tunnel run --url http://{target} {tunnel}"), "note": "켜 두는 동안 공개됩니다. ~/.cloudflared/config.yml 에 ingress 가 있으면 --url 은 무시되니 그 파일에 이 도메인을 더하세요." }),
         ];
         let mut human = format!("site_url 을 {site_url} 로 맞췄습니다. 아래 순서로 실행하세요:");
         for s in &steps {
@@ -567,6 +588,15 @@ mod tests {
             path_dirs(&path),
             ["/a", "/git/cmd", "/q r", "/npm"].map(PathBuf::from)
         );
+    }
+
+    #[test]
+    fn 임시_터널은_사용자의_기본_설정을_읽지_않는다() {
+        let target = "127.0.0.1:8080".parse().unwrap();
+        let args = quick_args(Path::new("빈.yml"), "127.0.0.1:9", target);
+        let at = args.iter().position(|a| a == "--config").unwrap();
+        assert_eq!(args[at + 1], "빈.yml");
+        assert_eq!(args.last().unwrap(), "http://127.0.0.1:8080");
     }
 
     #[test]
