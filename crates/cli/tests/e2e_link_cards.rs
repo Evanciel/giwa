@@ -226,7 +226,9 @@ fn link_cards_fill_after_fetch() {
     // 시험에서만 이 컴퓨터 주소를 열고 가져온다
     let r = maru_env(data, &["link", "fetch"], true);
     assert_eq!(r["ok"], 1, "{r}");
-    assert_eq!(r["retry"], 1, "{r}");
+    // 켜 둔 서버의 주기 작업이 위에서 한 번 더 시도했을 수 있어, 없는 주소는 재시도이거나 벌써 실패다.
+    let left = r["retry"].as_u64().unwrap() + r["failed"].as_u64().unwrap();
+    assert_eq!(left, 1, "{r}");
     let list = maru(data, &["link", "list"]);
     let p = status_of(&list, &page);
     assert_eq!(p["status"], "ok", "{p}");

@@ -248,23 +248,50 @@ async fn init(g: &Global, args: InitArgs) -> Out {
 
 // ---- login-link ----
 
+const SERVER_FILE: &str = "server.json";
+
 async fn login_link(g: &Global, args: LoginLinkArgs) -> Out {
-    let (ctx, _config, db) = open(g).await?;
+    let (ctx, config, db) = open(g).await?;
     let actor = actor(&ctx).await?;
     let res = auth::issue_login_link(&ctx, &actor, args.email.as_deref()).await;
     db.close().await;
     let l = res?;
+    let url = running_url(g, &config, &l.url).await;
     let data = json!({
-        "url": l.url,
+        "url": url,
         "expires_at": l.expires_at,
         "email": l.member.email,
     });
     let human = format!(
         "로그인 링크 ({}, 10분 동안 한 번만 쓸 수 있습니다):
   {}",
-        l.member.email, l.url
+        l.member.email, url
     );
     Ok((data, human))
+}
+
+/// `serve --bind` 로 설정과 다른 주소에서 돌고 있으면 링크를 그 주소로 바꾼다.
+/// `site_url` 이 이 컴퓨터 주소일 때만이다. 내 도메인은 터널 뒤라 그대로 둔다 (ADR-0120).
+async fn running_url(g: &Global, config: &Config, url: &str) -> String {
+    let base = config.site_url.trim_end_matches('/');
+    let local = base.strip_prefix("http://").is_some_and(|h| {
+        h.starts_with("127.0.0.1") || h.starts_with("localhost") || h.starts_with("[::1]")
+    });
+    let Some(path) = url.strip_prefix(base).filter(|_| local) else {
+        return url.to_owned();
+    };
+    let file = DataDir::new(&g.data).root().join(SERVER_FILE);
+    let bind = std::fs::read_to_string(file)
+        .ok()
+        .and_then(|text| serde_json::from_str::<Value>(&text).ok())
+        .and_then(|v| v["bind"].as_str()?.parse::<SocketAddr>().ok());
+    // 강제 종료되면 기록이 남는다: 실제로 답하는 maru 일 때만 믿는다.
+    match bind {
+        Some(addr) if crate::doctor::probe_maru(addr).await == Some(true) => {
+            format!("http://{addr}{path}")
+        }
+        _ => url.to_owned(),
+    }
 }
 
 // ---- serve ----
@@ -310,6 +337,12 @@ async fn serve_inner(g: &Global, args: ServeArgs) -> Result<()> {
     };
     let local = listener.local_addr().map_err(Error::internal)?;
     let url = format!("http://{local}");
+    // `login-link` 가 지금 주소를 찍도록 적어 둔다. 못 적어도 서버는 돈다.
+    let server_file = dir.root().join(SERVER_FILE);
+    let _ = std::fs::write(
+        &server_file,
+        json!({ "bind": local.to_string() }).to_string(),
+    );
 
     let theme_dir = dir.themes_dir().join("default");
     let theme = maru_themes::Theme::with_templates(
@@ -365,6 +398,7 @@ async fn serve_inner(g: &Global, args: ServeArgs) -> Result<()> {
         }
     };
     db.close().await;
+    let _ = std::fs::remove_file(&server_file);
     if res.is_ok() && !g.json && !g.quiet {
         println!("서버를 멈췄습니다.");
     }

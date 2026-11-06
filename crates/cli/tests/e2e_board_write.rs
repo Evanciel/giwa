@@ -45,7 +45,8 @@ fn start_server(data: &Path) -> (Server, Value) {
         .arg(data)
         .args(["serve", "--bind", "127.0.0.1:0", "--json"])
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        // 드물게 500 이 난다(ADR-0120). 다음에 나면 서버 오류 줄이 게이트 기록에 남게 버리지 않는다.
+        .stderr(Stdio::inherit())
         .spawn()
         .expect("serve 실행");
     let stdout = child.stdout.take().unwrap();

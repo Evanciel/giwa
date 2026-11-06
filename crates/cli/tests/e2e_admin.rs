@@ -560,6 +560,48 @@ fn login_attempts_are_rate_limited_per_connection_address() {
 }
 
 #[test]
+fn login_link_points_at_the_running_server() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("site");
+    let log = tmp.path().join("server.log");
+    maru(&data, &["init", "--yes"]);
+
+    let off = maru(&data, &["login-link"]);
+    assert!(
+        off["url"]
+            .as_str()
+            .unwrap()
+            .starts_with("http://127.0.0.1:8080/"),
+        "{off}"
+    );
+
+    {
+        // 설정(8080)과 다른 포트에서 돌면 그 주소를 찍고, 그 링크로 실제로 들어간다.
+        let (_server, bind) = start_server(&data, &log);
+        let on = maru(&data, &["login-link"]);
+        let url = on["url"].as_str().unwrap();
+        assert!(url.starts_with(&format!("http://{bind}/")), "{on} {bind}");
+        let cookie = format!("maru_session={}", sign_in_with_link(&bind, &path_of(url)));
+        assert_eq!(
+            http(&bind, "GET", "/admin", &[("Cookie", &cookie)], "").status,
+            200
+        );
+    }
+
+    // 강제 종료로 기록만 남아도 옛 주소를 믿지 않는다.
+    let stale = data.join("server.json");
+    assert!(stale.exists());
+    let after = maru(&data, &["login-link"]);
+    assert!(
+        after["url"]
+            .as_str()
+            .unwrap()
+            .starts_with("http://127.0.0.1:8080/"),
+        "{after}"
+    );
+}
+
+#[test]
 fn agent_token_cannot_issue_login_link() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("site");
