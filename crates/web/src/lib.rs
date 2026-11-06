@@ -90,6 +90,8 @@ pub struct AppState {
     pub archiver: Option<Arc<dyn Archiver>>,
     /// 이 바이너리에 든 모듈 (ADR-0066). 켜짐은 DB 에 있다.
     pub modules: Arc<Registry>,
+    /// 터널이 건네는 방문자 주소를 믿는가 (ADR-0118).
+    pub trust_tunnel: bool,
 }
 
 impl AppState {
@@ -107,7 +109,13 @@ impl AppState {
             link_fetcher: None,
             archiver: None,
             modules: Arc::new(Registry::default()),
+            trust_tunnel: false,
         }
+    }
+
+    pub fn with_trust_tunnel(mut self, trust: bool) -> Self {
+        self.trust_tunnel = trust;
+        self
     }
 
     pub fn with_modules(mut self, modules: Arc<Registry>) -> Self {
@@ -150,6 +158,7 @@ pub fn router(state: AppState) -> Router {
         .nest("/api/v1", api::routes())
         .layer(middleware::from_fn_with_state(state.clone(), rate_limit))
         .layer(middleware::from_fn_with_state(state.clone(), count_visit))
+        .layer(middleware::from_fn_with_state(state.clone(), tunnel_client))
         .with_state(state)
         .layer(middleware::map_response(security_headers))
         .layer(RequestBodyLimitLayer::new(BODY_LIMIT))
@@ -157,6 +166,28 @@ pub fn router(state: AppState) -> Router {
             StatusCode::REQUEST_TIMEOUT,
             REQUEST_TIMEOUT,
         ))
+}
+
+/// 터널 뒤에서는 모두 루프백으로 들어온다. 설정이 켜져 있고 정말 루프백 연결일 때만 `CF-Connecting-IP` 를
+/// 연결 주소 자리에 넣는다. 아래의 제한·조회수·통계·모듈은 이 자리만 본다 (ADR-0118).
+async fn tunnel_client(State(state): State<AppState>, mut req: Request, next: Next) -> Response {
+    if state.trust_tunnel {
+        let peer = req
+            .extensions()
+            .get::<ConnectInfo<SocketAddr>>()
+            .map(|c| c.0)
+            .filter(|a| a.ip().is_loopback());
+        let visitor = req
+            .headers()
+            .get("cf-connecting-ip")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.trim().parse::<IpAddr>().ok());
+        if let (Some(peer), Some(ip)) = (peer, visitor) {
+            req.extensions_mut()
+                .insert(ConnectInfo(SocketAddr::new(ip, peer.port())));
+        }
+    }
+    next.run(req).await
 }
 
 /// 연결 주소로만 센다. 전달 헤더(`X-Forwarded-For`)는 보지 않는다.

@@ -158,6 +158,7 @@ async fn collect(g: &Global) -> Vec<Check> {
         out.push(port(&c.bind, &shown).await);
         out.push(site_url(&c.site_url));
     }
+    out.push(tunnel());
     out.push(theme(&dir));
     out.push(check(
         "font",
@@ -301,7 +302,7 @@ async fn port(bind: &str, data: &str) -> Check {
 
 /// `/robots.txt` 에 maru 가 내는 사이트맵 줄이 있는지로 판단한다.
 /// 연결조차 안 되면 `None`(못 쟀다). 연결은 됐는데 maru 답이 없으면 다른 프로그램이다.
-async fn probe_maru(addr: SocketAddr) -> Option<bool> {
+pub(crate) async fn probe_maru(addr: SocketAddr) -> Option<bool> {
     let wait = Duration::from_secs(3);
     let mut s = tokio::time::timeout(wait, tokio::net::TcpStream::connect(addr))
         .await
@@ -343,6 +344,23 @@ fn site_url(url: &str) -> Check {
             Status::Warn,
             format!("{url} 는 https 가 아닙니다. 로그인 쿠키에 Secure 가 붙지 않습니다."),
         )
+    }
+}
+
+/// 없어도 문제는 아니다. 외부 공개할 때만 필요하다.
+fn tunnel() -> Check {
+    match crate::expose::find_cloudflared() {
+        Some(p) => check(
+            "tunnel",
+            Status::Pass,
+            format!("cloudflared: {}", p.display()),
+        ),
+        None => check(
+            "tunnel",
+            Status::Unknown,
+            "cloudflared 가 없습니다. 외부 공개할 때만 필요합니다.",
+        )
+        .next("maru expose --cloudflare"),
     }
 }
 

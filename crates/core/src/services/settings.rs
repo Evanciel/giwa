@@ -301,6 +301,17 @@ pub async fn update(ctx: &Ctx, actor: &Actor, patch: SettingsPatch) -> Result<Si
     Ok(after)
 }
 
+/// 사이트를 인터넷에 여는 일을 감사에 남긴다. 로컬 운영자만 한다. 에이전트 토큰은 admin 스코프여도 안 된다 (ADR-0118).
+pub async fn record_expose(ctx: &Ctx, actor: &Actor, diff: Value) -> Result<()> {
+    if !matches!(actor.kind(), crate::actor::ActorKind::Local) {
+        return Err(Error::new(Code::Forbidden).with_message("error.expose_local"));
+    }
+    let mut tx = Tx::begin(ctx).await?;
+    tx.audit(actor, "site.expose", Target::new("site", "tunnel"), diff)
+        .await?;
+    tx.commit().await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -177,6 +177,17 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         }
         "error.comment_not_found" => "댓글을 찾을 수 없습니다: {id}",
         "error.comment_deleted" => "지운 댓글은 되돌리지 않습니다.",
+        "error.cloudflared_missing" => {
+            "cloudflared 가 없습니다. 공식 안내대로 설치한 뒤 다시 실행하세요: {url}"
+        }
+        "error.expose_no_server" => {
+            "{target} 에서 maru 서버가 답하지 않습니다. 서버를 먼저 켜세요."
+        }
+        "error.expose_failed" => "터널을 열지 못했습니다: {detail}",
+        "error.expose_hostname" => "도메인 이름이 올바르지 않습니다: {value}",
+        "error.expose_local" => {
+            "외부 공개는 이 컴퓨터의 운영자만 합니다. 토큰으로는 할 수 없습니다."
+        }
         "error.mcp_token" => "MCP 서버에는 토큰이 필요합니다. 운영자 권한으로는 돌지 않습니다.",
         "error.comment_length" => "댓글은 1~{max}자로 써 주세요.",
         "error.comment_image" => {

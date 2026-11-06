@@ -2,6 +2,7 @@
 
 mod commands;
 mod doctor;
+mod expose;
 mod mcp;
 mod modules;
 mod output;
@@ -56,6 +57,8 @@ enum Command {
     /// MCP 서버와 에이전트 클라이언트 연결
     #[command(subcommand)]
     Mcp(McpCmd),
+    /// 사이트를 터널로 인터넷에 공개
+    Expose(ExposeArgs),
     /// 이미지 (업로드, 대체 텍스트)
     #[command(subcommand)]
     Media(MediaCmd),
@@ -814,6 +817,36 @@ pub enum TokenCmd {
         /// 토큰 id (`maru token list`)
         id: String,
     },
+}
+
+#[derive(Debug, Args)]
+#[command(args_conflicts_with_subcommands = true)]
+pub struct ExposeArgs {
+    #[command(subcommand)]
+    pub cmd: Option<ExposeCmd>,
+    /// Cloudflare Tunnel 을 쓴다 (cloudflared 필요). 혼자 쓰면 고를 수 있는 길을 보여 준다
+    #[arg(long)]
+    pub cloudflare: bool,
+    /// 계정 없이 임시 주소로 공개한다. 끌 때까지 앞에서 돈다
+    #[arg(long, requires = "cloudflare", conflicts_with = "hostname")]
+    pub quick: bool,
+    /// 내 도메인. site_url 을 맞추고 cloudflared 명령 순서를 돌려준다
+    #[arg(long, requires = "cloudflare")]
+    pub hostname: Option<String>,
+    /// --hostname 에 쓸 터널 이름
+    #[arg(long, default_value = "maru")]
+    pub tunnel: String,
+    /// 터널을 보낼 서버 주소 (생략하면 설정의 bind)
+    #[arg(long)]
+    pub to: Option<String>,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ExposeCmd {
+    /// cloudflared·서버·터널 상태
+    Status,
+    /// 임시 터널을 끈다. 없어도 성공이다
+    Stop,
 }
 
 #[derive(Debug, Subcommand)]

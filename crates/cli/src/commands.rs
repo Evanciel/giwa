@@ -39,6 +39,7 @@ pub async fn run(g: &Global, command: Command) -> ExitCode {
         Command::Post(cmd) => post(g, cmd).await,
         Command::Board(cmd) => board(g, cmd).await,
         Command::Token(cmd) => token(g, cmd).await,
+        Command::Expose(args) => return crate::expose::run(g, args).await,
         Command::Mcp(McpCmd::Install(args)) => crate::mcp::install(g, args).await,
         Command::Mcp(McpCmd::Serve(args)) => {
             return match crate::mcp::serve(g, args).await {
@@ -135,6 +136,7 @@ async fn init(g: &Global, args: InitArgs) -> Out {
         bind,
         site_url,
         mail: None,
+        trust_tunnel: false,
     }
     .validated()?;
     let wrote_config = dir.write_config_if_absent(&config)?;
@@ -323,7 +325,8 @@ async fn serve_inner(g: &Global, args: ServeArgs) -> Result<()> {
         .with_mailer(mailer)
         .with_link_fetcher(Arc::new(fetcher))
         .with_archiver(Arc::new(archiver))
-        .with_modules(modules);
+        .with_modules(modules)
+        .with_trust_tunnel(config.trust_tunnel);
     let started = json!({
         "url": url,
         "bind": local.to_string(),
@@ -371,7 +374,7 @@ async fn serve_inner(g: &Global, args: ServeArgs) -> Result<()> {
 const SHUTDOWN_GRACE: std::time::Duration = std::time::Duration::from_secs(10);
 
 /// Ctrl+C, 그리고 운영체제의 종료 요청(Unix SIGTERM, Windows 창 닫기·로그오프·시스템 종료).
-async fn shutdown_signal() {
+pub(crate) async fn shutdown_signal() {
     #[cfg(unix)]
     {
         use tokio::signal::unix::{SignalKind, signal};

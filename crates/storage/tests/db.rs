@@ -129,6 +129,7 @@ fn config_roundtrip_and_not_overwritten() {
         bind: "127.0.0.1:3139".into(),
         site_url: "https://blog.example.com".into(),
         mail: None,
+        trust_tunnel: false,
     };
     assert!(dir.write_config_if_absent(&cfg).unwrap());
     assert!(!dir.write_config_if_absent(&Config::default()).unwrap());

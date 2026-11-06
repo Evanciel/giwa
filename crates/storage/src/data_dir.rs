@@ -144,6 +144,7 @@ impl DataDir {
             "# maru 설정. 바꾼 뒤에는 serve 를 다시 시작한다.\n\
              # bind: 서버 주소 (기본은 이 컴퓨터에서만 접속 가능)\n\
              # site_url: 사이트맵·RSS 등 절대 URL 의 기준\n\
+             # trust_tunnel: 터널이 건네는 방문자 주소를 믿는다 (`maru expose`)\n\
              # [mail]: 편지 보내는 방식 (`maru mail setup`). SMTP 비밀번호는 여기 두지 않는다\n{body}"
         );
         fs::write(&path, text).map_err(|e| io_error(&path, e))
