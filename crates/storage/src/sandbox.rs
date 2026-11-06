@@ -31,6 +31,11 @@ impl FsSandbox {
         }
     }
 
+    /// 꺼질 때 못 지운 사본을 치운다. 서버를 켤 때 부른다.
+    pub fn clear(&self) {
+        let _ = fs::remove_dir_all(&self.dir);
+    }
+
     fn path(&self, key: &str) -> PathBuf {
         self.dir.join(format!("{key}.db"))
     }

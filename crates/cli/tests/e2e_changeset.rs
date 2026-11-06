@@ -396,3 +396,186 @@ fn 되돌리면_데이터를_잃는_경우는_멈추고_치운_뒤_이어서_되
     assert_eq!(board_slugs(&data), boards_before);
     assert_eq!(maru(&data, &["site", "show"]), site_before);
 }
+
+/// 쿠키와 함께 읽는다. (상태, 머리글, 본문)
+fn request(bind: &str, method: &str, path: &str, cookie: &str) -> (u16, String, String) {
+    let mut s = TcpStream::connect(bind).unwrap();
+    let mut req = format!("{method} {path} HTTP/1.1\r\nHost: {bind}\r\nConnection: close\r\n");
+    if !cookie.is_empty() {
+        req.push_str(&format!("Cookie: {cookie}\r\n"));
+    }
+    req.push_str("Content-Length: 0\r\nSec-Fetch-Site: same-origin\r\n\r\n");
+    s.write_all(req.as_bytes()).unwrap();
+    let mut raw = Vec::new();
+    s.read_to_end(&mut raw).unwrap();
+    let text = String::from_utf8_lossy(&raw).into_owned();
+    let (head, body) = text.split_once("\r\n\r\n").unwrap_or((&text, ""));
+    (
+        head[9..12].parse().unwrap(),
+        head.to_owned(),
+        body.to_owned(),
+    )
+}
+
+fn set_cookie_value(head: &str, name: &str) -> String {
+    head.lines()
+        .find_map(|l| {
+            let (k, v) = l.split_once(':')?;
+            (k.eq_ignore_ascii_case("set-cookie") && v.trim().starts_with(&format!("{name}=")))
+                .then(|| v.trim().split(';').next().unwrap().to_owned())
+        })
+        .unwrap_or_else(|| panic!("{name} 쿠키가 없다: {head}"))
+}
+
+fn path_of(url: &str) -> String {
+    let rest = url.split_once("://").unwrap().1;
+    format!("/{}", rest.split_once('/').unwrap().1)
+}
+
+#[test]
+fn 미리보기는_사본만_보여_주고_적용하면_끝난다() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = init(tmp.path());
+    let name_before = maru(&data, &["site", "show"])["name"].clone();
+    let id = new_changeset(
+        &data,
+        &json!([
+            { "op": "settings.set", "values": { "name": "미리 본 이름" } },
+            { "op": "tokens.set", "tokens": { "color": { "primary": "#1f4f8f" } } },
+            { "op": "board.create", "slug": "previewed", "name": "미리 본 판", "kind": "forum" }
+        ]),
+    );
+    let (_server, bind) = start_server(&data);
+
+    // 표 없이 들어오면 로그인으로 보낸다.
+    let (status, head, _) = request(&bind, "GET", &format!("/__preview/{id}"), "");
+    assert_eq!(status, 303, "{head}");
+    assert!(head.contains("/admin/login"), "{head}");
+    let (status, _, _) = request(&bind, "GET", &format!("/__preview/{id}?token=틀린값"), "");
+    assert_eq!(status, 403);
+
+    let link = maru(&data, &["changeset", "preview-url", &id]);
+    let url = link["url"].as_str().unwrap();
+    assert!(url.contains(&bind), "지금 도는 서버 주소: {url}");
+    let (status, head, _) = request(&bind, "GET", &path_of(url), "");
+    assert_eq!(status, 303, "{head}");
+    let preview = set_cookie_value(&head, "maru_preview");
+    // 토큰은 한 번만 쓴다.
+    assert_eq!(request(&bind, "GET", &path_of(url), "").0, 403);
+
+    // 쿠키가 있으면 변경이 보이고 띠가 붙는다.
+    let (status, head, home) = request(&bind, "GET", "/", &preview);
+    assert_eq!(status, 200);
+    assert!(home.contains("미리 본 이름"));
+    assert!(home.contains("maru-preview-band"), "띠");
+    assert!(head.to_ascii_lowercase().contains("no-store"), "{head}");
+    assert_eq!(request(&bind, "GET", "/b/previewed", &preview).0, 200);
+    assert!(
+        request(&bind, "GET", "/assets/tokens.css", &preview)
+            .2
+            .contains("#1f4f8f"),
+        "토큰도 사본에서 온다"
+    );
+    assert_eq!(request(&bind, "GET", "/__preview/band.css", "").0, 200);
+
+    // 쓰기는 받지 않는다.
+    assert_eq!(request(&bind, "POST", "/login", &preview).0, 403);
+
+    // 쿠키가 없으면 실제 사이트다. 파일에도 남지 않았다.
+    let (_, _, real) = request(&bind, "GET", "/", "");
+    assert!(!real.contains("미리 본 이름"));
+    assert!(!real.contains("maru-preview-band"));
+    assert_eq!(request(&bind, "GET", "/b/previewed", "").0, 404);
+    assert_eq!(maru(&data, &["site", "show"])["name"], name_before);
+    assert!(!board_slugs(&data).contains(&"previewed".to_owned()));
+
+    // 끝내기는 쿠키를 지운다.
+    let (status, head, _) = request(&bind, "GET", "/__preview/exit", &preview);
+    assert_eq!(status, 303);
+    assert!(head.contains("maru_preview=;"), "{head}");
+
+    // 연산을 더하면 사본도 따라온다.
+    maru(
+        &data,
+        &[
+            "changeset",
+            "add",
+            &id,
+            "--op",
+            r#"{"op":"settings.set","values":{"name":"더 고친 이름"}}"#,
+        ],
+    );
+    assert!(
+        request(&bind, "GET", "/", &preview)
+            .2
+            .contains("더 고친 이름")
+    );
+
+    // 적용하면 미리보기는 끝나고 실제 사이트에 보인다.
+    assert_eq!(
+        maru(&data, &["changeset", "apply", &id])["status"],
+        "applied"
+    );
+    let (status, head, home) = request(&bind, "GET", "/", &preview);
+    assert_eq!(status, 200);
+    assert!(head.contains("maru_preview=;"), "{head}");
+    assert!(!home.contains("maru-preview-band"));
+    assert!(home.contains("더 고친 이름"));
+}
+
+#[test]
+fn 틀린_묶음은_미리보기_때_어디가_틀렸는지_알려_준다() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = init(tmp.path());
+    let id = new_changeset(
+        &data,
+        &json!([{ "op": "board.delete", "slug": "no-such-board" }]),
+    );
+    let (_server, bind) = start_server(&data);
+    let url = maru(&data, &["changeset", "preview-url", &id])["url"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let (status, _, body) = request(&bind, "GET", &path_of(&url), "");
+    assert_eq!(status, 404, "{body}");
+    assert!(body.contains("1번째"), "{body}");
+}
+
+#[test]
+fn 소유자_세션으로_미리보기를_연다() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = init(tmp.path());
+    let id = new_changeset(
+        &data,
+        &json!([{ "op": "settings.set", "values": { "name": "소유자가 본 이름" } }]),
+    );
+    let (_server, bind) = start_server(&data);
+    let link = maru(&data, &["login-link"]);
+    let path = path_of(link["url"].as_str().unwrap());
+    let (_, head, _) = request(&bind, "GET", &path, "");
+    let csrf = set_cookie_value(&head, "maru_csrf");
+    let body = format!("_csrf={}", csrf.split_once('=').unwrap().1);
+    let mut s = TcpStream::connect(&bind).unwrap();
+    let req = format!(
+        "POST {path} HTTP/1.1\r\nHost: {bind}\r\nConnection: close\r\nCookie: {csrf}\r\n\
+         Sec-Fetch-Site: same-origin\r\nContent-Type: application/x-www-form-urlencoded\r\n\
+         Content-Length: {}\r\n\r\n{body}",
+        body.len()
+    );
+    s.write_all(req.as_bytes()).unwrap();
+    let mut raw = Vec::new();
+    s.read_to_end(&mut raw).unwrap();
+    let session = set_cookie_value(&String::from_utf8_lossy(&raw), "maru_session");
+    let (status, head, _) = request(&bind, "GET", &format!("/__preview/{id}"), &session);
+    assert_eq!(status, 303, "{head}");
+    let preview = set_cookie_value(&head, "maru_preview");
+    let both = format!("{session}; {preview}");
+    assert!(
+        request(&bind, "GET", "/", &both)
+            .2
+            .contains("소유자가 본 이름")
+    );
+    // 관리 화면은 미리보기 중에도 실제 사이트다.
+    let admin = request(&bind, "GET", "/admin", &both).2;
+    assert!(!admin.contains("maru-preview-band"), "{admin}");
+}

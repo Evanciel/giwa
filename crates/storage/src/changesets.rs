@@ -130,3 +130,40 @@ pub(crate) async fn stamp_audit<'e>(
     .map_err(db_error)?;
     Ok(())
 }
+
+pub(crate) async fn set_preview_token<'e>(
+    e: impl SqliteExecutor<'e>,
+    id: &str,
+    hash: &str,
+    expires_at: &str,
+) -> Result<()> {
+    sqlx::query!(
+        "UPDATE changesets SET preview_token_hash = ?, preview_token_expires = ? WHERE id = ?",
+        hash,
+        expires_at,
+        id
+    )
+    .execute(e)
+    .await
+    .map_err(db_error)?;
+    Ok(())
+}
+
+pub(crate) async fn take_preview_token<'e>(
+    e: impl SqliteExecutor<'e>,
+    id: &str,
+    hash: &str,
+    now: &str,
+) -> Result<bool> {
+    let done = sqlx::query!(
+        "UPDATE changesets SET preview_token_hash = NULL, preview_token_expires = NULL
+         WHERE id = ? AND preview_token_hash = ? AND preview_token_expires > ?",
+        id,
+        hash,
+        now
+    )
+    .execute(e)
+    .await
+    .map_err(db_error)?;
+    Ok(done.rows_affected() == 1)
+}

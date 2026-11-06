@@ -347,6 +347,8 @@ pub trait Store: Send + Sync {
     ) -> Result<Vec<Changeset>>;
     /// 진행 상황. 시작과 끝은 감사 기록과 함께 `WriteTx::save_changeset` 으로 남긴다.
     async fn save_changeset(&self, cs: &Changeset) -> Result<()>;
+    /// 미리보기 토큰이 맞고 살아 있으면 지우고 `true` (한 번만 쓴다).
+    async fn take_changeset_preview_token(&self, id: &str, hash: &str, now: &str) -> Result<bool>;
     /// `since` 뒤로 이 주체가 남긴 감사 기록에 changeset 번호를 붙인다.
     async fn stamp_audit(
         &self,
@@ -488,6 +490,12 @@ pub trait Store: Send + Sync {
 #[async_trait]
 pub trait WriteTx: Send {
     async fn save_changeset(&mut self, cs: &Changeset) -> Result<()>;
+    async fn set_changeset_preview_token(
+        &mut self,
+        id: &str,
+        hash: &str,
+        expires_at: &str,
+    ) -> Result<()>;
     async fn insert_audit(&mut self, rec: &AuditRecord) -> Result<()>;
     async fn commit(self: Box<Self>) -> Result<()>;
 

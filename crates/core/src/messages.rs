@@ -257,6 +257,9 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "error.page_layout" => "레이아웃 `{value}` 는 지원하지 않습니다. 가능한 값: {allowed}",
         "error.menu_location" => "메뉴 위치 `{value}` 는 지원하지 않습니다. 가능한 값: {allowed}",
         "error.menu_depth" => "메뉴는 {max}단까지만 만들 수 있습니다.",
+        "error.changeset_preview_token" => {
+            "미리보기 주소가 만료되었거나 이미 쓰였습니다. 새 주소를 받으세요."
+        }
         "error.changeset_not_found" => "변경 묶음 {id} 을(를) 찾을 수 없습니다.",
         "error.changeset_status" => "변경 묶음 {id} 은(는) {status} 상태라 이 일을 할 수 없습니다.",
         "error.changeset_op" => "변경 연산이 올바르지 않습니다: {detail}",

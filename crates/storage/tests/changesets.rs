@@ -119,7 +119,7 @@ async fn 사본은_실제_사이트에_닿지_않는다() {
     .await
     .unwrap();
 
-    let copy = changesets::sandboxed(&e.ctx, &local, &sandbox, "cs-1", &cs)
+    let copy = changesets::sandboxed(&e.ctx, &sandbox, "cs-1", &cs)
         .await
         .unwrap();
     assert!(boards::show(&copy, &local, "only-copy").await.is_ok());
@@ -190,6 +190,42 @@ async fn 토큰은_담을_수_있어도_승인_없이_적용하지_못한다() {
     .unwrap();
     assert_eq!(
         changesets::apply(&e.ctx, &editor, &sandbox, &second.id)
+            .await
+            .unwrap_err()
+            .code(),
+        Code::Forbidden
+    );
+    e.db.close().await;
+}
+
+#[tokio::test]
+async fn 미리보기_토큰은_한_번만_쓴다() {
+    let e = env().await;
+    let local = Actor::local();
+    let cs = changesets::create(&e.ctx, &local, "미리보기", Vec::new())
+        .await
+        .unwrap();
+    let link = changesets::preview_link(&e.ctx, &local, &cs.id)
+        .await
+        .unwrap();
+    let secret = link.url.rsplit_once("token=").unwrap().1.to_owned();
+
+    let wrong = changesets::redeem_preview_token(&e.ctx, &cs.id, "틀린값")
+        .await
+        .unwrap_err();
+    assert_eq!(wrong.code(), Code::Forbidden);
+    changesets::redeem_preview_token(&e.ctx, &cs.id, &secret)
+        .await
+        .unwrap();
+    let again = changesets::redeem_preview_token(&e.ctx, &cs.id, &secret)
+        .await
+        .unwrap_err();
+    assert_eq!(again.code(), Code::Forbidden);
+
+    // 편집자 세션으로는 열 수 없다.
+    let editor = Actor::human("m2".into(), [Permission::StructureEdit], rank::EDITOR);
+    assert_eq!(
+        changesets::for_preview(&e.ctx, &editor, &cs.id)
             .await
             .unwrap_err()
             .code(),

@@ -13,6 +13,7 @@ mod feeds;
 mod field_form;
 mod mcp;
 mod modules;
+pub mod preview;
 mod public;
 mod ratelimit;
 mod widgets;
@@ -92,6 +93,8 @@ pub struct AppState {
     pub modules: Arc<Registry>,
     /// 터널이 건네는 방문자 주소를 믿는가 (ADR-0118).
     pub trust_tunnel: bool,
+    /// changeset 미리보기 (ADR-0122). 없으면 `/__preview` 는 404. 사본 안의 라우터도 없음이다.
+    pub previews: Option<Arc<preview::Previews>>,
 }
 
 impl AppState {
@@ -110,6 +113,7 @@ impl AppState {
             archiver: None,
             modules: Arc::new(Registry::default()),
             trust_tunnel: false,
+            previews: None,
         }
     }
 
@@ -130,6 +134,11 @@ impl AppState {
 
     pub fn with_link_fetcher(mut self, fetcher: Arc<dyn LinkFetcher>) -> Self {
         self.link_fetcher = Some(fetcher);
+        self
+    }
+
+    pub fn with_previews(mut self, previews: Arc<preview::Previews>) -> Self {
+        self.previews = Some(previews);
         self
     }
 
@@ -155,9 +164,11 @@ pub fn router(state: AppState) -> Router {
         .merge(board_write::routes())
         .merge(modules::routes(&state))
         .merge(mcp::routes(&state))
+        .merge(preview::routes())
         .nest("/api/v1", api::routes())
         .layer(middleware::from_fn_with_state(state.clone(), rate_limit))
         .layer(middleware::from_fn_with_state(state.clone(), count_visit))
+        .layer(middleware::from_fn_with_state(state.clone(), preview::mode))
         .layer(middleware::from_fn_with_state(state.clone(), tunnel_client))
         .with_state(state)
         .layer(middleware::map_response(security_headers))
@@ -281,6 +292,9 @@ pub async fn serve(
     fetched.abort();
     delivered.abort();
     flush_views(&state).await;
+    if let Some(previews) = &state.previews {
+        previews.close_all().await;
+    }
     res
 }
 

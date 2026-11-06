@@ -1391,6 +1391,10 @@ impl Store for SqliteStore {
         crate::changesets::save(&self.db.write, cs).await
     }
 
+    async fn take_changeset_preview_token(&self, id: &str, hash: &str, now: &str) -> Result<bool> {
+        crate::changesets::take_preview_token(&self.db.write, id, hash, now).await
+    }
+
     async fn stamp_audit(
         &self,
         id: &str,
@@ -2351,6 +2355,15 @@ async fn write_post_tags(
 impl WriteTx for SqliteWriteTx {
     async fn save_changeset(&mut self, cs: &Changeset) -> Result<()> {
         crate::changesets::save(&mut *self.tx, cs).await
+    }
+
+    async fn set_changeset_preview_token(
+        &mut self,
+        id: &str,
+        hash: &str,
+        expires_at: &str,
+    ) -> Result<()> {
+        crate::changesets::set_preview_token(&mut *self.tx, id, hash, expires_at).await
     }
 
     async fn insert_audit(&mut self, rec: &AuditRecord) -> Result<()> {

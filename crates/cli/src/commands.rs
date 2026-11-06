@@ -356,7 +356,12 @@ async fn serve_inner(g: &Global, args: ServeArgs) -> Result<()> {
     let mail_info = mail_json(&dir, &config);
     let archiver = maru_storage::backup::FsArchiver::new(dir.clone(), db.clone());
     let fetcher = maru_storage::fetch::HttpFetcher::new().map_err(Error::internal)?;
+    let sandbox = maru_storage::sandbox::FsSandbox::new(&dir, db.clone());
+    sandbox.clear();
     let state = maru_web::AppState::new(ctx, theme)
+        .with_previews(Arc::new(maru_web::preview::Previews::new(Arc::new(
+            sandbox,
+        ))))
         .with_mailer(mailer)
         .with_link_fetcher(Arc::new(fetcher))
         .with_archiver(Arc::new(archiver))
@@ -2494,7 +2499,7 @@ fn changeset_line(cs: &maru_core::model::Changeset) -> String {
 async fn changeset_cmd(g: &Global, cmd: ChangesetCmd) -> Out {
     use maru_core::model::ChangesetStatus;
     use maru_core::services::changesets;
-    let (ctx, _config, db) = open(g).await?;
+    let (ctx, config, db) = open(g).await?;
     let sandbox = maru_storage::sandbox::FsSandbox::new(&DataDir::new(&g.data), db.clone());
     let res = async {
         let actor = actor(&ctx).await?;
@@ -2534,6 +2539,15 @@ async fn changeset_cmd(g: &Global, cmd: ChangesetCmd) -> Out {
                 return Ok((json!({ "items": list }), human));
             }
             ChangesetCmd::Show { id } => changesets::get(&ctx, &actor, &id).await?,
+            ChangesetCmd::PreviewUrl { id } => {
+                let mut link = changesets::preview_link(&ctx, &actor, &id).await?;
+                link.url = running_url(g, &config, &link.url).await;
+                let human = format!(
+                    "미리보기 주소 (30분 동안 한 번만 쓸 수 있습니다):\n  {}",
+                    link.url
+                );
+                return Ok((to_value(&link)?, human));
+            }
             ChangesetCmd::Apply { id } => changesets::apply(&ctx, &actor, &sandbox, &id).await?,
             ChangesetCmd::Discard { id } => changesets::discard(&ctx, &actor, &id).await?,
             ChangesetCmd::Revert { id } => changesets::revert(&ctx, &actor, &id).await?,

@@ -8,6 +8,7 @@ use async_trait::async_trait;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
+use sha2::{Digest, Sha256};
 
 use crate::actor::{Actor, ActorKind, Permission};
 use crate::audit::Target;
@@ -16,11 +17,13 @@ use crate::design::Tokens;
 use crate::error::{Code, Error, Result};
 use crate::model::{Board, Changeset, ChangesetStatus, MenuItem, PageStatus};
 use crate::services::presets::{self, Preset};
-use crate::services::{boards, design, menus, pages, settings, widgets};
+use crate::services::{auth, boards, design, menus, pages, settings, widgets};
 use crate::store::{Ctx, Tx};
 
 /// 한 changeset 에 담을 수 있는 연산 수.
 pub const MAX_OPS: usize = 500;
+/// 1회용 미리보기 주소가 살아 있는 시간.
+const PREVIEW_LINK_MINUTES: i64 = 30;
 
 /// 바꾸는 일 하나. 적용할 때 역연산을 만든다.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -302,17 +305,75 @@ async fn run_all(ctx: &Ctx, actor: &Actor, ops: &[ChangeOp]) -> Result<()> {
     Ok(())
 }
 
+/// 1회용 미리보기 주소. 관리 화면에 로그인하지 않는 사람에게 건넨다 (SPEC §6).
+#[derive(Debug, Clone, Serialize, JsonSchema)]
+pub struct PreviewLink {
+    pub changeset_id: String,
+    pub url: String,
+    pub expires_at: String,
+}
+
+fn hash_preview_token(secret: &str) -> String {
+    hex::encode(Sha256::digest(secret.as_bytes()))
+}
+
+pub async fn preview_link(ctx: &Ctx, actor: &Actor, id: &str) -> Result<PreviewLink> {
+    let cs = get(ctx, actor, id).await?;
+    if cs.status != ChangesetStatus::Preview {
+        return Err(wrong_status(&cs));
+    }
+    let secret = auth::new_secret()?;
+    let expires_at = clock::format(
+        time::OffsetDateTime::now_utc() + time::Duration::minutes(PREVIEW_LINK_MINUTES),
+    );
+    let mut tx = Tx::begin(ctx).await?;
+    tx.set_changeset_preview_token(id, &hash_preview_token(&secret), &expires_at)
+        .await?;
+    tx.audit(
+        actor,
+        "changeset.preview_link",
+        Target::new("changeset", id),
+        json!({ "expires_at": expires_at }),
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(PreviewLink {
+        changeset_id: id.to_owned(),
+        url: format!(
+            "{}/__preview/{id}?token={secret}",
+            ctx.site_url.trim_end_matches('/')
+        ),
+        expires_at,
+    })
+}
+
+/// 미리보기 주소의 토큰을 쓴다. 한 번 쓰면 사라진다.
+pub async fn redeem_preview_token(ctx: &Ctx, id: &str, secret: &str) -> Result<Changeset> {
+    let used = ctx
+        .store
+        .take_changeset_preview_token(id, &hash_preview_token(secret), &clock::now())
+        .await?;
+    if !used {
+        return Err(Error::new(Code::Forbidden).with_message("error.changeset_preview_token"));
+    }
+    ctx.store.changeset(id).await?.ok_or_else(|| not_found(id))
+}
+
+/// 세션으로 미리보기를 열 수 있는 사람: 소유자·관리자 (SPEC §6).
+pub async fn for_preview(ctx: &Ctx, actor: &Actor, id: &str) -> Result<Changeset> {
+    actor.require(Permission::SiteAdmin)?;
+    get(ctx, actor, id).await
+}
+
 /// 사본에 연산을 적용한 컨텍스트 (미리보기). 실패하면 사본을 지운다.
-pub async fn sandboxed(
-    ctx: &Ctx,
-    actor: &Actor,
-    sandbox: &dyn Sandbox,
-    key: &str,
-    cs: &Changeset,
-) -> Result<Ctx> {
+/// 들어온 사람은 이미 확인했고, 사본에서만 도는 일이라 운영자 권한으로 돌린다.
+pub async fn sandboxed(ctx: &Ctx, sandbox: &dyn Sandbox, key: &str, cs: &Changeset) -> Result<Ctx> {
+    if cs.status != ChangesetStatus::Preview {
+        return Err(wrong_status(cs));
+    }
     let ops = parse_ops(&cs.ops)?;
     let copy = sandbox.open(ctx, key).await?;
-    if let Err(e) = run_all(&copy, actor, &ops).await {
+    if let Err(e) = run_all(&copy, &Actor::local(), &ops).await {
         sandbox.close(key).await;
         return Err(e);
     }

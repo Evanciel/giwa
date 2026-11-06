@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE changesets SET preview_token_hash = NULL, preview_token_expires = NULL\n         WHERE id = ? AND preview_token_hash = ? AND preview_token_expires > ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "79c3918c546d420667cd3b4e4e43f3acb825f17f36ce574d5ee0eeabc1059a98"
+}

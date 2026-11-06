@@ -255,6 +255,10 @@ pub enum ChangesetCmd {
     Apply {
         id: String,
     },
+    /// 화면으로 미리 보는 1회용 주소 (30분)
+    PreviewUrl {
+        id: String,
+    },
     /// 적용하지 않고 버린다
     Discard {
         id: String,
