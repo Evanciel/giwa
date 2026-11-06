@@ -2,6 +2,7 @@
 
 mod commands;
 mod doctor;
+mod mcp;
 mod modules;
 mod output;
 
@@ -52,6 +53,9 @@ enum Command {
     /// API 토큰
     #[command(subcommand)]
     Token(TokenCmd),
+    /// MCP 서버와 에이전트 클라이언트 연결
+    #[command(subcommand)]
+    Mcp(McpCmd),
     /// 이미지 (업로드, 대체 텍스트)
     #[command(subcommand)]
     Media(MediaCmd),
@@ -810,6 +814,37 @@ pub enum TokenCmd {
         /// 토큰 id (`maru token list`)
         id: String,
     },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum McpCmd {
+    /// 표준 입출력으로 MCP 서버를 돌린다. 토큰이 있어야 한다
+    Serve(McpServeArgs),
+    /// 클라이언트 몫의 토큰을 만들고 클라이언트 설정에 연결한다. 여러 번 해도 안전하다
+    Install(McpInstallArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct McpServeArgs {
+    /// 토큰 원문이 든 파일 (`mcp install` 이 만든다). 없으면 환경 변수 MARU_TOKEN
+    #[arg(long)]
+    pub token_file: Option<PathBuf>,
+}
+
+#[derive(Debug, Args)]
+pub struct McpInstallArgs {
+    /// claude-code, claude-desktop, cursor
+    #[arg(long)]
+    pub client: String,
+    /// read, draft, publish 등 (여러 번 지정). 생략하면 새 토큰은 read, draft, 있던 토큰은 그대로
+    #[arg(long = "scope")]
+    pub scopes: Vec<String>,
+    /// 클라이언트 설정 파일 (생략하면 클라이언트의 기본 자리)
+    #[arg(long)]
+    pub config: Option<PathBuf>,
+    /// 설정 파일을 고치지 않고 넣을 내용만 보여 준다
+    #[arg(long)]
+    pub print: bool,
 }
 
 #[derive(Debug, Args)]

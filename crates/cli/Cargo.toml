@@ -20,6 +20,7 @@ maru-storage.workspace = true
 maru-themes.workspace = true
 maru-web.workspace = true
 maru-modules.workspace = true
+maru-agent.workspace = true
 maru-mod-point.workspace = true
 maru-mod-reaction.workspace = true
 maru-mod-report.workspace = true

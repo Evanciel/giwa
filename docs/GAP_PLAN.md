@@ -92,7 +92,7 @@
 | S5 | 메일 발송 설정(SMTP) | ✅ | ADR-0051·0083. 보낼 편지함·파일 전송(기본)·SMTP(starttls·tls, 이 컴퓨터 안 중계만 암호화 없음). `maru mail setup|test`, 비밀번호는 `secrets/`·환경 변수(백업 밖) |
 | S6 | 백업·복원 화면 | ✅ | `.tar.gz` 하나(manifest·VACUUM INTO 사본·media·themes·config), 비밀 빼기, 서버 잠금으로 켜진 동안 복원 거부, CLI·REST·관리 화면(복원은 CLI 안내) (ADR-0063) |
 | S7 | 다국어 | ❌ | 전역 지침: 출시 직전에 한꺼번에 |
-| S8 | 외부 공개(`maru expose`), MCP 서버 | ❌ | SPEC Phase 3 |
+| S8 | 외부 공개(`maru expose`), MCP 서버 | 🟡 | ADR-0117. MCP 는 됨(stdio·`/mcp`, `mcp install`, 스코프별 툴, 모듈 툴 자동 노출). 구조·디자인 툴은 changeset 뒤. `expose` 남음 |
 | S9 | 사이트 글꼴 올리기(woff2) → 토큰 `font.*` | ✅ | ADR-0048. woff2·woff·ttf·otf, 글 안 `:font[]{slug}` 과 토큰 둘 다 |
 | S10 | 광고 자리(애드센스 등): 위젯 영역 + CSP 허용 목록 설정 | ✅ | ADR-0079. 모듈 `ads`: 자체 배너·애드센스 위젯, 「광고」 표시. 허용 목록 대신 애드센스가 있는 화면에만 nonce strict CSP. 동의 관리(CMP)는 없음 |
 | S11 | 상담 버튼(카카오 채널·채널톡), 외부 전송 정보 고지 | ✅ | ADR-0080. 모듈 `consult`: 카카오톡 채널 채팅·전화·https 상담 주소 단추, 어디로 가는지 단추 아래 고지. 외부 스크립트(채널톡 위젯)는 싣지 않음 |

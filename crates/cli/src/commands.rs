@@ -26,7 +26,7 @@ use crate::output;
 use crate::{
     AuditCmd, AuditListArgs, BackupArgs, BackupCmd, BoardCmd, CategoryCmd, Command, CommentCmd,
     DesignCmd, FileCmd, FontCmd, Global, InitArgs, LinkCmd, LoginLinkArgs, MailCmd, MailSetupArgs,
-    MediaCmd, MemberCmd, MenuCmd, MenuSetArgs, PageCmd, PostCmd, PostListArgs, PostNewArgs,
+    McpCmd, MediaCmd, MemberCmd, MenuCmd, MenuSetArgs, PageCmd, PostCmd, PostListArgs, PostNewArgs,
     PrivacyCmd, RestoreArgs, SearchArgs, SearchCmd, ServeArgs, SignalsArgs, SignalsCmd, SiteCmd,
     StatsArgs, TagCmd, TemplateCmd, TokenCmd, TokenCreateArgs, WidgetCmd,
 };
@@ -39,6 +39,13 @@ pub async fn run(g: &Global, command: Command) -> ExitCode {
         Command::Post(cmd) => post(g, cmd).await,
         Command::Board(cmd) => board(g, cmd).await,
         Command::Token(cmd) => token(g, cmd).await,
+        Command::Mcp(McpCmd::Install(args)) => crate::mcp::install(g, args).await,
+        Command::Mcp(McpCmd::Serve(args)) => {
+            return match crate::mcp::serve(g, args).await {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(e) => output::error(&e, g.json),
+            };
+        }
         Command::Media(cmd) => media_cmd(g, cmd).await,
         Command::File(cmd) => file_cmd(g, cmd).await,
         Command::Template(cmd) => template_cmd(g, cmd).await,

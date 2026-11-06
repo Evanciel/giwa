@@ -177,6 +177,7 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         }
         "error.comment_not_found" => "댓글을 찾을 수 없습니다: {id}",
         "error.comment_deleted" => "지운 댓글은 되돌리지 않습니다.",
+        "error.mcp_token" => "MCP 서버에는 토큰이 필요합니다. 운영자 권한으로는 돌지 않습니다.",
         "error.comment_length" => "댓글은 1~{max}자로 써 주세요.",
         "error.comment_image" => {
             "댓글에는 이 사이트에 올린 그림(jpg·png·gif·webp)만 붙일 수 있습니다."

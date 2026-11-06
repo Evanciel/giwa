@@ -1384,3 +1384,28 @@
   - 지운 댓글의 그림도 주소를 알면 받을 수 있다.
   - 원본을 그대로 쓴다. 폭·높이를 저장하지 않아 그림이 뜰 때 화면이 조금 움직일 수 있다.
   - 역할 문구는 CLI 도움말과 모델 주석만 고쳤다. 게시판이 올리기를 받으면 댓글 그림도 열린다는 점을 운영자가 알아야 한다.
+
+## ADR-0117 MCP 서버
+
+- **날짜:** 2026-11-06 (GAP S8)
+- **배경:** 「에이전트가 운영하는 CMS」인데 에이전트의 입구가 CLI 와 REST 뿐이었다. 클라이언트마다 표준으로 붙는 입구가 필요하다. 다만 SPEC §9 의 구조·디자인 툴은 changeset(원칙 4)을 전제로 하는데 changeset 은 아직 어디에도 없고 GAP_PLAN 항목도 아니다.
+- **결정:**
+  - **크레이트 `maru-agent`:** rmcp 3.9 의 `ServerHandler` 를 손으로 구현한다. 매크로를 쓰면 툴 목록이 컴파일 때 굳어 스코프별 목록과 모듈 툴을 넣을 수 없다. 코어 서비스만 부르고 DB 를 모른다(`scripts/check.ps1` 의존 규칙에 추가).
+  - **툴은 글·댓글·미디어·읽기까지다.** 읽기: `get_site` `list_boards` `list_pages` `get_tokens` `list_stickers` `list_modules` `list_posts` `get_post` `search_posts` `list_post_comments`. 초안: `create_draft` `update_draft` `submit_for_review` `list_media` `set_alt_text`. 발행: `publish_post` `hide_post` `delete_post` `list_pending_comments` `moderate_comment` `stats_summary`. 켜진 모듈의 툴은 `{모듈}__{툴}` 로 자동으로 더한다.
+  - **구조·디자인·모듈 쓰기 툴은 만들지 않는다.** changeset 없이 열면 원칙 4 를 어긴다. 서버 안내문에 없다고 적어, 에이전트가 사람에게 부탁하게 한다.
+  - **글·발행 툴은 changeset 없이 연다.** SPEC §11 표가 콘텐츠·발행·운영 툴을 「아니오 (감사 로그)」로 정했다. 원칙 4 의 「발행」과 말이 조금 어긋나는데 표를 따른다. `publish` 스코프를 일부러 준 토큰에게만 보이고, 감사 기록이 남고, `hide_post` 로 되돌릴 수 있다.
+  - **신원은 언제나 토큰이다.** `mcp serve` 는 CLI 의 다른 명령과 달리 `Actor::local()` 로 돌지 않는다. 토큰이 없으면 시작하지 않고 `mcp install` 을 다음 명령으로 말한다. 부를 때마다 다시 확인해 폐기·만료가 돌고 있는 세션에도 바로 듣는다.
+  - **목록은 스코프로 거르고, 막는 일은 서비스가 한다.** 목록에 없는 툴을 불러도 서비스가 `FORBIDDEN` 으로 막는다(원칙 1).
+  - **사용자 내용은 봉투에 담는다(원칙 6).** 글·검색·댓글·모듈 툴의 결과는 `{"untrusted": true, "notice": …, "data": …}` 다. 서버 안내문에도 적는다. 모듈 툴은 회원이 쓴 글이 섞일 수 있어 모두 담는다.
+  - **실패는 툴 결과다.** `isError` 와 함께 CLI 의 `--json` 실패와 같은 본문(원인·다음 명령)을 돌려준다. JSON-RPC 오류로 던지면 모델에게 닿지 않는 클라이언트가 있다. 내부 오류는 본문을 숨기고 로그로 남긴다.
+  - **HTTP 입구 `/mcp`:** 프로토콜에 닿기 전에 미들웨어가 토큰을 본다. 없거나 틀리면 401 과 `WWW-Authenticate: Bearer`. 세션 없이 요청마다 처리하고 응답은 JSON 한 번이다(터널이 SSE 를 못 넘기는 경우에도 된다). rmcp 의 `Host` 검사는 끈다. 기본값이 루프백뿐이라 터널 주소를 막고, DNS 리바인딩은 브라우저가 Bearer 헤더를 붙일 수 없어 토큰이 막는다.
+  - **`mcp install --client claude-code|claude-desktop|cursor`:** 토큰 원문은 `<데이터>/secrets/mcp-<클라이언트>.token` 에만 두고(유닉스 0600) 설정 파일과 출력에는 경로만 적는다. 저장소에 커밋될 수 있는 `.mcp.json` 에 비밀을 넣지 않기 위해서다. 다시 실행하면 토큰도 설정도 그대로이고(`created:false`, `written:false`), `--scope` 를 바꾸면 옛 토큰을 폐기하고 새로 낸다. `mcpServers.maru` 만 넣고 나머지는 지키며, JSON 이 아닌 파일은 덮어쓰지 않는다. `--scope` 를 주지 않으면 `read`, `draft` 다.
+- **대안:** `#[tool_router]` 매크로 — 위와 같은 이유. 클라이언트 설정에 토큰을 직접(`env`) — 커밋 사고가 난다. `mcp serve` 를 토큰 없이 운영자로 — 프롬프트 주입이 곧 전권이 된다. 구조 툴을 changeset 없이 먼저 — 원칙 위반이고 나중에 툴 의미가 바뀐다.
+- **결과:** `crates/cli/tests/e2e_mcp.rs` 가 실제 바이너리로 토큰 없는 시작 거부, 설정 합치기·멱등·비밀 없음·고장 난 설정 보존, stdio 초기화·스코프별 목록·봉투·입력 오류 뒤 계속 도는 서버·권한 거부·감사의 `agent`·모듈 툴 나타남·스코프 재발급과 옛 토큰 폐기·세션 중 폐기, HTTP 의 401·터널 `Host`·폐기를 본다. 저장소 밖에서 공식 TypeScript SDK 클라이언트로 stdio·HTTP 양쪽 초기화·목록·호출을 확인했다.
+- **한계:**
+  - 구조·디자인·모듈 관리 툴이 없다. SPEC Phase 3 의 changeset 과 함께 연다. 「에이전트 한마디로 블로그 완성」(Phase 3 완료 기준)은 아직 CLI 를 함께 써야 한다.
+  - SPEC §11 의 읽기 툴 중 `list_themes`·`list_blocks`·`list_widget_types`·`list_widgets` 는 없다. 쓰기 툴이 없는데 먼저 내놓을 까닭이 적고, `widgets::list` 는 디자인 권한을 요구한다. 디자인 툴과 함께 연다. 모듈을 켜고 꺼도 툴 목록 변경 알림은 보내지 않는다. 다음 `tools/list` 에 반영된다.
+  - 파일 올리기 툴(`upload_media`)이 없다. MCP 로 바이너리를 넘기는 방식이 클라이언트마다 달라 REST(`POST /api/v1/media`)를 쓴다. `list_media`·`set_alt_text` 만 있다.
+  - Claude Code·Claude Desktop·Cursor 앱 자체로는 붙여 보지 않았다. 설정 파일 자리와 형식은 각 공식 문서대로이고, 프로토콜은 공식 SDK 로 확인했다.
+  - 설치에 쓴 바이너리의 절대 경로를 설정에 적는다. 바이너리를 옮기면 `mcp install` 을 다시 한다.
+  - 봉투는 표시일 뿐 막는 장치가 아니다. 모델이 글 안의 지시를 따르지 않게 하는 것은 안내문과 좁은 기본 스코프에 기댄다.

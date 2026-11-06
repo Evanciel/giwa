@@ -37,6 +37,7 @@ $forbidden = [ordered]@{
     "maru-themes"  = @("sqlx", "axum", "maru-storage", "maru-web")
     "maru-web"     = @("sqlx", "maru-storage", "maru-mod-point", "maru-mod-reaction", "maru-mod-scrap", "maru-mod-notify", "maru-mod-message", "maru-mod-poll", "maru-mod-report", "maru-mod-webhook")
     "maru-modules" = @("sqlx", "maru-storage", "maru-web", "maru-themes")
+    "maru-agent"   = @("sqlx", "maru-storage", "maru-web")
 }
 Write-Host "[check] deps" -ForegroundColor Cyan
 foreach ($crate in $forbidden.Keys) {

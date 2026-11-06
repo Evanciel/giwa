@@ -11,6 +11,7 @@ mod error;
 mod etag;
 mod feeds;
 mod field_form;
+mod mcp;
 mod modules;
 mod public;
 mod ratelimit;
@@ -145,6 +146,7 @@ pub fn router(state: AppState) -> Router {
         .merge(comments::routes())
         .merge(board_write::routes())
         .merge(modules::routes(&state))
+        .merge(mcp::routes(&state))
         .nest("/api/v1", api::routes())
         .layer(middleware::from_fn_with_state(state.clone(), rate_limit))
         .layer(middleware::from_fn_with_state(state.clone(), count_visit))
