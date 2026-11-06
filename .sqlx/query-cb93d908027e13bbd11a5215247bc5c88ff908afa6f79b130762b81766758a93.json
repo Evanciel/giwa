@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM mod_social_flow WHERE hash = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "cb93d908027e13bbd11a5215247bc5c88ff908afa6f79b130762b81766758a93"
+}

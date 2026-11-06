@@ -130,6 +130,10 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "error.ticket_invalid" => "링크가 만료됐거나 이미 쓰였습니다. 다시 요청하세요.",
         "error.password_wrong" => "지금 비밀번호가 맞지 않습니다.",
         "error.owner_withdraw" => "운영자 계정은 탈퇴할 수 없습니다.",
+        "error.withdraw_name" => "확인하려면 지금 닉네임을 그대로 입력하세요.",
+        "error.email_taken_external" => {
+            "이미 가입된 이메일입니다. 그 계정으로 로그인한 뒤 내 정보에서 소셜 로그인을 연결하세요."
+        }
         "error.member_self" => "자기 계정의 상태·역할은 여기서 바꿀 수 없습니다.",
         "error.member_owner" => "운영자 계정의 상태·역할은 바꿀 수 없습니다.",
         "error.member_withdrawn" => "탈퇴한 회원입니다.",

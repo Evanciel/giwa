@@ -1,16 +1,22 @@
-//! GAP M12·M14: 쪽지·투표 모듈 (ADR-0070). 실제 바이너리·실제 포트·실제 DB 파일.
+//! GAP M15: 소셜 로그인 (ADR-0114). 실제 바이너리·실제 포트·실제 DB 파일과, 테스트 안의 가짜 OIDC 공급자로
+//! 가입·재로그인·연결·끊기·탈퇴까지 끝까지 본다. 구글·카카오·네이버 주소는 고정이라 응답 읽기는 단위 테스트가 맡는다.
 #![allow(clippy::expect_used, clippy::unwrap_used)]
 
 use std::io::{BufRead, BufReader, Read, Write};
-use std::net::TcpStream;
+use std::net::{TcpListener, TcpStream};
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
+use std::sync::{Arc, Mutex};
 
-use serde_json::Value;
+use serde_json::{Value, json};
 
 const BIN: &str = env!("CARGO_BIN_EXE_maru");
 const FORM: (&str, &str) = ("Content-Type", "application/x-www-form-urlencoded");
+const SAME: (&str, &str) = ("Sec-Fetch-Site", "same-origin");
 const PASSWORD: &str = "test-pass-1234";
+const SECRET: &str = "fake-client-secret-abcd";
+const GOOD_CODE: &str = "good-code";
+const ACCESS_TOKEN: &str = "fake-access-token";
 
 struct Server(Child);
 
@@ -89,6 +95,16 @@ impl Res {
         let at = self.body.find("name=\"_csrf\" value=\"").unwrap() + 20;
         self.body[at..at + self.body[at..].find('"').unwrap()].to_owned()
     }
+
+    /// `action` 폼 안의 CSRF 값.
+    fn csrf_of(&self, action: &str) -> String {
+        let at = self
+            .body
+            .find(&format!("action=\"{action}\""))
+            .unwrap_or_else(|| panic!("{action} 폼 없음: {}", self.body));
+        let at = self.body[at..].find("name=\"_csrf\" value=\"").unwrap() + at + 20;
+        self.body[at..at + self.body[at..].find('"').unwrap()].to_owned()
+    }
 }
 
 fn http(bind: &str, method: &str, path: &str, headers: &[(&str, &str)], body: &str) -> Res {
@@ -122,6 +138,23 @@ fn enc(s: &str) -> String {
     out
 }
 
+fn dec(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' {
+            let hex = std::str::from_utf8(&bytes[i + 1..i + 3]).unwrap();
+            out.push(u8::from_str_radix(hex, 16).unwrap());
+            i += 3;
+        } else {
+            out.push(bytes[i]);
+            i += 1;
+        }
+    }
+    String::from_utf8(out).unwrap()
+}
+
 fn form(pairs: &[(&str, &str)]) -> String {
     pairs
         .iter()
@@ -130,6 +163,14 @@ fn form(pairs: &[(&str, &str)]) -> String {
         .join("&")
 }
 
+fn query_value(url: &str, name: &str) -> Option<String> {
+    url.split_once('?')?.1.split('&').find_map(|kv| {
+        let (k, v) = kv.split_once('=')?;
+        (k == name).then(|| v.to_owned())
+    })
+}
+
+/// 비밀번호로 가입하고 `Cookie` 머리글 값을 돌려준다.
 fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
     let page = http(bind, "GET", "/signup", &[], "");
     let pre = page.cookie("maru_csrf").unwrap();
@@ -148,7 +189,7 @@ fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
         ]),
     );
     if let Some(s) = res.cookie("maru_session") {
-        return s;
+        return format!("maru_session={s}");
     }
     let login = http(bind, "GET", "/login", &[("Cookie", &cookie)], "");
     let res = http(
@@ -163,33 +204,231 @@ fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
             ("password", PASSWORD),
         ]),
     );
-    res.cookie("maru_session")
-        .unwrap_or_else(|| panic!("로그인 실패 {}: {}", res.status, res.body))
+    let session = res
+        .cookie("maru_session")
+        .unwrap_or_else(|| panic!("로그인 실패 {}: {}", res.status, res.body));
+    format!("maru_session={session}")
 }
 
-/// 회원이 공개 글쓰기로 글을 쓰고 글 주소를 돌려준다.
-fn write_post(bind: &str, cookie: &str, title: &str) -> String {
-    let page = http(bind, "GET", "/write/free", &[("Cookie", cookie)], "");
-    assert_eq!(page.status, 200, "{}", page.body);
+/// 가짜 OIDC 공급자. `/authorize` 는 돌아갈 주소로 보내고, `/token` 은 PKCE 값이 있는 코드만 받고,
+/// `/userinfo` 는 지금 사용자를 준다.
+struct Idp {
+    addr: String,
+    user: Arc<Mutex<Value>>,
+    token_bodies: Arc<Mutex<Vec<String>>>,
+}
+
+impl Idp {
+    fn start() -> Self {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap().to_string();
+        let user = Arc::new(Mutex::new(json!({})));
+        let token_bodies = Arc::new(Mutex::new(Vec::new()));
+        let (u, t) = (Arc::clone(&user), Arc::clone(&token_bodies));
+        std::thread::spawn(move || {
+            for stream in listener.incoming().flatten() {
+                idp_answer(stream, &u, &t);
+            }
+        });
+        Self {
+            addr,
+            user,
+            token_bodies,
+        }
+    }
+
+    fn set_user(&self, sub: &str, email: &str, name: &str) {
+        *self.user.lock().unwrap() = json!({ "sub": sub, "email": email, "name": name });
+    }
+
+    fn last_token_body(&self) -> String {
+        self.token_bodies.lock().unwrap().last().unwrap().clone()
+    }
+}
+
+fn idp_answer(mut stream: TcpStream, user: &Mutex<Value>, tokens: &Mutex<Vec<String>>) {
+    let mut reader = BufReader::new(stream.try_clone().unwrap());
+    let mut line = String::new();
+    reader.read_line(&mut line).unwrap();
+    let mut parts = line.split_whitespace();
+    let (method, target) = (
+        parts.next().unwrap_or_default().to_owned(),
+        parts.next().unwrap_or_default().to_owned(),
+    );
+    let (mut length, mut bearer) = (0_usize, String::new());
+    loop {
+        let mut h = String::new();
+        reader.read_line(&mut h).unwrap();
+        let h = h.trim_end();
+        if h.is_empty() {
+            break;
+        }
+        let Some((k, v)) = h.split_once(':') else {
+            continue;
+        };
+        if k.eq_ignore_ascii_case("content-length") {
+            length = v.trim().parse().unwrap();
+        } else if k.eq_ignore_ascii_case("authorization") {
+            bearer = v.trim().trim_start_matches("Bearer ").to_owned();
+        }
+    }
+    let mut body = vec![0; length];
+    reader.read_exact(&mut body).unwrap();
+    let body = String::from_utf8(body).unwrap();
+
+    let path = target.split('?').next().unwrap_or_default();
+    let (status, extra, payload) = match (method.as_str(), path) {
+        ("GET", "/authorize") => {
+            let back = dec(&query_value(&target, "redirect_uri").unwrap());
+            let state = query_value(&target, "state").unwrap();
+            (
+                "302 Found",
+                format!("Location: {back}?code={GOOD_CODE}&state={state}\r\n"),
+                String::new(),
+            )
+        }
+        ("POST", "/token") => {
+            tokens.lock().unwrap().push(body.clone());
+            let good = query_value(&format!("?{body}"), "code").as_deref() == Some(GOOD_CODE)
+                && query_value(&format!("?{body}"), "code_verifier").is_some();
+            if good {
+                (
+                    "200 OK",
+                    String::new(),
+                    json!({ "access_token": ACCESS_TOKEN, "token_type": "bearer" }).to_string(),
+                )
+            } else {
+                (
+                    "400 Bad Request",
+                    String::new(),
+                    json!({ "error": "invalid_grant" }).to_string(),
+                )
+            }
+        }
+        ("GET", "/userinfo") if bearer == ACCESS_TOKEN => {
+            ("200 OK", String::new(), user.lock().unwrap().to_string())
+        }
+        _ => ("401 Unauthorized", String::new(), "{}".to_owned()),
+    };
+    let _ = write!(
+        stream,
+        "HTTP/1.1 {status}\r\n{extra}Content-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{payload}",
+        payload.len()
+    );
+}
+
+/// 공급자에 다녀온 뒤: state 쿠키 값과 돌아올 주소(경로만).
+struct Flow {
+    cookie: String,
+    callback: String,
+}
+
+/// `/start` → 가짜 공급자 → 돌아올 주소까지. init 의 site_url 은 8080 이라 경로만 떼어 실제 포트로 보낸다.
+fn begin(bind: &str, idp: &Idp, query: &str, session: &str) -> Flow {
+    let path = format!("/m/social/oidc/start{query}");
+    let start = http(bind, "GET", &path, &[("Cookie", session)], "");
+    assert_eq!(start.status, 303, "{}", start.body);
+    let to_idp = start.location();
+    let prefix = format!("http://{}", idp.addr);
+    assert!(to_idp.starts_with(&prefix), "{to_idp}");
+    let cookie = start.cookie("maru_social").expect("state 쿠키");
+    let back = http(&idp.addr, "GET", &to_idp[prefix.len()..], &[], "");
+    assert_eq!(back.status, 302, "{}", back.body);
+    let back = back.location();
+    let callback = back
+        .strip_prefix("http://127.0.0.1:8080")
+        .unwrap_or_else(|| panic!("돌아올 주소는 site_url 위에: {back}"))
+        .to_owned();
+    Flow { cookie, callback }
+}
+
+/// 공급자에서 돌아온다 (브라우저처럼 state 쿠키와 로그인 쿠키를 함께 보낸다).
+fn finish(bind: &str, flow: &Flow, session: &str) -> Res {
+    let cookie = if session.is_empty() {
+        format!("maru_social={}", flow.cookie)
+    } else {
+        format!("maru_social={}; {session}", flow.cookie)
+    };
+    http(bind, "GET", &flow.callback, &[("Cookie", &cookie)], "")
+}
+
+/// 새 공급자 계정으로 가입 화면까지 가서 가입하고 `Cookie` 머리글 값을 돌려준다.
+fn join_as(bind: &str, idp: &Idp, sub: &str, email: &str, name: &str) -> String {
+    idp.set_user(sub, email, name);
+    let back = finish(bind, &begin(bind, idp, "", ""), "");
+    assert_eq!(back.status, 303, "{}", back.body);
+    assert_eq!(back.location(), "/m/social/join");
+    let join = format!(
+        "maru_social_join={}",
+        back.cookie("maru_social_join").unwrap()
+    );
     let res = http(
         bind,
         "POST",
-        "/write/free",
-        &[FORM, ("Cookie", cookie)],
-        &form(&[
-            ("_csrf", &page.csrf()),
-            ("title", title),
-            ("body", "본문입니다."),
-        ]),
+        "/m/social/join",
+        &[FORM, SAME, ("Cookie", &join)],
+        &form(&[("email", email), ("display_name", name)]),
     );
-    assert_eq!(res.status, 303, "{}", res.body);
-    res.location()
+    let session = res
+        .cookie("maru_session")
+        .unwrap_or_else(|| panic!("가입 뒤 세션 없음 {}: {}", res.status, res.body));
+    format!("maru_session={session}")
 }
 
-fn prepare(data: &Path) {
-    maru(data, &["init", "--preset", "blog", "--yes"]);
+fn member_id(data: &Path, email: &str) -> String {
+    let list = maru(data, &["member", "list"]);
+    let found = list["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["email"] == email)
+        .unwrap_or_else(|| panic!("{email} 없음: {list}"));
+    found["id"].as_str().unwrap().to_owned()
+}
+
+fn identities(data: &Path, member: &str) -> Vec<Value> {
+    maru(data, &["social", "identities", "--member", member])["items"]
+        .as_array()
+        .unwrap()
+        .clone()
+}
+
+fn set_oidc(data: &Path, idp: &Idp) -> Value {
+    let (auth, token, userinfo) = (
+        format!("http://{}/authorize", idp.addr),
+        format!("http://{}/token", idp.addr),
+        format!("http://{}/userinfo", idp.addr),
+    );
     maru(
         data,
+        &[
+            "social",
+            "provider_set",
+            "--provider",
+            "oidc",
+            "--client-id",
+            "maru-test",
+            "--client-secret",
+            SECRET,
+            "--label",
+            "사내",
+            "--auth-url",
+            &auth,
+            "--token-url",
+            &token,
+            "--userinfo-url",
+            &userinfo,
+        ],
+    )
+}
+
+#[test]
+fn social_login_signup_link_unlink_withdraw() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("사이트");
+    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
         &[
             "site",
             "set",
@@ -201,367 +440,510 @@ fn prepare(data: &Path) {
             "false",
         ],
     );
-    maru(
-        data,
+    maru(&data, &["module", "enable", "social"]);
+    let idp = Idp::start();
+    let (server, bind) = start_server(&data);
+
+    // 공급자가 없으면 단추도 없다.
+    assert!(
+        !http(&bind, "GET", "/login", &[], "")
+            .body
+            .contains("계정으로 계속하기")
+    );
+    assert_eq!(
+        http(&bind, "GET", "/m/social/oidc/start", &[], "").status,
+        404
+    );
+
+    // 공급자 넣기: 바깥으로 나가는 http 주소·고정 공급자의 주소는 받지 않는다.
+    let far = run(
+        &data,
         &[
-            "board", "create", "free", "--name", "자유", "--kind", "free",
+            "social",
+            "provider_set",
+            "--provider",
+            "oidc",
+            "--client-id",
+            "maru-test",
+            "--auth-url",
+            "http://203.0.113.9/authorize",
+            "--token-url",
+            "https://idp.example.test/token",
+            "--userinfo-url",
+            "https://idp.example.test/userinfo",
         ],
     );
-    maru(
-        data,
-        &["board", "update", "free", "--write-approval", "off"],
+    assert_eq!(far["error"]["code"], "VALIDATION", "{far}");
+    let fixed = run(
+        &data,
+        &[
+            "social",
+            "provider_set",
+            "--provider",
+            "google",
+            "--client-id",
+            "maru-test",
+            "--auth-url",
+            "https://idp.example.test/authorize",
+        ],
     );
-}
+    assert_eq!(fixed["error"]["code"], "VALIDATION", "{fixed}");
+    set_oidc(&data, &idp);
 
-fn submit(bind: &str, cookie: &str, path: &str, body: &str) -> Res {
-    http(
-        bind,
+    // 목록에 비밀값 원문은 없고 끝 네 글자와 돌아올 주소가 있다.
+    let list = maru(&data, &["social", "provider_list"]);
+    assert!(!list.to_string().contains(SECRET), "{list}");
+    let item = &list["items"][0];
+    assert_eq!(item["provider"], "oidc");
+    assert_eq!(item["secret_hint"], "…abcd");
+    assert_eq!(item["usable"], true);
+    assert_eq!(
+        item["redirect_uri"],
+        "http://127.0.0.1:8080/m/social/oidc/callback"
+    );
+
+    // 로그인·가입 화면의 단추. 돌아갈 곳이 따라간다.
+    let login = http(&bind, "GET", "/login", &[], "");
+    assert!(
+        login.body.contains("사내 계정으로 계속하기"),
+        "{}",
+        login.body
+    );
+    assert!(login.body.contains("href=\"/m/social/oidc/start"));
+    assert!(
+        http(&bind, "GET", "/signup", &[], "")
+            .body
+            .contains("사내 계정으로 계속하기")
+    );
+    assert!(
+        http(&bind, "GET", "/login?next=/b/free", &[], "")
+            .body
+            .contains("/m/social/oidc/start?next="),
+    );
+
+    // 시작: state 쿠키와 PKCE·nonce. 비밀값은 주소에 없다.
+    let start = http(&bind, "GET", "/m/social/oidc/start", &[], "");
+    assert_eq!(start.status, 303, "{}", start.body);
+    let to_idp = start.location();
+    assert_eq!(
+        query_value(&to_idp, "code_challenge_method").as_deref(),
+        Some("S256")
+    );
+    assert_eq!(
+        query_value(&to_idp, "code_challenge").map(|c| c.len()),
+        Some(43)
+    );
+    assert!(query_value(&to_idp, "nonce").is_some());
+    assert_eq!(
+        query_value(&to_idp, "client_id").as_deref(),
+        Some("maru-test")
+    );
+    assert!(!to_idp.contains(SECRET));
+    let set_cookie = start
+        .head
+        .lines()
+        .find(|l| {
+            l.to_ascii_lowercase()
+                .starts_with("set-cookie: maru_social=")
+        })
+        .unwrap();
+    assert!(set_cookie.contains("HttpOnly"), "{set_cookie}");
+    assert!(set_cookie.contains("SameSite=Lax"), "{set_cookie}");
+    assert!(set_cookie.contains("Path=/m/social"), "{set_cookie}");
+    // 원문은 쿠키에만 — 쿠키와 공급자로 보낸 state 가 같다.
+    assert_eq!(query_value(&to_idp, "state"), start.cookie("maru_social"));
+
+    // 다른 브라우저(쿠키 없음·다른 쿠키)에서 돌아오면 받지 않는다.
+    idp.set_user("sub-sora", "sora@example.test", "소라");
+    let flow = begin(&bind, &idp, "", "");
+    assert_eq!(http(&bind, "GET", &flow.callback, &[], "").status, 401);
+    assert_eq!(
+        http(
+            &bind,
+            "GET",
+            &flow.callback,
+            &[("Cookie", "maru_social=other")],
+            ""
+        )
+        .status,
+        401
+    );
+
+    // 쿠키가 맞으면 코드를 바꿔 가입 화면으로. 토큰 요청에 PKCE·비밀값·돌아올 주소가 실린다.
+    let back = finish(&bind, &flow, "");
+    assert_eq!(back.status, 303, "{}", back.body);
+    assert_eq!(back.location(), "/m/social/join");
+    let body = idp.last_token_body();
+    assert!(body.contains("code_verifier="), "{body}");
+    assert!(body.contains(&format!("client_secret={SECRET}")), "{body}");
+    assert!(body.contains("grant_type=authorization_code"), "{body}");
+    assert_eq!(
+        dec(&query_value(&format!("?{body}"), "redirect_uri").unwrap()),
+        "http://127.0.0.1:8080/m/social/oidc/callback"
+    );
+    let join_cookie = format!(
+        "maru_social_join={}",
+        back.cookie("maru_social_join").unwrap()
+    );
+
+    // state 는 한 번만 쓴다.
+    assert_eq!(finish(&bind, &flow, "").status, 401);
+
+    // 취소하고 돌아오거나 공급자가 코드를 안 받아 주면 로그인되지 않는다.
+    let cancel = begin(&bind, &idp, "", "");
+    let state = query_value(&cancel.callback, "state").unwrap();
+    let denied = Flow {
+        cookie: cancel.cookie,
+        callback: format!("/m/social/oidc/callback?error=access_denied&state={state}"),
+    };
+    let res = finish(&bind, &denied, "");
+    assert_eq!(res.status, 401, "{}", res.body);
+    assert!(res.cookie("maru_session").is_none());
+    let bad = begin(&bind, &idp, "", "");
+    let state = query_value(&bad.callback, "state").unwrap();
+    let bad = Flow {
+        cookie: bad.cookie,
+        callback: format!("/m/social/oidc/callback?code=wrong&state={state}"),
+    };
+    let res = finish(&bind, &bad, "");
+    assert_eq!(res.status, 401, "{}", res.body);
+    assert!(res.cookie("maru_session").is_none());
+
+    // 가입 화면은 공급자가 준 이메일·이름을 미리 채운다. 쿠키 없이는 못 본다.
+    assert_eq!(http(&bind, "GET", "/m/social/join", &[], "").status, 401);
+    let page = http(
+        &bind,
+        "GET",
+        "/m/social/join",
+        &[("Cookie", &join_cookie)],
+        "",
+    );
+    assert_eq!(page.status, 200, "{}", page.body);
+    assert!(
+        page.body.contains("value=\"sora@example.test\""),
+        "{}",
+        page.body
+    );
+    assert!(page.body.contains("value=\"소라\""), "{}", page.body);
+
+    // 다른 사이트에서 보낸 폼은 막는다. 닉네임이 맞지 않으면 화면에 알리고 흐름은 살아 있다.
+    let refused = http(
+        &bind,
         "POST",
-        path,
-        &[FORM, ("Cookie", cookie), ("Sec-Fetch-Site", "same-origin")],
-        body,
-    )
-}
+        "/m/social/join",
+        &[
+            FORM,
+            ("Sec-Fetch-Site", "cross-site"),
+            ("Cookie", &join_cookie),
+        ],
+        &form(&[("email", "sora@example.test"), ("display_name", "소라")]),
+    );
+    assert_eq!(refused.status, 403);
+    let short = http(
+        &bind,
+        "POST",
+        "/m/social/join",
+        &[FORM, SAME, ("Cookie", &join_cookie)],
+        &form(&[("email", "sora@example.test"), ("display_name", "소")]),
+    );
+    assert!(short.body.contains("form-error"), "{}", short.body);
+    assert!(short.cookie("maru_session").is_none());
 
-#[test]
-fn members_exchange_private_messages_and_can_block() {
-    let tmp = tempfile::tempdir().unwrap();
-    let data = tmp.path().join("사이트");
-    prepare(&data);
-    maru(&data, &["module", "enable", "message"]);
-    let (server, bind) = start_server(&data);
-    let moon = format!(
-        "maru_session={}",
-        signup_and_login(&bind, "moon@example.test", "달빛이")
+    // 가입하면 바로 로그인된다.
+    let done = http(
+        &bind,
+        "POST",
+        "/m/social/join",
+        &[FORM, SAME, ("Cookie", &join_cookie)],
+        &form(&[("email", "sora@example.test"), ("display_name", "소라")]),
     );
-    let sun = format!(
-        "maru_session={}",
-        signup_and_login(&bind, "sun@example.test", "햇살이")
+    assert_eq!(done.status, 303, "{}", done.body);
+    assert_eq!(done.location(), "/me");
+    let sora = format!("maru_session={}", done.cookie("maru_session").unwrap());
+    let sora_id = member_id(&data, "sora@example.test");
+    let linked = identities(&data, &sora_id);
+    assert_eq!(linked.len(), 1, "{linked:?}");
+    assert_eq!(linked[0]["provider"], "oidc");
+    assert_eq!(linked[0]["email"], "sora@example.test");
+    // 가입 흐름도 한 번만 쓴다.
+    assert_eq!(
+        http(
+            &bind,
+            "POST",
+            "/m/social/join",
+            &[FORM, SAME, ("Cookie", &join_cookie)],
+            &form(&[("email", "sora2@example.test"), ("display_name", "소라둘")]),
+        )
+        .status,
+        401
     );
-    let star = format!(
-        "maru_session={}",
-        signup_and_login(&bind, "star@example.test", "별빛이")
-    );
-    let get = |path: &str, cookie: &str| http(&bind, "GET", path, &[("Cookie", cookie)], "");
 
-    // 손님은 로그인으로.
-    let guest = http(&bind, "GET", "/m/message", &[], "");
+    // 내 정보: 소셜 칸이 있고, 비밀번호가 없으니 「지금 비밀번호」 칸은 없다.
+    let me = http(&bind, "GET", "/me", &[("Cookie", &sora)], "");
+    assert_eq!(me.status, 200, "{}", me.body);
+    assert!(me.body.contains("id=\"social\""), "{}", me.body);
+    assert!(me.body.contains("연결 끊기"), "{}", me.body);
+    assert!(!me.body.contains("name=\"current\""), "{}", me.body);
+    assert!(me.body.contains("비밀번호가 없습니다"), "{}", me.body);
+    // 닉네임 입력으로 탈퇴를 확인한다.
+    assert!(me.body.contains("지금 닉네임"), "{}", me.body);
+
+    // 다시 로그인하면 가입 화면 없이 바로 세션. 돌아갈 곳은 사이트 안만.
+    let again = finish(&bind, &begin(&bind, &idp, "?next=/b/free", ""), "");
+    assert_eq!(again.status, 303, "{}", again.body);
+    assert_eq!(again.location(), "/b/free");
+    assert!(again.cookie("maru_session").is_some());
+    let evil = finish(
+        &bind,
+        &begin(&bind, &idp, "?next=https://evil.example.test/", ""),
+        "",
+    );
+    assert_eq!(evil.location(), "/me");
+    let evil = finish(
+        &bind,
+        &begin(&bind, &idp, "?next=//evil.example.test/", ""),
+        "",
+    );
+    assert_eq!(evil.location(), "/me");
+    assert_eq!(
+        identities(&data, &sora_id).len(),
+        1,
+        "새 연결이 생기지 않는다"
+    );
+
+    // 비밀번호 회원이 내 정보에서 연결한다. 로그인 안 했으면 로그인 화면으로 보낸다.
+    let guest = http(&bind, "GET", "/m/social/oidc/start?link=1", &[], "");
     assert_eq!(guest.status, 303);
     assert!(
         guest.location().starts_with("/login"),
         "{}",
         guest.location()
     );
+    let moon = signup_and_login(&bind, "moon@example.test", "달님");
+    let moon_id = member_id(&data, "moon@example.test");
+    let me = http(&bind, "GET", "/me", &[("Cookie", &moon)], "");
+    assert!(
+        me.body.contains("name=\"current\""),
+        "비밀번호 회원: {}",
+        me.body
+    );
+    assert!(
+        me.body.contains("/m/social/oidc/start?link=1"),
+        "{}",
+        me.body
+    );
 
-    // 잘못된 받는 사람·빈 내용·나 자신은 폼으로 돌아오고 쓴 글은 남는다.
-    let res = submit(
-        &bind,
-        &moon,
-        "/m/message/send",
-        &form(&[("to", "없는이름"), ("body", "<b>지키는 글</b>")]),
-    );
-    assert_eq!(res.status, 200, "{}", res.body);
-    assert!(res.body.contains("받을 수 없는 회원"), "{}", res.body);
-    assert!(res.body.contains("&lt;b&gt;지키는 글"), "{}", res.body);
-    let res = submit(
-        &bind,
-        &moon,
-        "/m/message/send",
-        &form(&[("to", "달빛이"), ("body", "나에게")]),
-    );
-    assert!(res.body.contains("나에게는"), "{}", res.body);
-    // 다른 사이트에서 온 요청은 막는다.
-    let res = http(
-        &bind,
-        "POST",
-        "/m/message/send",
-        &[FORM, ("Cookie", &moon), ("Sec-Fetch-Site", "cross-site")],
-        &form(&[("to", "햇살이"), ("body", "가짜")]),
-    );
-    assert_eq!(res.status, 403);
-
-    // 보내기 → 받은 쪽지·안 읽음 → 읽기 → 읽음. HTML 은 이스케이프한다.
-    let res = submit(
-        &bind,
-        &moon,
-        "/m/message/send",
-        &form(&[("to", "햇살이"), ("body", "안녕하세요 <script>1</script>")]),
-    );
+    idp.set_user("sub-moon", "moon-other@example.test", "달");
+    let link = begin(&bind, &idp, "?link=1", &moon);
+    // 연결을 시작한 회원이 아니면 받지 않는다.
+    let other = signup_and_login(&bind, "star@example.test", "별님");
+    assert_eq!(finish(&bind, &link, &other).status, 401);
+    let res = finish(&bind, &begin(&bind, &idp, "?link=1", &moon), &moon);
     assert_eq!(res.status, 303, "{}", res.body);
-    assert_eq!(res.location(), "/m/message/sent");
-    let inbox = get("/m/message", &sun).body;
-    assert!(inbox.contains("달빛이"), "{inbox}");
-    assert!(inbox.contains("안 읽음"), "{inbox}");
-    assert!(!inbox.contains("<script>1"), "{inbox}");
-    let at = inbox.find("/m/message/view/").unwrap();
-    let view = inbox[at..at + inbox[at..].find('"').unwrap()].to_owned();
-    let id = view.rsplit('/').next().unwrap().to_owned();
-
-    // 제3자·손님은 읽지 못한다. 없는 것과 같다.
-    assert_eq!(get(&view, &star).status, 404);
-    assert_eq!(http(&bind, "GET", &view, &[], "").status, 303);
-    let page = get(&view, &sun);
-    assert_eq!(page.status, 200);
-    assert!(page.body.contains("&lt;script&gt;1"), "{}", page.body);
-    assert!(!get("/m/message", &sun).body.contains("안 읽음"));
-    // 보낸 쪽에도 읽음으로 보인다.
-    assert!(get(&view, &moon).body.contains("읽음"));
-
-    // 운영자 CLI·토큰은 쪽지를 읽지 못한다.
-    let denied = run(&data, &["message", "list"]);
-    assert_eq!(denied["ok"], false, "{denied}");
-    assert_eq!(denied["error"]["code"], "FORBIDDEN", "{denied}");
-
-    // 감사 기록에 본문이 없다.
-    let audit = maru(&data, &["audit", "list"]).to_string();
-    assert!(audit.contains("message.send"), "{audit}");
-    assert!(!audit.contains("안녕하세요"), "{audit}");
-
-    // 받은 쪽이 지워도 보낸 쪽에는 남고, 둘 다 지우면 없어진다.
-    let del = format!("/m/message/delete/{id}");
-    assert_eq!(submit(&bind, &star, &del, "").status, 404);
-    assert_eq!(submit(&bind, &sun, &del, "").status, 303);
-    assert_eq!(get(&view, &sun).status, 404);
-    assert_eq!(get(&view, &moon).status, 200);
-    assert_eq!(submit(&bind, &moon, &del, "").status, 303);
-    assert_eq!(get(&view, &moon).status, 404);
-
-    // 차단하면 같은 말로 거절한다. 풀면 다시 된다.
+    assert_eq!(res.location(), "/me#social");
+    let linked = identities(&data, &moon_id);
+    assert_eq!(linked.len(), 1, "{linked:?}");
+    assert_eq!(linked[0]["email"], "moon-other@example.test");
+    let me = http(&bind, "GET", "/me", &[("Cookie", &moon)], "");
+    assert!(me.body.contains("moon-other@example.test"), "{}", me.body);
+    // 같은 계정을 다시 연결해도 그대로다.
     assert_eq!(
-        submit(
-            &bind,
-            &sun,
-            "/m/message/block",
-            &form(&[("name", "별빛이")])
-        )
-        .status,
+        finish(&bind, &begin(&bind, &idp, "?link=1", &moon), &moon).status,
         303
     );
-    assert!(get("/m/message/blocks", &sun).body.contains("별빛이"));
-    let res = submit(
-        &bind,
-        &star,
-        "/m/message/send",
-        &form(&[("to", "햇살이"), ("body", "차단 뒤")]),
-    );
-    assert!(res.body.contains("받을 수 없는 회원"), "{}", res.body);
-    assert_eq!(
-        submit(
-            &bind,
-            &sun,
-            "/m/message/block",
-            &form(&[("name", "별빛이"), ("action", "off")])
-        )
-        .status,
-        303
-    );
-    let res = submit(
-        &bind,
-        &star,
-        "/m/message/send",
-        &form(&[("to", "햇살이"), ("body", "풀린 뒤")]),
-    );
+    assert_eq!(identities(&data, &moon_id).len(), 1);
+    // 연결된 공급자 계정으로 로그인하면 그 회원이다.
+    let res = finish(&bind, &begin(&bind, &idp, "", ""), "");
     assert_eq!(res.status, 303, "{}", res.body);
-
-    // 내 정보 칸.
-    assert!(get("/me", &sun).body.contains("me-message"));
-
-    // 하루 한도.
-    maru(
-        &data,
-        &["module", "set", "message", "--field", "daily_limit=1"],
+    let via_link = format!("maru_session={}", res.cookie("maru_session").unwrap());
+    assert!(
+        http(&bind, "GET", "/me", &[("Cookie", &via_link)], "")
+            .body
+            .contains("달님")
     );
-    let res = submit(
-        &bind,
-        &star,
-        "/m/message/send",
-        &form(&[("to", "햇살이"), ("body", "한도 넘김")]),
-    );
-    assert_eq!(res.status, 429, "{}", res.body);
 
-    // 끄면 화면이 없다.
-    maru(&data, &["module", "disable", "message"]);
-    assert_eq!(get("/m/message", &sun).status, 404);
-    drop(server);
-}
-
-#[test]
-fn polls_attach_to_posts_and_count_member_votes() {
-    let tmp = tempfile::tempdir().unwrap();
-    let data = tmp.path().join("사이트");
-    prepare(&data);
-    maru(&data, &["module", "enable", "poll"]);
-    let (server, bind) = start_server(&data);
-    let moon = format!(
-        "maru_session={}",
-        signup_and_login(&bind, "moon@example.test", "달빛이")
-    );
-    let sun = format!(
-        "maru_session={}",
-        signup_and_login(&bind, "sun@example.test", "햇살이")
-    );
-    let url = write_post(&bind, &moon, "투표 받을 글");
-    let get = |path: &str, cookie: &str| http(&bind, "GET", path, &[("Cookie", cookie)], "");
-
-    // 작성자에게만 만들기 단추가 보인다.
-    let page = get(&url, &moon).body;
-    let at = page.find("/m/poll/new/").expect("만들기 단추");
-    let new_url = page[at..at + page[at..].find('"').unwrap()].to_owned();
-    let post_id = new_url.rsplit('/').next().unwrap().to_owned();
-    assert!(!get(&url, &sun).body.contains("/m/poll/new/"));
-    assert_eq!(get(&new_url, &sun).status, 403);
-
-    // 잘못 쓰면 폼으로 돌아온다.
-    let res = submit(
-        &bind,
-        &moon,
-        &new_url,
-        &form(&[("question", "무엇?"), ("options", "하나뿐")]),
-    );
-    assert_eq!(res.status, 200, "{}", res.body);
-    assert!(res.body.contains("서로 다른 보기"), "{}", res.body);
+    // 다른 회원에 연결된 공급자 계정은 가져올 수 없다.
+    idp.set_user("sub-sora", "sora@example.test", "소라");
     assert_eq!(
-        submit(
+        finish(&bind, &begin(&bind, &idp, "?link=1", &other), &other).status,
+        409
+    );
+    // 공급자마다 계정은 하나: 이미 연결했으면 다른 계정은 먼저 끊어야 한다.
+    idp.set_user("sub-moon-2", "moon-2@example.test", "달둘");
+    assert_eq!(
+        finish(&bind, &begin(&bind, &idp, "?link=1", &moon), &moon).status,
+        409
+    );
+    assert_eq!(identities(&data, &moon_id).len(), 1);
+
+    // 끊기: 다른 사이트 폼은 막고, 비밀번호 없는 회원의 마지막 연결은 못 끊고, 비밀번호 회원은 끊는다.
+    let unlink = "/m/social/unlink/oidc";
+    assert_eq!(
+        http(
             &bind,
-            &sun,
-            &new_url,
-            &form(&[("question", "남이"), ("options", "가\n나")])
+            "POST",
+            unlink,
+            &[("Cookie", &moon), ("Sec-Fetch-Site", "cross-site")],
+            ""
         )
         .status,
         403
     );
+    assert_eq!(identities(&data, &moon_id).len(), 1);
+    let res = http(&bind, "POST", unlink, &[SAME, ("Cookie", &sora)], "");
+    assert_eq!(res.status, 409, "{}", res.body);
+    assert_eq!(identities(&data, &sora_id).len(), 1, "마지막 연결은 남는다");
+    let res = http(&bind, "POST", unlink, &[SAME, ("Cookie", &moon)], "");
+    assert_eq!(res.status, 303, "{}", res.body);
+    assert_eq!(res.location(), "/me#social");
+    assert!(identities(&data, &moon_id).is_empty());
+    assert_eq!(
+        http(&bind, "POST", unlink, &[SAME, ("Cookie", &moon)], "").status,
+        404,
+        "연결이 없으면 끊을 것도 없다"
+    );
 
-    // 만들기: 줄마다 보기, 겹친 줄은 하나로.
-    let res = submit(
+    // 믿지 않는 공급자(oidc)의 이메일이 기존 회원과 같으면 연결하지도 가입시키지도 않는다.
+    idp.set_user("sub-fake-moon", "moon@example.test", "가짜달");
+    let res = finish(&bind, &begin(&bind, &idp, "", ""), "");
+    assert_eq!(res.status, 409, "{}", res.body);
+    assert!(res.cookie("maru_session").is_none());
+    assert!(identities(&data, &moon_id).is_empty());
+    // 가입 화면에서 기존 이메일로 바꿔 적어도 마찬가지다.
+    idp.set_user("sub-sneak", "sneak@example.test", "몰래");
+    let back = finish(&bind, &begin(&bind, &idp, "", ""), "");
+    let cookie = format!(
+        "maru_social_join={}",
+        back.cookie("maru_social_join").unwrap()
+    );
+    let res = http(
         &bind,
-        &moon,
-        &new_url,
+        "POST",
+        "/m/social/join",
+        &[FORM, SAME, ("Cookie", &cookie)],
+        &form(&[("email", "moon@example.test"), ("display_name", "몰래")]),
+    );
+    assert!(res.body.contains("form-error"), "{}", res.body);
+    assert!(res.cookie("maru_session").is_none());
+    assert!(identities(&data, &moon_id).is_empty());
+
+    // 비밀번호 없는 회원이 비밀번호를 정하면 이메일로도 로그인하고 마지막 연결도 끊을 수 있다.
+    let hana = join_as(&bind, &idp, "sub-hana", "hana@example.test", "하나");
+    let hana_id = member_id(&data, "hana@example.test");
+    let me = http(&bind, "GET", "/me", &[("Cookie", &hana)], "");
+    let res = http(
+        &bind,
+        "POST",
+        "/me/password",
+        &[FORM, ("Cookie", &hana)],
         &form(&[
-            ("question", "어느 쪽이 좋나요?"),
-            ("options", "산\n바다\n바다\n"),
+            ("_csrf", &me.csrf_of("/me/password")),
+            ("password", PASSWORD),
+            ("password2", PASSWORD),
         ]),
     );
     assert_eq!(res.status, 303, "{}", res.body);
-    let polled = maru(&data, &["poll", "get", "--post", &post_id]);
-    assert_eq!(polled["options"].as_array().unwrap().len(), 2, "{polled}");
-    let sea = polled["options"][1]["id"].as_str().unwrap().to_owned();
-    let hill = polled["options"][0]["id"].as_str().unwrap().to_owned();
-    // 두 번째 투표는 만들 수 없다.
-    let again = run(
-        &data,
-        &[
-            "poll",
-            "create",
-            "--post",
-            &post_id,
-            "--question",
-            "또",
-            "--options",
-            "가",
-            "--options",
-            "나",
-        ],
-    );
-    assert_eq!(again["error"]["code"], "CONFLICT", "{again}");
+    let hana = format!("maru_session={}", res.cookie("maru_session").unwrap());
+    let me = http(&bind, "GET", "/me", &[("Cookie", &hana)], "");
+    assert!(me.body.contains("name=\"current\""), "{}", me.body);
+    let res = http(&bind, "POST", unlink, &[SAME, ("Cookie", &hana)], "");
+    assert_eq!(res.status, 303, "{}", res.body);
+    assert!(identities(&data, &hana_id).is_empty());
 
-    // 투표 전에는 결과가 안 보인다. 손님은 투표 단추가 없다.
-    let page = get(&url, &sun).body;
-    assert!(page.contains("어느 쪽이 좋나요?"), "{page}");
-    assert!(page.contains("결과는 투표한 뒤에"), "{page}");
-    assert!(!page.contains("<progress"), "{page}");
-    let guest = http(&bind, "GET", &url, &[], "").body;
-    assert!(!guest.contains("/m/poll/vote/"), "{guest}");
-    assert!(guest.contains("어느 쪽이 좋나요?"), "{guest}");
-
-    let vote = format!("/m/poll/vote/{post_id}");
-    // 손님은 로그인으로. 다른 사이트의 요청은 막는다. 다른 값은 안 된다.
+    // 비밀번호 없는 회원은 닉네임으로 탈퇴를 확인한다. 연결도 사라지고, 같은 계정으로 새로 가입할 수 있다.
+    let me = http(&bind, "GET", "/me", &[("Cookie", &sora)], "");
     let res = http(
         &bind,
         "POST",
-        &vote,
-        &[FORM, ("Sec-Fetch-Site", "same-origin")],
-        &form(&[("option", &sea)]),
+        "/me/withdraw",
+        &[FORM, ("Cookie", &sora)],
+        &form(&[
+            ("_csrf", &me.csrf_of("/me/withdraw")),
+            ("password", "다른이름"),
+            ("agree", "yes"),
+        ]),
     );
-    assert_eq!(res.status, 303);
-    assert!(res.location().starts_with("/login"), "{}", res.location());
+    assert!(res.body.contains("닉네임을 그대로"), "{}", res.body);
+    assert_eq!(identities(&data, &sora_id).len(), 1);
+    let me = http(&bind, "GET", "/me", &[("Cookie", &sora)], "");
     let res = http(
         &bind,
         "POST",
-        &vote,
-        &[FORM, ("Cookie", &sun), ("Sec-Fetch-Site", "cross-site")],
-        &form(&[("option", &sea)]),
+        "/me/withdraw",
+        &[FORM, ("Cookie", &sora)],
+        &form(&[
+            ("_csrf", &me.csrf_of("/me/withdraw")),
+            ("password", "소라"),
+            ("agree", "yes"),
+        ]),
     );
-    assert_eq!(res.status, 403);
-    assert_eq!(
-        submit(&bind, &sun, &vote, &form(&[("option", "없는보기")])).status,
-        400
-    );
-    // 하나만 고르는 투표에 둘을 낼 수 없다.
-    let two = format!("option={}&option={}", enc(&sea), enc(&hill));
-    assert_eq!(submit(&bind, &sun, &vote, &two).status, 400);
-
-    // 투표 → 결과가 보인다. 다시 하면 대신한다.
-    assert_eq!(
-        submit(&bind, &sun, &vote, &form(&[("option", &sea)])).status,
-        303
-    );
-    let page = get(&url, &sun).body;
-    assert!(page.contains("<progress"), "{page}");
-    assert!(page.contains("참여 1명"), "{page}");
-    assert_eq!(
-        submit(&bind, &sun, &vote, &form(&[("option", &hill)])).status,
-        303
-    );
-    let polled = maru(&data, &["poll", "get", "--post", &post_id]);
-    assert_eq!(polled["voters"], 1, "{polled}");
-    assert_eq!(polled["options"][0]["votes"], 1, "{polled}");
-    assert_eq!(polled["options"][1]["votes"], 0, "{polled}");
-
-    // 감사 기록에 무엇을 골랐는지 남지 않는다.
-    let audit = maru(&data, &["audit", "list"]).to_string();
-    assert!(audit.contains("poll.vote"), "{audit}");
-    assert!(!audit.contains(&format!("\"{hill}\"")), "{audit}");
-
-    // 마감: 남은 못 하고, 뒤로는 표를 받지 않는다.
-    let close = format!("/m/poll/close/{post_id}");
-    assert_eq!(submit(&bind, &sun, &close, "").status, 403);
-    assert_eq!(submit(&bind, &moon, &close, "").status, 303);
-    assert_eq!(
-        submit(&bind, &sun, &vote, &form(&[("option", &sea)])).status,
-        400
-    );
-    let page = get(&url, &sun).body;
-    assert!(page.contains("마감됨"), "{page}");
-    assert!(!page.contains("/m/poll/vote/"), "{page}");
-
-    // 지우면 사라지고 다시 만들 수 있다. CLI 는 배열을 --options 를 되풀이해 받는다.
-    assert_eq!(
-        submit(&bind, &moon, &format!("/m/poll/delete/{post_id}"), "").status,
-        303
-    );
-    assert!(!get(&url, &sun).body.contains("어느 쪽이 좋나요?"));
-    let made = maru(
-        &data,
-        &[
-            "poll",
-            "create",
-            "--post",
-            &post_id,
-            "--question",
-            "여럿 고르기",
-            "--options",
-            "가, 그리고",
-            "--options",
-            "나",
-            "--multiple",
-            "true",
-        ],
-    );
-    assert_eq!(made["multiple"], true, "{made}");
-    assert_eq!(made["options"][0]["label"], "가, 그리고", "{made}");
-
-    // 끄면 글 화면에서 사라진다.
-    maru(&data, &["module", "disable", "poll"]);
-    assert!(!get(&url, &sun).body.contains("여럿 고르기"));
+    assert_eq!(res.status, 200, "{}", res.body);
+    assert!(res.body.contains("탈퇴했습니다"), "{}", res.body);
+    let wait = std::time::Instant::now();
+    while !identities(&data, &sora_id).is_empty() {
+        assert!(wait.elapsed().as_secs() < 15, "탈퇴 뒤에도 연결이 남았다");
+        std::thread::sleep(std::time::Duration::from_millis(200));
+    }
+    idp.set_user("sub-sora", "sora@example.test", "소라");
+    let res = finish(&bind, &begin(&bind, &idp, "", ""), "");
+    assert_eq!(res.status, 303, "{}", res.body);
+    assert_eq!(res.location(), "/m/social/join");
     drop(server);
+
+    // 메일 인증이 켜진 사이트: oidc 이메일은 믿지 않으므로 메일을 확인해야 로그인된다.
+    maru(&data, &["site", "set", "--signup-verify", "true"]);
+    let (server, bind) = start_server(&data);
+    idp.set_user("sub-mail", "mail@example.test", "메일");
+    let back = finish(&bind, &begin(&bind, &idp, "", ""), "");
+    let cookie = format!(
+        "maru_social_join={}",
+        back.cookie("maru_social_join").unwrap()
+    );
+    let res = http(
+        &bind,
+        "POST",
+        "/m/social/join",
+        &[FORM, SAME, ("Cookie", &cookie)],
+        &form(&[("email", "mail@example.test"), ("display_name", "메일")]),
+    );
+    assert_eq!(res.status, 200, "{}", res.body);
+    assert!(res.body.contains("메일을 확인하세요"), "{}", res.body);
+    assert!(res.cookie("maru_session").is_none());
+    let res = finish(&bind, &begin(&bind, &idp, "", ""), "");
+    assert_eq!(res.status, 403, "{}", res.body);
+    assert!(res.cookie("maru_session").is_none());
+    drop(server);
+
+    // 가입을 닫으면 새 계정은 못 들어오지만 연결된 회원은 그대로 로그인한다.
+    maru(
+        &data,
+        &["site", "set", "--signup", "off", "--signup-verify", "false"],
+    );
+    let (_server, bind) = start_server(&data);
+    idp.set_user("sub-late", "late@example.test", "늦은이");
+    let res = finish(&bind, &begin(&bind, &idp, "", ""), "");
+    assert_eq!(res.status, 403, "{}", res.body);
+    assert!(res.cookie("maru_social_join").is_none());
+    idp.set_user("sub-mail", "mail@example.test", "메일");
+    let res = finish(&bind, &begin(&bind, &idp, "", ""), "");
+    assert_eq!(res.status, 303, "{}", res.body);
+    assert!(res.cookie("maru_session").is_some());
+
+    // 공급자를 다시 넣어도 하나이고, 빼면 단추가 사라지되 연결은 남는다.
+    set_oidc(&data, &idp);
+    assert_eq!(
+        maru(&data, &["social", "provider_list"])["items"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    maru(&data, &["social", "provider_remove", "--provider", "oidc"]);
+    assert!(
+        !http(&bind, "GET", "/login", &[], "")
+            .body
+            .contains("계정으로 계속하기")
+    );
+    let mail_id = member_id(&data, "mail@example.test");
+    assert_eq!(identities(&data, &mail_id).len(), 1);
 }

@@ -78,11 +78,20 @@ async fn page(
     let site = settings::site(&state.ctx).await.unwrap_or_default();
     let mut account = account;
     account["csrf"] = json!(csrf);
+    // 로그인·가입 화면에는 모듈의 다른 로그인 방법 (GAP M15)
+    let slots = if matches!(account["view"].as_str(), Some("login" | "signup")) {
+        let next = account["next"].as_str().unwrap_or_default();
+        account["next_query"] = json!(maru_core::urls::with_query("", &[("next", next)]));
+        crate::modules::login_slots(state).await
+    } else {
+        json!({})
+    };
     let ctx = json!({
         "site": crate::public::site_json(state).await,
         "meta": { "title": format!("{title} · {}", site.name), "noindex": true },
         "signup_open": site.signup == SignupMode::Open,
         "account": account,
+        "slots": slots,
     });
     let mut res = render(state, status, "account.html", &ctx).await;
     if let Some(set) = set {
@@ -142,7 +151,7 @@ async fn csrf_failed(state: &AppState, headers: &HeaderMap) -> Response {
 }
 
 /// 내부 경로만 (`admin::safe_next` 와 같은 규칙). 비었거나 바깥이면 `/me`.
-fn next_or_me(next: &str) -> &str {
+pub(crate) fn next_or_me(next: &str) -> &str {
     if !next.is_empty() && crate::admin::safe_next(next) == next {
         next
     } else {
@@ -877,6 +886,8 @@ async fn me_page_with(
             "profile_url": maru_core::urls::path(&maru_core::urls::Target::Member { name: &who.member.display_name }),
             "joined": clock::display_date(&who.member.created_at, site.tz_offset_min),
             "is_owner": who.actor.has(Permission::SiteAdmin),
+            // 소셜 로그인으로만 가입한 회원은 비밀번호가 없다 (ADR-0114)
+            "has_password": who.member.has_password(),
             "admin_url": who.actor.has(Permission::PostModerate).then_some("/admin"),
             "posts": posts,
             "comments": comments.as_ref().map(|(items, _)| items.clone()).unwrap_or_default(),

@@ -242,6 +242,119 @@ impl WebhookPoster {
     }
 }
 
+/// 소셜 로그인 공급자와 주고받기 (GAP M15, ADR-0114). 주소는 운영자가 정한 공급자 주소뿐이라 사설 주소를
+/// 막지 않는다(사내 인증 서버). 대신 https 만 — 되돌이(127.0.0.1·::1·localhost)는 http 도 된다.
+/// 리디렉션은 따라가지 않고(코드·토큰을 다른 곳에 보내지 않게), 응답은 64KB 까지 JSON 으로 읽는다.
+pub struct OAuthClient {
+    client: Client,
+}
+
+const MAX_OAUTH_BODY: usize = 64 * 1024;
+
+/// 공급자 주소로 쓸 수 있는가 (모양만 본다)
+pub fn check_oauth_url(url: &str) -> Result<(), String> {
+    if url.len() > 2048 {
+        return Err("주소가 너무 깁니다".into());
+    }
+    let url = Url::parse(url).map_err(|e| format!("주소를 읽지 못했습니다: {e}"))?;
+    oauth_allowed(&url)
+}
+
+fn oauth_allowed(url: &Url) -> Result<(), String> {
+    if !url.username().is_empty() || url.password().is_some() {
+        return Err("주소에 로그인 정보가 들어 있습니다".into());
+    }
+    let host = url.host_str().ok_or("호스트가 없습니다")?;
+    let bare = host.trim_start_matches('[').trim_end_matches(']');
+    let loopback = match bare.parse::<IpAddr>() {
+        Ok(ip) => ip.is_loopback(),
+        Err(_) => bare.eq_ignore_ascii_case("localhost"),
+    };
+    match url.scheme() {
+        "https" => Ok(()),
+        "http" if loopback => Ok(()),
+        _ => Err("https 주소만 씁니다 (이 컴퓨터 안의 주소만 http 가능)".into()),
+    }
+}
+
+impl OAuthClient {
+    pub fn new() -> Result<Self, String> {
+        crate::tls::install_provider();
+        let client = Client::builder()
+            .no_proxy()
+            .redirect(redirect::Policy::none())
+            .connect_timeout(CONNECT_TIMEOUT)
+            .timeout(TOTAL_TIMEOUT)
+            .user_agent(concat!("Maru-Login/", env!("CARGO_PKG_VERSION")))
+            .build()
+            .map_err(|e| e.to_string())?;
+        Ok(Self { client })
+    }
+
+    /// 폼으로 보내고 JSON 을 받는다 (토큰 교환). `(응답 코드, 본문)`
+    pub async fn post_form(
+        &self,
+        url: &str,
+        form: &[(&str, &str)],
+    ) -> Result<(u16, serde_json::Value), String> {
+        let url = Url::parse(url).map_err(|e| format!("주소를 읽지 못했습니다: {e}"))?;
+        oauth_allowed(&url)?;
+        // reqwest 의 form 기능(serde_urlencoded) 대신 Url 의 같은 인코더로 본문을 만든다.
+        let mut enc = Url::parse("http://form.invalid/").map_err(|e| e.to_string())?;
+        enc.query_pairs_mut().extend_pairs(form);
+        let body = enc.query().unwrap_or_default().to_owned();
+        let res = self
+            .client
+            .post(url)
+            .header(reqwest::header::ACCEPT, "application/json")
+            .header(
+                reqwest::header::CONTENT_TYPE,
+                "application/x-www-form-urlencoded;charset=utf-8",
+            )
+            .body(body)
+            .send()
+            .await
+            .map_err(|e| describe(&e))?;
+        read_json(res).await
+    }
+
+    /// 접근 토큰으로 JSON 을 받는다 (사용자 정보). `(응답 코드, 본문)`
+    pub async fn get_json(
+        &self,
+        url: &str,
+        bearer: &str,
+    ) -> Result<(u16, serde_json::Value), String> {
+        let url = Url::parse(url).map_err(|e| format!("주소를 읽지 못했습니다: {e}"))?;
+        oauth_allowed(&url)?;
+        let res = self
+            .client
+            .get(url)
+            .header(reqwest::header::ACCEPT, "application/json")
+            .bearer_auth(bearer)
+            .send()
+            .await
+            .map_err(|e| describe(&e))?;
+        read_json(res).await
+    }
+}
+
+async fn read_json(res: reqwest::Response) -> Result<(u16, serde_json::Value), String> {
+    let status = res.status().as_u16();
+    if res
+        .content_length()
+        .is_some_and(|n| n > MAX_OAUTH_BODY as u64)
+    {
+        return Err("응답이 너무 큽니다".into());
+    }
+    let body = res.bytes().await.map_err(|e| describe(&e))?;
+    if body.len() > MAX_OAUTH_BODY {
+        return Err("응답이 너무 큽니다".into());
+    }
+    let json =
+        serde_json::from_slice(&body).map_err(|_| format!("JSON 이 아닌 응답 ({status})"))?;
+    Ok((status, json))
+}
+
 fn describe(e: &reqwest::Error) -> String {
     use std::error::Error as _;
     let mut s = e.to_string();

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE mod_social_identity SET last_login_at = ? WHERE provider = ? AND subject = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "56ed752aa2890453f1ff72d2092e611acc3b2c1f095efe15e85cde9d5b569761"
+}

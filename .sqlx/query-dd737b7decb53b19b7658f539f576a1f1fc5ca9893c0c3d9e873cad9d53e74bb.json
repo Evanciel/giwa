@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT provider FROM mod_social_identity WHERE member_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "provider",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_social_identity",
+            "name": "provider"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "dd737b7decb53b19b7658f539f576a1f1fc5ca9893c0c3d9e873cad9d53e74bb"
+}

@@ -15,6 +15,7 @@
     <input id="password" type="password" name="password" autocomplete="current-password" required>
     <button type="submit">로그인</button>
   </form>
+  {% if slots and slots.login_options %}{% for s in slots.login_options %}{% include s.template %}{% endfor %}{% endif %}
   <p class="account-links"><a href="/forgot">비밀번호 찾기</a>{% if signup_open %}<span aria-hidden="true">·</span><a href="/signup">회원 가입</a>{% endif %}</p>
 
 {% elif account.view == "totp" %}
@@ -55,6 +56,7 @@
     <div class="trap" aria-hidden="true"><label>웹사이트 <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
     <button type="submit">가입하기</button>
   </form>
+  {% if slots and slots.login_options %}{% for s in slots.login_options %}{% include s.template %}{% endfor %}{% endif %}
   <p class="account-links">이미 가입했나요? <a href="/login">로그인</a></p>
 
 {% elif account.view == "forgot" %}

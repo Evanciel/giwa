@@ -63,6 +63,27 @@ pub struct SignupInput {
     pub captcha: Option<crate::services::captcha::Answer>,
 }
 
+/// 외부 신원(소셜 로그인)으로 가입하기 (GAP M15, ADR-0114). 비밀번호 없이 만든다.
+#[derive(Debug, Clone, Default, Deserialize, JsonSchema)]
+pub struct ExternalSignupInput {
+    pub email: String,
+    /// 닉네임 (사이트 안에서 겹치지 않게, 2~20자)
+    pub display_name: String,
+    /// 공급자가 이 주소를 확인했다고 알려 왔고, 부르는 쪽이 그 공급자의 확인을 믿는다
+    #[serde(default)]
+    pub email_verified: bool,
+    /// 감사에 남길 경로 (`social:google` 등)
+    pub method: String,
+}
+
+/// 외부 가입 결과.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+pub struct ExternalSignup {
+    pub member_id: String,
+    /// 메일 링크를 눌러야 로그인할 수 있다 (공급자가 주소를 확인하지 않았고 가입 인증이 켜졌을 때)
+    pub verify_required: bool,
+}
+
 /// 가입 결과. 이미 있는 이메일이어도 같은 모양이다(계정이 있는지 새지 않게).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
 pub struct SignupOutcome {
@@ -155,6 +176,56 @@ pub async fn signup(ctx: &Ctx, input: SignupInput) -> Result<SignupOutcome> {
     }
     tx.commit().await?;
     Ok(outcome)
+}
+
+/// 외부 신원으로 가입한다 (GAP M15, ADR-0114). 가입을 받는 사이트만. 비밀번호는 없다 — 나중에
+/// 「비밀번호 찾기」나 내 정보에서 정할 수 있다. 이미 있는 이메일이면 만들지 않고 그 계정으로 로그인해
+/// 연결하라고 답한다(소셜 가입 화면은 공급자가 준 주소를 보여 주므로 이미 아는 사실이다).
+pub async fn signup_external(ctx: &Ctx, input: ExternalSignupInput) -> Result<ExternalSignup> {
+    let site = settings::site(ctx).await?;
+    if site.signup != SignupMode::Open {
+        return Err(signup_closed());
+    }
+    let email = auth::check_email(&input.email)?;
+    let name = check_name(&input.display_name)?;
+    let method: String = input.method.chars().take(40).collect();
+    let mut tx = Tx::begin(ctx).await?;
+    if tx.member_by_email(&email).await?.is_some() {
+        return Err(Error::new(Code::Conflict).with_message("error.email_taken_external"));
+    }
+    if tx.member_by_name(&name).await?.is_some() {
+        return Err(name_taken(&name));
+    }
+    let verified = input.email_verified || !site.signup_verify;
+    let now = clock::now();
+    let member = Member {
+        id: clock::new_id(),
+        email,
+        display_name: name,
+        password_hash: None,
+        status: MemberStatus::Active,
+        email_verified_at: verified.then(|| now.clone()),
+        withdrawn_at: None,
+        created_at: now.clone(),
+        updated_at: now,
+    };
+    tx.insert_member(&member).await?;
+    tx.add_member_role(&member.id, "member").await?;
+    tx.audit(
+        &guest_of(&member),
+        "member.signup",
+        Target::new("member", &member.id),
+        json!({ "display_name": member.display_name, "verify": !verified, "method": method }),
+    )
+    .await?;
+    if !verified {
+        queue_verify(ctx, &mut tx, &site.name, &member).await?;
+    }
+    tx.commit().await?;
+    Ok(ExternalSignup {
+        member_id: member.id,
+        verify_required: !verified,
+    })
 }
 
 /// 인증 편지를 쌓는다 (가입 직후, 인증 전 로그인 시도). 10분 안에 다시 부르면 쌓지 않는다.
@@ -556,13 +627,16 @@ pub async fn change_password(
 }
 
 /// 탈퇴. 이메일·비밀번호·세션·역할을 지우고 닉네임을 바꾼다. 쓴 글은 남는다. 운영자는 탈퇴할 수 없다.
+/// 비밀번호가 없는 회원(소셜 로그인으로만 가입, ADR-0114)은 `password` 자리에 지금 닉네임을 넣어 확인한다.
 pub async fn withdraw(ctx: &Ctx, who: &SignedIn, password: &str) -> Result<()> {
     if who.actor.has(Permission::SiteAdmin) {
         return Err(Error::new(Code::Forbidden).with_message("error.owner_withdraw"));
     }
-    let hash = who.member.password_hash.clone().unwrap_or_default();
-    if !auth::verify(password, &hash) {
-        return Err(password_wrong());
+    match &who.member.password_hash {
+        Some(hash) if auth::verify(password, hash) => {}
+        None if password.trim() == who.member.display_name => {}
+        Some(_) => return Err(password_wrong()),
+        None => return Err(Error::new(Code::Unauthorized).with_message("error.withdraw_name")),
     }
     let mut tx = Tx::begin(ctx).await?;
     let mut member = active(&mut tx, &who.member.id).await?;

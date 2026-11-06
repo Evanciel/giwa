@@ -256,26 +256,51 @@ pub async fn login_password(ctx: &Ctx, email: &str, password: &str) -> Result<Lo
         Some(m) if ok && m.has_password() && m.status == MemberStatus::Active => m,
         _ => return Err(login_failed()),
     };
+    verified_or_resend(ctx, &member).await?;
     let mut tx = Tx::begin(ctx).await?;
-    if member.email_verified_at.is_none() {
-        let site = crate::services::settings::site(ctx).await?;
-        if site.signup_verify {
-            if crate::services::members::queue_verify(ctx, &mut tx, &site.name, &member).await? {
-                tx.audit(
-                    &Actor::human(member.id.clone(), [], crate::actor::rank::GUEST),
-                    "member.verify_resend",
-                    Target::new("member", &member.id),
-                    json!({}),
-                )
-                .await?;
-                tx.commit().await?;
-            }
-            return Err(Error::new(Code::Forbidden).with_message("error.email_unverified"));
-        }
-    }
     let login = finish_login(&mut tx, member, "password").await?;
     tx.commit().await?;
     Ok(login)
+}
+
+/// 다른 곳이 신원을 확인한 회원으로 로그인한다 — 소셜 로그인 모듈이 공급자에게서 (공급자, 사용자 ID)를
+/// 받아 연결된 회원을 찾았을 때 (GAP M15, ADR-0114). **부르는 쪽이 신원을 확인했어야 한다.**
+/// 활성 회원만, 비밀번호 로그인과 같은 메일 인증·2단계 인증 단계를 거친다. `method` 는 감사에 남는다.
+pub async fn login_external(ctx: &Ctx, member_id: &str, method: &str) -> Result<Login> {
+    let member = ctx
+        .store
+        .member_by_id(member_id)
+        .await?
+        .filter(|m| m.status == MemberStatus::Active)
+        .ok_or_else(login_failed)?;
+    verified_or_resend(ctx, &member).await?;
+    let mut tx = Tx::begin(ctx).await?;
+    let login = finish_login(&mut tx, member, method).await?;
+    tx.commit().await?;
+    Ok(login)
+}
+
+/// 가입 인증이 켜졌는데 메일 인증 전이면 인증 편지를 다시 쌓고 `error.email_unverified`.
+async fn verified_or_resend(ctx: &Ctx, member: &Member) -> Result<()> {
+    if member.email_verified_at.is_some() {
+        return Ok(());
+    }
+    let site = crate::services::settings::site(ctx).await?;
+    if !site.signup_verify {
+        return Ok(());
+    }
+    let mut tx = Tx::begin(ctx).await?;
+    if crate::services::members::queue_verify(ctx, &mut tx, &site.name, member).await? {
+        tx.audit(
+            &Actor::human(member.id.clone(), [], crate::actor::rank::GUEST),
+            "member.verify_resend",
+            Target::new("member", &member.id),
+            json!({}),
+        )
+        .await?;
+        tx.commit().await?;
+    }
+    Err(Error::new(Code::Forbidden).with_message("error.email_unverified"))
 }
 
 /// 쿠키 값으로 로그인 상태를 찾는다. 만료·비활성이면 `None`.

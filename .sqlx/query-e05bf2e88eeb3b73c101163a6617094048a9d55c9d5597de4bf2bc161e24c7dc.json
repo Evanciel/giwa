@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT provider, data, expires_at FROM mod_social_flow WHERE hash = ? AND kind = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "provider",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_social_flow",
+            "name": "provider"
+          }
+        }
+      },
+      {
+        "name": "data",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_social_flow",
+            "name": "data"
+          }
+        }
+      },
+      {
+        "name": "expires_at",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_social_flow",
+            "name": "expires_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "e05bf2e88eeb3b73c101163a6617094048a9d55c9d5597de4bf2bc161e24c7dc"
+}

@@ -22,6 +22,7 @@ maru-mod-message = { path = "mods/message" }
 maru-mod-notify = { path = "mods/notify" }
 maru-mod-poll = { path = "mods/poll" }
 maru-mod-scrap = { path = "mods/scrap" }
+maru-mod-social = { path = "mods/social" }
 maru-mod-ads = { path = "mods/ads" }
 maru-mod-consult = { path = "mods/consult" }
 maru-mod-webhook = { path = "mods/webhook" }

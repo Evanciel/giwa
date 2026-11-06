@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO mod_social_identity (provider, subject, member_id, email, created_at, last_login_at)\n             VALUES (?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "820989cf48939544039e13df75a80cb4a63b3e8b2ee9d69a2f9aaae1255a7701"
+}

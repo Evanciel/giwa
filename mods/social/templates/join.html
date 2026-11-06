@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{# 소셜 계정으로 가입 (ADR-0114). 공급자가 준 이메일·이름을 미리 채운다. #}
+{% block main_class %}wrap account-wrap{% endblock %}
+{% block main %}
+<section class="account" aria-labelledby="account-title">
+{% if sent %}
+  <h1 id="account-title">메일을 확인하세요</h1>
+  <p class="account-lead"><strong>{{ email }}</strong> 로 인증 링크를 보냈습니다. 링크를 누르면 가입이 끝나고 로그인됩니다.</p>
+  <p class="account-links"><a href="/">처음으로</a></p>
+{% else %}
+  <h1 id="account-title">{{ provider_label }} 계정으로 가입</h1>
+  <p class="account-lead">이 사이트에서 쓸 닉네임을 정하면 가입이 끝납니다. 비밀번호는 나중에 「비밀번호 찾기」로 정할 수 있습니다.</p>
+  {% if error %}<p class="form-error" role="alert">{{ error }}</p>{% endif %}
+  <form class="account-form" method="post" action="/m/social/join">
+    <label for="email">이메일</label>
+    <input id="email" type="email" name="email" value="{{ email }}" autocomplete="email" required aria-describedby="email-hint">
+    <p id="email-hint" class="hint">{% if from_provider %}{{ provider_label }}에서 받은 주소입니다. 바꾸면 메일 인증을 거칠 수 있습니다.{% else %}{{ provider_label }}에서 주소를 받지 못했습니다. 쓰는 주소를 적어 주세요.{% endif %}</p>
+    <label for="display_name">닉네임</label>
+    <input id="display_name" type="text" name="display_name" value="{{ display_name }}" minlength="2" maxlength="20" autocomplete="nickname" required autofocus>
+    <button type="submit">가입하기</button>
+  </form>
+  <p class="account-links">이미 회원인가요? <a href="/login">로그인</a> 뒤 내 정보에서 연결하세요.</p>
+{% endif %}
+</section>
+{% endblock %}

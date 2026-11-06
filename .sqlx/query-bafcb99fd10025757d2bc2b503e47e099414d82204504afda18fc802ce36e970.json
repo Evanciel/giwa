@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO mod_social_provider\n               (id, client_id, client_secret, label, auth_url, token_url, userinfo_url, enabled, updated_at)\n             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)\n             ON CONFLICT (id) DO UPDATE SET client_id = excluded.client_id,\n               client_secret = excluded.client_secret, label = excluded.label,\n               auth_url = excluded.auth_url, token_url = excluded.token_url,\n               userinfo_url = excluded.userinfo_url, enabled = excluded.enabled,\n               updated_at = excluded.updated_at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 9
+    },
+    "nullable": []
+  },
+  "hash": "bafcb99fd10025757d2bc2b503e47e099414d82204504afda18fc802ce36e970"
+}

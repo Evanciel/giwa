@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM mod_social_identity WHERE member_id = ? AND provider = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "78e5e3646766e771bc7dff2767d9823164e251fa08f4b67498370f9e0abb1332"
+}

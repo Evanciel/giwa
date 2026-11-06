@@ -200,6 +200,21 @@ main { min-height: 50vh; }
 .account-form.inline button { margin-top: 0; }
 .account-links { margin: calc(var(--space) * 3) 0 0; font-size: var(--fs-sm); color: var(--muted); display: flex; flex-wrap: wrap; gap: calc(var(--space) * 1); }
 .account-links a { color: var(--primary); }
+/* 소셜 로그인 단추와 내 정보의 연결 칸 (GAP M15, ADR-0114). 공급자 상표·로고는 쓰지 않고 이름만 적는다. */
+.social-login { margin-top: calc(var(--space) * 3); }
+.social-login-or { display: flex; align-items: center; gap: calc(var(--space) * 1.5); margin: 0 0 calc(var(--space) * 2); font-size: var(--fs-sm); color: var(--muted); }
+.social-login-or::before, .social-login-or::after { content: ""; flex: 1; border-top: 1px solid var(--border); }
+.social-login ul { list-style: none; margin: 0; padding: 0; display: grid; gap: calc(var(--space) * 1); }
+.social-btn { display: block; text-align: center; font-weight: 600; color: var(--fg); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: calc(var(--space) * 1.25) calc(var(--space) * 2); text-decoration: none; transition: border-color var(--motion) ease-out, color var(--motion) ease-out; }
+.social-btn:hover, .social-btn:focus-visible { border-color: var(--primary); color: var(--primary); }
+.social-links { list-style: none; margin: 0 0 calc(var(--space) * 2); padding: 0; display: grid; gap: calc(var(--space) * 1.5); }
+.social-links li { display: flex; flex-wrap: wrap; align-items: center; gap: calc(var(--space) * 1) calc(var(--space) * 2); }
+.social-links .hint { margin: 0; }
+.social-name { font-weight: 600; min-width: 4em; }
+.social-links form { margin: 0 0 0 auto; }
+.social-links .btn-small { margin-left: auto; color: var(--primary); font-size: var(--fs-sm); }
+.social-links .link-btn { font-size: var(--fs-sm); font-weight: 400; color: var(--muted); background: none; border: 0; padding: 0; text-decoration: underline; }
+.social-links .link-btn:hover { background: none; color: var(--fg); }
 .form-error, .form-notice { margin: 0 0 calc(var(--space) * 2); padding: calc(var(--space) * 1.5) calc(var(--space) * 2); border-radius: var(--radius-sm); border: 1px solid var(--border); border-left: 3px solid #b42318; background: var(--surface); }
 .form-notice { border-left-color: var(--primary); }
 .me-head { margin-bottom: calc(var(--space) * 3); }

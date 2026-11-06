@@ -53,11 +53,12 @@
 
   <section class="me-block" aria-labelledby="me-password">
     <h2 id="me-password">비밀번호</h2>
+    {% if not me.has_password %}<p class="hint">소셜 로그인으로 가입해 비밀번호가 없습니다. 정해 두면 이메일로도 로그인할 수 있습니다.</p>{% endif %}
     {% if me.error_in == "password" %}<p class="form-error" role="alert">{{ me.error }}</p>{% endif %}
     <form class="account-form" method="post" action="/me/password">
       <input type="hidden" name="_csrf" value="{{ me.csrf }}">
-      <label for="current">지금 비밀번호</label>
-      <input id="current" type="password" name="current" autocomplete="current-password" required>
+      {% if me.has_password %}<label for="current">지금 비밀번호</label>
+      <input id="current" type="password" name="current" autocomplete="current-password" required>{% endif %}
       <label for="password">새 비밀번호</label>
       <input id="password" type="password" name="password" minlength="{{ me.min_password }}" autocomplete="new-password" required>
       <label for="password2">새 비밀번호 다시</label>
@@ -140,8 +141,10 @@
     {% if me.error_in == "withdraw" %}<p class="form-error" role="alert">{{ me.error }}</p>{% endif %}
     <form class="account-form" method="post" action="/me/withdraw">
       <input type="hidden" name="_csrf" value="{{ me.csrf }}">
-      <label for="withdraw-pw">비밀번호</label>
+      {% if me.has_password %}<label for="withdraw-pw">비밀번호</label>
       <input id="withdraw-pw" type="password" name="password" autocomplete="current-password" required>
+      {% else %}<label for="withdraw-pw">확인을 위해 지금 닉네임(<strong>{{ me.display_name }}</strong>)을 입력하세요</label>
+      <input id="withdraw-pw" type="text" name="password" autocomplete="off" required>{% endif %}
       <label class="check"><input type="checkbox" name="agree" value="yes" required> 위 내용을 읽었고 탈퇴합니다</label>
       <button type="submit" class="danger">탈퇴하기</button>
     </form>

@@ -1,0 +1,7 @@
+{# 로그인·가입 화면의 소셜 로그인 단추 (ADR-0114). 돌아갈 곳은 account.next_query (인코딩된 `?next=…`). #}
+<div class="social-login" role="group" aria-label="다른 계정으로 로그인">
+  <p class="social-login-or"><span>또는</span></p>
+  <ul>
+    {% for p in s.data.providers %}<li><a class="social-btn social-{{ p.id }}" href="{{ p.url }}{{ account.next_query }}">{{ p.label }} 계정으로 계속하기</a></li>{% endfor %}
+  </ul>
+</div>

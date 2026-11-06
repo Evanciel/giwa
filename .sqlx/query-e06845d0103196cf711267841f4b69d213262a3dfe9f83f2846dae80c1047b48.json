@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT provider, email, created_at, last_login_at FROM mod_social_identity\n             WHERE member_id = ? ORDER BY created_at",
+  "describe": {
+    "columns": [
+      {
+        "name": "provider",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_social_identity",
+            "name": "provider"
+          }
+        }
+      },
+      {
+        "name": "email",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_social_identity",
+            "name": "email"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_social_identity",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "name": "last_login_at",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_social_identity",
+            "name": "last_login_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "e06845d0103196cf711267841f4b69d213262a3dfe9f83f2846dae80c1047b48"
+}

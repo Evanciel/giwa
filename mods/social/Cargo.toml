@@ -1,0 +1,23 @@
+[package]
+name = "maru-mod-social"
+description = "Maru 공식 모듈: 소셜 로그인"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+maru-core.workspace = true
+maru-modules.workspace = true
+maru-storage.workspace = true
+async-trait.workspace = true
+axum.workspace = true
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+sqlx.workspace = true

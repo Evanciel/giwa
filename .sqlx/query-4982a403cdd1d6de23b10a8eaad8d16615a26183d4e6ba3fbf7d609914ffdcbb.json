@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO mod_social_flow (hash, kind, provider, data, expires_at) VALUES (?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "4982a403cdd1d6de23b10a8eaad8d16615a26183d4e6ba3fbf7d609914ffdcbb"
+}

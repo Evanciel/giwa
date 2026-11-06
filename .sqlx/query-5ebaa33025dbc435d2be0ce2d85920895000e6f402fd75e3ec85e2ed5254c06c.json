@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT member_id FROM mod_social_identity WHERE provider = ? AND subject = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "member_id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_social_identity",
+            "name": "member_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "5ebaa33025dbc435d2be0ce2d85920895000e6f402fd75e3ec85e2ed5254c06c"
+}

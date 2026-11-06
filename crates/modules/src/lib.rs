@@ -76,6 +76,9 @@ pub const POST_LIST: &str = "post_list";
 /// `{by_member: {회원 ID: {label, title}}}` 를 웹 계층이 이름 옆에 붙인다. 보는 사람과 무관한 값만.
 pub const MEMBER_BADGE: &str = "member_badge";
 
+/// 로그인·가입 화면의 다른 로그인 방법 (소셜 로그인 단추, GAP M15). 템플릿은 `account.next_query`(인코딩된 `?next=…`)로 돌아갈 곳을 안다.
+pub const LOGIN_OPTIONS: &str = "login_options";
+
 /// 화면 자리를 채울 때 모듈이 보는 것.
 pub struct SlotView<'a> {
     pub viewer: &'a Actor,
@@ -112,6 +115,9 @@ pub trait Host: Send + Sync {
     async fn viewer(&self, headers: &HeaderMap) -> Result<Actor>;
     /// 공개 화면의 폼은 쿠키 토큰이 없어(화면을 캐시할 수 있게) 출처로 위조 요청을 막는다.
     fn same_origin(&self, headers: &HeaderMap) -> bool;
+    /// 모듈이 신원을 확인한 회원으로 로그인시키고 `next`(사이트 안 주소)로 보낸다 (GAP M15, ADR-0114).
+    /// 세션 쿠키·2단계 인증 화면·메일 인증 안내는 웹 계층이 맡는다. **부르는 모듈이 신원을 확인했어야 한다.**
+    async fn sign_in(&self, member_id: &str, method: &str, next: &str) -> Response;
 }
 
 /// 모듈. 빠진 것은 기본 구현(없음)으로 둔다.

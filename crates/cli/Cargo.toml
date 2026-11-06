@@ -27,6 +27,7 @@ maru-mod-message.workspace = true
 maru-mod-notify.workspace = true
 maru-mod-poll.workspace = true
 maru-mod-scrap.workspace = true
+maru-mod-social.workspace = true
 maru-mod-ads.workspace = true
 maru-mod-consult.workspace = true
 maru-mod-webhook.workspace = true

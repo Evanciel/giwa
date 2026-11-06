@@ -1,0 +1,110 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, client_id, client_secret, label, auth_url, token_url, userinfo_url,\n                      enabled AS \"enabled: bool\"\n               FROM mod_social_provider",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_social_provider",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "client_id",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_social_provider",
+            "name": "client_id"
+          }
+        }
+      },
+      {
+        "name": "client_secret",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_social_provider",
+            "name": "client_secret"
+          }
+        }
+      },
+      {
+        "name": "label",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_social_provider",
+            "name": "label"
+          }
+        }
+      },
+      {
+        "name": "auth_url",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_social_provider",
+            "name": "auth_url"
+          }
+        }
+      },
+      {
+        "name": "token_url",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_social_provider",
+            "name": "token_url"
+          }
+        }
+      },
+      {
+        "name": "userinfo_url",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_social_provider",
+            "name": "userinfo_url"
+          }
+        }
+      },
+      {
+        "name": "enabled: bool",
+        "ordinal": 7,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_social_provider",
+            "name": "enabled"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "c060521700433738f3f361341448bab5b4a55fa5985437b463c21ab83b83c998"
+}

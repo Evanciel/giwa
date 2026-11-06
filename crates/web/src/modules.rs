@@ -10,8 +10,8 @@ use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use maru_core::{Actor, Ctx, Error, Result};
 use maru_modules::{
-    ACCOUNT_BAR, COMMENT_ACTIONS, Host, ME_SECTIONS, MEMBER_BADGE, ModuleState, POST_FOOTER,
-    POST_LIST, SlotView,
+    ACCOUNT_BAR, COMMENT_ACTIONS, Host, LOGIN_OPTIONS, ME_SECTIONS, MEMBER_BADGE, ModuleState,
+    POST_FOOTER, POST_LIST, SlotView,
 };
 use serde_json::{Value, json};
 
@@ -47,6 +47,36 @@ impl Host for WebHost {
     fn same_origin(&self, headers: &HeaderMap) -> bool {
         crate::comments::same_origin(headers)
     }
+
+    async fn sign_in(&self, member_id: &str, method: &str, next: &str) -> Response {
+        match maru_core::services::auth::login_external(&self.0.ctx, member_id, method).await {
+            Ok(login) => {
+                crate::account::finish_login(&self.0, &login, crate::account::next_or_me(next))
+            }
+            Err(e) => crate::error::page(&self.0, &e).await,
+        }
+    }
+}
+
+/// 로그인·가입 화면의 다른 로그인 방법 (GAP M15). 손님으로 묻는다.
+pub(crate) async fn login_slots(state: &AppState) -> Value {
+    if state.modules.enabled(&state.ctx).await.is_empty() {
+        return json!({});
+    }
+    let viewer = Actor::anonymous([]);
+    let slot_view = SlotView {
+        viewer: &viewer,
+        post_id: None,
+        comment_ids: &[],
+        post_ids: &[],
+        member_ids: &[],
+    };
+    Value::Object(
+        state
+            .modules
+            .slots(&state.ctx, &[LOGIN_OPTIONS], &slot_view)
+            .await,
+    )
 }
 
 /// 글 화면의 자리를 채운다. 켜진 모듈이 없으면 누구인지 묻지 않는다.
