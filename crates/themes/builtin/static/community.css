@@ -43,7 +43,7 @@
 
 /* 머리글: 이름과 큰 검색 칸 */
 .cm-header { background: var(--surface); border-bottom: 1px solid var(--border); }
-.cm-header > .cm-inner { display: flex; align-items: center; gap: calc(var(--space) * 3); padding-block: calc(var(--space) * 2.5); }
+.cm-header > .cm-inner { display: flex; align-items: center; gap: calc(var(--space) * 3); padding-block: calc(var(--space) * 1.5); }
 .cm-brand { flex: none; font-family: var(--font-heading); font-size: 1.6rem; font-weight: 800; letter-spacing: -0.03em; color: var(--fg); text-decoration: none; }
 .cm-brand:hover { color: var(--primary); }
 .cm-search { flex: 0 1 30rem; margin-left: auto; display: flex; align-items: center; border: 2px solid var(--primary); border-radius: 999px; background: var(--bg); }
@@ -109,11 +109,19 @@
 .cm-header .region-masthead { margin-left: auto; flex: 0 1 auto; justify-content: flex-end; }
 .cm .region-masthead .widget:not(.widget-notice_bar) { border: 0; padding: 0; background: none; border-radius: 0; }
 
+/* 최근 본 게시판: 메뉴·검색 줄과 한 덩어리로 보이게 같은 바탕 */
+.cm .recent-boards { background: var(--surface); }
+
 /* 몸통: 본문 판 + 곁가지 */
-.cm-body { display: grid; gap: calc(var(--space) * 3); align-items: start; margin-block: calc(var(--space) * 3) calc(var(--space) * 6); }
+.cm-body { position: relative; display: grid; gap: calc(var(--space) * 3); align-items: start; margin-block: calc(var(--space) * 3) calc(var(--space) * 6); }
 .cm-body.has-side { grid-template-columns: minmax(0, 1fr) var(--cm-side); }
 .cm .cm-main.wrap { width: auto; margin-inline: 0; min-width: 0; min-height: 40vh; padding: calc(var(--space) * 3); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); }
 .cm .cm-main:has(> .region-main:only-child), .cm .cm-main:has(> .region-main + h1.visually-hidden:last-child) { padding: 0; background: none; border: 0; }
+/* 폭을 줄인 화면(로그인·가입·글쓰기)은 가운데. 목록이 있는 내 정보·쪽지·알림은 조금 넓게, 곁가지가 있으면 칸을 다 쓴다 */
+.cm .cm-main.account-wrap { justify-self: center; width: 100%; }
+.cm .cm-main.account-wrap:has(> .me) { max-width: 52rem; }
+.cm .has-side > .cm-main.account-wrap { justify-self: stretch; max-width: none; }
+.cm .me .account-form { max-width: 28rem; }
 .cm .region-sidebar { padding-top: 0; gap: calc(var(--space) * 2); }
 .cm .region-header, .cm .region-hero { margin: 0; border: 0; padding-block: calc(var(--space) * 2) 0; }
 @media (max-width: 860px) {
@@ -147,6 +155,10 @@
 .cm .widget-lines { gap: 0; }
 .cm .widget-lines li { padding-block: calc(var(--space) * .7); border-bottom: 1px dashed var(--border); }
 .cm .widget-lines li:last-child { border-bottom: 0; }
+.cm .region-main > .widget:has(> .widget-lines) { display: flex; flex-direction: column; }
+.cm .region-main > .widget > .widget-lines { flex: 1 1 auto; display: flex; flex-direction: column; }
+@media (min-width: 641px) { .cm .region-main > .widget > .widget-lines li:last-child { border-bottom: 1px dashed var(--border); } }
+.cm .region-main > .widget > .widget-lines::after { content: ""; flex: 1 1 auto; --row: 2.2rem; background: repeating-linear-gradient(to bottom, transparent 0 calc(var(--row) - 1px), color-mix(in srgb, var(--border) 55%, transparent) calc(var(--row) - 1px) var(--row)); }
 
 /* 게시판 머리 · 분류 · 공지 */
 .cm .page-title { font-size: var(--fs-h3); margin-bottom: calc(var(--space) * 3); }
@@ -267,8 +279,16 @@
 .cm .list-pager:not(:has(.pagination)) .board-search { border-top: 0; padding-top: 0; margin-top: 0; }
 .cm .list-pager .pagination [aria-current="page"] { background: var(--primary); border-color: var(--primary); color: #fff; }
 
-/* 양옆 광고는 본문 폭(1200px) 바깥에 (GAP Q24, ADR-0109) */
-.cm { --rail-gap: calc(600px + 1rem); }
+/* 양옆 광고는 본문 폭(1200px) 바깥에 (GAP Q24, ADR-0109). 화면에 고정하면 머리글·메뉴 줄과 겹치므로
+   몸통 높이를 기둥으로 삼아 본문과 같은 줄에서 시작하고, 스크롤하면 메뉴 줄 아래에 붙는다. */
+@media (min-width: 1600px) {
+  .cm .region-rail { position: absolute; inset: 0; pointer-events: none; }
+  .cm .rail-side { position: absolute; top: 0; bottom: 0; display: block; z-index: 5; }
+  .cm .rail-left { right: calc(100% + 1rem); left: auto; }
+  .cm .rail-right { left: calc(100% + 1rem); right: auto; }
+  .cm .rail-stick { position: sticky; top: 4.25rem; display: grid; gap: calc(var(--space) * 2); pointer-events: auto; }
+  .cm .rail-side .widget { padding: calc(var(--space) * 1.5); font-size: var(--fs-sm); }
+}
 
 /* 휴대폰 (GAP Q28, ADR-0111): 붙는 머리글 아래에 분류 탭이 붙고, 검색 줄은 첫 화면에만 */
 @media (max-width: 640px) {

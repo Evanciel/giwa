@@ -272,6 +272,12 @@ fn community_preset_skin_and_account_bar() {
     assert!(board.body.contains("post-table") || board.body.contains("아직 글이 없습니다"));
     let css = http(&bind, "GET", "/assets/community.css", &[], "");
     assert_eq!(css.status, 200);
+    // 폭을 줄인 화면이 왼쪽에 붙지 않는다 (ADR-0119)
+    assert!(
+        css.body
+            .contains(".cm .cm-main.account-wrap { justify-self: center;")
+    );
+    assert!(css.body.contains(".cm .rail-stick { position: sticky;"));
     let js = http(&bind, "GET", "/assets/community.js", &[], "");
     assert_eq!(js.status, 200);
     assert!(js.header("content-type").contains("javascript"));
@@ -391,6 +397,14 @@ fn community_preset_skin_and_account_bar() {
     );
     assert!(band.contains("후원 안내 하나"));
     let rail = &board[board.find("class=\"region region-rail\"").expect("양옆")..];
+    // 화면 고정이면 머리글·메뉴 줄과 겹친다: 본문 몸통 안에 있어 본문과 같은 줄에서 시작해야 한다 (ADR-0119).
+    assert!(
+        board.find("class=\"cm-body").unwrap()
+            < board.find("class=\"region region-rail\"").unwrap()
+            && board.find("class=\"region region-rail\"").unwrap() < board.find("<footer").unwrap(),
+        "{board}"
+    );
+    assert!(rail.contains("class=\"rail-stick\""), "{rail}");
     let left = rail.find("왼쪽 안내").unwrap();
     let right = rail.find("오른쪽 안내").unwrap();
     assert!(
