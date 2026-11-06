@@ -41,6 +41,7 @@ pub async fn run(g: &Global, command: Command) -> ExitCode {
         Command::Board(cmd) => board(g, cmd).await,
         Command::Token(cmd) => token(g, cmd).await,
         Command::Expose(args) => return crate::expose::run(g, args).await,
+        Command::Service(cmd) => crate::service::run(g, cmd).await,
         Command::Mcp(McpCmd::Install(args)) => crate::mcp::install(g, args).await,
         Command::Mcp(McpCmd::Serve(args)) => {
             return match crate::mcp::serve(g, args).await {
@@ -275,6 +276,16 @@ async fn login_link(g: &Global, args: LoginLinkArgs) -> Out {
 
 /// `serve --bind` 로 설정과 다른 주소에서 돌고 있으면 링크를 그 주소로 바꾼다.
 /// `site_url` 이 이 컴퓨터 주소일 때만이다. 내 도메인은 터널 뒤라 그대로 둔다 (ADR-0120).
+/// 이 사이트의 서버가 켤 때 적어 둔 (주소, 프로세스). 강제 종료되면 남아 있을 수 있다.
+pub(crate) fn running_server(dir: &DataDir) -> Option<(String, u32)> {
+    let text = std::fs::read_to_string(dir.root().join(SERVER_FILE)).ok()?;
+    let v: Value = serde_json::from_str(&text).ok()?;
+    Some((
+        v["bind"].as_str()?.to_owned(),
+        u32::try_from(v["pid"].as_u64()?).ok()?,
+    ))
+}
+
 pub(crate) async fn running_url(g: &Global, config: &Config, url: &str) -> String {
     let base = config.site_url.trim_end_matches('/');
     let local = base.strip_prefix("http://").is_some_and(|h| {
@@ -344,7 +355,7 @@ async fn serve_inner(g: &Global, args: ServeArgs) -> Result<()> {
     let server_file = dir.root().join(SERVER_FILE);
     let _ = std::fs::write(
         &server_file,
-        json!({ "bind": local.to_string() }).to_string(),
+        json!({ "bind": local.to_string(), "pid": std::process::id() }).to_string(),
     );
 
     let theme_dir = dir.themes_dir().join("default");

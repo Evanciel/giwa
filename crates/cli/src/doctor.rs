@@ -159,6 +159,7 @@ async fn collect(g: &Global) -> Vec<Check> {
         out.push(site_url(&c.site_url));
     }
     out.push(tunnel());
+    out.push(service(g).await);
     out.push(theme(&dir));
     out.push(check(
         "font",
@@ -348,6 +349,23 @@ fn site_url(url: &str) -> Check {
 }
 
 /// 없어도 문제는 아니다. 외부 공개할 때만 필요하다.
+async fn service(g: &Global) -> Check {
+    match crate::service::is_registered(g) {
+        Ok(true) => check(
+            "service",
+            Status::Pass,
+            "로그인하면 서버가 뜨도록 등록돼 있습니다.",
+        ),
+        Ok(false) => check(
+            "service",
+            Status::Unknown,
+            "상시 실행이 등록돼 있지 않습니다. 사이트를 계속 켜 둘 때만 필요합니다.",
+        )
+        .next("maru service install"),
+        Err(e) => check("service", Status::Unknown, e.message()),
+    }
+}
+
 fn tunnel() -> Check {
     match crate::expose::find_cloudflared() {
         Some(p) => check(

@@ -6,6 +6,7 @@ mod expose;
 mod mcp;
 mod modules;
 mod output;
+mod service;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -59,6 +60,9 @@ enum Command {
     Mcp(McpCmd),
     /// 사이트를 터널로 인터넷에 공개
     Expose(ExposeArgs),
+    /// 로그인하면 서버가 뜨도록 사용자 권한으로 등록
+    #[command(subcommand)]
+    Service(ServiceCmd),
     /// 이미지 (업로드, 대체 텍스트)
     #[command(subcommand)]
     Media(MediaCmd),
@@ -226,7 +230,8 @@ pub enum ChangesetCmd {
     New {
         #[arg(long)]
         title: String,
-        /// 연산 JSON 배열
+        /// 연산 JSON 배열. op: board.create·update·delete, page.create·update·publish·hide·delete·restore,
+        /// menu.set, tokens.set·reset, settings.set, widget.place·configure·remove, module.enable·disable
         #[arg(long, conflicts_with = "ops_file")]
         ops: Option<String>,
         /// 연산 JSON 배열이 든 파일
@@ -891,6 +896,26 @@ pub struct ExposeArgs {
     /// 터널을 보낼 서버 주소 (생략하면 설정의 bind)
     #[arg(long)]
     pub to: Option<String>,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ServiceCmd {
+    /// 등록하고 바로 띄운다. 다시 실행하면 정의만 새로 쓴다
+    Install(ServiceInstallArgs),
+    /// 등록을 지우고 끈다. 없어도 성공이다
+    Uninstall,
+    /// 등록 여부와 서버 상태
+    Status,
+}
+
+#[derive(Debug, Args)]
+pub struct ServiceInstallArgs {
+    /// 서버 주소. 생략하면 config.toml 의 bind
+    #[arg(long)]
+    pub bind: Option<String>,
+    /// 아무것도 바꾸지 않고 등록할 내용만 보여 준다
+    #[arg(long)]
+    pub print: bool,
 }
 
 #[derive(Debug, Subcommand)]

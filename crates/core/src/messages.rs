@@ -18,6 +18,7 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "error.schema_too_new" => "데이터베이스가 이 maru 버전보다 새롭습니다.",
         "error.rate_limited" => "요청이 너무 많습니다. 잠시 후 다시 시도하세요.",
         "error.external" => "외부 연결에 실패했습니다.",
+        "error.service" => "서비스 등록에 실패했습니다: {detail}",
         "hint.port_in_use" => "다른 포트로 실행하세요.",
         "error.usage_detail" => "명령 사용법이 올바르지 않습니다: {detail}",
         "hint.usage" => "`maru --help` 로 사용법을 확인하세요.",
