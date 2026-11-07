@@ -19,7 +19,7 @@ use maru_core::services::search::{self, SearchInput};
 use maru_core::services::settings::SettingsPatch;
 use maru_core::services::stats::{self, StatsQuery};
 use maru_core::services::widgets::{self, NewWidget, WidgetPatch};
-use maru_core::services::{boards, pages, settings, tokens};
+use maru_core::services::{boards, pages, presets, sections, settings, tokens};
 use maru_core::{Actor, Code, Ctx, Error, Permission, Result};
 use maru_modules::{Registry, schema_of, service};
 use rmcp::model::{
@@ -78,6 +78,69 @@ struct ListChangesetsInput {
     /// preview, applied, reverted 등. 비우면 모두
     #[serde(default)]
     status: Option<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct ThemeInput {
+    /// `list_themes` 의 id
+    theme: String,
+    /// 담을 변경 묶음. 비우면 새로 만든다
+    #[serde(default)]
+    changeset_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct UploadMediaInput {
+    /// 파일 이름 (확장자로 형식을 본다)
+    filename: String,
+    /// 파일 내용. 표준 base64
+    base64: String,
+    /// 그림 설명
+    #[serde(default)]
+    alt_text: Option<String>,
+}
+
+/// 표준 base64 (RFC 4648). 줄바꿈은 건너뛴다.
+fn decode_base64(text: &str) -> Option<Vec<u8>> {
+    let mut out = Vec::with_capacity(text.len() / 4 * 3);
+    let mut bits = 0u32;
+    let mut count = 0u32;
+    let mut ended = false;
+    for c in text.bytes().filter(|c| !c.is_ascii_whitespace()) {
+        if c == b'=' {
+            ended = true;
+            continue;
+        }
+        if ended {
+            return None;
+        }
+        let v = match c {
+            b'A'..=b'Z' => c - b'A',
+            b'a'..=b'z' => c - b'a' + 26,
+            b'0'..=b'9' => c - b'0' + 52,
+            b'+' => 62,
+            b'/' => 63,
+            _ => return None,
+        };
+        bits = (bits << 6) | u32::from(v);
+        count += 1;
+        if count.is_multiple_of(4) {
+            out.extend_from_slice(&bits.to_be_bytes()[1..]);
+            bits = 0;
+        }
+    }
+    match count % 4 {
+        0 => {}
+        2 => out.push((bits >> 4) as u8),
+        3 => {
+            out.push((bits >> 10) as u8);
+            out.push((bits >> 2) as u8);
+        }
+        _ => return None,
+    }
+    Some(out)
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -394,6 +457,24 @@ const SPECS: &[Spec] = &[
         schema_of::<Staged<TokensInput>>,
     ),
     looked_up(
+        "list_themes",
+        "고를 수 있는 테마(프리셋의 색과 모양)를 본다. List available themes.",
+        Permission::SiteView,
+        schema_of::<NoInput>,
+    ),
+    staged(
+        "apply_theme",
+        "테마의 색과 모양을 입히는 연산을 묶음에 담는다. 글과 구조는 그대로다. Stage a theme's tokens.",
+        Permission::DesignEdit,
+        schema_of::<ThemeInput>,
+    ),
+    looked_up(
+        "list_blocks",
+        "페이지에 놓을 수 있는 섹션 블록과 설정 형식을 본다. List section blocks.",
+        Permission::DesignEdit,
+        schema_of::<NoInput>,
+    ),
+    looked_up(
         "list_widget_types",
         "놓을 수 있는 위젯 종류와 설정을 본다. List widget types and their settings.",
         Permission::DesignEdit,
@@ -546,6 +627,14 @@ const SPECS: &[Spec] = &[
         read_only: true,
         untrusted: false,
         schema: schema_of::<PageInput>,
+    },
+    Spec {
+        name: "upload_media",
+        description: "이미지를 올린다. 공개 주소가 생기므로 사용자 사진은 동의를 받고 올린다. Upload an image.",
+        permission: Permission::PostUpload,
+        read_only: false,
+        untrusted: false,
+        schema: schema_of::<UploadMediaInput>,
     },
     Spec {
         name: "set_alt_text",
@@ -813,6 +902,52 @@ impl Server {
                 let cs = changesets::create_from_preset(ctx, actor, &preset).await?;
                 self.handed_over(actor, &cs).await
             }
+            "list_themes" => {
+                actor.require(Permission::SiteView)?;
+                let mut items = Vec::new();
+                for id in maru_themes::preset_ids() {
+                    let p = maru_themes::preset(&id)?;
+                    if presets::theme_tokens(&p).is_some() {
+                        items.push(
+                            json!({ "id": p.id, "name": p.name, "description": p.description }),
+                        );
+                    }
+                }
+                Ok(json!({ "items": items }))
+            }
+            "apply_theme" => {
+                let i: ThemeInput = input(args)?;
+                let preset = maru_themes::preset(&i.theme)?;
+                let Some(tokens) = presets::theme_tokens(&preset) else {
+                    return Err(usage(format!("{} 에는 입힐 색과 모양이 없습니다", i.theme)));
+                };
+                let mut fields = json!({ "tokens": tokens });
+                if let Some(id) = i.changeset_id {
+                    fields["changeset_id"] = json!(id);
+                }
+                fields["changeset_title"] = json!(format!("테마 입히기: {}", preset.name));
+                self.stage(actor, name, "tokens.set", fields).await
+            }
+            "list_blocks" => {
+                actor.require(Permission::DesignEdit)?;
+                let types = widgets::all_types(ctx).await;
+                let blocks: Vec<_> = types
+                    .iter()
+                    .filter(|t| sections::is_section(t.id))
+                    .collect();
+                Ok(json!({ "items": blocks }))
+            }
+            "upload_media" => {
+                let i: UploadMediaInput = input(args)?;
+                let bytes = decode_base64(&i.base64)
+                    .ok_or_else(|| usage("base64 를 읽지 못했습니다".to_owned()))?;
+                let upload = media::Upload {
+                    filename: i.filename,
+                    bytes,
+                    alt_text: i.alt_text,
+                };
+                to_value(media::upload(ctx, actor, upload).await?)
+            }
             "list_widget_types" => {
                 actor.require(Permission::DesignEdit)?;
                 to_value(widgets::all_types(ctx).await)
@@ -1011,6 +1146,17 @@ pub fn http_service(
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn base64_는_표준대로_읽는다() {
+        assert_eq!(decode_base64("TWFu").unwrap(), b"Man");
+        assert_eq!(decode_base64("TWE=").unwrap(), b"Ma");
+        assert_eq!(decode_base64("TQ==").unwrap(), b"M");
+        assert_eq!(decode_base64("TW\nFu").unwrap(), b"Man");
+        for bad in ["T", "TW=u", "T!Fu"] {
+            assert!(decode_base64(bad).is_none(), "{bad}");
+        }
+    }
 
     #[test]
     fn 변경_툴은_묶음_칸을_받고_다른_칸을_막지_않는다() {

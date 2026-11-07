@@ -37,6 +37,12 @@ jobs:
         run: cargo zigbuild --release --locked -p maru-cli --target ${{ matrix.target }}
       - if: ${{ !matrix.zig }}
         run: cargo build --release --locked -p maru-cli --target ${{ matrix.target }}
+      - name: 낱개 바이너리 (maru update 가 받는다)
+        shell: bash
+        run: |
+          ext=""
+          if [ "${{ runner.os }}" = "Windows" ]; then ext=".exe"; fi
+          cp "target/${{ matrix.target }}/release/maru$ext" "maru-${{ matrix.target }}$ext"
       - name: 묶기 (윈도우)
         if: runner.os == 'Windows'
         shell: pwsh
@@ -47,7 +53,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: maru-${{ matrix.target }}
-          path: maru-${{ matrix.target }}.*
+          path: maru-${{ matrix.target }}*
 
   publish:
     needs: build
@@ -61,7 +67,9 @@ jobs:
           merge-multiple: true
       - name: 체크섬
         working-directory: dist
-        run: sha256sum maru-* > SHA256SUMS
+        run: |
+          sha256sum maru-* > SHA256SUMS
+          printf '%s\n' "${GITHUB_REF_NAME#v}" > VERSION
       - name: 릴리스
         env:
           GH_TOKEN: ${{ github.token }}

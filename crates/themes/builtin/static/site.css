@@ -1114,7 +1114,7 @@ article.post > .member-fold { margin: calc(var(--space) * 6) 0; padding: calc(va
 /* 섹션 블록 (ADR-0125). 색·글꼴·둥글기·간격은 전부 토큰에서 온다. 그래서 프리셋은 토큰만 바꿔 다른 사이트처럼 보인다. */
 main.page-blocks { width: 100%; }
 /* 넓은 화면은 머리글·바닥글도 본문과 같은 폭으로 맞춘다. */
-body:is(:has(main.page-blocks), :has(.with-sidebar), :has(.docs)) :is(.site-header, .site-footer, .recent-boards) .wrap { width: min(var(--max-width), 100% - 2.5rem); }
+body:is(:has(main.page-blocks), :has(main.wide), :has(.with-sidebar), :has(.docs)) :is(.site-header, .site-footer, .recent-boards) .wrap { width: min(var(--max-width), 100% - 2.5rem); }
 .page-blocks .region-main { display: block; }
 .page-blocks .region-main > .widget:not(.sec), .page-blocks > .blocks-body { width: min(var(--max-width), 100% - 2.5rem); margin: calc(var(--space) * 6) auto; }
 .region-hero .wrap:has(> .sec) { width: 100%; display: block; }

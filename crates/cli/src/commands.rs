@@ -25,11 +25,11 @@ use serde_json::{Value, json};
 use crate::output;
 use crate::{
     AuditCmd, AuditListArgs, BackupArgs, BackupCmd, BoardCmd, CategoryCmd, ChangesetCmd, Command,
-    CommentCmd, DesignCmd, FileCmd, FontCmd, Global, InitArgs, LinkCmd, LoginLinkArgs, MailCmd,
-    MailSetupArgs, McpCmd, MediaCmd, MemberCmd, MenuCmd, MenuSetArgs, PageCmd, PostCmd,
+    CommentCmd, DesignCmd, ExportCmd, FileCmd, FontCmd, Global, InitArgs, LinkCmd, LoginLinkArgs,
+    MailCmd, MailSetupArgs, McpCmd, MediaCmd, MemberCmd, MenuCmd, MenuSetArgs, PageCmd, PostCmd,
     PostListArgs, PostNewArgs, PrivacyCmd, RedirectCmd, RestoreArgs, SearchArgs, SearchCmd,
-    ServeArgs, SignalsArgs, SignalsCmd, SiteCmd, StatsArgs, TagCmd, TemplateCmd, TokenCmd,
-    TokenCreateArgs, WidgetCmd,
+    ServeArgs, SignalsArgs, SignalsCmd, SiteCmd, StatsArgs, TagCmd, TemplateCmd, ThemeCmd,
+    ThemeTokensCmd, TokenCmd, TokenCreateArgs, WidgetCmd,
 };
 
 pub async fn run(g: &Global, command: Command) -> ExitCode {
@@ -66,6 +66,9 @@ pub async fn run(g: &Global, command: Command) -> ExitCode {
         Command::Restore(args) => restore_cmd(g, args).await,
         Command::Site(cmd) => site(g, cmd).await,
         Command::Design(cmd) => design_cmd(g, cmd).await,
+        Command::Theme(cmd) => theme_cmd(g, cmd).await,
+        Command::Update(args) => crate::update::run(args).await,
+        Command::Export(cmd) => export_cmd(g, cmd).await,
         Command::Font(cmd) => font_cmd(g, cmd).await,
         Command::Stickers => stickers_cmd(),
         Command::Search(args) => search_cmd(g, args).await,
@@ -1847,6 +1850,96 @@ mod tests {
 }
 
 // ---- design ----
+
+async fn theme_cmd(g: &Global, cmd: ThemeCmd) -> Out {
+    match cmd {
+        ThemeCmd::List => {
+            let mut items = Vec::new();
+            for id in maru_themes::preset_ids() {
+                let p = maru_themes::preset(&id)?;
+                if presets::theme_tokens(&p).is_some() {
+                    items.push(json!({ "id": p.id, "name": p.name, "description": p.description }));
+                }
+            }
+            let mut human = format!("테마 {}개. 입히기: maru theme apply <id>", items.len());
+            for t in &items {
+                human.push_str(&format!(
+                    "{}{}  {}",
+                    '\n',
+                    t["id"].as_str().unwrap_or(""),
+                    t["name"].as_str().unwrap_or("")
+                ));
+            }
+            Ok((json!({ "items": items }), human))
+        }
+        ThemeCmd::Apply { id } => {
+            let preset = maru_themes::preset(&id)?;
+            let tokens = presets::theme_tokens(&preset).cloned().ok_or_else(|| {
+                Error::new(Code::Validation)
+                    .with_message("error.usage_detail")
+                    .arg("detail", format!("{id} 에는 입힐 색과 모양이 없습니다."))
+                    .next("maru theme list")
+            })?;
+            let (ctx, _config, db) = open(g).await?;
+            let actor = actor(&ctx).await?;
+            let res = design::update(&ctx, &actor, tokens).await;
+            db.close().await;
+            let applied = res?;
+            let human = format!(
+                "{} 테마를 입혔습니다. 글과 구조는 그대로입니다.",
+                preset.name
+            );
+            Ok((json!({ "theme": id, "tokens": applied }), human))
+        }
+        ThemeCmd::Tokens(ThemeTokensCmd::Get { css }) => {
+            design_cmd(g, DesignCmd::Show { css }).await
+        }
+        ThemeCmd::Tokens(ThemeTokensCmd::Set(args)) => design_cmd(g, DesignCmd::Set(args)).await,
+    }
+}
+
+async fn export_cmd(g: &Global, cmd: ExportCmd) -> Out {
+    let ExportCmd::Static { out, yes } = cmd;
+    let full = std::fs::read_dir(&out).is_ok_and(|mut d| d.next().is_some());
+    if full && !yes {
+        return Err(Error::new(Code::Validation)
+            .with_message("error.usage_detail")
+            .arg(
+                "detail",
+                format!("{} 가 비어 있지 않습니다.", out.display()),
+            )
+            .next(format!(
+                "maru export static --out \"{}\" --yes",
+                out.display()
+            )));
+    }
+    let (ctx, config, db) = open(g).await?;
+    let modules = crate::modules::registry(&db)?;
+    let dir = DataDir::new(&g.data);
+    let theme_dir = dir.themes_dir().join("default");
+    let theme = maru_themes::Theme::with_templates(
+        theme_dir.is_dir().then_some(theme_dir),
+        modules.iter().flat_map(|m| m.templates()).collect(),
+    );
+    let state = maru_web::AppState::new(ctx, theme).with_modules(modules);
+    let res = maru_web::export::export_static(state, &out).await;
+    db.close().await;
+    let report = res?;
+    let mut human = format!(
+        "{} 에 화면 {}개, 파일 {}개를 내보냈습니다.",
+        report.out, report.pages, report.files
+    );
+    human.push_str(
+        "\n로그인·댓글·검색·폼은 동작하지 않습니다. 고치려면 사이트에서 고치고 다시 내보내세요.",
+    );
+    if config.site_url.contains("127.0.0.1") || config.site_url.contains("localhost") {
+        human.push_str("\n사이트 주소가 아직 이 컴퓨터를 가리킵니다. 공유 링크와 sitemap 에 그대로 들어갑니다: maru site set --site-url https://<주소>");
+    }
+    Ok((
+        serde_json::to_value(&report).map_err(Error::internal)?,
+        human,
+    ))
+}
 
 async fn design_cmd(g: &Global, cmd: DesignCmd) -> Out {
     let (ctx, _config, db) = open(g).await?;

@@ -77,6 +77,14 @@ pub struct OpResult {
     pub changed: bool,
 }
 
+/// 프리셋의 색과 모양. 테마로 고를 때 이것만 쓴다.
+pub fn theme_tokens(preset: &Preset) -> Option<&Value> {
+    preset.ops.iter().find_map(|op| match op {
+        Op::TokensEnsure { tokens } => Some(tokens),
+        _ => None,
+    })
+}
+
 pub async fn apply(ctx: &Ctx, actor: &Actor, preset: &Preset) -> Result<Vec<OpResult>> {
     let mut out = Vec::with_capacity(preset.ops.len());
     for op in &preset.ops {

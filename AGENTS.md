@@ -137,6 +137,11 @@ maru changeset preview-url <id> --json
 
 `maru token create --auto-apply` 는 승인을 건너뛴다. 사용자가 위험을 알고 요청할 때만 만든다.
 
+### 테마
+
+- `maru theme list`, `maru theme apply <id>`: 프리셋의 색과 모양만 입힙니다. 글과 구조는 그대로입니다. 토큰은 `maru theme tokens get|set` (`maru design` 과 같습니다).
+- MCP 는 `list_themes`, `apply_theme`(변경 묶음에 담음), `list_blocks`, `upload_media` 입니다.
+
 ### 지도와 카카오톡
 
 키 없이도 됩니다. 사용자가 키를 주기 전에는 키를 넣지 않습니다. 위젯은 본문 위에 놓이니 지도 화면은 `maru page new <슬러그> --title <제목> --layout blocks --publish` 로 만듭니다.
@@ -170,6 +175,9 @@ maru expose --cloudflare --json
 | 관리 화면 로그인 링크 | `maru login-link` |
 | 서비스 상태·해제 | `maru service status`, `maru service uninstall` |
 | 무엇이 바뀌었나 | `maru audit list` |
+
+- 새 판 확인 `maru update`, 바꾸기 `maru backup` 뒤 `maru update --yes`. 체크섬을 확인하지만 서명은 아직 확인하지 않습니다. 사용자에게 그렇게 말합니다. 바꾼 뒤 서버를 다시 시작합니다.
+- PC 가 꺼져도 보이게 `maru export static --out <폴더>`: 손님이 보는 화면만 파일이 됩니다. 로그인·댓글·검색·폼은 동작하지 않고, 사이트를 고치면 다시 내보내야 합니다. 옮긴 주소는 `_redirects` 로 나옵니다.
 
 ## 실패하면
 

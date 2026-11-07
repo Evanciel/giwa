@@ -22,10 +22,11 @@ Structure, design and module changes go through changesets: stage, preview URL, 
 - `maru board|page|menu|widget|post|module|token ...`
 - `maru expose --cloudflare [--quick|--hostname <도메인>]`
 - `maru doctor`, `maru backup`, `maru login-link`, `maru audit list`
+- `maru theme list|apply <id>|tokens get|set`, `maru export static --out <dir>` (guest pages only), `maru update [--yes]` (checksum only, no signature yet)
 
 ## MCP
 
-`maru mcp serve` (stdio), `POST /mcp` (HTTP, Bearer token). Read tools work directly. Change tools (`create_board`, `update_page`, `update_menu`, `set_tokens`, `place_widget`, `enable_module`, `create_site_from_preset`, ...) only stage a changeset and return `changeset_id` and `preview_url`.
+`maru mcp serve` (stdio), `POST /mcp` (HTTP, Bearer token). Read tools work directly. Change tools (`create_board`, `update_page`, `update_menu`, `set_tokens`, `place_widget`, `enable_module`, `create_site_from_preset`, `apply_theme`, ...) only stage a changeset and return `changeset_id` and `preview_url`.
 
 ## REST
 

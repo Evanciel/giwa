@@ -7,6 +7,7 @@ mod mcp;
 mod modules;
 mod output;
 mod service;
+mod update;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -141,6 +142,14 @@ enum Command {
     LoginLink(LoginLinkArgs),
     /// 설치 상태를 점검한다 (데이터, DB, 포트, 운영자, 테마)
     Doctor,
+    /// 새 판을 확인한다. `--yes` 를 주면 체크섬을 확인하고 바이너리를 바꾼다
+    Update(UpdateArgs),
+    /// 사이트를 다른 형식으로 내보낸다
+    #[command(subcommand)]
+    Export(ExportCmd),
+    /// 테마: 프리셋의 색과 모양, 디자인 토큰
+    #[command(subcommand)]
+    Theme(ThemeCmd),
 }
 
 #[derive(Debug, Args)]
@@ -1303,6 +1312,52 @@ pub struct SiteSetArgs {
     /// 공개 화면 스킨: default(기본), community(커뮤니티)
     #[arg(long)]
     pub skin: Option<String>,
+}
+
+#[derive(Debug, Args)]
+pub struct UpdateArgs {
+    /// 릴리스 주소. 비우면 환경 변수 MARU_BASE_URL, 그다음 공식 릴리스
+    #[arg(long)]
+    pub base_url: Option<String>,
+    /// 새 판이 있으면 받아서 바꾼다
+    #[arg(long)]
+    pub yes: bool,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ExportCmd {
+    /// 손님이 보는 화면을 파일로 내린다. 로그인·댓글·검색·폼은 동작하지 않는다
+    Static {
+        /// 내보낼 폴더
+        #[arg(long)]
+        out: PathBuf,
+        /// 폴더가 비어 있지 않아도 덮어쓴다
+        #[arg(long)]
+        yes: bool,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ThemeCmd {
+    /// 고를 수 있는 테마
+    List,
+    /// 테마의 색과 모양을 사이트에 입힌다. 글과 구조는 그대로다
+    Apply { id: String },
+    /// 디자인 토큰. `maru design` 과 같다
+    #[command(subcommand)]
+    Tokens(ThemeTokensCmd),
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ThemeTokensCmd {
+    /// 현재 토큰
+    Get {
+        /// 토큰 대신 생성되는 CSS 를 출력
+        #[arg(long)]
+        css: bool,
+    },
+    /// 토큰을 고친다. 대비(WCAG AA)를 통과해야 저장된다
+    Set(DesignSetArgs),
 }
 
 #[derive(Debug, Subcommand)]
