@@ -76,6 +76,13 @@ items = [
 op = "widgets.ensure"
 items = [
   { kind = "hero", region = "main", scope = "home", config = { eyebrow = "어떤 학생을 무엇으로 가르치는지 한 줄로", button = { label = "상담 신청", link = "/p/consult" }, button2 = { label = "강좌 안내", link = "/p/classes" } } },
+  { kind = "features", region = "main", scope = "home", config = { style = "tiles", items = [
+    { title = "입학 상담", text = "레벨 테스트 예약", link = "/p/consult" },
+    { title = "강좌 안내", text = "반별 대상과 목표", link = "/p/classes" },
+    { title = "시간표", text = "요일과 시간", link = "/p/classes" },
+    { title = "수강료", text = "교습비와 반환 기준", link = "/p/classes" },
+    { title = "공지", text = "학부모 안내", link = "/b/notice" },
+  ] } },
   { kind = "features", region = "main", scope = "home", title = "강좌", config = { style = "cards", items = [
     { title = "초등 반", text = "대상 학년과 수업 목표를 적습니다.", link = "/p/classes" },
     { title = "중등 반", text = "대상 학년과 수업 목표를 적습니다.", link = "/p/classes" },
@@ -86,8 +93,11 @@ items = [
     { title = "숙제와 확인", text = "숙제를 어떻게 내고 확인하는지 적습니다." },
     { title = "학부모 안내", text = "수업 소식을 언제, 어떻게 알리는지 적습니다." },
   ] } },
-  { kind = "latest_posts", region = "main", scope = "home", title = "공지·학부모 안내", config = { board = "notice", limit = 4 } },
-  { kind = "latest_posts", region = "main", scope = "home", title = "수업 소식", config = { board = "news", limit = 3, view = "card" } },
+  { kind = "post_tabs", region = "main", scope = "home", title = "학원 소식", config = { limit = 5, tabs = [
+    { label = "공지·학부모 안내", board = "notice" },
+    { label = "수업 소식", board = "news" },
+  ] } },
+  { kind = "gallery_grid", region = "main", scope = "home", title = "수업 사진", config = { board = "news", limit = 4, columns = 4 } },
   { kind = "cta", region = "main", scope = "home", title = "수업이 맞는지 먼저 이야기해 보세요", config = { text = "학년과 원하는 수업을 남겨 주시면 상담 시간을 잡아 드립니다.", button = { label = "상담 신청", link = "/p/consult" } } },
   { kind = "visit", region = "main", scope = "home", title = "오시는 길", config = { name = "학원 이름", address = "주소를 적어 주세요", phone = "02-000-0000", transit = "가까운 역이나 정류장에서 오는 길을 적어 주세요.", parking = "차량 운행이나 주차 안내를 적어 주세요." } },
   { kind = "hero", region = "main", scope = "page:classes", config = { title = "강좌 안내", text = "반별 대상, 시간표, 수강료를 적어 둡니다." } },
@@ -106,7 +116,7 @@ items = [
   { kind = "faq", region = "main", scope = "page:classes", title = "자주 묻는 질문", config = { items = [
     { q = "중간에 들어갈 수 있나요?", a = "반마다 진도가 달라 상담 뒤 정합니다." },
     { q = "보강은 어떻게 하나요?", a = "보강 방법을 여기에 적어 주세요." },
-    { q = "환불은 어떻게 되나요?", a = "환불 기준을 여기에 적어 주세요." },
+    { q = "환불은 어떻게 되나요?", a = "교습비 반환 기준을 학원에 게시한 것과 같게 적어 주세요." },
   ] } },
   { kind = "hero", region = "main", scope = "page:teachers", config = { title = "강사 소개", text = "누가 어떤 과목을 가르치는지 소개합니다." } },
   { kind = "team", region = "main", scope = "page:teachers", config = { items = [
@@ -114,11 +124,13 @@ items = [
     { name = "이름을 적어 주세요", role = "강사 · 과목", bio = "가르치는 과목과 경력을 사실대로 적습니다." },
     { name = "이름을 적어 주세요", role = "강사 · 과목", bio = "가르치는 과목과 경력을 사실대로 적습니다." },
   ] } },
-  { kind = "hero", region = "main", scope = "page:consult", config = { title = "상담 신청", text = "학년과 원하는 수업을 남겨 주세요. 상담 시간을 잡아 연락드립니다." } },
+  { kind = "hero", region = "main", scope = "page:consult", config = { title = "상담 신청", text = "수강 상담이나 레벨 테스트 예약을 남겨 주세요. 상담 시간을 잡아 연락드립니다." } },
   { kind = "contact_form", region = "main", scope = "page:consult", config = { form = "consult", purpose = "수강 상담 연락", submit = "상담 신청", done = "신청을 받았습니다. 상담 시간을 잡아 연락드리겠습니다.", fields = [
     { key = "name", label = "보호자 이름", required = true },
     { key = "contact", label = "연락처", type = "tel", required = true },
+    { key = "kind", label = "신청 종류", type = "select", required = true, options = ["수강 상담", "레벨 테스트 예약"] },
     { key = "grade", label = "학생 학년", type = "select", required = true, options = ["초등", "중등", "고등", "그 밖"] },
+    { key = "date", label = "원하는 날짜", type = "date", help = "레벨 테스트나 방문 상담을 원하는 날" },
     { key = "message", label = "원하는 수업과 궁금한 점", type = "textarea" },
   ] } },
 ]

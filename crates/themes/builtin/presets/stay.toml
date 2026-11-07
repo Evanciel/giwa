@@ -25,7 +25,7 @@ field_schema = [
   { key = "guests", label = "기준·최대 인원", type = "text", list = true, help = "예: 2명 / 최대 4명" },
   { key = "size", label = "크기", type = "text", list = true, help = "예: 00㎡" },
   { key = "price", label = "요금", type = "text", list = true, help = "예: 비수기 주중 000,000원부터" },
-  { key = "features", label = "갖춘 것", type = "multiselect", options = [{ value = "kitchen", label = "취사" }, { value = "bbq", label = "바비큐" }, { value = "spa", label = "스파" }, { value = "pet", label = "반려동물" }] },
+  { key = "features", label = "갖춘 것", type = "multiselect", list = true, filter = true, options = [{ value = "kitchen", label = "취사" }, { value = "bbq", label = "바비큐" }, { value = "spa", label = "스파" }, { value = "pet", label = "반려동물" }, { value = "pool", label = "수영장" }, { value = "view", label = "바다·산 전망" }] },
 ]
 
 [[ops]]
@@ -84,6 +84,7 @@ items = [
 op = "widgets.ensure"
 items = [
   { kind = "hero", region = "main", scope = "home", config = { eyebrow = "어디에 있는 어떤 숙소인지 한 줄로", button = { label = "예약 문의", link = "/p/booking" }, button2 = { label = "객실 보기", link = "/b/rooms" } } },
+  { kind = "image_text", region = "main", scope = "home", title = "공간 이야기", config = { body = "이 집을 어떤 생각으로 짓고 꾸몄는지, 머무는 동안 무엇을 느끼면 좋겠는지 적습니다.\n\n사진은 이 숙소에서 직접 찍은 것을 올려 주세요." } },
   { kind = "gallery_grid", region = "main", scope = "home", title = "객실", config = { board = "rooms", limit = 6, columns = 3 } },
   { kind = "features", region = "main", scope = "home", title = "머무는 동안", config = { style = "bento", tone = "soft", items = [
     { title = "가장 자랑할 시설", text = "무엇을 할 수 있는지 두세 문장으로 적습니다." },
@@ -112,10 +113,19 @@ items = [
     { days = "입실", time = "15:00부터" },
     { days = "퇴실", time = "11:00까지" },
   ] } },
-  { kind = "faq", region = "main", scope = "page:guide", title = "자주 묻는 질문", config = { tone = "soft", items = [
+  { kind = "faq", region = "main", scope = "page:guide", title = "이용 규칙", config = { tone = "soft", items = [
     { q = "예약은 어떻게 하나요?", a = "예약 문의에 날짜와 인원을 남기면 빈 객실과 입금 방법을 알려 드립니다." },
     { q = "취소하면 환불되나요?", a = "환불 기준을 날짜별로 여기에 적어 주세요." },
+    { q = "기준 인원보다 많이 묵을 수 있나요?", a = "최대 인원과 한 사람 더할 때의 요금, 침구 추가를 적어 주세요." },
     { q = "반려동물과 함께 갈 수 있나요?", a = "가능한 객실과 조건을 적어 주세요." },
+    { q = "바비큐는 어떻게 하나요?", a = "이용 시간, 요금, 준비해 드리는 것을 적어 주세요." },
+    { q = "주차할 수 있나요?", a = "주차 대수와 위치를 적어 주세요." },
+    { q = "CCTV 가 있나요?", a = "설치한 곳(바깥 공용 공간 등)과 목적을 적어 주세요." },
+  ] } },
+  { kind = "features", region = "main", scope = "page:guide", title = "주변 여행", config = { style = "cards", items = [
+    { title = "가까운 곳 하나", text = "차로 몇 분인지, 무엇을 할 수 있는지 적습니다." },
+    { title = "가까운 곳 둘", text = "차로 몇 분인지, 무엇을 할 수 있는지 적습니다." },
+    { title = "장 보기", text = "가까운 마트나 시장을 적습니다." },
   ] } },
   { kind = "hero", region = "main", scope = "page:booking", config = { title = "예약 문의", text = "날짜와 인원을 남겨 주세요. 빈 객실을 확인해 연락드립니다." } },
   { kind = "contact_form", region = "main", scope = "page:booking", config = { form = "booking", purpose = "예약 확인 연락", submit = "문의하기", done = "문의를 받았습니다. 빈 객실을 확인해 연락드리겠습니다.", fields = [

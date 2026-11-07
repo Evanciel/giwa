@@ -10,6 +10,10 @@ op = "tokens.ensure"
 tokens = { color = { bg = "#faf9fd", fg = "#1b1726", primary = "#6d32d8", muted = "#5c5670", surface = "#ffffff", border = "#e5e1ef" }, color_dark = { bg = "#131019", fg = "#eeebf6", primary = "#c4a8f8", muted = "#a7a0ba", surface = "#1b1724", border = "#2f2a3c" }, radius = { sm = 40, md = 18, lg = 28 }, layout = { max_width = 640 } }
 
 [[ops]]
+op = "module.ensure"
+id = "forms"
+
+[[ops]]
 op = "board.ensure"
 slug = "news"
 name = "소식"
@@ -44,7 +48,13 @@ items = [
     { title = "첫 번째 링크", text = "새 글, 새 영상, 판매 중인 상품처럼 가장 먼저 보일 것", link = "/b/news" },
     { title = "두 번째 링크", text = "한 줄 설명", link = "/b/news" },
     { title = "세 번째 링크", text = "한 줄 설명", link = "/b/news" },
-    { title = "연락하기", text = "메일이나 문의 주소", link = "/b/news" },
+    { title = "새 소식", text = "최근에 올린 글", link = "/b/news" },
   ] } },
   { kind = "latest_posts", region = "main", scope = "home", title = "최근 소식", config = { board = "news", limit = 3 } },
+  { kind = "contact_form", region = "main", scope = "home", title = "연락하기", config = { form = "contact", purpose = "협업·문의 답장", intro = "메일 주소를 드러내지 않고 받습니다. 남겨 주시면 답장드립니다.", submit = "보내기", fields = [
+    { key = "name", label = "이름", required = true },
+    { key = "email", label = "답장받을 메일", type = "email", required = true },
+    { key = "topic", label = "문의 종류", type = "select", options = ["협업 제안", "질문", "그 밖의 문의"] },
+    { key = "message", label = "내용", type = "textarea", required = true },
+  ] } },
 ]

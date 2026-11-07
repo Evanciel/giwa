@@ -22,11 +22,12 @@ layout = "card"
 sort_order = 0
 policy = { write = "editor", comment = "member" }
 field_schema = [
+  { key = "kind", label = "모임 종류", type = "select", list = true, filter = true, options = [{ value = "regular", label = "정기 모임" }, { value = "flash", label = "번개" }, { value = "oneday", label = "원데이" }] },
   { key = "date", label = "모임일", type = "date", list = true },
   { key = "deadline", label = "신청 마감", type = "date", role = "deadline", list = true, filter = true },
   { key = "place", label = "장소", type = "text", list = true },
-  { key = "fee", label = "참가비", type = "text" },
-  { key = "seats", label = "모집 인원", type = "number" },
+  { key = "fee", label = "참가비", type = "text", list = true },
+  { key = "seats", label = "모집 인원", type = "number", list = true },
 ]
 
 [[ops]]
@@ -104,10 +105,20 @@ items = [
 op = "widgets.ensure"
 items = [
   { kind = "hero", region = "main", scope = "home", config = { eyebrow = "무엇을 함께하는 모임인지 한 줄로", button = { label = "가입 신청", link = "/p/join" }, button2 = { label = "모임 일정", link = "/b/meetups?f.deadline=open" } } },
+  { kind = "features", region = "main", scope = "home", config = { style = "tiles", items = [
+    { title = "신청 받는 모임", link = "/b/meetups?f.deadline=open" },
+    { title = "정기 모임", link = "/b/meetups?f.kind=regular" },
+    { title = "번개", link = "/b/meetups?f.kind=flash" },
+    { title = "원데이", link = "/b/meetups?f.kind=oneday" },
+    { title = "활동 사진", link = "/b/photos" },
+    { title = "가입 신청", link = "/p/join" },
+  ] } },
   { kind = "latest_posts", region = "main", scope = "home", title = "다가오는 모임", config = { board = "meetups", limit = 4, view = "card" } },
   { kind = "gallery_grid", region = "main", scope = "home", title = "활동 사진", config = { board = "photos", limit = 8, columns = 4 } },
-  { kind = "latest_posts", region = "main", scope = "home", title = "가입 인사", config = { board = "hello", limit = 5 } },
-  { kind = "latest_posts", region = "main", scope = "home", title = "공지", config = { board = "notice", limit = 3 } },
+  { kind = "post_tabs", region = "main", scope = "home", title = "모임 소식", config = { limit = 5, tabs = [
+    { label = "공지", board = "notice" },
+    { label = "가입 인사", board = "hello" },
+  ] } },
   { kind = "cta", region = "main", scope = "home", title = "함께하실래요", config = { text = "가입 신청을 남기면 운영진이 확인하고 연락드립니다.", button = { label = "가입 신청", link = "/p/join" }, button2 = { label = "모임 안내", link = "/p/about" } } },
   { kind = "hero", region = "main", scope = "page:about", config = { title = "모임 안내", text = "모임이 생긴 까닭과 함께 지킬 약속을 적어 둡니다." } },
   { kind = "features", region = "main", scope = "page:about", title = "이렇게 모입니다", config = { style = "rows", tone = "soft", items = [

@@ -185,12 +185,13 @@ fn community_preset_skin_and_account_bar() {
         .iter()
         .map(|b| b["slug"].as_str().unwrap())
         .collect();
-    for s in ["notice", "free", "qna", "photo", "forum"] {
+    for s in ["notice", "free", "qna", "photo", "forum", "tips", "market"] {
         assert!(slugs.contains(&s), "{s} 없음: {slugs:?}");
     }
     let widgets = maru(&data, &["widget", "list"]);
     let count = widgets.as_array().unwrap().len();
-    assert_eq!(count, 7, "{widgets}");
+    // 전체 최신·인기 탭, 게시판 판 6개, 곁가지 3개 (ADR-0140)
+    assert_eq!(count, 10, "{widgets}");
 
     // 다시 적용해도 늘지 않는다. 사용자가 바꾼 설정은 덮어쓰지 않는다.
     maru(&data, &["site", "set", "--flood-seconds", "30"]);

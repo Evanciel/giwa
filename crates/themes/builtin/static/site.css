@@ -1179,6 +1179,15 @@ body:is(:has(main.page-blocks), :has(main.wide), :has(.with-sidebar), :has(.docs
 .f-steps { display: grid; gap: calc(var(--space) * 4); grid-template-columns: repeat(auto-fit, minmax(min(100%, 13.5rem), 1fr)); counter-reset: step; }
 .f-steps > li { counter-increment: step; padding-top: calc(var(--space) * 2); border-top: 2px solid var(--fg); }
 .f-steps > li::before { content: counter(step, decimal-leading-zero); display: block; margin-bottom: calc(var(--space) * 1.5); color: var(--primary); font-size: var(--fs-sm); font-weight: 700; font-variant-numeric: tabular-nums; }
+/* 바로가기 칸 (ADR-0140): 분류·자주 찾는 곳을 작은 칸으로. 칸 전체가 링크다 */
+.f-tiles { display: grid; gap: calc(var(--space) * 1.5); grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.5rem), 1fr)); }
+.f-tiles > li { position: relative; display: flex; flex-direction: column; justify-content: center; min-height: 5.5rem; padding: calc(var(--space) * 2); text-align: center; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); }
+.f-tiles .f-title { font-size: var(--fs-base); }
+.f-tiles .f-title a::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+.f-tiles > li:has(a:hover) { border-color: var(--primary); }
+.f-tiles > li:has(a:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
+.f-tiles .f-text { margin-top: calc(var(--space) * .5); font-size: var(--fs-sm); line-height: 1.4; }
+@media (max-width: 479px) { .f-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } .f-tiles > li { min-height: 4.5rem; padding: var(--space); } .f-tiles .f-text { display: none; } }
 
 /* 숫자 */
 .stat-list { display: flex; flex-wrap: wrap; gap: calc(var(--space) * 4) calc(var(--space) * 8); margin: 0; }

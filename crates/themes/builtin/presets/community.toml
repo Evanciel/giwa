@@ -1,7 +1,7 @@
 # 커뮤니티 프리셋 (ADR-0081). 모든 op 는 ensure 라서 `maru init` 을 다시 실행해도 안전하다.
 id = "community"
 name = "커뮤니티"
-description = "커뮤니티 스킨, 공지·자유·질문·사진·토론 게시판, 게시판별 최신 글 첫 화면, 도배 방지"
+description = "커뮤니티 스킨, 공지·자유·질문·정보·사진·토론·장터 게시판, 최신·인기 탭과 게시판별 최신 글 첫 화면, 도배 방지"
 theme_note = "또렷한 파랑 강조, 밝은 기본 바탕"
 
 [[ops]]
@@ -61,6 +61,29 @@ field_schema = [
 
 [[ops]]
 op = "board.ensure"
+slug = "tips"
+name = "정보·팁"
+kind = "free"
+layout = "list"
+sort_order = 6
+
+[[ops]]
+op = "board.ensure"
+slug = "market"
+name = "장터"
+kind = "free"
+layout = "list"
+sort_order = 7
+policy = { write = "member", comment = "member" }
+field_schema = [
+  { key = "deal", label = "거래", type = "select", list = true, filter = true, options = [{ value = "sell", label = "팝니다" }, { value = "buy", label = "삽니다" }, { value = "free", label = "나눔" }] },
+  { key = "status", label = "상태", type = "select", list = true, filter = true, options = [{ value = "open", label = "거래 중" }, { value = "reserved", label = "예약 중" }, { value = "done", label = "거래 완료" }] },
+  { key = "price", label = "가격", type = "text", list = true, help = "예: 30,000원" },
+  { key = "place", label = "거래 지역", type = "text", help = "예: 서울 마포구, 택배" },
+]
+
+[[ops]]
+op = "board.ensure"
 slug = "forum"
 name = "토론"
 kind = "forum"
@@ -74,8 +97,11 @@ items = [
   { label = "공지사항", link = { kind = "board", slug = "notice" } },
   { label = "자유게시판", link = { kind = "board", slug = "free" } },
   { label = "질문답변", link = { kind = "board", slug = "qna" } },
+  { label = "정보·팁", link = { kind = "board", slug = "tips" } },
   { label = "사진", link = { kind = "board", slug = "photo" } },
   { label = "토론", link = { kind = "board", slug = "forum" } },
+  { label = "이벤트", link = { kind = "board", slug = "event" } },
+  { label = "장터", link = { kind = "board", slug = "market" } },
 ]
 
 # 검색 칸 옆 바로가기 단추 (GAP Q12, ADR-0097)
@@ -89,16 +115,22 @@ items = [
   { label = "사진", link = { kind = "board", slug = "photo" } },
 ]
 
-# 첫 화면: 게시판별 최신 글 판. 곁가지: 인기 글.
+# 첫 화면: 맨 위 전체 최신·인기 탭, 그 아래 게시판별 최신 글 판. 곁가지: 인기 글, 장터 새 글.
 [[ops]]
 op = "widgets.ensure"
 items = [
+  { kind = "post_tabs", region = "main", scope = "home", title = "전체 글", config = { limit = 8, tabs = [
+    { label = "최신", source = "latest" },
+    { label = "인기", source = "popular", days = 7 },
+  ] } },
   { kind = "latest_posts", region = "main", scope = "home", title = "공지사항", config = { board = "notice", limit = 5, show_date = true } },
   { kind = "latest_posts", region = "main", scope = "home", title = "자유게시판", config = { board = "free", limit = 8, show_date = true } },
   { kind = "latest_posts", region = "main", scope = "home", title = "질문답변", config = { board = "qna", limit = 8, show_date = true } },
+  { kind = "latest_posts", region = "main", scope = "home", title = "정보·팁", config = { board = "tips", limit = 8, show_date = true } },
   { kind = "latest_posts", region = "main", scope = "home", title = "토론", config = { board = "forum", limit = 8, show_date = true } },
   # 홀수 번째 마지막 판은 community.css 가 두 칸 너비로 편다
   { kind = "latest_posts", region = "main", scope = "home", title = "사진", config = { board = "photo", limit = 6, view = "card" } },
   { kind = "account_box", region = "sidebar", scope = "all", title = "", config = { links = [{ label = "질문하기", link = "/write/qna" }, { label = "전체 새 글", link = "/recent" }] } },
   { kind = "popular_posts", region = "sidebar", scope = "all", title = "많이 본 글", config = { limit = 10, days = 7 } },
+  { kind = "latest_posts", region = "sidebar", scope = "all", title = "장터 새 글", config = { board = "market", limit = 5 } },
 ]

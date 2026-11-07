@@ -21,7 +21,7 @@ pub const KINDS: [(&str, &str, &str); 14] = [
     (
         "features",
         "소개 묶음",
-        "강점·서비스·절차를 카드·줄·벤토·단계로",
+        "강점·서비스·절차를 카드·줄·벤토·단계로, 분류·바로가기는 작은 칸으로",
     ),
     ("stats", "숫자", "경력·고객 수 같은 숫자 몇 개"),
     ("testimonials", "후기", "손님·고객의 말"),
@@ -44,7 +44,7 @@ pub const KINDS: [(&str, &str, &str); 14] = [
 /// 띠 색: 바탕 그대로, 옅은 면, 주 색
 pub const TONES: [&str; 3] = ["plain", "soft", "strong"];
 pub const HERO_STYLES: [&str; 3] = ["type", "image", "split"];
-pub const FEATURE_STYLES: [&str; 4] = ["cards", "rows", "bento", "steps"];
+pub const FEATURE_STYLES: [&str; 5] = ["cards", "rows", "bento", "steps", "tiles"];
 
 /// 조직도 깊이·개수 상한
 const ORG_DEPTH: usize = 3;
@@ -118,7 +118,8 @@ pub struct FeatureItem {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct FeaturesConfig {
-    /// `cards`, `rows`(번호 없는 줄), `bento`(첫 칸이 큰 바둑판), `steps`(번호 붙은 단계)
+    /// `cards`, `rows`(번호 없는 줄), `bento`(첫 칸이 큰 바둑판), `steps`(번호 붙은 단계),
+    /// `tiles`(분류·바로가기를 작은 칸으로 촘촘히, ADR-0140)
     #[serde(default = "feature_style")]
     pub style: String,
     /// 묶음 설명, 200자
@@ -521,7 +522,7 @@ fn check_inner(kind: &str, config: Value) -> Result<Value> {
             let mut c: FeaturesConfig = parse(kind, config)?;
             c.style = c.style.trim().to_owned();
             if !FEATURE_STYLES.contains(&c.style.as_str()) {
-                return Err(bad_config(kind, "style 은 cards·rows·bento·steps"));
+                return Err(bad_config(kind, "style 은 cards·rows·bento·steps·tiles"));
             }
             text(kind, "lead", &mut c.lead, 200)?;
             count(kind, "items", c.items.len(), 1, 12)?;

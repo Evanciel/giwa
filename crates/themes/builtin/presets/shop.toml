@@ -23,7 +23,7 @@ layout = "gallery"
 sort_order = 0
 policy = { write = "editor", comment = "none" }
 field_schema = [
-  { key = "category", label = "분류", type = "select", list = true, filter = true, options = [{ value = "new", label = "새 상품" }, { value = "best", label = "많이 찾는 상품" }, { value = "set", label = "선물 세트" }] },
+  { key = "category", label = "분류", type = "select", list = true, filter = true, options = [{ value = "new", label = "새 상품" }, { value = "best", label = "많이 찾는 상품" }, { value = "set", label = "선물 세트" }, { value = "sale", label = "할인" }] },
   { key = "price", label = "가격", type = "text", list = true, help = "예: 12,000원" },
   { key = "soldout", label = "품절", type = "boolean", list = true, filter = true },
   { key = "buy", label = "구매 링크", type = "url", help = "바깥 스토어의 상품 주소. 비우면 문의로 받습니다." },
@@ -46,6 +46,15 @@ kind = "notice"
 sort_order = 2
 
 [[ops]]
+op = "board.ensure"
+slug = "stories"
+name = "룩북·이야기"
+kind = "gallery"
+layout = "gallery"
+sort_order = 3
+policy = { write = "editor", comment = "member" }
+
+[[ops]]
 op = "page.ensure"
 slug = "home"
 title = "첫 화면"
@@ -56,6 +65,13 @@ publish = true
 op = "page.ensure"
 slug = "guide"
 title = "주문·배송 안내"
+layout = "blocks"
+publish = true
+
+[[ops]]
+op = "page.ensure"
+slug = "stores"
+title = "매장 안내"
 layout = "blocks"
 publish = true
 
@@ -75,8 +91,10 @@ op = "menu.ensure"
 location = "header"
 items = [
   { label = "상품", link = { kind = "board", slug = "products" } },
+  { label = "룩북·이야기", link = { kind = "board", slug = "stories" } },
   { label = "구매 후기", link = { kind = "board", slug = "reviews" } },
   { label = "주문·배송 안내", link = { kind = "page", slug = "guide" } },
+  { label = "매장 안내", link = { kind = "page", slug = "stores" } },
   { label = "공지", link = { kind = "board", slug = "notice" } },
   { label = "문의", link = { kind = "page", slug = "contact" } },
 ]
@@ -85,12 +103,17 @@ items = [
 op = "widgets.ensure"
 items = [
   { kind = "hero", region = "main", scope = "home", config = { eyebrow = "이번 철에 소개하는 상품을 한 줄로", button = { label = "상품 보기", link = "/b/products" }, button2 = { label = "주문·배송 안내", link = "/p/guide" } } },
-  { kind = "features", region = "main", scope = "home", config = { style = "cards", tone = "soft", items = [
+  { kind = "notice_bar", region = "header", scope = "all", config = { text = "0만 원 이상 주문하면 배송비가 없습니다", link = "/p/guide" } },
+  { kind = "features", region = "main", scope = "home", config = { style = "tiles", items = [
+    { title = "전체 상품", link = "/b/products" },
     { title = "새 상품", text = "이번에 들어온 상품", link = "/b/products?f.category=new" },
     { title = "많이 찾는 상품", text = "다시 찾는 분이 많은 상품", link = "/b/products?f.category=best" },
     { title = "선물 세트", text = "포장해서 보내 드립니다", link = "/b/products?f.category=set" },
+    { title = "할인", text = "값을 내린 상품", link = "/b/products?f.category=sale" },
+    { title = "룩북·이야기", text = "상품을 만든 이야기", link = "/b/stories" },
   ] } },
   { kind = "gallery_grid", region = "main", scope = "home", title = "상품", config = { board = "products", limit = 8, columns = 4 } },
+  { kind = "latest_posts", region = "main", scope = "home", title = "룩북·이야기", config = { board = "stories", limit = 3, view = "card" } },
   { kind = "features", region = "main", scope = "home", title = "주문 전에 확인해 주세요", config = { style = "rows", items = [
     { title = "배송", text = "평일 00시까지 주문하면 그날 보냅니다. 배송비는 0,000원입니다." },
     { title = "교환·반품", text = "받은 날부터 0일 안에 문의로 알려 주세요." },
@@ -109,6 +132,12 @@ items = [
     { q = "교환이나 반품은 어떻게 하나요?", a = "받은 날부터 0일 안에 문의로 주문한 이름과 까닭을 알려 주세요. 다시 보낼 주소를 안내합니다." },
     { q = "품절 상품은 다시 들어오나요?", a = "다시 들어오면 공지에 알립니다." },
   ] } },
+  { kind = "hero", region = "main", scope = "page:stores", config = { title = "매장 안내", text = "직접 보고 고를 수 있는 매장입니다. 매장이 없으면 이 화면을 메뉴에서 빼 주세요." } },
+  { kind = "hours", region = "main", scope = "page:stores", title = "영업시간", config = { rows = [
+    { days = "월~금", time = "00:00~00:00" },
+    { days = "토·일", time = "00:00~00:00" },
+  ], note = "공휴일 영업은 공지로 알립니다." } },
+  { kind = "visit", region = "main", scope = "page:stores", title = "오시는 길", config = { name = "매장 이름", address = "주소를 적어 주세요", phone = "000-0000-0000", parking = "주차 안내를 적어 주세요" } },
   { kind = "hero", region = "main", scope = "page:contact", config = { title = "문의", text = "주문, 배송, 교환·반품 무엇이든 남겨 주세요." } },
   { kind = "contact_form", region = "main", scope = "page:contact", config = { form = "contact", purpose = "주문·문의 답변", fields = [
     { key = "name", label = "이름", required = true },

@@ -91,7 +91,8 @@ op = "widgets.ensure"
 items = [
   { kind = "hero", region = "main", scope = "home", config = { eyebrow = "누가 누구를 찾는 곳인지 한 줄로", button = { label = "업체 찾기", link = "/b/listings" }, button2 = { label = "일 맡기기", link = "/b/requests" } } },
   { kind = "search", region = "main", scope = "home", config = { placeholder = "분야나 지역으로 찾아보세요" } },
-  { kind = "features", region = "main", scope = "home", title = "분야", config = { style = "cards", items = [
+  { kind = "features", region = "main", scope = "home", title = "분야", config = { style = "tiles", items = [
+    { title = "전체", link = "/b/listings" },
     { title = "집·생활", text = "청소, 수리, 이사", link = "/b/listings?f.field=home" },
     { title = "레슨", text = "운동, 악기, 외국어", link = "/b/listings?f.field=lesson" },
     { title = "디자인", text = "로고, 인쇄물, 누리집", link = "/b/listings?f.field=design" },
@@ -104,6 +105,12 @@ items = [
   ] } },
   { kind = "latest_posts", region = "main", scope = "home", title = "새로 들어온 업체", config = { board = "listings", limit = 6, view = "card" } },
   { kind = "latest_posts", region = "main", scope = "home", title = "최근 맡길 일", config = { board = "requests", limit = 5 } },
+  { kind = "features", region = "main", scope = "home", title = "지역으로 찾기", config = { style = "tiles", tone = "soft", items = [
+    { title = "서울", link = "/b/listings?f.area=seoul" },
+    { title = "경기·인천", link = "/b/listings?f.area=gyeonggi" },
+    { title = "그 밖의 지역", link = "/b/listings?f.area=other" },
+    { title = "온라인", link = "/b/listings?f.area=online" },
+  ] } },
   { kind = "stats", region = "main", scope = "home", config = { items = [
     { value = "000곳", label = "등록된 업체" },
     { value = "0,000건", label = "올라온 요청" },
@@ -129,4 +136,5 @@ items = [
     { key = "field", label = "분야", type = "select", required = true, options = ["집·생활", "레슨", "디자인", "사업 지원", "그 밖의 분야"] },
     { key = "message", label = "업체 소개", type = "textarea", required = true },
   ] } },
+  { kind = "markdown_block", region = "footer", scope = "all", config = { body = "이 사이트는 거래를 중개하며 거래의 당사자가 아닙니다. 업체가 올린 정보와 거래에 대한 책임은 각 업체에 있습니다.\n\n상호 사이트 운영자 이름 · 대표자 이름을 적어 주세요 · 주소를 적어 주세요\n\n전화 000-0000-0000 · 사업자등록번호 000-00-00000 · 통신판매업 신고번호 제0000-지역-0000호" } },
 ]

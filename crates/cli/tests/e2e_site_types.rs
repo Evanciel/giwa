@@ -660,6 +660,20 @@ fn 부동산_매물은_거래_종류로_거르고_완료한_것을_뺀다() {
     assert!(!open.contains("끝난 시험 매물"), "{open}");
     // 바닥글에 사무소 정보 자리가 있다.
     assert!(sale.contains("중개사무소 등록번호"), "{sale}");
+    // 첫 화면 매물 종류 칸은 두 거르기를 함께 건다 (ADR-0140).
+    let (_, _, home) = get(&bind, "/");
+    assert!(home.contains("f-tiles"), "{home}");
+    assert!(
+        home.contains("/b/listings?f.type=apt&amp;f.closed=0"),
+        "{home}"
+    );
+    let (status, _, apt) = get(&bind, "/b/listings?f.type=apt&f.closed=0");
+    assert_eq!(status, 200, "{apt}");
+    assert!(
+        apt.contains("매매 시험 매물") && apt.contains("전세 시험 매물"),
+        "{apt}"
+    );
+    assert!(!apt.contains("끝난 시험 매물"), "{apt}");
 }
 
 /// ADR-0139: 숙박 예약 문의는 받은 내용으로 DB 에 남는다. 병원은 후기 블록이 없다.
@@ -696,4 +710,70 @@ fn 숙박_예약_문의는_db_에_남고_병원에는_후기가_없다() {
     let widgets = maru(&data, &["widget", "list"]).to_string();
     assert!(!widgets.contains("testimonials"), "{widgets}");
     assert!(!widgets.contains("후기"), "{widgets}");
+}
+
+/// ADR-0140: 실제 사이트를 보고 옮긴 구조. 커뮤니티 장터는 거래 상태로 거르고, 중개 플랫폼은
+/// 첫 화면에 거래 당사자가 아님을 알리고, 쇼핑몰은 분류를 바로가기 칸으로 둔다.
+#[test]
+fn 사이트_관찰로_더한_구조가_첫_화면과_게시판에_있다() {
+    let tmp = tempfile::tempdir().unwrap();
+
+    let community = tmp.path().join("커뮤니티");
+    maru(&community, &["init", "--preset", "community", "--yes"]);
+    for (title, status) in [("파는 시험 물건", "open"), ("끝난 시험 물건", "done")] {
+        let status = format!("status={status}");
+        maru(
+            &community,
+            &[
+                "post",
+                "new",
+                "--publish",
+                "--board",
+                "market",
+                "--title",
+                title,
+                "--body",
+                "설명",
+                "--field",
+                "deal=sell",
+                "--field",
+                &status,
+            ],
+        );
+    }
+    {
+        let (_server, bind) = start_server(&community);
+        let (status, _, open) = get(&bind, "/b/market?f.status=open");
+        assert_eq!(status, 200, "{open}");
+        // 곁가지 「장터 새 글」은 둘 다 보이므로, 목록에서 하나 더 보이는 쪽은 거래 중인 글뿐이다.
+        assert_eq!(
+            open.matches("파는 시험 물건").count(),
+            open.matches("끝난 시험 물건").count() + 1,
+            "{open}"
+        );
+        let (_, _, home) = get(&bind, "/");
+        assert!(
+            home.contains("전체 글") && home.contains("장터 새 글"),
+            "{home}"
+        );
+    }
+
+    let platform = tmp.path().join("플랫폼");
+    maru(&platform, &["init", "--preset", "platform", "--yes"]);
+    {
+        let (_server, bind) = start_server(&platform);
+        let (_, _, home) = get(&bind, "/");
+        assert!(home.contains("거래의 당사자가 아닙니다"), "{home}");
+        assert!(home.contains("/b/listings?f.area=seoul"), "{home}");
+    }
+
+    let shop = tmp.path().join("쇼핑몰");
+    maru(&shop, &["init", "--preset", "shop", "--yes"]);
+    let (_server, bind) = start_server(&shop);
+    let (_, _, home) = get(&bind, "/");
+    assert!(home.contains("f-tiles"), "{home}");
+    assert!(home.contains("/b/products?f.category=sale"), "{home}");
+    assert!(home.contains("widget-notice_bar"), "{home}");
+    let (status, _, stores) = get(&bind, "/p/stores");
+    assert_eq!(status, 200, "{stores}");
 }

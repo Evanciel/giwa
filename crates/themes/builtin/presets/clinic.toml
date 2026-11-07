@@ -75,16 +75,24 @@ items = [
 op = "widgets.ensure"
 items = [
   { kind = "hero", region = "main", scope = "home", config = { eyebrow = "진료과목과 동네 이름을 한 줄로", text = "진료 예약과 문의는 전화로 받습니다. 02-000-0000", button = { label = "진료 안내", link = "/p/care" }, button2 = { label = "오시는 길", link = "/p/about" } } },
+  { kind = "features", region = "main", scope = "home", config = { style = "tiles", items = [
+    { title = "진료 안내", text = "진료과목과 준비할 것", link = "/p/care" },
+    { title = "의료진", text = "진료하는 분들", link = "/p/about" },
+    { title = "온라인 상담", text = "회원만 보는 상담", link = "/b/consult" },
+    { title = "공지", text = "휴진·진료 변경", link = "/b/notice" },
+    { title = "오시는 길", text = "주소와 주차", link = "/p/about" },
+  ] } },
   { kind = "hours", region = "main", scope = "home", title = "진료시간", config = { tone = "soft", note = "공휴일 진료와 휴진은 공지로 알립니다.", rows = [
     { days = "평일", time = "09:00 ~ 18:00" },
     { days = "토요일", time = "09:00 ~ 13:00" },
     { days = "점심시간", time = "13:00 ~ 14:00" },
     { days = "일요일·공휴일", time = "휴진" },
   ] } },
-  { kind = "features", region = "main", scope = "home", title = "진료과목", config = { style = "cards", items = [
-    { title = "진료과목 하나", text = "어떤 증상을 보는지 한 문장으로 적습니다.", link = "/p/care" },
-    { title = "진료과목 둘", text = "어떤 증상을 보는지 한 문장으로 적습니다.", link = "/p/care" },
-    { title = "검사·검진", text = "할 수 있는 검사를 적습니다.", link = "/p/care" },
+  { kind = "features", region = "main", scope = "home", title = "어디가 불편하세요", config = { style = "tiles", lead = "증상이나 부위를 고르면 맞는 진료과목 안내로 갑니다.", items = [
+    { title = "증상·부위 하나", text = "진료과목 이름", link = "/p/care" },
+    { title = "증상·부위 둘", text = "진료과목 이름", link = "/p/care" },
+    { title = "증상·부위 셋", text = "진료과목 이름", link = "/p/care" },
+    { title = "검사·검진", text = "할 수 있는 검사", link = "/p/care" },
   ] } },
   { kind = "latest_posts", region = "main", scope = "home", title = "공지", config = { board = "notice", limit = 4 } },
   { kind = "latest_posts", region = "main", scope = "home", title = "건강 정보", config = { board = "health", limit = 3, view = "card" } },
