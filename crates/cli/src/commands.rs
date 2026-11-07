@@ -1860,7 +1860,7 @@ async fn theme_cmd(g: &Global, cmd: ThemeCmd) -> Out {
             for id in maru_themes::preset_ids() {
                 let p = maru_themes::preset(&id)?;
                 if presets::theme_tokens(&p).is_some() {
-                    items.push(json!({ "id": p.id, "name": p.name, "description": p.description }));
+                    items.push(json!({ "id": p.id, "name": p.name, "description": p.description, "look": p.theme_note }));
                 }
             }
             let mut human = format!("테마 {}개. 입히기: maru theme apply <id>", items.len());
@@ -1876,7 +1876,7 @@ async fn theme_cmd(g: &Global, cmd: ThemeCmd) -> Out {
         }
         ThemeCmd::Apply { id } => {
             let preset = maru_themes::preset(&id)?;
-            let tokens = presets::theme_tokens(&preset).cloned().ok_or_else(|| {
+            let tokens = presets::theme_tokens(&preset).ok_or_else(|| {
                 Error::new(Code::Validation)
                     .with_message("error.usage_detail")
                     .arg("detail", format!("{id} 에는 입힐 색과 모양이 없습니다."))

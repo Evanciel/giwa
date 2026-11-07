@@ -2,6 +2,7 @@
 id = "org"
 name = "기관·단체"
 description = "공지·자료실·자주 묻는 질문 게시판, 인사말·연혁·조직도·오시는 길"
+theme_note = "숲 초록에 단정한 모서리"
 
 [[ops]]
 op = "tokens.ensure"

@@ -80,6 +80,21 @@ pub async fn reset(ctx: &Ctx, actor: &Actor) -> Result<Tokens> {
     update(ctx, actor, defaults).await
 }
 
+/// 테마로 입힐 패치. 테마가 정하는 칸(색·모서리·폭·제목 서체)은 기본값 위에 테마를 겹친 값으로 채워,
+/// 앞서 입힌 테마의 색이 남지 않게 한다. 본문 서체·글자 크기·간격·배치는 건드리지 않는다.
+pub fn theme_patch(theme: &Value) -> Value {
+    let d = Tokens::default();
+    let mut patch = json!({
+        "color": d.color,
+        "color_dark": d.color_dark,
+        "radius": d.radius,
+        "layout": { "max_width": d.layout.max_width },
+        "font": { "heading": d.font.heading },
+    });
+    merge(&mut patch, theme.clone());
+    patch
+}
+
 /// JSON 병합 (RFC 7396 과 같되 `null` 은 무시한다).
 fn merge(target: &mut Value, patch: Value) {
     match (target, patch) {
@@ -111,6 +126,24 @@ mod tests {
         let t: Tokens = serde_json::from_value(base).unwrap();
         assert_eq!(t.color.primary, "#123456");
         assert_eq!(t.color.bg, Tokens::default().color.bg);
+    }
+
+    #[test]
+    fn theme_patch_clears_previous_theme() {
+        // 따뜻한 테마를 입힌 뒤 색 하나만 정한 테마로 바꾸면 바탕은 기본값으로 돌아온다.
+        let mut site = serde_json::to_value(Tokens::default()).unwrap();
+        merge(
+            &mut site,
+            theme_patch(&json!({ "color": { "bg": "#fbf8f2" }, "font": { "heading": "serif" } })),
+        );
+        merge(
+            &mut site,
+            theme_patch(&json!({ "color": { "primary": "#2754c5" } })),
+        );
+        let t: Tokens = serde_json::from_value(site).unwrap();
+        assert_eq!(t.color.primary, "#2754c5");
+        assert_eq!(t.color.bg, Tokens::default().color.bg);
+        assert_eq!(t.font.heading, Tokens::default().font.heading);
     }
 
     #[test]

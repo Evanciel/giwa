@@ -2,6 +2,7 @@
 id = "cafe"
 name = "가게"
 description = "첫 인상·메뉴판·영업시간·오시는 길 첫 화면, 소식·사진 게시판"
+theme_note = "따뜻한 크림 바탕에 벽돌색, 알약처럼 둥근 단추"
 
 [[ops]]
 op = "tokens.ensure"

@@ -1,0 +1,42 @@
+{# 테마 견본 그림. 관리 화면 CSP 가 인라인 style 을 막아 색은 SVG 속성으로 넣는다. t: 테마 카드 #}
+{% macro art(t) -%}
+<svg class="theme-art" viewBox="0 0 240 150" role="img" aria-label="{{ t.name }} 테마 견본">
+  <rect width="240" height="150" fill="{{ t.c.bg }}"/>
+  <rect width="240" height="26" fill="{{ t.c.surface }}"/>
+  <rect y="26" width="240" height="1" fill="{{ t.c.border }}"/>
+  <circle cx="16" cy="13" r="5" fill="{{ t.c.primary }}"/>
+  <rect x="26" y="10" width="38" height="6" rx="3" fill="{{ t.c.fg }}"/>
+  <rect x="150" y="10.5" width="20" height="5" rx="2.5" fill="{{ t.c.muted }}"/>
+  <rect x="176" y="10.5" width="20" height="5" rx="2.5" fill="{{ t.c.muted }}"/>
+  <rect x="202" y="10.5" width="22" height="5" rx="2.5" fill="{{ t.c.muted }}"/>
+  {% if t.serif %}
+  <text x="16" y="50" font-family="serif" font-size="15" font-weight="700" fill="{{ t.c.fg }}">가나다 Aa</text>
+  {% else %}
+  <rect x="16" y="39" width="118" height="10" rx="3" fill="{{ t.c.fg }}"/>
+  {% endif %}
+  <rect x="16" y="56" width="92" height="5" rx="2.5" fill="{{ t.c.muted }}"/>
+  <rect x="16" y="66" width="70" height="5" rx="2.5" fill="{{ t.c.muted }}"/>
+  <rect x="16" y="78" width="50" height="14" rx="{{ t.rs }}" fill="{{ t.c.primary }}"/>
+  <rect x="150" y="38" width="74" height="54" rx="{{ t.rm }}" fill="{{ t.c.primary }}" fill-opacity=".16"/>
+  <circle cx="171" cy="58" r="7" fill="{{ t.c.primary }}" fill-opacity=".5"/>
+  <path d="M156 88l18-16 12 10 10-8 22 14z" fill="{{ t.c.primary }}" fill-opacity=".45"/>
+  <rect x="16" y="102" width="100" height="36" rx="{{ t.rm }}" fill="{{ t.c.surface }}" stroke="{{ t.c.border }}"/>
+  <rect x="26" y="112" width="54" height="5" rx="2.5" fill="{{ t.c.fg }}"/>
+  <rect x="26" y="122" width="74" height="4" rx="2" fill="{{ t.c.muted }}"/>
+  <rect x="124" y="102" width="100" height="36" rx="{{ t.rm }}" fill="{{ t.c.surface }}" stroke="{{ t.c.border }}"/>
+  <rect x="134" y="112" width="48" height="5" rx="2.5" fill="{{ t.c.fg }}"/>
+  <rect x="134" y="122" width="66" height="4" rx="2" fill="{{ t.c.muted }}"/>
+</svg>
+{%- endmacro %}
+
+{% macro swatches(t) -%}
+<span class="swatches" aria-hidden="true">
+  <svg viewBox="0 0 92 16" width="92" height="16">
+    <circle cx="8" cy="8" r="7" fill="{{ t.c.primary }}"/>
+    <circle cx="26" cy="8" r="7" fill="{{ t.c.fg }}"/>
+    <circle cx="44" cy="8" r="7" fill="{{ t.c.bg }}" stroke="{{ t.c.border }}"/>
+    <circle cx="66" cy="8" r="7" fill="{{ t.d.bg }}"/>
+    <circle cx="84" cy="8" r="7" fill="{{ t.d.primary }}"/>
+  </svg>
+</span>
+{%- endmacro %}

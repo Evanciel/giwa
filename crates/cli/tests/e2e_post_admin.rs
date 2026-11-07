@@ -342,7 +342,7 @@ fn admin_revision_screen_reverts_and_list_moves_in_bulk() {
     );
 
     // 목록에서 두 글을 골라 옮긴다.
-    let home = http(&bind, "GET", "/admin", &[("Cookie", &cookie)], "");
+    let home = http(&bind, "GET", "/admin/posts", &[("Cookie", &cookie)], "");
     assert!(home.body.contains(&format!("name=\"pick.{a}\"")));
     let pick_a = format!("pick.{a}");
     let pick_b = format!("pick.{b}");

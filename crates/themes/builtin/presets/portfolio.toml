@@ -2,6 +2,7 @@
 id = "portfolio"
 name = "포트폴리오"
 description = "큰 글자 첫 인상, 작업물 사진 바둑판, 소개 페이지"
+theme_note = "흑백 대비에 각진 모서리"
 
 [[ops]]
 op = "tokens.ensure"

@@ -21,7 +21,7 @@ use maru_core::services::boards::{self, BoardPatch, NewBoard};
 use maru_core::services::pages::{self, NewPage, PagePatch};
 use maru_core::services::redirects;
 use maru_core::services::settings::{self, SettingsPatch};
-use maru_core::services::{design, fonts, members, menus};
+use maru_core::services::{design, fonts, members, menus, presets};
 use maru_core::urls::{self, Target};
 use maru_core::{Code, Error};
 use serde::{Deserialize, Serialize};
@@ -48,6 +48,7 @@ pub(super) fn routes() -> Router<AppState> {
         .route("/admin/design", get(design_page).post(design_save))
         .route("/admin/design/reset", post(design_reset))
         .route("/admin/design/skin", post(skin_save))
+        .route("/admin/design/theme", post(theme_save))
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -1594,6 +1595,7 @@ async fn design_page(
         "saved" => Some("디자인을 저장했습니다. 사이트에 바로 반영됩니다."),
         "reset" => Some("기본값으로 되돌렸습니다."),
         "skin" => Some("스킨을 바꿨습니다. 사이트에 바로 반영됩니다."),
+        "theme" => Some("테마를 입혔습니다. 글·게시판·메뉴는 그대로이고 사이트에 바로 반영됩니다."),
         _ => None,
     };
     design_render(
@@ -1633,11 +1635,14 @@ async fn design_render(
         .iter()
         .map(|(id, label)| json!({ "id": id, "label": label, "current": *id == skin }))
         .collect();
+    let tokens = design::tokens(&state.ctx).await.unwrap_or_default();
+    let themes: Vec<Value> = themes().iter().map(|t| t.card(&tokens)).collect();
     let ctx = merge(
         base(state, Some(who), "design").await,
         json!({
             "notice": notice,
             "error": error,
+            "themes": themes,
             "skins": skins,
             "form": form,
             "colors": choices(&COLOR_KEYS),
@@ -1677,6 +1682,90 @@ async fn design_save(
             )
             .await
         }
+        Err(e) => fail(&state, Some(&who), &e).await,
+    }
+}
+
+/// 고를 수 있는 테마: 기본값과, 색과 모양을 가진 프리셋 (ADR-0133).
+pub(super) struct Theme {
+    id: String,
+    name: String,
+    description: String,
+    /// `design::update` 에 그대로 넘길 패치 (기본값 위에 겹친 색·모서리·폭·제목 서체)
+    patch: Value,
+}
+
+impl Theme {
+    pub(super) fn is_current(&self, tokens: &Tokens) -> bool {
+        let now = serde_json::to_value(tokens).unwrap_or(Value::Null);
+        ["color", "color_dark", "radius"]
+            .iter()
+            .all(|k| now[k] == self.patch[k])
+    }
+
+    /// 화면에 그릴 카드. 견본은 SVG 속성으로 그린다 (관리 화면 CSP 는 인라인 style 을 막는다).
+    pub(super) fn card(&self, tokens: &Tokens) -> Value {
+        let radius = |k: &str| self.patch["radius"][k].as_u64().unwrap_or(8);
+        json!({
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "current": self.is_current(tokens),
+            "c": self.patch["color"],
+            "d": self.patch["color_dark"],
+            "rs": radius("sm").min(8),
+            "rm": (radius("md") / 2).min(10),
+            "serif": self.patch["font"]["heading"] == "serif",
+        })
+    }
+}
+
+pub(super) fn themes() -> Vec<Theme> {
+    let mut out = vec![Theme {
+        id: "default".into(),
+        name: "기본".into(),
+        description: "차분한 초록과 흰 바탕".into(),
+        patch: design::theme_patch(&json!({})),
+    }];
+    for id in maru_themes::preset_ids() {
+        let Ok(p) = maru_themes::preset(&id) else {
+            continue;
+        };
+        if let Some(patch) = presets::theme_tokens(&p) {
+            out.push(Theme {
+                id: p.id,
+                name: p.name,
+                description: p.theme_note,
+                patch,
+            });
+        }
+    }
+    out
+}
+
+#[derive(Deserialize)]
+struct ThemeForm {
+    #[serde(rename = "_csrf")]
+    csrf: String,
+    theme: String,
+}
+
+/// 테마 카드 하나를 눌러 입힌다. CLI `maru theme apply` 와 같은 패치를 쓴다.
+async fn theme_save(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Form(f): Form<ThemeForm>,
+) -> Response {
+    let who = match require_post(&state, &headers, &f.csrf).await {
+        Ok(w) => w,
+        Err(r) => return *r,
+    };
+    let Some(theme) = themes().into_iter().find(|t| t.id == f.theme) else {
+        let e = Error::new(Code::NotFound).with_message("error.not_found");
+        return fail(&state, Some(&who), &e).await;
+    };
+    match design::update(&state.ctx, &who.actor, theme.patch).await {
+        Ok(_) => Redirect::to("/admin/design?done=theme").into_response(),
         Err(e) => fail(&state, Some(&who), &e).await,
     }
 }

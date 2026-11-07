@@ -2,6 +2,7 @@
 id = "community"
 name = "커뮤니티"
 description = "커뮤니티 스킨, 공지·자유·질문·사진·토론 게시판, 게시판별 최신 글 첫 화면, 도배 방지"
+theme_note = "또렷한 파랑 강조, 밝은 기본 바탕"
 
 [[ops]]
 op = "settings.ensure"

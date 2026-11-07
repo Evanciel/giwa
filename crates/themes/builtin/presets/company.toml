@@ -2,6 +2,7 @@
 id = "company"
 name = "회사 소개"
 description = "첫 인상·숫자·하는 일·행동 유도 첫 화면, 회사 소개·연혁·조직도 페이지, 공지"
+theme_note = "깊은 청록에 단정한 작은 모서리"
 
 [[ops]]
 op = "tokens.ensure"

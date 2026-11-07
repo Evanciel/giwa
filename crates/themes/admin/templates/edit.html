@@ -11,7 +11,7 @@
   {# 위에 붙는 막대: 돌아가기 · 상태 · 임시 저장 시각 · 저장 · 발행. 에디터가 도구 막대를 그 아래에 붙인다. #}
   <div class="write-head">
     <div class="write-top">
-      <a class="write-back" href="/admin">← 글 목록</a>
+      <a class="write-back" href="/admin/posts">← 글 목록</a>
       {% if post %}<span class="badge badge-{{ post.status }}">{{ post.status_label }}</span>{% endif %}
       {% if post and post.scheduled %}<span class="write-scheduled">⏰ {{ post.scheduled }} 발행 예약</span>{% endif %}
       {% if public_url %}<a class="write-view" href="{{ public_url }}" target="_blank" rel="noopener">공개 페이지</a>{% endif %}

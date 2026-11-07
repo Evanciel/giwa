@@ -2,6 +2,7 @@
 id = "jobs"
 name = "채용"
 description = "공고 목록(직군·마감일), 일하는 방식, 지원서 폼"
+theme_note = "짙은 청록 초록, 산뜻한 바탕"
 
 [[ops]]
 op = "tokens.ensure"

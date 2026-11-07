@@ -2,6 +2,7 @@
 id = "event"
 name = "행사"
 description = "행사 카드 목록(마감일 D-day), 참가 신청 폼, 받은 신청 모아 보기"
+theme_note = "남보라 강조에 둥근 모서리"
 
 [[ops]]
 op = "tokens.ensure"

@@ -1,0 +1,175 @@
+{% extends "_base.html" %}
+{% import "_icons.html" as ic %}
+{% import "_theme_art.html" as art %}
+{% block title %}대시보드{% endblock %}
+{% block content %}
+<section class="hero" aria-labelledby="hero-h">
+  <div class="hero-text">
+    <p class="hero-kicker">{{ me.display_name }}님, 반갑습니다</p>
+    <h1 id="hero-h">{{ site.name }}</h1>
+    <p class="hero-url">{{ ic.icon("external") }} <a href="{{ site_url }}" target="_blank" rel="noopener">{{ site_url }}</a></p>
+  </div>
+  <div class="hero-actions">
+    <a class="button" href="/admin/posts/new">{{ ic.icon("new") }} 새 글 쓰기</a>
+    <a class="button ghost" href="/" target="_blank" rel="noopener">{{ ic.icon("eye") }} 사이트 보기</a>
+  </div>
+</section>
+
+{% if signals %}
+<section class="signals" aria-labelledby="signals-h">
+  <h2 id="signals-h">살펴볼 일 <span class="count">{{ signals | length }}</span></h2>
+  <ul>
+  {% for s in signals %}
+    <li class="signal-{{ s.kind }}">{% if s.url %}<a href="{{ s.url }}">{{ s.message }}</a>{% else %}{{ s.message }}{% endif %}</li>
+  {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+{% if done_steps < steps | length %}
+<section class="card setup" aria-labelledby="setup-h">
+  <div class="card-head">
+    <h2 id="setup-h">{{ ic.icon("sparkle") }} 시작하기</h2>
+    <span class="setup-count">{{ done_steps }} / {{ steps | length }} 완료</span>
+  </div>
+  <progress class="setup-bar" max="{{ steps | length }}" value="{{ done_steps }}">{{ steps_pct }}%</progress>
+  <ol class="checklist">
+  {% for s in steps %}
+    <li class="{% if s.done %}is-done{% endif %}">
+      <span class="check" aria-hidden="true">{% if s.done %}{{ ic.icon("check") }}{% else %}{{ loop.index }}{% endif %}</span>
+      <span class="check-text"><strong>{{ s.title }}</strong>{% if s.done %}<span class="visually-hidden"> (완료)</span>{% endif %}<small>{{ s.hint }}</small></span>
+      {% if not s.done %}<a class="button small" href="{{ s.href }}">{{ s.cta }} {{ ic.icon("arrow") }}</a>{% endif %}
+    </li>
+  {% endfor %}
+  </ol>
+</section>
+{% endif %}
+
+<ul class="kpis" aria-label="현황">
+  <li class="kpi">
+    <span class="kpi-icon tone-a">{{ ic.icon("eye") }}</span>
+    <span class="kpi-label">오늘 방문자</span>
+    <strong class="kpi-value">{% if visits %}{{ visits.today_visitors }}{% else %}-{% endif %}</strong>
+    <span class="kpi-sub">{% if visits %}어제 {{ visits.yesterday_visitors }} · 7일 {{ visits.week_visitors }}{% else %}발행 권한이 있어야 봅니다{% endif %}</span>
+  </li>
+  <li class="kpi">
+    <a class="kpi-link" href="/admin/posts"><span class="visually-hidden">글 목록으로</span></a>
+    <span class="kpi-icon tone-b">{{ ic.icon("posts") }}</span>
+    <span class="kpi-label">발행한 글</span>
+    <strong class="kpi-value">{{ published }}</strong>
+    <span class="kpi-sub">초안 {{ drafts }}</span>
+  </li>
+  <li class="kpi">
+    <a class="kpi-link" href="/admin/comments"><span class="visually-hidden">댓글 관리로</span></a>
+    <span class="kpi-icon tone-c">{{ ic.icon("comments") }}</span>
+    <span class="kpi-label">승인 기다리는 댓글</span>
+    <strong class="kpi-value">{% if pending is not none %}{{ pending }}{% else %}-{% endif %}</strong>
+    <span class="kpi-sub">{% if pending %}확인해 주세요{% else %}밀린 일이 없습니다{% endif %}</span>
+  </li>
+  <li class="kpi">
+    <a class="kpi-link" href="/admin/members"><span class="visually-hidden">회원 관리로</span></a>
+    <span class="kpi-icon tone-d">{{ ic.icon("members") }}</span>
+    <span class="kpi-label">회원</span>
+    <strong class="kpi-value">{% if members is not none %}{{ members }}{% else %}-{% endif %}</strong>
+    <span class="kpi-sub">운영자 포함</span>
+  </li>
+</ul>
+
+<div class="dash-grid">
+  <section class="card chart-card" aria-labelledby="visits-h">
+    <div class="card-head">
+      <h2 id="visits-h">최근 14일 방문자</h2>
+      <a class="card-more" href="/admin/stats">자세히 {{ ic.icon("arrow") }}</a>
+    </div>
+    {% if visits %}
+    <p class="chart-sum"><strong>{{ visits.total_visitors }}</strong>명 방문 · 조회 {{ visits.total_views }}회</p>
+    <svg class="chart" viewBox="0 0 {{ visits.width }} {{ visits.height + 22 }}" role="img" aria-label="최근 14일 날마다 방문자 수 막대그래프. 가장 많은 날 {{ visits.max }}명">
+      <line x1="0" y1="{{ visits.height }}" x2="{{ visits.width }}" y2="{{ visits.height }}" class="chart-axis"/>
+      {% for b in visits.bars %}
+      <g class="bar{% if b.today %} is-today{% endif %}">
+        <title>{{ b.label }} · 방문자 {{ b.visitors }}명 · 조회 {{ b.views }}회</title>
+        <rect x="{{ b.x }}" y="{{ b.y }}" width="{{ b.w }}" height="{{ b.h }}" rx="3"/>
+        {% if b.show_label %}<text x="{{ b.x + b.w / 2 }}" y="{{ visits.height + 16 }}" text-anchor="middle">{{ b.label }}</text>{% endif %}
+      </g>
+      {% endfor %}
+    </svg>
+    {% if visits.total_views == 0 %}<p class="hint">아직 방문 기록이 없습니다. 사이트 주소를 알리면 여기에 쌓입니다. 쿠키 없이 날짜별로만 셉니다.</p>{% endif %}
+    {% else %}
+    <p class="hint">방문 통계는 글 발행 권한이 있는 계정이 봅니다.</p>
+    {% endif %}
+  </section>
+
+  <section class="card theme-card" aria-labelledby="theme-h">
+    <div class="card-head">
+      <h2 id="theme-h">지금 테마</h2>
+      <a class="card-more" href="/admin/design#themes">바꾸기 {{ ic.icon("arrow") }}</a>
+    </div>
+    <a class="theme-now" href="/admin/design#themes">
+      {{ art.art(theme) }}
+      <span class="theme-now-text"><strong>{{ theme.name }}</strong>{{ art.swatches(theme) }}</span>
+    </a>
+    <p class="hint">테마를 바꿔도 글·게시판·메뉴는 그대로입니다.</p>
+  </section>
+
+  <section class="card" aria-labelledby="recent-h">
+    <div class="card-head">
+      <h2 id="recent-h">최근 글</h2>
+      <a class="card-more" href="/admin/posts">전체 {{ ic.icon("arrow") }}</a>
+    </div>
+    {% if recent_posts %}
+    <ul class="recent-list">
+    {% for p in recent_posts %}
+      <li>
+        <a class="recent-title" href="/admin/posts/{{ p.id }}">{{ p.title }}</a>
+        <span class="recent-meta"><span class="badge badge-{{ p.status }}">{{ p.status_label }}</span> {{ p.board }} · {{ p.updated }} · 조회 {{ p.views }}</span>
+      </li>
+    {% endfor %}
+    </ul>
+    {% else %}
+    <div class="empty-state small">
+      <span class="empty-icon" aria-hidden="true">{{ ic.icon("posts") }}</span>
+      <p>아직 글이 없습니다.</p>
+      <a class="button small" href="/admin/posts/new">{{ ic.icon("new") }} 첫 글 쓰기</a>
+    </div>
+    {% endif %}
+  </section>
+
+  {% if moderator %}
+  <section class="card" aria-labelledby="comments-h">
+    <div class="card-head">
+      <h2 id="comments-h">최근 댓글</h2>
+      <a class="card-more" href="/admin/comments?status=all">전체 {{ ic.icon("arrow") }}</a>
+    </div>
+    {% if recent_comments %}
+    <ul class="recent-list">
+    {% for c in recent_comments %}
+      <li>
+        <span class="recent-title">{{ c.excerpt }}</span>
+        <span class="recent-meta"><span class="badge badge-{{ c.status }}">{{ c.status_label }}</span> {{ c.author }}{% if c.guest %} (손님){% endif %} · {{ c.day }}</span>
+      </li>
+    {% endfor %}
+    </ul>
+    {% else %}
+    <div class="empty-state small">
+      <span class="empty-icon" aria-hidden="true">{{ ic.icon("comments") }}</span>
+      <p>아직 댓글이 없습니다.</p>
+    </div>
+    {% endif %}
+  </section>
+  {% endif %}
+</div>
+
+<section class="card shortcuts" aria-labelledby="shortcuts-h">
+  <div class="card-head"><h2 id="shortcuts-h">바로 가기</h2></div>
+  <ul class="tiles">
+    <li><a href="/admin/design">{{ ic.icon("design") }}<strong>디자인·테마</strong><small>색과 모양 바꾸기</small></a></li>
+    <li><a href="/admin/boards">{{ ic.icon("boards") }}<strong>게시판</strong><small>만들기·고치기</small></a></li>
+    <li><a href="/admin/menus">{{ ic.icon("menus") }}<strong>메뉴</strong><small>머리글·바닥글 링크</small></a></li>
+    <li><a href="/admin/widgets">{{ ic.icon("widgets") }}<strong>위젯</strong><small>첫 화면 구성</small></a></li>
+    <li><a href="/admin/pages">{{ ic.icon("pages") }}<strong>페이지</strong><small>소개·연락처</small></a></li>
+    <li><a href="/admin/settings">{{ ic.icon("settings") }}<strong>설정</strong><small>이름·소개·가입</small></a></li>
+    <li><a href="/admin/backups">{{ ic.icon("backups") }}<strong>백업</strong><small>파일 하나로 보관</small></a></li>
+    <li><a href="/admin/members">{{ ic.icon("members") }}<strong>회원</strong><small>역할·상태</small></a></li>
+  </ul>
+</section>
+{% endblock %}

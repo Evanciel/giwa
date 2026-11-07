@@ -1,26 +1,62 @@
 {% extends "_base.html" %}
+{% import "_icons.html" as ic %}
+{% import "_theme_art.html" as art %}
 {% block title %}디자인{% endblock %}
 {% block content %}
 <div class="heading-row">
-  <h1>디자인</h1>
-  <a href="/" target="_blank" rel="noopener">사이트 보기</a>
+  <h1>디자인·테마</h1>
+  <a class="button ghost" href="/" target="_blank" rel="noopener">{{ ic.icon("eye") }} 사이트 보기</a>
 </div>
-<p class="hint">색·서체·글자 크기·간격·폭을 바꿉니다. 저장하면 바로 사이트에 반영되고 감사 로그에 남습니다. 글자와 바탕의 대비가 너무 낮으면 저장하지 않습니다.</p>
 
-<form method="post" action="/admin/design/skin" class="stack site-form skin-form">
-  <input type="hidden" name="_csrf" value="{{ csrf }}">
-  <fieldset>
-    <legend>스킨</legend>
-    <p class="hint">머리글·게시판 메뉴·두 단 배치를 바꿉니다. 색·서체는 아래 디자인 값을 그대로 씁니다.</p>
-    <div class="choice-row">
+<section id="themes" class="site-section first" aria-labelledby="themes-h">
+  <h2 id="themes-h">테마</h2>
+  <p class="hint">카드를 누르면 색·모서리·폭이 한 번에 바뀝니다. 글·게시판·메뉴는 그대로이고, 바꾼 기록은 감사 로그에 남습니다.</p>
+  <ul class="theme-grid">
+  {% for t in themes %}
+    <li class="theme-pick{% if t.current %} is-current{% endif %}">
+      <form method="post" action="/admin/design/theme">
+        <input type="hidden" name="_csrf" value="{{ csrf }}">
+        <input type="hidden" name="theme" value="{{ t.id }}">
+        <button type="submit" class="theme-button"{% if t.current %} aria-current="true" disabled{% endif %}>
+          {{ art.art(t) }}
+          <span class="theme-meta">
+            <span class="theme-name"><strong>{{ t.name }}</strong>{% if t.current %}<span class="badge badge-published">지금 테마</span>{% endif %}</span>
+            {{ art.swatches(t) }}
+            <small>{{ t.description }}</small>
+          </span>
+          <span class="theme-cta" aria-hidden="true">{% if t.current %}{{ ic.icon("check") }} 쓰는 중{% else %}이 테마 입히기{% endif %}</span>
+        </button>
+      </form>
+    </li>
+  {% endfor %}
+  </ul>
+</section>
+
+<section class="site-section" aria-labelledby="skins-h">
+  <h2 id="skins-h">스킨</h2>
+  <p class="hint">머리글·게시판 메뉴·두 단 배치를 바꿉니다. 색·서체는 테마를 그대로 씁니다.</p>
+  <form method="post" action="/admin/design/skin" class="skin-form">
+    <input type="hidden" name="_csrf" value="{{ csrf }}">
+    <div class="skin-grid">
       {% for s in skins %}
-      <label class="check"><input type="radio" name="skin" value="{{ s.id }}"{% if s.current %} checked{% endif %}> {{ s.label }} <code>{{ s.id }}</code></label>
+      <label class="skin-pick"><input type="radio" name="skin" value="{{ s.id }}"{% if s.current %} checked{% endif %}>
+        <span class="skin-art skin-{{ s.id }}" aria-hidden="true">
+          {% if s.id == "community" %}
+          <svg viewBox="0 0 120 72"><rect width="120" height="72" rx="6" class="sa-bg"/><rect x="6" y="6" width="108" height="9" rx="2" class="sa-bar"/><rect x="6" y="19" width="108" height="5" rx="2" class="sa-line"/><rect x="6" y="28" width="34" height="18" rx="2" class="sa-box"/><rect x="43" y="28" width="34" height="18" rx="2" class="sa-box"/><rect x="80" y="28" width="34" height="38" rx="2" class="sa-side"/><rect x="6" y="49" width="34" height="17" rx="2" class="sa-box"/><rect x="43" y="49" width="34" height="17" rx="2" class="sa-box"/></svg>
+          {% else %}
+          <svg viewBox="0 0 120 72"><rect width="120" height="72" rx="6" class="sa-bg"/><rect x="6" y="6" width="108" height="9" rx="2" class="sa-bar"/><rect x="24" y="22" width="72" height="8" rx="2" class="sa-line"/><rect x="24" y="34" width="72" height="14" rx="2" class="sa-box"/><rect x="24" y="52" width="72" height="14" rx="2" class="sa-box"/></svg>
+          {% endif %}
+        </span>
+        <span class="skin-name">{{ s.label }}</span>
+      </label>
       {% endfor %}
-      <button type="submit" class="secondary">스킨 저장</button>
     </div>
-  </fieldset>
-</form>
+    <button type="submit" class="secondary">스킨 저장</button>
+  </form>
+</section>
 
+<details class="fine-tune"{% if error %} open{% endif %}>
+<summary><strong>직접 다듬기</strong> <span class="hint">색·서체·글자 크기·간격·폭을 하나씩 고칩니다. 글자와 바탕의 대비가 너무 낮으면 저장하지 않습니다.</span></summary>
 <form method="post" action="/admin/design" class="stack site-form">
   <input type="hidden" name="_csrf" value="{{ csrf }}">
   <fieldset>
@@ -91,6 +127,7 @@
   </fieldset>
   <button type="submit">저장</button>
 </form>
+</details>
 
 <section aria-labelledby="design-reset" class="site-section">
   <h2 id="design-reset">기본값으로</h2>

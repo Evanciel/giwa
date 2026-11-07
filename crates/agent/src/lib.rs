@@ -909,7 +909,7 @@ impl Server {
                     let p = maru_themes::preset(&id)?;
                     if presets::theme_tokens(&p).is_some() {
                         items.push(
-                            json!({ "id": p.id, "name": p.name, "description": p.description }),
+                            json!({ "id": p.id, "name": p.name, "description": p.description, "look": p.theme_note }),
                         );
                     }
                 }

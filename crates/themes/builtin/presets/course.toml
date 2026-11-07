@@ -2,6 +2,7 @@
 id = "course"
 name = "강의"
 description = "강좌 소개 첫 화면, 회원만 읽는 강의 노트, 수강 문의"
+theme_note = "아이보리 바탕에 황토색 강조"
 
 [[ops]]
 op = "tokens.ensure"

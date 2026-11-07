@@ -20,6 +20,9 @@ pub struct Preset {
     pub name: String,
     #[serde(default)]
     pub description: String,
+    /// 테마로 고를 때 보이는 색과 모양 설명 (관리 화면 테마 카드)
+    #[serde(default)]
+    pub theme_note: String,
     #[serde(default)]
     pub ops: Vec<Op>,
 }
@@ -77,10 +80,10 @@ pub struct OpResult {
     pub changed: bool,
 }
 
-/// 프리셋의 색과 모양. 테마로 고를 때 이것만 쓴다.
-pub fn theme_tokens(preset: &Preset) -> Option<&Value> {
+/// 프리셋의 색과 모양을 테마로 입힐 패치. 테마로 고를 때 이것만 쓴다 (`design::theme_patch`).
+pub fn theme_tokens(preset: &Preset) -> Option<Value> {
     preset.ops.iter().find_map(|op| match op {
-        Op::TokensEnsure { tokens } => Some(tokens),
+        Op::TokensEnsure { tokens } => Some(design::theme_patch(tokens)),
         _ => None,
     })
 }

@@ -2,6 +2,7 @@
 id = "landing"
 name = "랜딩 페이지"
 description = "한 장에 첫 인상·달라지는 점·쓰는 방법·후기·요금·질문·행동 유도"
+theme_note = "선명한 주황에 크고 둥근 모서리"
 
 [[ops]]
 op = "tokens.ensure"

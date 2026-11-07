@@ -462,6 +462,34 @@ fn site_structure_members_settings_and_design_from_admin_screens() {
     let audit = maru(&data, &["audit", "list", "--action", "design."]);
     assert!(audit["total"].as_i64().unwrap() >= 2, "{audit}");
 
+    // ---- 테마 카드: 입히면 바로 바뀌고, 다른 테마로 바꾸면 앞 테마의 바탕색이 남지 않는다
+    let res = post("/admin/design/theme", &[("theme", "cafe")]);
+    assert_eq!(res.status, 303, "{}", res.body);
+    assert_eq!(maru(&data, &["design", "show"])["color"]["bg"], "#fbf8f2");
+    let page = get("/admin/design").body;
+    assert!(page.contains("지금 테마") && page.contains("이 테마 입히기"));
+    let res = post("/admin/design/theme", &[("theme", "community")]);
+    assert_eq!(res.status, 303, "{}", res.body);
+    let tokens = maru(&data, &["design", "show"]);
+    assert_eq!(tokens["color"]["primary"], "#2754c5");
+    assert_eq!(tokens["color"]["bg"], "#fbfbfa", "{tokens}");
+    assert_eq!(
+        post("/admin/design/theme", &[("theme", "없는테마")]).status,
+        404
+    );
+
+    // ---- 대시보드: 처음 할 일과 현황, 글 목록은 따로
+    let home = get("/admin").body;
+    assert!(
+        home.contains("시작하기") && home.contains("최근 14일 방문자"),
+        "{home}"
+    );
+    assert!(
+        home.contains("지금 테마") && home.contains("커뮤니티"),
+        "{home}"
+    );
+    assert!(get("/admin/posts").body.contains("글 검색"));
+
     // 로그인 안 했으면 로그인 화면으로, CSRF 가 틀리면 거절
     let anon = http(&bind, "GET", "/admin/settings", &[], "");
     assert_eq!(anon.status, 303);

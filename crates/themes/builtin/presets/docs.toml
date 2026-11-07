@@ -2,6 +2,7 @@
 id = "docs"
 name = "제품 문서"
 description = "첫 화면, 계층이 있는 문서, 변경 기록"
+theme_note = "맑은 파랑, 넓은 화면 폭"
 
 [[ops]]
 op = "tokens.ensure"

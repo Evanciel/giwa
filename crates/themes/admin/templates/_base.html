@@ -1,4 +1,4 @@
-<!doctype html>
+{% import "_icons.html" as ic %}<!doctype html>
 <html lang="ko">
 <head>
 <meta charset="utf-8">
@@ -8,37 +8,55 @@
 <link rel="stylesheet" href="/admin/assets/admin.css">
 {% block head %}{% endblock %}
 </head>
-<body class="{% block body_class %}{% endblock %}">
-<header class="bar">
-  <a class="brand" href="/admin">{{ site.name | default("Maru") }} <span>관리</span></a>
-  {% if me %}
-  <nav aria-label="관리 메뉴">
-    <a href="/admin"{% if nav == "posts" %} aria-current="page"{% endif %}>글</a>
-    <a href="/admin/posts/new"{% if nav == "new" %} aria-current="page"{% endif %}>새 글</a>
-    <a href="/admin/comments"{% if nav == "comments" %} aria-current="page"{% endif %}>댓글</a>
-    <a href="/admin/boards"{% if nav == "boards" %} aria-current="page"{% endif %}>게시판</a>
-    <a href="/admin/pages"{% if nav == "pages" %} aria-current="page"{% endif %}>페이지</a>
-    <a href="/admin/menus"{% if nav == "menus" %} aria-current="page"{% endif %}>메뉴</a>
-    <a href="/admin/widgets"{% if nav == "widgets" %} aria-current="page"{% endif %}>위젯</a>
-    <a href="/admin/design"{% if nav == "design" %} aria-current="page"{% endif %}>디자인</a>
-    <a href="/admin/fonts"{% if nav == "fonts" %} aria-current="page"{% endif %}>서체</a>
-    <a href="/admin/members"{% if nav == "members" %} aria-current="page"{% endif %}>회원</a>
-    <a href="/admin/changesets"{% if nav == "changesets" %} aria-current="page"{% endif %}>변경 묶음</a>
-    <a href="/admin/modules"{% if nav == "modules" %} aria-current="page"{% endif %}>모듈</a>
-    <a href="/admin/settings"{% if nav == "settings" %} aria-current="page"{% endif %}>설정</a>
-    <a href="/admin/stats"{% if nav == "stats" %} aria-current="page"{% endif %}>통계</a>
-    <a href="/admin/audit"{% if nav == "audit" %} aria-current="page"{% endif %}>감사 로그</a>
-    <a href="/admin/backups"{% if nav == "backups" %} aria-current="page"{% endif %}>백업</a>
-    <a href="/admin/password"{% if nav == "password" %} aria-current="page"{% endif %}>비밀번호</a>
-    <a href="/" target="_blank" rel="noopener">사이트 보기</a>
+<body class="{% if me %}has-side {% endif %}{% block body_class %}{% endblock %}">
+<a class="skip" href="#main">본문으로 건너뛰기</a>
+{% if me %}
+{% macro item(href, key, label, icon) -%}
+<a href="{{ href }}"{% if nav == key %} aria-current="page"{% endif %}>{{ ic.icon(icon) }}<span>{{ label }}</span></a>
+{%- endmacro %}
+<aside class="side">
+  <a class="brand" href="/admin"><span class="brand-mark" aria-hidden="true">{{ (site.name | default("M"))[:1] }}</span><span class="brand-name">{{ site.name | default("Maru") }}<small>관리</small></span></a>
+  <nav class="side-nav" aria-label="관리 메뉴">
+    {{ item("/admin", "dashboard", "대시보드", "home") }}
+    <p class="side-group">콘텐츠</p>
+    {{ item("/admin/posts", "posts", "글", "posts") }}
+    {{ item("/admin/posts/new", "new", "새 글", "new") }}
+    {{ item("/admin/comments", "comments", "댓글", "comments") }}
+    {{ item("/admin/pages", "pages", "페이지", "pages") }}
+    <p class="side-group">꾸미기</p>
+    {{ item("/admin/design", "design", "디자인·테마", "design") }}
+    {{ item("/admin/boards", "boards", "게시판", "boards") }}
+    {{ item("/admin/menus", "menus", "메뉴", "menus") }}
+    {{ item("/admin/widgets", "widgets", "위젯", "widgets") }}
+    {{ item("/admin/fonts", "fonts", "서체", "fonts") }}
+    <p class="side-group">운영</p>
+    {{ item("/admin/members", "members", "회원", "members") }}
+    {{ item("/admin/stats", "stats", "통계", "stats") }}
+    {{ item("/admin/settings", "settings", "설정", "settings") }}
+    {{ item("/admin/modules", "modules", "모듈", "modules") }}
+    {{ item("/admin/changesets", "changesets", "변경 묶음", "changesets") }}
+    {{ item("/admin/audit", "audit", "감사 로그", "audit") }}
+    {{ item("/admin/backups", "backups", "백업", "backups") }}
   </nav>
-  <form method="post" action="/admin/logout" class="logout">
-    <input type="hidden" name="_csrf" value="{{ csrf }}">
-    <button type="submit" class="link">로그아웃</button>
-  </form>
-  {% endif %}
+  <div class="side-foot">
+    <a class="side-site" href="/" target="_blank" rel="noopener">{{ ic.icon("external") }}<span>사이트 보기</span></a>
+    {{ item("/admin/password", "password", "비밀번호", "password") }}
+    <div class="side-me">
+      <span class="avatar" aria-hidden="true">{{ (me.display_name | default("운"))[:1] }}</span>
+      <span class="side-me-text"><strong>{{ me.display_name }}</strong><small>{{ me.email }}</small></span>
+      <form method="post" action="/admin/logout" class="logout">
+        <input type="hidden" name="_csrf" value="{{ csrf }}">
+        <button type="submit" class="icon-button" title="로그아웃">{{ ic.icon("logout") }}<span class="visually-hidden">로그아웃</span></button>
+      </form>
+    </div>
+  </div>
+</aside>
+{% else %}
+<header class="bar">
+  <a class="brand" href="/admin"><span class="brand-mark" aria-hidden="true">{{ (site.name | default("M"))[:1] }}</span><span class="brand-name">{{ site.name | default("Maru") }}<small>관리</small></span></a>
 </header>
-<main class="{% block main_class %}wide{% endblock %}">
+{% endif %}
+<main id="main" class="{% block main_class %}wide{% endblock %}">
 {% if notice %}<p class="notice" role="status">{{ notice }}</p>{% endif %}
 {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
 {% block content %}{% endblock %}

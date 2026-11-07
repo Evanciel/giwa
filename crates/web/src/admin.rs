@@ -32,6 +32,7 @@ use crate::error::ApiError;
 use crate::field_form;
 
 mod changesets;
+mod dashboard;
 mod modules;
 mod site;
 
@@ -40,7 +41,8 @@ const CSRF_COOKIE: &str = "maru_csrf";
 
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/admin", get(home))
+        .route("/admin", get(dashboard::page))
+        .route("/admin/posts", get(posts_page))
         .route("/admin/login", get(login_form).post(login))
         .route("/admin/link/{token}", get(link_form).post(link_use))
         .route("/admin/logout", post(logout))
@@ -827,12 +829,12 @@ fn post_row(p: &Post, board_slug: &str, board_name: &str, tz: i32) -> Value {
     })
 }
 
-async fn home(
+async fn posts_page(
     State(state): State<AppState>,
     headers: HeaderMap,
     Query(q): Query<HomeQuery>,
 ) -> Response {
-    let who = match require(&state, &headers, "/admin").await {
+    let who = match require(&state, &headers, "/admin/posts").await {
         Ok(w) => w,
         Err(r) => return *r,
     };
@@ -865,14 +867,6 @@ async fn home(
     let boards = boards::list(&state.ctx, &who.actor)
         .await
         .unwrap_or_default();
-    // 운영 신호 (ADR-0074). 게시판 관리 권한이 없으면 비어 있다.
-    let signals = if who.actor.has(Permission::PostModerate) {
-        maru_core::services::signals::list(&state.ctx, &who.actor)
-            .await
-            .unwrap_or_default()
-    } else {
-        Vec::new()
-    };
     let tz = settings::site(&state.ctx)
         .await
         .map(|s| s.tz_offset_min)
@@ -897,14 +891,13 @@ async fn home(
     let at = |n: u32| {
         let n = n.to_string();
         urls::with_query(
-            "/admin",
+            "/admin/posts",
             &[("q", search), ("page", if n == "1" { "" } else { &n })],
         )
     };
     let ctx = merge(
         base(&state, Some(&who), "posts").await,
         json!({
-            "signals": signals,
             "notice": match (q.done.as_str(), q.ok, q.failed) {
                 ("bulk", Some(ok), failed) => Some(match failed.unwrap_or(0) {
                     0 => format!("{ok}개를 처리했습니다."),
@@ -921,10 +914,9 @@ async fn home(
             "search_error": search_error,
             "prev_url": (page.page > 1).then(|| at(page.page - 1)),
             "next_url": (i64::from(page.page) < pages).then(|| at(page.page + 1)),
-            "needs_password": !who.member.has_password(),
         }),
     );
-    render(&state, StatusCode::OK, "home.html", &ctx)
+    render(&state, StatusCode::OK, "posts.html", &ctx)
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -1414,7 +1406,7 @@ async fn action(
     };
     match res {
         Ok(p) if p.status == PostStatus::Deleted => {
-            Redirect::to(&format!("/admin?done={done}")).into_response()
+            Redirect::to(&format!("/admin/posts?done={done}")).into_response()
         }
         Ok(p) => Redirect::to(&format!("/admin/posts/{}?done={done}", p.id)).into_response(),
         Err(e) => fail(&state, Some(&who), &e).await,
@@ -1693,7 +1685,7 @@ async fn bulk(
         Ok(items) => {
             let ok = items.iter().filter(|i| i.ok).count();
             let failed = items.len() - ok;
-            Redirect::to(&format!("/admin?done=bulk&ok={ok}&failed={failed}")).into_response()
+            Redirect::to(&format!("/admin/posts?done=bulk&ok={ok}&failed={failed}")).into_response()
         }
         Err(e) => fail(&state, Some(&who), &e).await,
     }
