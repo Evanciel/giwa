@@ -100,7 +100,7 @@ todo = "deny"
 
 # 크기 우선: 45MB → 29MB, SPEC §14 의 30MB 안 (ADR-0124)
 [profile.release]
-opt-level = "s"
+opt-level = "z"
 lto = "fat"
 codegen-units = 1
 strip = true
