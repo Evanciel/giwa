@@ -151,7 +151,7 @@ async fn init(g: &Global, args: InitArgs) -> Out {
         store: Arc::new(maru_storage::SqliteStore::new(db.clone())),
         blobs: Arc::new(maru_storage::FsBlobs::new(dir.media_dir())),
         site_url: config.site_url.clone(),
-        extensions: maru_core::store::no_extensions(),
+        extensions: crate::modules::registry(&db)?,
     };
     let local = Actor::local();
     let applied = presets::apply(&ctx, &local, &preset).await?;
@@ -1726,6 +1726,7 @@ async fn site(g: &Global, cmd: SiteCmd) -> Out {
                 toc_min_headings: args.toc_min_headings,
                 show_views: args.show_views,
                 show_search: args.show_search,
+                home_page: args.home_page,
                 list_under_post: args.list_under_post,
                 list_votes: args.list_votes,
                 stickers: args.stickers,

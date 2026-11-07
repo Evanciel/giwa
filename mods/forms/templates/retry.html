@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{# 폼을 다시 낼 때 (ADR-0127). 적은 값은 남기고 오류와 확인 질문을 보인다. #}
+{% block main_class %}wrap account-wrap write-wrap{% endblock %}
+{% block main %}
+<section class="account">
+  <h1>다시 확인해 주세요</h1>
+  {% for m in general %}<p class="form-error" role="alert">{{ m }}</p>{% endfor %}
+  {% include "mod/forms/_fields.html" %}
+</section>
+{% endblock %}

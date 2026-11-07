@@ -29,6 +29,9 @@ pub struct SettingsPatch {
     pub naver_verification: Option<String>,
     #[serde(default)]
     pub google_verification: Option<String>,
+    /// 첫 화면으로 쓸 페이지 주소. 빈 값이면 최신 글 목록 (ADR-0125)
+    #[serde(default)]
+    pub home_page: Option<String>,
     /// 목차를 보일 최소 제목 수 (0 = 끔, 최대 20)
     #[serde(default)]
     pub toc_min_headings: Option<u32>,
@@ -140,6 +143,14 @@ pub async fn update(ctx: &Ctx, actor: &Actor, patch: SettingsPatch) -> Result<Si
     }
     if let Some(n) = patch.posts_per_page {
         changes.push(("posts_per_page", json!(n.clamp(1, 100))));
+    }
+    if let Some(h) = &patch.home_page {
+        let h = h.trim();
+        // 지금 있는 페이지만 받는다. 나중에 지우거나 숨기면 첫 화면은 최신 글 목록으로 돌아간다.
+        if !h.is_empty() && ctx.store.page_by_slug(h).await?.is_none() {
+            return Err(crate::services::pages::not_found(h));
+        }
+        changes.push(("home_page", json!(h)));
     }
     if let Some(n) = patch.toc_min_headings {
         changes.push(("toc_min_headings", json!(n.min(20))));

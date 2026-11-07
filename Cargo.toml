@@ -26,6 +26,7 @@ maru-mod-scrap = { path = "mods/scrap" }
 maru-mod-social = { path = "mods/social" }
 maru-mod-ads = { path = "mods/ads" }
 maru-mod-consult = { path = "mods/consult" }
+maru-mod-forms = { path = "mods/forms" }
 maru-mod-webhook = { path = "mods/webhook" }
 
 # 웹

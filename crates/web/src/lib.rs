@@ -16,6 +16,7 @@ mod modules;
 pub mod preview;
 mod public;
 mod ratelimit;
+mod sections;
 mod widgets;
 
 use std::future::Future;

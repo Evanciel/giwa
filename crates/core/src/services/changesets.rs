@@ -756,6 +756,7 @@ async fn run_preset_step(ctx: &Ctx, actor: &Actor, step: &presets::Op) -> Result
     Ok(match step {
         presets::Op::BoardEnsure(_) => vec![ChangeOp::BoardDelete { slug: res.target }],
         presets::Op::PageEnsure { .. } => vec![ChangeOp::PageDelete { slug: res.target }],
+        presets::Op::ModuleEnsure { id } => vec![ChangeOp::ModuleDisable { id: id.clone() }],
         presets::Op::MenuEnsure { location, .. } => vec![ChangeOp::MenuSet {
             location: location.clone(),
             items: Vec::new(),

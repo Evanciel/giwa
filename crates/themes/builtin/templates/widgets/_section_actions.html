@@ -1,0 +1,4 @@
+{% if b1 or b2 %}<p class="sec-actions">
+  {% if b1 %}<a class="sec-btn sec-btn--main" href="{{ b1.link.href }}"{% if b1.link.external %} rel="noopener noreferrer"{% endif %}>{{ b1.label }}</a>{% endif %}
+  {% if b2 %}<a class="sec-btn" href="{{ b2.link.href }}"{% if b2.link.external %} rel="noopener noreferrer"{% endif %}>{{ b2.label }}</a>{% endif %}
+</p>{% endif %}

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE mod_forms_submission SET read_at = ? WHERE id = ? AND read_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "8a675c23f241bcaaca4238ae67b7edc536f8cf6c01e40b7a0fe4e6c2740976fd"
+}

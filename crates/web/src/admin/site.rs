@@ -1146,6 +1146,8 @@ struct SettingsForm {
     #[serde(default)]
     show_search: Option<String>,
     #[serde(default)]
+    home_page: String,
+    #[serde(default)]
     list_under_post: Option<String>,
     #[serde(default)]
     list_votes: Option<String>,
@@ -1195,6 +1197,7 @@ impl SettingsForm {
             toc_min_headings: s.toc_min_headings.to_string(),
             show_views: on(s.show_views),
             show_search: on(s.show_search),
+            home_page: s.home_page.clone(),
             list_under_post: on(s.list_under_post),
             list_votes: on(s.list_votes),
             stickers: on(s.stickers),
@@ -1246,6 +1249,7 @@ impl SettingsForm {
             ),
             show_views: changed(self.show_views.is_some(), now.show_views),
             show_search: changed(self.show_search.is_some(), now.show_search),
+            home_page: changed(self.home_page.clone(), now.home_page.clone()),
             list_under_post: changed(self.list_under_post.is_some(), now.list_under_post),
             list_votes: changed(self.list_votes.is_some(), now.list_votes),
             stickers: changed(self.stickers.is_some(), now.stickers),

@@ -1,0 +1,8 @@
+<ul class="team-list">
+  {% for i in w.data.items %}<li>
+    {% if i.image %}<img src="{{ i.image.src }}" srcset="{{ i.image.srcset }}" sizes="(min-width: 760px) 240px, 50vw" width="{{ i.image.width }}" height="{{ i.image.height }}" alt="" loading="lazy">{% endif %}
+    <p class="team-name">{% if i.link %}<a href="{{ i.link.href }}"{% if i.link.external %} rel="noopener noreferrer"{% endif %}>{{ i.name }}</a>{% else %}{{ i.name }}{% endif %}</p>
+    {% if i.role %}<p class="team-role">{{ i.role }}</p>{% endif %}
+    {% if i.bio %}<p class="team-bio">{{ i.bio }}</p>{% endif %}
+  </li>{% endfor %}
+</ul>

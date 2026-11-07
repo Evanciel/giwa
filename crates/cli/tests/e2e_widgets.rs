@@ -99,7 +99,7 @@ fn widgets_render_by_scope_and_disappear_when_turned_off() {
     }
 
     let types = maru(&data, &["widget", "types"]);
-    assert_eq!(types.as_array().unwrap().len(), 11);
+    assert_eq!(types.as_array().unwrap().len(), 25);
     assert!(types[0]["config_schema"].is_object(), "{types}");
 
     let bad = run(

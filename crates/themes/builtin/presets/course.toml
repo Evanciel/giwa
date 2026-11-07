@@ -1,0 +1,80 @@
+# 강의·교육 (유형 11, ADR-0027 판정: 강좌 소개 + 회원 전용 노트). 결제는 범위 밖이다. 글자는 예시다.
+id = "course"
+name = "강의"
+description = "강좌 소개 첫 화면, 회원만 읽는 강의 노트, 수강 문의"
+
+[[ops]]
+op = "tokens.ensure"
+tokens = { color = { bg = "#fdfcf9", fg = "#1e1c17", primary = "#7a4d0b", muted = "#615b4f", surface = "#ffffff", border = "#e9e4d9" }, color_dark = { bg = "#16140f", fg = "#f0ece3", primary = "#e6b868", muted = "#aca597", surface = "#1f1c16", border = "#35302a" }, radius = { sm = 8, md = 12, lg = 18 }, layout = { max_width = 1080 } }
+
+[[ops]]
+op = "module.ensure"
+id = "forms"
+
+[[ops]]
+op = "board.ensure"
+slug = "notes"
+name = "강의 노트"
+kind = "blog"
+layout = "list"
+sort_order = 0
+policy = { list = "member", read = "member", write = "editor", comment = "member" }
+
+[[ops]]
+op = "board.ensure"
+slug = "notice"
+name = "공지"
+kind = "notice"
+sort_order = 1
+
+[[ops]]
+op = "page.ensure"
+slug = "home"
+title = "첫 화면"
+layout = "blocks"
+publish = true
+
+[[ops]]
+op = "page.ensure"
+slug = "inquiry"
+title = "수강 문의"
+layout = "blocks"
+publish = true
+
+[[ops]]
+op = "settings.ensure"
+values = { signup = "open", home_page = "home", show_search = false }
+
+[[ops]]
+op = "menu.ensure"
+location = "header"
+items = [
+  { label = "강의 노트", link = { kind = "board", slug = "notes" } },
+  { label = "공지", link = { kind = "board", slug = "notice" } },
+  { label = "수강 문의", link = { kind = "page", slug = "inquiry" } },
+]
+
+[[ops]]
+op = "widgets.ensure"
+items = [
+  { kind = "hero", region = "main", scope = "home", config = { eyebrow = "누구를 위한 강의인지 한 줄로", button = { label = "수강 문의", link = "/p/inquiry" }, button2 = { label = "강의 노트", link = "/b/notes" } } },
+  { kind = "features", region = "main", scope = "home", title = "무엇을 배우나요", config = { style = "steps", items = [
+    { title = "1주차", text = "기초를 함께 다집니다." },
+    { title = "2주차", text = "직접 만들어 봅니다." },
+    { title = "3주차", text = "서로 고쳐 줍니다." },
+    { title = "4주차", text = "끝까지 완성합니다." },
+  ] } },
+  { kind = "team", region = "main", scope = "home", title = "강사", config = { tone = "soft", items = [
+    { name = "강사 이름", role = "전문 분야", bio = "경력과 가르치는 방식을 두 줄로 씁니다." },
+  ] } },
+  { kind = "plans", region = "main", scope = "home", title = "수강료", config = { plans = [
+    { name = "온라인", price = "문의", features = ["녹화 강의", "강의 노트"], button = { label = "문의하기", link = "/p/inquiry" } },
+    { name = "오프라인", price = "문의", featured = true, features = ["현장 강의 4회", "강의 노트", "과제 첨삭"], button = { label = "문의하기", link = "/p/inquiry" } },
+  ] } },
+  { kind = "faq", region = "main", scope = "home", title = "자주 묻는 질문", config = { tone = "soft", items = [
+    { q = "강의 노트는 어떻게 보나요?", a = "회원 가입 뒤 로그인하면 볼 수 있습니다." },
+    { q = "결제는 어떻게 하나요?", a = "수강 문의를 남겨 주시면 계좌를 안내합니다." },
+  ] } },
+  { kind = "hero", region = "main", scope = "page:inquiry", config = { title = "수강 문의", text = "궁금한 점을 남겨 주시면 답하겠습니다." } },
+  { kind = "contact_form", region = "main", scope = "page:inquiry", config = { form = "inquiry", purpose = "수강 문의 답변" } },
+]

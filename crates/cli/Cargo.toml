@@ -31,6 +31,7 @@ maru-mod-scrap.workspace = true
 maru-mod-social.workspace = true
 maru-mod-ads.workspace = true
 maru-mod-consult.workspace = true
+maru-mod-forms.workspace = true
 maru-mod-webhook.workspace = true
 anyhow.workspace = true
 clap.workspace = true

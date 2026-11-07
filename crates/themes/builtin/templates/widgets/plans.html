@@ -1,0 +1,9 @@
+<ul class="plan-list">
+  {% for p in w.data.plans %}<li class="plan{% if p.featured %} is-featured{% endif %}">
+    <h3 class="plan-name">{{ p.name }}</h3>
+    <p class="plan-price">{{ p.price }}{% if p.period %} <small>/ {{ p.period }}</small>{% endif %}</p>
+    {% if p.note %}<p class="plan-note">{{ p.note }}</p>{% endif %}
+    {% if p.features %}<ul class="plan-features">{% for f in p.features %}<li>{{ f }}</li>{% endfor %}</ul>{% endif %}
+    {% if p.button %}<p class="sec-actions"><a class="sec-btn{% if p.featured %} sec-btn--main{% endif %}" href="{{ p.button.link.href }}"{% if p.button.link.external %} rel="noopener noreferrer"{% endif %}>{{ p.button.label }}</a></p>{% endif %}
+  </li>{% endfor %}
+</ul>

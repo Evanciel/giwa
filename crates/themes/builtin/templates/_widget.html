@@ -1,5 +1,15 @@
 {# 위젯 하나 (ADR-0059). 모양은 widgets/<kind>.html. w.data 에 종류별 값이 있다. #}
-{% if w.kind == "notice_bar" %}{% include "widgets/notice_bar.html" %}{% else %}
+{% if w.kind == "notice_bar" %}{% include "widgets/notice_bar.html" %}{% elif w.section %}
+{# 섹션 블록 (ADR-0125): 화면 폭 띠. 안쪽 폭은 .sec-inner 가 잡는다. #}
+<section class="sec sec-{{ w.kind }} tone-{{ w.data.tone }}"{% if w.title %} aria-labelledby="w-{{ w.id }}"{% else %} aria-label="{{ w.label }}"{% endif %}>
+  {% if w.data.image and w.data.style == "image" %}<img class="hero-bg" src="{{ w.data.image.src }}" srcset="{{ w.data.image.srcset }}" sizes="100vw" width="{{ w.data.image.width }}" height="{{ w.data.image.height }}" alt="{{ w.data.image_alt }}" fetchpriority="high">{% endif %}
+  <div class="sec-inner">
+    {% if w.title %}<h2 class="sec-title" id="w-{{ w.id }}">{{ w.title }}</h2>{% endif %}
+    {% if w.data.lead %}<p class="sec-lead">{{ w.data.lead }}</p>{% endif %}
+    {% include w.template or "widgets/" ~ w.kind ~ ".html" %}
+  </div>
+</section>
+{% else %}
 <section class="widget widget-{{ w.kind }}"{% if w.title %} aria-labelledby="w-{{ w.id }}"{% else %} aria-label="{{ w.label }}"{% endif %}>
   {% if w.title %}<div class="widget-head"><h2 class="widget-title" id="w-{{ w.id }}">{{ w.title }}</h2>{% if w.more_url %}<a class="widget-more" href="{{ w.more_url }}">더 보기<span class="visually-hidden"> — {{ w.title }}</span></a>{% endif %}</div>{% endif %}
   {% include w.template or "widgets/" ~ w.kind ~ ".html" %}

@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id!\", form, data, at, read_at FROM mod_forms_submission\n               WHERE (?1 = '' OR form = ?1) ORDER BY at DESC, id DESC LIMIT ?2 OFFSET ?3",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_forms_submission",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "form",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_forms_submission",
+            "name": "form"
+          }
+        }
+      },
+      {
+        "name": "data",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_forms_submission",
+            "name": "data"
+          }
+        }
+      },
+      {
+        "name": "at",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_forms_submission",
+            "name": "at"
+          }
+        }
+      },
+      {
+        "name": "read_at",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_forms_submission",
+            "name": "read_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "9ff45fd23effe03067c99ca34fe3255f5cf6e5e21106f54955d518faa9f29a0c"
+}

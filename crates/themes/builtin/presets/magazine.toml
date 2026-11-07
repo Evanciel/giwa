@@ -1,0 +1,62 @@
+# 매거진·뉴스 (유형 9, ADR-0126). 첫 화면은 큰 그림 카드, 곁가지는 많이 본 글.
+id = "magazine"
+name = "매거진"
+description = "분야별 게시판, 큰 카드 첫 화면, 많이 본 글, 명조 제목"
+
+[[ops]]
+op = "tokens.ensure"
+tokens = { font = { heading = "serif" }, color = { bg = "#fffefb", fg = "#191714", primary = "#a3261b", muted = "#5f5a52", surface = "#ffffff", border = "#e6e1d8" }, color_dark = { bg = "#14120f", fg = "#f1ede5", primary = "#f2998e", muted = "#a9a39a", surface = "#1d1a16", border = "#312d27" }, radius = { sm = 2, md = 4, lg = 6 }, layout = { max_width = 1240 } }
+
+[[ops]]
+op = "settings.ensure"
+values = { posts_per_page = 18 }
+
+[[ops]]
+op = "board.ensure"
+slug = "news"
+name = "소식"
+kind = "blog"
+layout = "webzine"
+sort_order = 0
+
+[[ops]]
+op = "board.ensure"
+slug = "feature"
+name = "기획"
+kind = "blog"
+layout = "card"
+sort_order = 1
+
+[[ops]]
+op = "board.ensure"
+slug = "column"
+name = "칼럼"
+kind = "blog"
+layout = "webzine"
+sort_order = 2
+
+[[ops]]
+op = "page.ensure"
+slug = "about"
+title = "매체 소개"
+body_md = "어떤 글을 왜 쓰는지 적습니다. 편집 원칙과 연락처를 함께 두면 좋습니다."
+publish = true
+
+[[ops]]
+op = "menu.ensure"
+location = "header"
+items = [
+  { label = "소식", link = { kind = "board", slug = "news" } },
+  { label = "기획", link = { kind = "board", slug = "feature" } },
+  { label = "칼럼", link = { kind = "board", slug = "column" } },
+  { label = "매체 소개", link = { kind = "page", slug = "about" } },
+]
+
+[[ops]]
+op = "widgets.ensure"
+items = [
+  { kind = "latest_posts", region = "main", scope = "home", title = "기획", config = { board = "feature", limit = 3, view = "card" } },
+  { kind = "latest_posts", region = "main", scope = "home", title = "소식", config = { board = "news", limit = 8 } },
+  { kind = "latest_posts", region = "main", scope = "home", title = "칼럼", config = { board = "column", limit = 8 } },
+  { kind = "popular_posts", region = "sidebar", scope = "all", title = "많이 본 글", config = { limit = 8, days = 7 } },
+]

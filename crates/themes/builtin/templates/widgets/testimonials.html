@@ -1,0 +1,6 @@
+<ul class="t-list">
+  {% for i in w.data.items %}<li>
+    <blockquote>{{ i.quote }}</blockquote>
+    {% if i.name or i.role %}<span class="t-who">{% if i.name %}<strong>{{ i.name }}</strong>{% endif %}{% if i.name and i.role %} · {% endif %}{{ i.role }}</span>{% endif %}
+  </li>{% endfor %}
+</ul>

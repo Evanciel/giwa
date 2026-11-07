@@ -1,0 +1,7 @@
+<div class="faq-list">
+  {% for i in w.data.items %}<details>
+    <summary>{{ i.q }}</summary>
+    {# a_html 은 서버가 정화한 값이다. #}
+    <div class="faq-a prose">{{ i.a_html | safe }}</div>
+  </details>{% endfor %}
+</div>

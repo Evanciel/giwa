@@ -20,6 +20,7 @@ use crate::public::{menu_value, summaries_any_board};
 
 /// 화면에 붙일 위젯을 영역별로: `{ "sidebar": [..], "main": [..] }`. 없으면 빈 객체.
 pub(crate) async fn regions(state: &AppState, screen: Screen<'_>) -> Value {
+    let page_screen = matches!(screen, Screen::Home | Screen::Page(_) | Screen::HomePage(_));
     let list = match widgets::for_screen(&state.ctx, screen).await {
         Ok(l) => l,
         Err(e) => {
@@ -55,6 +56,17 @@ pub(crate) async fn regions(state: &AppState, screen: Screen<'_>) -> Value {
             }
         }
     }
+    // 맨 위 첫 인상이 그 화면의 제목이다. 템플릿은 이 표시가 있으면 h1 을 따로 쓰지 않는다.
+    if page_screen {
+        let top = ["hero", "main"]
+            .into_iter()
+            .find(|r| out.get(*r).is_some_and(|v| v.get(0).is_some()));
+        if let Some(w) = top.and_then(|r| out.get_mut(r)).and_then(|v| v.get_mut(0))
+            && w["kind"] == "hero"
+        {
+            w["h1"] = json!(true);
+        }
+    }
     Value::Object(out)
 }
 
@@ -80,6 +92,9 @@ async fn view(
     let mut template = Value::Null;
     let mut module_label = None;
     let data = match w.kind.as_str() {
+        kind if widgets::is_section(kind) => {
+            crate::sections::view(ctx, site, kind, &w.config).await?
+        }
         "latest_posts" => {
             let c: LatestPostsConfig = cfg(w)?;
             let Some(board) = readable(state, actor, &c.board).await? else {
@@ -319,6 +334,8 @@ async fn view(
         // 제목이 없을 때 영역 이름(aria-label)으로 쓴다
         "label": if w.title.is_empty() { module_label.unwrap_or(widgets::kind_name(&w.kind)) } else { w.title.as_str() },
         "template": template,
+        // 모듈 위젯도 `section: true` 를 주면 같은 띠에 그린다.
+        "section": widgets::is_section(&w.kind) || data["section"] == true,
         "more_url": more_url,
         "data": data,
     })))
@@ -339,7 +356,7 @@ async fn readable(
         .map(Some))
 }
 
-fn link_json(link: &str) -> Value {
+pub(crate) fn link_json(link: &str) -> Value {
     if link.is_empty() {
         return Value::Null;
     }

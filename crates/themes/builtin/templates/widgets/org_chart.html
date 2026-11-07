@@ -1,0 +1,8 @@
+<div class="org">
+  <ul>
+    {% for n in w.data.nodes recursive %}<li>
+      <span class="org-node"><b>{{ n.name }}</b>{% if n.role %}<small>{{ n.role }}</small>{% endif %}</span>
+      {% if n.children %}<ul>{{ loop(n.children) }}</ul>{% endif %}
+    </li>{% endfor %}
+  </ul>
+</div>

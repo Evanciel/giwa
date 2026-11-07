@@ -47,6 +47,7 @@
 {% if widgets.hero %}<div class="region region-hero"><div class="wrap">{% for w in widgets.hero %}{% include "_widget.html" %}{% endfor %}</div></div>{% endif %}
 <div class="{% if widgets.sidebar %}with-sidebar wrap wide{% else %}page-body{% endif %}">
 <main id="main" class="{% block main_class %}wrap{% endblock %}">
+{% block main_top %}{% endblock %}
 {% if widgets.main %}<div class="region region-main">{% for w in widgets.main %}{% include "_widget.html" %}{% endfor %}</div>{% endif %}
 {% block main %}{% endblock %}
 </main>

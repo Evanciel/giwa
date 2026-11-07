@@ -105,7 +105,12 @@ async fn sitemap_xml(state: &AppState) -> Result<String> {
             None,
         ));
     }
-    for p in pages::public_pages(&state.ctx, &actor).await? {
+    let home_page = settings::site(&state.ctx).await?.home_page;
+    for p in pages::public_pages(&state.ctx, &actor)
+        .await?
+        .into_iter()
+        .filter(|p| p.slug != home_page)
+    {
         entries.push((
             urls::absolute(site, &Target::Page { page: &p.slug }),
             Some(p.updated_at),

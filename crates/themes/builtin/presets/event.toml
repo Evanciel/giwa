@@ -1,0 +1,76 @@
+# 이벤트·행사 (유형 10, ADR-0127). 행사는 게시판 글이고 날짜 칸으로 진행 중·마감을 거른다. 글자는 예시다.
+id = "event"
+name = "행사"
+description = "행사 카드 목록(마감일 D-day), 참가 신청 폼, 받은 신청 모아 보기"
+
+[[ops]]
+op = "tokens.ensure"
+tokens = { color = { bg = "#fbfbfd", fg = "#171a2b", primary = "#4338a8", muted = "#565a70", surface = "#ffffff", border = "#e0e1ec" }, color_dark = { bg = "#12131d", fg = "#ebecf5", primary = "#aaa4f5", muted = "#a2a5bb", surface = "#1a1b28", border = "#2c2e41" }, radius = { sm = 8, md = 14, lg = 22 }, layout = { max_width = 1160 } }
+
+[[ops]]
+op = "module.ensure"
+id = "forms"
+
+[[ops]]
+op = "board.ensure"
+slug = "events"
+name = "행사"
+kind = "free"
+layout = "card"
+sort_order = 0
+policy = { write = "editor", comment = "member" }
+field_schema = [
+  { key = "starts", label = "행사일", type = "date", list = true },
+  { key = "deadline", label = "신청 마감", type = "date", role = "deadline", list = true, filter = true },
+  { key = "place", label = "장소", type = "text", list = true },
+  { key = "fee", label = "참가비", type = "text" },
+]
+
+[[ops]]
+op = "page.ensure"
+slug = "home"
+title = "첫 화면"
+layout = "blocks"
+publish = true
+
+[[ops]]
+op = "page.ensure"
+slug = "apply"
+title = "참가 신청"
+layout = "blocks"
+publish = true
+
+[[ops]]
+op = "settings.ensure"
+values = { home_page = "home", show_search = false }
+
+[[ops]]
+op = "menu.ensure"
+location = "header"
+items = [
+  { label = "행사", link = { kind = "board", slug = "events" } },
+  { label = "참가 신청", link = { kind = "page", slug = "apply" } },
+]
+
+[[ops]]
+op = "widgets.ensure"
+items = [
+  { kind = "hero", region = "main", scope = "home", config = { eyebrow = "다음 행사 날짜와 장소", button = { label = "참가 신청", link = "/p/apply" }, button2 = { label = "행사 보기", link = "/b/events" } } },
+  { kind = "latest_posts", region = "main", scope = "home", title = "다가오는 행사", config = { board = "events", limit = 6, view = "card" } },
+  { kind = "features", region = "main", scope = "home", title = "신청 방법", config = { style = "steps", tone = "soft", items = [
+    { title = "행사 고르기", text = "일정과 장소를 확인합니다." },
+    { title = "신청서 쓰기", text = "이름과 연락처만 있으면 됩니다." },
+    { title = "확정 안내", text = "자리가 확정되면 연락드립니다." },
+  ] } },
+  { kind = "faq", region = "main", scope = "home", title = "자주 묻는 질문", config = { items = [
+    { q = "신청을 취소할 수 있나요?", a = "행사 전날까지 연락 주시면 취소됩니다." },
+    { q = "자리가 없으면 어떻게 되나요?", a = "대기 순서대로 연락드립니다." },
+  ] } },
+  { kind = "hero", region = "main", scope = "page:apply", config = { title = "참가 신청", text = "확인 후 연락드립니다." } },
+  { kind = "contact_form", region = "main", scope = "page:apply", config = { form = "apply", purpose = "행사 참가 신청 확인", submit = "신청하기", done = "신청을 받았습니다. 자리가 확정되면 연락드립니다.", fields = [
+    { key = "name", label = "이름", required = true },
+    { key = "phone", label = "연락처", type = "tel", required = true },
+    { key = "event", label = "참가할 행사", required = true },
+    { key = "people", label = "인원", help = "둘 이상이면 적어 주세요." },
+  ] } },
+]

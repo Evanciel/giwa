@@ -1236,6 +1236,9 @@ pub struct SiteSetArgs {
     /// 공개 화면 머리글에 검색 칸을 보일지 (true/false)
     #[arg(long)]
     pub show_search: Option<bool>,
+    /// 첫 화면으로 쓸 페이지 주소. 빈 값이면 최신 글 목록
+    #[arg(long)]
+    pub home_page: Option<String>,
     /// 글 화면 아래에 그 게시판 목록을 다시 보일지 (true/false). 켜면 이전·다음 글 링크는 숨긴다
     #[arg(long)]
     pub list_under_post: Option<bool>,

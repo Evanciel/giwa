@@ -320,17 +320,26 @@ fn leaf_at(lines: &[&str], fenced: &[bool], start: usize, end: usize, i: usize) 
         "place" if !label.trim().is_empty() => {
             let name = label.trim();
             let addr = value.map(str::trim).unwrap_or("");
-            let q = url_encode(if addr.is_empty() { name } else { addr });
+            let (naver, kakao) = map_search_urls(if addr.is_empty() { name } else { addr });
             Some(format!(
                 "<div class=\"place\"><strong class=\"place-name\">{}</strong><span class=\"place-addr\">{}</span>\
-                 <span class=\"place-links\"><a href=\"https://map.naver.com/p/search/{q}\">네이버 지도</a> \
-                 <a href=\"https://map.kakao.com/?q={q}\">카카오맵</a></span></div>",
+                 <span class=\"place-links\"><a href=\"{naver}\">네이버 지도</a> \
+                 <a href=\"{kakao}\">카카오맵</a></span></div>",
                 escape(name),
                 escape(addr)
             ))
         }
         _ => None,
     }
+}
+
+/// 주소로 찾는 지도 링크 (네이버, 카카오). 키가 필요 없다.
+pub fn map_search_urls(q: &str) -> (String, String) {
+    let q = url_encode(q);
+    (
+        format!("https://map.naver.com/p/search/{q}"),
+        format!("https://map.kakao.com/?q={q}"),
+    )
 }
 
 /// `::이름[글자]{값}` 한 줄을 자른다. 글자에는 `]`, 값에는 `}` 가 없어야 한다.

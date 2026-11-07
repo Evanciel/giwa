@@ -15,7 +15,7 @@ use crate::audit::Target;
 use crate::clock;
 use crate::error::{Code, Error, Result};
 use crate::model::{MENU_LOCATIONS, WIDGET_REGIONS, Widget};
-use crate::services::{menus, posts};
+use crate::services::{menus, posts, sections};
 use crate::slug;
 use crate::store::{Ctx, Tx};
 
@@ -307,19 +307,26 @@ const KINDS: [(&str, &str, &str); 11] = [
     ),
 ];
 
-fn schema_of<T: JsonSchema>() -> Value {
+pub(super) fn schema_of<T: JsonSchema>() -> Value {
     serde_json::to_value(schemars::schema_for!(T)).unwrap_or(Value::Null)
+}
+
+pub use sections::is_section;
+
+/// 코어가 가진 모든 종류: 위젯 + 섹션 블록 (ADR-0125)
+fn all_kinds() -> impl Iterator<Item = &'static (&'static str, &'static str, &'static str)> {
+    KINDS.iter().chain(sections::KINDS.iter())
 }
 
 /// 놓을 수 있는 위젯 종류와 설정 모양.
 pub fn types() -> Vec<WidgetType> {
-    KINDS
-        .iter()
+    all_kinds()
         .map(|(id, name, description)| WidgetType {
             id,
             name,
             description,
             config_schema: match *id {
+                id if sections::is_section(id) => sections::schema(id).unwrap_or(Value::Null),
                 "latest_posts" => schema_of::<LatestPostsConfig>(),
                 "popular_posts" => schema_of::<PopularPostsConfig>(),
                 "post_tabs" => schema_of::<PostTabsConfig>(),
@@ -345,8 +352,7 @@ pub async fn all_types(ctx: &Ctx) -> Vec<WidgetType> {
 
 /// 한국어 표시 이름. 모르는 종류면 id 그대로.
 pub fn kind_name(kind: &str) -> &str {
-    KINDS
-        .iter()
+    all_kinds()
         .find(|(id, ..)| *id == kind)
         .map(|(_, name, _)| *name)
         .unwrap_or(kind)
@@ -394,6 +400,8 @@ pub enum Screen<'a> {
     Home,
     Board(&'a str),
     Page(&'a str),
+    /// 페이지를 첫 화면으로 쓸 때 (ADR-0125): `home` 과 `page:<주소>` 가 함께 붙는다
+    HomePage(&'a str),
     /// 태그·검색·계정 등 나머지 공개 화면 (`all` 만 붙는다)
     Other,
 }
@@ -402,10 +410,12 @@ impl Screen<'_> {
     /// 이 범위의 위젯을 이 화면에 붙이나.
     pub fn matches(&self, scope: &str) -> bool {
         match (scope, self) {
-            ("all", _) | ("home", Screen::Home) | ("boards", Screen::Board(_)) => true,
+            ("all", _)
+            | ("home", Screen::Home | Screen::HomePage(_))
+            | ("boards", Screen::Board(_)) => true,
             _ => match (scope.split_once(':'), self) {
                 (Some(("board", s)), Screen::Board(b)) => s == *b,
-                (Some(("page", s)), Screen::Page(p)) => s == *p,
+                (Some(("page", s)), Screen::Page(p) | Screen::HomePage(p)) => s == *p,
                 _ => false,
             },
         }
@@ -583,7 +593,7 @@ fn not_found(id: &str) -> Error {
 async fn check_kind(ctx: &Ctx, kind: &str) -> Result<String> {
     let k = kind.trim();
     let extra = ctx.extensions.widget_types(ctx).await;
-    if KINDS.iter().any(|(id, ..)| *id == k) || extra.iter().any(|t| t.id == k) {
+    if all_kinds().any(|(id, ..)| *id == k) || extra.iter().any(|t| t.id == k) {
         return Ok(k.to_owned());
     }
     Err(Error::new(Code::Validation)
@@ -591,8 +601,7 @@ async fn check_kind(ctx: &Ctx, kind: &str) -> Result<String> {
         .arg("value", kind)
         .arg(
             "allowed",
-            KINDS
-                .iter()
+            all_kinds()
                 .map(|(id, ..)| *id)
                 .chain(extra.iter().map(|t| t.id))
                 .collect::<Vec<_>>()
@@ -643,7 +652,7 @@ fn check_title(title: &str) -> Result<String> {
     Ok(t.to_owned())
 }
 
-fn bad_config(kind: &str, reason: impl Into<String>) -> Error {
+pub(super) fn bad_config(kind: &str, reason: impl Into<String>) -> Error {
     Error::new(Code::Validation)
         .with_message("error.widget_config")
         .arg("kind", kind)
@@ -653,7 +662,7 @@ fn bad_config(kind: &str, reason: impl Into<String>) -> Error {
         ))
 }
 
-fn parse<T: DeserializeOwned>(kind: &str, config: Value) -> Result<T> {
+pub(super) fn parse<T: DeserializeOwned>(kind: &str, config: Value) -> Result<T> {
     let config = if config.is_null() { json!({}) } else { config };
     serde_json::from_value(config).map_err(|e| bad_config(kind, e.to_string()))
 }
@@ -685,7 +694,7 @@ async fn check_board(ctx: &Ctx, kind: &str, board: &str, allow_empty: bool) -> R
     Ok(s)
 }
 
-fn check_link(kind: &str, link: &str) -> Result<String> {
+pub(super) fn check_link(kind: &str, link: &str) -> Result<String> {
     let l = link.trim();
     if l.is_empty() {
         return Ok(String::new());
@@ -708,7 +717,13 @@ fn check_time(kind: &str, field: &str, v: &str) -> Result<String> {
     })
 }
 
-fn short_text(kind: &str, field: &str, v: &str, max: usize, required: bool) -> Result<String> {
+pub(super) fn short_text(
+    kind: &str,
+    field: &str,
+    v: &str,
+    max: usize,
+    required: bool,
+) -> Result<String> {
     let t = v.trim();
     if (required && t.is_empty()) || t.chars().count() > max {
         let need = if required { "1" } else { "0" };
@@ -719,6 +734,9 @@ fn short_text(kind: &str, field: &str, v: &str, max: usize, required: bool) -> R
 
 /// 종류에 맞는 설정인지 보고 기본값을 채운 모양으로 돌려준다.
 async fn check_config(ctx: &Ctx, kind: &str, config: Value) -> Result<Value> {
+    if sections::is_section(kind) {
+        return sections::check(kind, config).unwrap_or(Ok(Value::Null));
+    }
     // 코어 목록에 없으면 모듈 몫이다. 모듈이 꺼져 있으면 모르는 종류로 친다.
     if !KINDS.iter().any(|(id, ..)| *id == kind) {
         // 설정을 안 적었으면 빈 값으로 넘겨 모듈이 기본값을 채우게 한다.
@@ -882,6 +900,9 @@ mod tests {
         assert!(!Screen::Board("free").matches("board:qna"));
         assert!(!Screen::Board("free").matches("page:free"));
         assert!(Screen::Page("about").matches("page:about"));
+        assert!(Screen::HomePage("about").matches("page:about"));
+        assert!(Screen::HomePage("about").matches("home"));
+        assert!(!Screen::Page("about").matches("home"));
         assert!(!Screen::Other.matches("home"));
         assert!(Screen::Other.matches("all"));
     }
@@ -898,7 +919,7 @@ mod tests {
     #[test]
     fn every_kind_has_a_schema() {
         let t = types();
-        assert_eq!(t.len(), KINDS.len());
+        assert_eq!(t.len(), KINDS.len() + sections::KINDS.len());
         assert!(t.iter().all(|w| w.config_schema.is_object()));
     }
 }

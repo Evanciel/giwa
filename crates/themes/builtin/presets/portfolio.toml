@@ -1,0 +1,61 @@
+# 포트폴리오 (유형 5, ADR-0126). 작업물은 게시판 글이고 사진이 첫 화면에 모인다. 글자는 예시다.
+id = "portfolio"
+name = "포트폴리오"
+description = "큰 글자 첫 인상, 작업물 사진 바둑판, 소개 페이지"
+
+[[ops]]
+op = "tokens.ensure"
+tokens = { color = { bg = "#ffffff", fg = "#111111", primary = "#111111", muted = "#5f5f5f", surface = "#f6f6f4", border = "#e4e4e0" }, color_dark = { bg = "#101010", fg = "#f4f4f2", primary = "#f4f4f2", muted = "#a3a3a0", surface = "#1a1a1a", border = "#2d2d2b" }, radius = { sm = 0, md = 2, lg = 2 }, layout = { max_width = 1320 } }
+
+[[ops]]
+op = "board.ensure"
+slug = "works"
+name = "작업"
+kind = "gallery"
+layout = "gallery"
+sort_order = 0
+field_schema = [
+  { key = "client", label = "의뢰처", type = "text", list = true },
+  { key = "year", label = "연도", type = "number", list = true },
+  { key = "role", label = "맡은 일", type = "text" },
+  { key = "url", label = "결과물 주소", type = "url" },
+]
+
+[[ops]]
+op = "page.ensure"
+slug = "home"
+title = "첫 화면"
+layout = "blocks"
+publish = true
+
+[[ops]]
+op = "page.ensure"
+slug = "about"
+title = "소개"
+layout = "blocks"
+publish = true
+
+[[ops]]
+op = "settings.ensure"
+values = { home_page = "home", show_search = false }
+
+[[ops]]
+op = "menu.ensure"
+location = "header"
+items = [
+  { label = "작업", link = { kind = "board", slug = "works" } },
+  { label = "소개", link = { kind = "page", slug = "about" } },
+]
+
+[[ops]]
+op = "widgets.ensure"
+items = [
+  { kind = "hero", region = "main", scope = "home", config = { title = "무엇을 만드는 사람인지 한 문장으로" } },
+  { kind = "gallery_grid", region = "main", scope = "home", config = { board = "works", limit = 12, columns = 3 } },
+  { kind = "cta", region = "main", scope = "home", title = "함께 일하고 싶다면", config = { tone = "plain", text = "메일 주소나 연락 방법을 여기에 적습니다.", button = { label = "소개 보기", link = "/p/about" } } },
+  { kind = "hero", region = "main", scope = "page:about", config = { title = "소개", text = "어떤 일을 해 왔고 무엇을 좋아하는지 씁니다." } },
+  { kind = "timeline", region = "main", scope = "page:about", title = "경력", config = { items = [
+    { date = "0000 ~", title = "지금 하는 일" },
+    { date = "0000 ~ 0000", title = "이전에 한 일" },
+  ] } },
+]

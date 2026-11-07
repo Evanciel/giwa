@@ -1,0 +1,88 @@
+# 기관·단체 (SPEC §8.6, ADR-0126). 글자는 예시다. 에이전트가 기관 정보로 바꾼다.
+id = "org"
+name = "기관·단체"
+description = "공지·자료실·자주 묻는 질문 게시판, 인사말·연혁·조직도·오시는 길"
+
+[[ops]]
+op = "tokens.ensure"
+tokens = { color = { bg = "#fbfcfb", fg = "#17211c", primary = "#1c5d42", muted = "#55615a", surface = "#ffffff", border = "#dfe6e1" }, color_dark = { bg = "#121714", fg = "#e8eeea", primary = "#83cfa9", muted = "#9fada5", surface = "#19201c", border = "#2a342e" }, radius = { sm = 4, md = 6, lg = 10 }, layout = { max_width = 1200 } }
+
+[[ops]]
+op = "board.ensure"
+slug = "notice"
+name = "공지사항"
+kind = "notice"
+layout = "list"
+sort_order = 0
+
+[[ops]]
+op = "board.ensure"
+slug = "library"
+name = "자료실"
+kind = "free"
+layout = "list"
+sort_order = 1
+policy = { write = "editor", comment = "none" }
+
+[[ops]]
+op = "board.ensure"
+slug = "faq"
+name = "자주 묻는 질문"
+kind = "faq"
+sort_order = 2
+
+[[ops]]
+op = "page.ensure"
+slug = "home"
+title = "첫 화면"
+layout = "blocks"
+publish = true
+
+[[ops]]
+op = "page.ensure"
+slug = "about"
+title = "기관 소개"
+layout = "blocks"
+publish = true
+
+[[ops]]
+op = "settings.ensure"
+values = { home_page = "home" }
+
+[[ops]]
+op = "menu.ensure"
+location = "header"
+items = [
+  { label = "기관 소개", link = { kind = "page", slug = "about" } },
+  { label = "공지사항", link = { kind = "board", slug = "notice" } },
+  { label = "자료실", link = { kind = "board", slug = "library" } },
+  { label = "자주 묻는 질문", link = { kind = "board", slug = "faq" } },
+]
+
+[[ops]]
+op = "widgets.ensure"
+items = [
+  { kind = "hero", region = "main", scope = "home", config = { tone = "soft", eyebrow = "기관이 하는 일을 한 줄로", button = { label = "기관 소개", link = "/p/about" }, button2 = { label = "자료실", link = "/b/library" } } },
+  { kind = "latest_posts", region = "main", scope = "home", title = "공지사항", config = { board = "notice", limit = 6 } },
+  { kind = "latest_posts", region = "main", scope = "home", title = "자료실", config = { board = "library", limit = 6 } },
+  { kind = "features", region = "main", scope = "home", title = "주요 사업", config = { style = "cards", tone = "soft", items = [
+    { title = "첫 번째 사업", text = "누구를 위해 무엇을 하는지 씁니다." },
+    { title = "두 번째 사업", text = "누구를 위해 무엇을 하는지 씁니다." },
+    { title = "세 번째 사업", text = "누구를 위해 무엇을 하는지 씁니다." },
+  ] } },
+  { kind = "hero", region = "main", scope = "page:about", config = { title = "기관 소개", text = "설립 목적과 하는 일을 두 문장으로 씁니다." } },
+  { kind = "image_text", region = "main", scope = "page:about", title = "인사말", config = { body = "기관장의 인사말을 여기에 씁니다.\n\n왜 이 일을 하는지, 누구와 함께하는지 짧게 적으면 좋습니다." } },
+  { kind = "timeline", region = "main", scope = "page:about", title = "연혁", config = { tone = "soft", items = [
+    { date = "0000년", title = "기관 설립" },
+    { date = "0000년", title = "주요 사업 시작" },
+    { date = "0000년", title = "지금의 건물로 이전" },
+  ] } },
+  { kind = "org_chart", region = "main", scope = "page:about", title = "조직도", config = { nodes = [
+    { name = "기관장", children = [
+      { name = "총무과" },
+      { name = "사업과", children = [{ name = "사업 1팀" }, { name = "사업 2팀" }] },
+      { name = "홍보과" },
+    ] },
+  ] } },
+  { kind = "visit", region = "main", scope = "page:about", title = "오시는 길", config = { tone = "soft", address = "서울특별시 중구 세종대로 110", phone = "02-000-0000", transit = "지하철역에서 걸어서 5분입니다." } },
+]

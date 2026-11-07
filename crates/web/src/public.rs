@@ -5,11 +5,12 @@ use std::net::SocketAddr;
 
 use axum::Router;
 use axum::extract::{ConnectInfo, Path, Query, State};
-use axum::http::{Extensions, HeaderMap, Method, StatusCode, header};
+use axum::http::{Extensions, HeaderMap, HeaderValue, Method, StatusCode, Uri, header};
 use axum::middleware;
-use axum::response::{Html, IntoResponse, Response};
+use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::routing::get;
 use maru_core::Actor;
+use maru_core::actor::Permission;
 use maru_core::model::{
     Board, Category, Listing, MemberStatus, MenuItem, MenuLink, Page, PageReq, Post, SiteSettings,
 };
@@ -171,6 +172,9 @@ pub(crate) async fn render(state: &AppState, name: &str, ctx: Result<Value>) -> 
             let screen = match name {
                 "home.html" => Screen::Home,
                 "board.html" | "post.html" => board.as_deref().map_or(Screen::Other, Screen::Board),
+                "page.html" if v["is_home"] == true => {
+                    page.as_deref().map_or(Screen::Home, Screen::HomePage)
+                }
                 "page.html" => page.as_deref().map_or(Screen::Other, Screen::Page),
                 _ => Screen::Other,
             };
@@ -225,8 +229,30 @@ fn strict_csp(nonce: &str) -> String {
 }
 
 async fn home(State(state): State<AppState>, Query(q): Query<PageQuery>) -> Response {
+    if let Some(v) = home_page(&state).await {
+        return render(&state, "page.html", v).await;
+    }
     let v = home_inner(&state, q).await;
     render(&state, "home.html", v).await
+}
+
+/// 첫 화면으로 정한 페이지 (ADR-0125). 안 정했거나 지우고 숨긴 페이지면 최신 글 목록으로 간다.
+async fn home_page(state: &AppState) -> Option<Result<Value>> {
+    let slug = match settings::site(&state.ctx).await {
+        Ok(s) if s.home_page.is_empty() => return None,
+        Ok(s) => s.home_page,
+        Err(e) => return Some(Err(e)),
+    };
+    match page_inner(state, &slug).await {
+        Ok(mut v) => {
+            v["is_home"] = json!(true);
+            v["canonical"] = json!(urls::absolute(&state.ctx.site_url, &Target::Home));
+            v["meta"]["title"] = v["site"]["name"].clone();
+            Some(Ok(v))
+        }
+        Err(e) if e.code() == Code::NotFound => None,
+        Err(e) => Some(Err(e)),
+    }
 }
 
 async fn home_inner(state: &AppState, q: PageQuery) -> Result<Value> {
@@ -270,14 +296,79 @@ async fn board(
     Path(slug): Path<String>,
     Query(q): Query<PageQuery>,
     Query(raw): Query<Vec<(String, String)>>,
+    uri: Uri,
+    headers: HeaderMap,
 ) -> Response {
+    let actor = match door(&state, &headers, &slug, false, &uri).await {
+        Ok(d) => d,
+        Err(res) => return *res,
+    };
     // 여분 필드 거르기 `f.<키>=<값>` (GAP Q4, ADR-0089)
     let fields: Vec<(String, String)> = raw
         .into_iter()
         .filter_map(|(k, v)| k.strip_prefix("f.").map(|k| (k.to_owned(), v)))
         .collect();
-    let v = board_inner(&state, &slug, q, &fields).await;
-    render(&state, "board.html", v).await
+    let member = actor.member_id().is_some();
+    let v = board_inner(&state, &slug, q, &fields, &actor).await;
+    finish_door(
+        render(&state, "board.html", hide_from_search(v, member)).await,
+        member,
+    )
+}
+
+/// 이 게시판 화면을 볼 사람 (ADR-0129). 손님에게 열린 화면은 손님 기준으로 모두에게 같게 그린다.
+/// 닫힌 화면은 로그인한 회원 기준으로 그리고, 손님은 로그인으로 보낸다.
+async fn door(
+    state: &AppState,
+    headers: &HeaderMap,
+    slug: &str,
+    reading: bool,
+    uri: &Uri,
+) -> std::result::Result<Actor, Box<Response>> {
+    let guest = match anonymous_actor(&state.ctx).await {
+        Ok(a) => a,
+        Err(e) => return Err(Box::new(crate::error::page(state, &e).await)),
+    };
+    let board = match state.ctx.store.board_by_slug(slug).await {
+        Ok(Some(b)) => b,
+        Ok(None) => return Ok(guest),
+        Err(e) => return Err(Box::new(crate::error::page(state, &e).await)),
+    };
+    let open = guest
+        .require_rank(Permission::BoardList, &board.policy.list)
+        .is_ok()
+        && (!reading
+            || guest
+                .require_rank(Permission::PostRead, &board.policy.read)
+                .is_ok());
+    if open {
+        return Ok(guest);
+    }
+    match crate::admin::viewer(state, headers).await {
+        Some(actor) => Ok(actor),
+        None => {
+            let back = uri.path_and_query().map_or(uri.path(), |p| p.as_str());
+            let to = format!("/login?next={}", crate::admin::encode(back));
+            Err(Box::new(Redirect::to(&to).into_response()))
+        }
+    }
+}
+
+/// 회원에게만 열린 화면은 검색 엔진에 내보내지 않는다.
+fn hide_from_search(mut v: Result<Value>, member: bool) -> Result<Value> {
+    if let (true, Ok(view)) = (member, &mut v) {
+        view["meta"]["noindex"] = json!(true);
+    }
+    v
+}
+
+/// 회원에게만 열린 화면은 캐시에 남기지 않는다.
+fn finish_door(mut res: Response, member: bool) -> Response {
+    if member {
+        res.headers_mut()
+            .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    }
+    res
 }
 
 async fn board_inner(
@@ -285,18 +376,18 @@ async fn board_inner(
     slug: &str,
     q: PageQuery,
     fields: &[(String, String)],
+    actor: &Actor,
 ) -> Result<Value> {
     let site = load_site(state).await?;
-    let actor = anonymous_actor(&state.ctx).await?;
-    let board = boards::readable(&state.ctx, &actor, slug).await?;
+    let board = boards::readable(&state.ctx, actor, slug).await?;
     if !q.q.trim().is_empty() {
-        return board_search(state, &site, &actor, &board, q).await;
+        return board_search(state, &site, actor, &board, q).await;
     }
     let page = PageReq::new(q.page.unwrap_or(1), site.settings.posts_per_page);
     let category = q.category.as_deref().filter(|c| !c.is_empty());
     let sort = posts::ListSort::parse(&q.order);
     let found =
-        posts::public_board_filtered(&state.ctx, &actor, &board, category, fields, sort, page)
+        posts::public_board_filtered(&state.ctx, actor, &board, category, fields, sort, page)
             .await?;
     let cats = &found.categories;
     let today = clock::today(site.settings.tz_offset_min);
@@ -805,9 +896,15 @@ async fn post(
     Path((board_slug, post_slug)): Path<(String, String)>,
     Query(q): Query<PostQuery>,
     method: Method,
+    uri: Uri,
     headers: HeaderMap,
     extensions: Extensions,
 ) -> Response {
+    let actor = match door(&state, &headers, &board_slug, true, &uri).await {
+        Ok(a) => a,
+        Err(res) => return *res,
+    };
+    let member = actor.member_id().is_some();
     let slot_headers = headers.clone();
     // 조회수: HEAD 는 세지 않는다. 연결 주소만 본다(전달 헤더는 믿지 않는다, rate_limit 과 같다).
     let visit = (method == Method::GET).then(|| Visit {
@@ -822,11 +919,14 @@ async fn post(
             .to_owned(),
         headers,
     });
-    let mut v = post_inner(&state, &board_slug, &post_slug, visit, &q).await;
+    let mut v = post_inner(&state, &board_slug, &post_slug, visit, &q, &actor).await;
     if let Ok(view) = &mut v {
         crate::modules::add_post_slots(&state, &slot_headers, view).await;
     }
-    render(&state, "post.html", v).await
+    finish_door(
+        render(&state, "post.html", hide_from_search(v, member)).await,
+        member,
+    )
 }
 
 /// 글 화면 한 번의 방문 (조회수용).
@@ -845,10 +945,10 @@ async fn post_inner(
     post_slug: &str,
     visit: Option<Visit>,
     q: &PostQuery,
+    actor: &Actor,
 ) -> Result<Value> {
     let site = load_site(state).await?;
-    let actor = anonymous_actor(&state.ctx).await?;
-    let (board, post) = posts::public_post(&state.ctx, &actor, board_slug, post_slug).await?;
+    let (board, post) = posts::public_post(&state.ctx, actor, board_slug, post_slug).await?;
     if let Some(v) = visit {
         let viewer = crate::admin::viewer(state, &v.headers).await;
         state
@@ -868,7 +968,7 @@ async fn post_inner(
     {
         view["category"] = category_json(&board.slug, &c);
     }
-    let near = posts::nearby(&state.ctx, &actor, &board, &post).await?;
+    let near = posts::nearby(&state.ctx, actor, &board, &post).await?;
     let neighbor = |p: &Option<Post>| {
         p.as_ref().map_or(Value::Null, |p| {
             post_summary(&board.slug, p, &site.settings)
@@ -890,7 +990,7 @@ async fn post_inner(
     view["body_html"] = Value::String(doc.html.into_string());
     view["toc"] = json!(doc.toc);
     let image = cover_image(state, &post).await?;
-    let comments = comments_json(state, &actor, &board, &post, &site.settings, q).await?;
+    let comments = comments_json(state, actor, &board, &post, &site.settings, q).await?;
     view["author"] = authors(state, std::slice::from_ref(&post))
         .await?
         .pop()
@@ -916,7 +1016,7 @@ async fn post_inner(
         // 카드의 최근 글·댓글 탭 (GAP Q30, ADR-0113): 프로필 화면과 같은 공개 범위(손님 기준), 지금 글은 뺀다.
         if let Some(name) = view["author"]["name"].as_str().map(str::to_owned)
             && let Ok(p) =
-                maru_core::services::members::public_profile(&state.ctx, &actor, &name).await
+                maru_core::services::members::public_profile(&state.ctx, actor, &name).await
         {
             let tz = site.settings.tz_offset_min;
             let recent_posts: Vec<Value> = p
@@ -1006,7 +1106,7 @@ async fn post_inner(
             order: String::new(),
             view: String::new(),
         };
-        match Box::pin(board_inner(state, &board.slug, first, &[])).await {
+        match Box::pin(board_inner(state, &board.slug, first, &[], actor)).await {
             Ok(mut list) => {
                 if let Some(items) = list["posts"].as_array_mut() {
                     for item in items.iter_mut().filter(|i| i["id"] == post.id.as_str()) {
@@ -1273,6 +1373,13 @@ fn tag_url(slug: &str) -> String {
 }
 
 async fn page(State(state): State<AppState>, Path(slug): Path<String>) -> Response {
+    // 첫 화면이 된 페이지는 주소가 하나여야 검색 엔진이 둘로 나누지 않는다.
+    if settings::site(&state.ctx)
+        .await
+        .is_ok_and(|s| s.home_page == slug)
+    {
+        return Redirect::temporary(&urls::path(&Target::Home)).into_response();
+    }
     let v = page_inner(&state, &slug).await;
     render(&state, "page.html", v).await
 }

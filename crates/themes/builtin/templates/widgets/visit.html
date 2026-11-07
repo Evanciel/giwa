@@ -1,0 +1,15 @@
+<div class="visit">
+  <div>
+    {% if w.data.name %}<p class="visit-name">{{ w.data.name }}</p>{% endif %}
+    <p class="visit-address">{{ w.data.address }}</p>
+    {% if w.data.phone %}<a class="visit-tel" href="tel:{{ w.data.tel }}">{{ w.data.phone }}</a>{% endif %}
+    <p class="sec-actions">
+      <a class="sec-btn sec-btn--main" href="{{ w.data.naver_url }}" rel="noopener noreferrer">네이버 지도</a>
+      <a class="sec-btn" href="{{ w.data.kakao_url }}" rel="noopener noreferrer">카카오맵</a>
+    </p>
+  </div>
+  {% if w.data.transit or w.data.parking %}<dl class="visit-notes">
+    {% if w.data.transit %}<dt>대중교통</dt><dd>{{ w.data.transit }}</dd>{% endif %}
+    {% if w.data.parking %}<dt>주차</dt><dd>{{ w.data.parking }}</dd>{% endif %}
+  </dl>{% endif %}
+</div>

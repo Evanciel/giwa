@@ -28,6 +28,11 @@
   </fieldset>
 
   <fieldset>
+    <legend>첫 화면</legend>
+    <label for="s-home-page">첫 화면 페이지 주소 <span class="hint">비우면 최신 글 목록. 공개한 페이지 주소를 적습니다.</span></label>
+    <input id="s-home-page" name="home_page" maxlength="80" value="{{ form.home_page }}">
+  </fieldset>
+  <fieldset>
     <legend>글 화면</legend>
     <div class="form-grid">
       <div class="stack">

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM mod_forms_submission WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "6ea4e6305ce676f6bdde57230d2555b260e1c35a0dc01b26e6029bebeeaeb7f6"
+}

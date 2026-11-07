@@ -39,7 +39,13 @@ pub enum Op {
         body_md: String,
         #[serde(default)]
         publish: bool,
+        /// 비우면 `default`
+        #[serde(default)]
+        layout: String,
     },
+    /// 모듈이 꺼져 있으면 켠다 (ADR-0127).
+    #[serde(rename = "module.ensure")]
+    ModuleEnsure { id: String },
     /// 메뉴가 비어 있을 때만 채운다.
     #[serde(rename = "menu.ensure")]
     MenuEnsure {
@@ -90,6 +96,7 @@ pub(crate) async fn apply_op(ctx: &Ctx, actor: &Actor, op: &Op) -> Result<OpResu
             title,
             body_md,
             publish,
+            layout,
         } => {
             let res = pages::ensure(
                 ctx,
@@ -98,7 +105,11 @@ pub(crate) async fn apply_op(ctx: &Ctx, actor: &Actor, op: &Op) -> Result<OpResu
                     slug: slug.clone(),
                     title: title.clone(),
                     body_md: body_md.clone(),
-                    layout: "default".into(),
+                    layout: if layout.is_empty() {
+                        "default".into()
+                    } else {
+                        layout.clone()
+                    },
                     sort_order: 0,
                 },
             )
@@ -107,6 +118,10 @@ pub(crate) async fn apply_op(ctx: &Ctx, actor: &Actor, op: &Op) -> Result<OpResu
                 pages::publish(ctx, actor, &res.item.slug).await?;
             }
             result("page.ensure", &res.item.slug, res.created)
+        }
+        Op::ModuleEnsure { id } => {
+            let was_on = ctx.extensions.set_module(ctx, actor, id, true).await?;
+            result("module.ensure", id, !was_on)
         }
         Op::MenuEnsure { location, items } => {
             let empty = menus::get(ctx, location).await?.is_empty();

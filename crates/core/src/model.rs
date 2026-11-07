@@ -525,7 +525,8 @@ impl<T> Listing<T> {
 }
 
 /// 페이지 레이아웃 (ADR-0016: CHECK 없이 여기서 검증).
-pub const PAGE_LAYOUTS: [&str; 2] = ["default", "wide"];
+/// `blocks` 는 섹션 블록을 화면 폭으로 그린다 (ADR-0125).
+pub const PAGE_LAYOUTS: [&str; 3] = ["default", "wide", "blocks"];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -727,6 +728,9 @@ pub struct SiteSettings {
     /// 구글 서치 콘솔 소유 확인 값
     #[serde(default)]
     pub google_verification: String,
+    /// 첫 화면으로 쓸 페이지 주소. 비우면 최신 글 목록 (ADR-0125)
+    #[serde(default)]
+    pub home_page: String,
     /// 글·페이지에 h2~h4 제목이 이 개수 이상이면 본문 위에 목차를 보인다. 0 이면 끔
     #[serde(default = "default_toc_min_headings")]
     pub toc_min_headings: u32,
@@ -870,6 +874,7 @@ impl Default for SiteSettings {
             posts_per_page: 10,
             naver_verification: String::new(),
             google_verification: String::new(),
+            home_page: String::new(),
             toc_min_headings: default_toc_min_headings(),
             show_views: true,
             show_search: true,

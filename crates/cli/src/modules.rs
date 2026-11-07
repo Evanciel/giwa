@@ -25,14 +25,15 @@ pub(crate) fn registry(db: &Db) -> Result<Arc<Registry>> {
         Arc::new(maru_mod_consult::ConsultModule::new()),
         Arc::new(maru_mod_webhook::WebhookModule::new(db.clone())?),
         Arc::new(maru_mod_social::SocialModule::new(db.clone())),
+        Arc::new(maru_mod_forms::FormsModule::new(db.clone())),
     ];
     Ok(Arc::new(Registry::new(modules)?))
 }
 
 /// 데이터 디렉터리를 열기 전에 모르는 명령을 가려내는 데 쓴다.
-const IDS: [&str; 11] = [
+const IDS: [&str; 12] = [
     "point", "reaction", "scrap", "notify", "message", "poll", "report", "ads", "consult",
-    "webhook", "social",
+    "webhook", "social", "forms",
 ];
 
 fn usage(detail: impl Into<String>) -> Error {

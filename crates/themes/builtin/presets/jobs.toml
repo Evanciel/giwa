@@ -1,0 +1,77 @@
+# 채용 (유형 12, ADR-0127). 공고는 게시판 글이고 마감일 칸으로 진행 중만 거른다. 글자는 예시다.
+id = "jobs"
+name = "채용"
+description = "공고 목록(직군·마감일), 일하는 방식, 지원서 폼"
+
+[[ops]]
+op = "tokens.ensure"
+tokens = { color = { bg = "#fcfdfc", fg = "#14211d", primary = "#0b6b57", muted = "#51605b", surface = "#ffffff", border = "#dde6e2" }, color_dark = { bg = "#10171a", fg = "#e6efec", primary = "#6fd3bb", muted = "#9eaeaa", surface = "#172024", border = "#283337" }, radius = { sm = 6, md = 10, lg = 16 }, layout = { max_width = 1120 } }
+
+[[ops]]
+op = "module.ensure"
+id = "forms"
+
+[[ops]]
+op = "board.ensure"
+slug = "jobs"
+name = "채용 공고"
+kind = "free"
+layout = "list"
+sort_order = 0
+policy = { write = "editor", comment = "none" }
+field_schema = [
+  { key = "team", label = "직군", type = "select", list = true, filter = true, options = [{ value = "dev", label = "개발" }, { value = "design", label = "디자인" }, { value = "ops", label = "운영" }] },
+  { key = "kind", label = "고용 형태", type = "select", list = true, options = [{ value = "full", label = "정규직" }, { value = "contract", label = "계약직" }, { value = "intern", label = "인턴" }] },
+  { key = "deadline", label = "마감일", type = "date", role = "deadline", list = true, filter = true },
+]
+
+[[ops]]
+op = "page.ensure"
+slug = "home"
+title = "첫 화면"
+layout = "blocks"
+publish = true
+
+[[ops]]
+op = "page.ensure"
+slug = "apply"
+title = "지원하기"
+layout = "blocks"
+publish = true
+
+[[ops]]
+op = "settings.ensure"
+values = { home_page = "home", show_search = false }
+
+[[ops]]
+op = "menu.ensure"
+location = "header"
+items = [
+  { label = "채용 공고", link = { kind = "board", slug = "jobs" } },
+  { label = "지원하기", link = { kind = "page", slug = "apply" } },
+]
+
+[[ops]]
+op = "widgets.ensure"
+items = [
+  { kind = "hero", region = "main", scope = "home", config = { eyebrow = "함께 일할 사람을 찾습니다", button = { label = "채용 공고", link = "/b/jobs" } } },
+  { kind = "latest_posts", region = "main", scope = "home", title = "지금 뽑는 자리", config = { board = "jobs", limit = 8 } },
+  { kind = "features", region = "main", scope = "home", title = "일하는 방식", config = { style = "rows", tone = "soft", items = [
+    { title = "결정은 글로 남깁니다", text = "회의보다 문서로 일합니다." },
+    { title = "시간은 스스로 정합니다", text = "핵심 근무 시간만 맞춥니다." },
+    { title = "배우는 비용을 냅니다", text = "교육비와 책값을 지원합니다." },
+  ] } },
+  { kind = "features", region = "main", scope = "home", title = "채용 과정", config = { style = "steps", items = [
+    { title = "서류", text = "일주일 안에 답합니다." },
+    { title = "면접", text = "함께 일할 사람과 만납니다." },
+    { title = "제안", text = "조건을 글로 드립니다." },
+  ] } },
+  { kind = "hero", region = "main", scope = "page:apply", config = { title = "지원하기", text = "이력서나 포트폴리오 주소를 함께 적어 주세요." } },
+  { kind = "contact_form", region = "main", scope = "page:apply", config = { form = "apply", purpose = "채용 검토", submit = "지원하기", done = "지원서를 받았습니다. 일주일 안에 답하겠습니다.", fields = [
+    { key = "name", label = "이름", required = true },
+    { key = "email", label = "메일", type = "email", required = true },
+    { key = "position", label = "지원하는 자리", required = true },
+    { key = "resume", label = "이력서·포트폴리오 주소", required = true },
+    { key = "message", label = "하고 싶은 말", type = "textarea" },
+  ] } },
+]

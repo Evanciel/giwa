@@ -24,6 +24,7 @@ pub mod posts;
 pub mod presets;
 pub mod retention;
 pub mod search;
+pub mod sections;
 pub mod settings;
 pub mod signals;
 pub mod stats;

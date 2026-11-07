@@ -1,0 +1,6 @@
+<{{ "ol" if w.data.style == "steps" else "ul" }} class="f-list f-{{ w.data.style }}">
+  {% for i in w.data.items %}<li>
+    <h3 class="f-title">{% if i.link %}<a href="{{ i.link.href }}"{% if i.link.external %} rel="noopener noreferrer"{% endif %}>{{ i.title }}</a>{% else %}{{ i.title }}{% endif %}</h3>
+    {% if i.text %}<p class="f-text">{{ i.text }}</p>{% endif %}
+  </li>{% endfor %}
+</{{ "ol" if w.data.style == "steps" else "ul" }}>

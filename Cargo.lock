@@ -1491,6 +1491,7 @@ dependencies = [
  "maru-core",
  "maru-mod-ads",
  "maru-mod-consult",
+ "maru-mod-forms",
  "maru-mod-message",
  "maru-mod-notify",
  "maru-mod-point",
@@ -1563,6 +1564,21 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "maru-mod-forms"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "axum",
+ "maru-core",
+ "maru-modules",
+ "maru-storage",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sqlx",
 ]
 
 [[package]]

@@ -1,0 +1,4 @@
+<table class="hours-table">
+  <tbody>{% for r in w.data.rows %}<tr><th scope="row">{{ r.days }}</th><td>{{ r.time }}</td></tr>{% endfor %}</tbody>
+</table>
+{% if w.data.note %}<p class="sec-note">{{ w.data.note }}</p>{% endif %}
