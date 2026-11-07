@@ -1,0 +1,117 @@
+# 병원·의원 (ADR-0139). 진료 안내·진료시간·의료진·오시는 길이 첫 화면이다.
+# 의료법 제56조와 시행령 제23조는 치료경험담 등 치료 효과를 오인하게 할 광고를 금지한다.
+# 그래서 후기 블록·후기 게시판을 두지 않고, 효과를 약속하는 문구를 쓰지 않는다. 글자는 예시다.
+id = "clinic"
+name = "병원·의원"
+description = "진료시간·진료과목·의료진·오시는 길 첫 화면, 공지, 건강 정보, 회원 상담 게시판"
+theme_note = "맑은 청록 파랑, 밝고 차분한 바탕"
+
+[[ops]]
+op = "tokens.ensure"
+tokens = { color = { bg = "#f9fcfd", fg = "#13232b", primary = "#0b6a84", muted = "#4f6169", surface = "#ffffff", border = "#dce8ec" }, color_dark = { bg = "#0f171b", fg = "#e5eff2", primary = "#79cde3", muted = "#9badb4", surface = "#162127", border = "#26343b" }, radius = { sm = 8, md = 12, lg = 18 }, layout = { max_width = 1120 } }
+
+[[ops]]
+op = "board.ensure"
+slug = "notice"
+name = "공지"
+kind = "notice"
+sort_order = 0
+
+[[ops]]
+op = "board.ensure"
+slug = "health"
+name = "건강 정보"
+kind = "blog"
+layout = "webzine"
+sort_order = 1
+policy = { write = "editor", comment = "none" }
+
+[[ops]]
+op = "board.ensure"
+slug = "consult"
+name = "온라인 상담"
+kind = "qna"
+layout = "list"
+sort_order = 2
+policy = { list = "member", read = "member", write = "member", comment = "editor" }
+
+[[ops]]
+op = "page.ensure"
+slug = "home"
+title = "첫 화면"
+layout = "blocks"
+publish = true
+
+[[ops]]
+op = "page.ensure"
+slug = "about"
+title = "병원 소개"
+layout = "blocks"
+publish = true
+
+[[ops]]
+op = "page.ensure"
+slug = "care"
+title = "진료 안내"
+layout = "blocks"
+publish = true
+
+[[ops]]
+op = "settings.ensure"
+values = { home_page = "home", show_search = false }
+
+[[ops]]
+op = "menu.ensure"
+location = "header"
+items = [
+  { label = "병원 소개", link = { kind = "page", slug = "about" } },
+  { label = "진료 안내", link = { kind = "page", slug = "care" } },
+  { label = "공지", link = { kind = "board", slug = "notice" } },
+  { label = "건강 정보", link = { kind = "board", slug = "health" } },
+  { label = "온라인 상담", link = { kind = "board", slug = "consult" } },
+]
+
+[[ops]]
+op = "widgets.ensure"
+items = [
+  { kind = "hero", region = "main", scope = "home", config = { eyebrow = "진료과목과 동네 이름을 한 줄로", text = "진료 예약과 문의는 전화로 받습니다. 02-000-0000", button = { label = "진료 안내", link = "/p/care" }, button2 = { label = "오시는 길", link = "/p/about" } } },
+  { kind = "hours", region = "main", scope = "home", title = "진료시간", config = { tone = "soft", note = "공휴일 진료와 휴진은 공지로 알립니다.", rows = [
+    { days = "평일", time = "09:00 ~ 18:00" },
+    { days = "토요일", time = "09:00 ~ 13:00" },
+    { days = "점심시간", time = "13:00 ~ 14:00" },
+    { days = "일요일·공휴일", time = "휴진" },
+  ] } },
+  { kind = "features", region = "main", scope = "home", title = "진료과목", config = { style = "cards", items = [
+    { title = "진료과목 하나", text = "어떤 증상을 보는지 한 문장으로 적습니다.", link = "/p/care" },
+    { title = "진료과목 둘", text = "어떤 증상을 보는지 한 문장으로 적습니다.", link = "/p/care" },
+    { title = "검사·검진", text = "할 수 있는 검사를 적습니다.", link = "/p/care" },
+  ] } },
+  { kind = "latest_posts", region = "main", scope = "home", title = "공지", config = { board = "notice", limit = 4 } },
+  { kind = "latest_posts", region = "main", scope = "home", title = "건강 정보", config = { board = "health", limit = 3, view = "card" } },
+  { kind = "visit", region = "main", scope = "home", title = "오시는 길", config = { name = "병원 이름", address = "주소를 적어 주세요", phone = "02-000-0000", transit = "가까운 역이나 정류장에서 오는 길을 적어 주세요.", parking = "주차 안내를 적어 주세요." } },
+  { kind = "hero", region = "main", scope = "page:about", config = { title = "병원 소개", text = "어떤 진료를 하는 곳인지 두 문장으로 적습니다." } },
+  { kind = "team", region = "main", scope = "page:about", title = "의료진", config = { items = [
+    { name = "이름을 적어 주세요", role = "대표원장", bio = "전문 과목과 경력을 사실대로 적습니다." },
+    { name = "이름을 적어 주세요", role = "원장", bio = "전문 과목과 경력을 사실대로 적습니다." },
+  ] } },
+  { kind = "image_text", region = "main", scope = "page:about", title = "진료 공간", config = { tone = "soft", body = "대기실, 진료실, 검사실을 사진과 함께 소개합니다.\n\n갖춘 장비는 이름만 사실대로 적습니다." } },
+  { kind = "visit", region = "main", scope = "page:about", title = "오시는 길", config = { name = "병원 이름", address = "주소를 적어 주세요", phone = "02-000-0000", transit = "가까운 역이나 정류장에서 오는 길을 적어 주세요.", parking = "주차 안내를 적어 주세요." } },
+  { kind = "hero", region = "main", scope = "page:care", config = { title = "진료 안내", text = "진료과목, 진료시간, 처음 오시는 분이 챙길 것을 적어 둡니다." } },
+  { kind = "features", region = "main", scope = "page:care", title = "진료과목", config = { style = "rows", items = [
+    { title = "진료과목 하나", text = "보는 증상과 하는 진료를 적습니다." },
+    { title = "진료과목 둘", text = "보는 증상과 하는 진료를 적습니다." },
+    { title = "검사·검진", text = "할 수 있는 검사와 준비할 것을 적습니다." },
+  ] } },
+  { kind = "features", region = "main", scope = "page:care", title = "처음 오시는 분", config = { style = "steps", tone = "soft", items = [
+    { title = "접수", text = "신분증을 챙겨 주세요." },
+    { title = "문진", text = "지금 드시는 약이 있으면 알려 주세요." },
+    { title = "진료", text = "진료 뒤 다음 방문 날짜를 안내합니다." },
+  ] } },
+  { kind = "hours", region = "main", scope = "page:care", title = "진료시간", config = { note = "공휴일 진료와 휴진은 공지로 알립니다.", rows = [
+    { days = "평일", time = "09:00 ~ 18:00" },
+    { days = "토요일", time = "09:00 ~ 13:00" },
+    { days = "점심시간", time = "13:00 ~ 14:00" },
+    { days = "일요일·공휴일", time = "휴진" },
+  ] } },
+  { kind = "markdown_block", region = "main", scope = "page:care", title = "비급여 진료비", config = { body = "비급여 항목과 가격은 병원에 게시한 것과 같게 적어 주세요." } },
+]

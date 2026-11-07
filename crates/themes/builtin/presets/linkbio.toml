@@ -1,0 +1,50 @@
+# 링크 모음 (ADR-0139). 한 장짜리 첫 화면에 소개와 큰 링크 줄을 둔다. 게시판은 소식 하나다.
+# 링크는 예시로 사이트 안 주소를 둔다. 에이전트가 바깥 주소(https://…)로 바꾼다. 글자는 예시다.
+id = "linkbio"
+name = "링크 모음"
+description = "한 장짜리 프로필, 큰 링크 줄, 최근 소식"
+theme_note = "좁은 폭 한가운데, 보라 강조와 알약 모양 단추"
+
+[[ops]]
+op = "tokens.ensure"
+tokens = { color = { bg = "#faf9fd", fg = "#1b1726", primary = "#6d32d8", muted = "#5c5670", surface = "#ffffff", border = "#e5e1ef" }, color_dark = { bg = "#131019", fg = "#eeebf6", primary = "#c4a8f8", muted = "#a7a0ba", surface = "#1b1724", border = "#2f2a3c" }, radius = { sm = 40, md = 18, lg = 28 }, layout = { max_width = 640 } }
+
+[[ops]]
+op = "board.ensure"
+slug = "news"
+name = "소식"
+kind = "blog"
+layout = "list"
+sort_order = 0
+policy = { write = "editor", comment = "member" }
+
+[[ops]]
+op = "page.ensure"
+slug = "home"
+title = "첫 화면"
+layout = "blocks"
+publish = true
+
+[[ops]]
+op = "settings.ensure"
+values = { home_page = "home", show_search = false }
+
+[[ops]]
+op = "menu.ensure"
+location = "header"
+items = [
+  { label = "소식", link = { kind = "board", slug = "news" } },
+]
+
+[[ops]]
+op = "widgets.ensure"
+items = [
+  { kind = "hero", region = "main", scope = "home", config = { eyebrow = "무엇을 하는 사람인지 한 줄로", text = "자기소개를 두 문장으로 적습니다." } },
+  { kind = "features", region = "main", scope = "home", config = { style = "rows", items = [
+    { title = "첫 번째 링크", text = "새 글, 새 영상, 판매 중인 상품처럼 가장 먼저 보일 것", link = "/b/news" },
+    { title = "두 번째 링크", text = "한 줄 설명", link = "/b/news" },
+    { title = "세 번째 링크", text = "한 줄 설명", link = "/b/news" },
+    { title = "연락하기", text = "메일이나 문의 주소", link = "/b/news" },
+  ] } },
+  { kind = "latest_posts", region = "main", scope = "home", title = "최근 소식", config = { board = "news", limit = 3 } },
+]

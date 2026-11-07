@@ -1,0 +1,124 @@
+# 학원·교습소 (ADR-0139). 강좌·시간표·수강료·강사 소개와 상담 신청이 중심이다.
+# 온라인 강의 노트는 `course` 몫이다. 글자는 예시다.
+id = "academy"
+name = "학원"
+description = "강좌·시간표·수강료·강사 소개, 공지·학부모 안내, 수업 소식, 상담 신청"
+theme_note = "깨끗한 흰 바탕에 숲 초록, 또렷한 카드"
+
+[[ops]]
+op = "tokens.ensure"
+tokens = { color = { bg = "#fbfdfb", fg = "#16211a", primary = "#2b7a34", muted = "#56625a", surface = "#ffffff", border = "#dfe8e0" }, color_dark = { bg = "#111712", fg = "#e8f0e9", primary = "#8fd59a", muted = "#a1ada3", surface = "#18201a", border = "#2a352c" }, radius = { sm = 6, md = 12, lg = 18 }, layout = { max_width = 1120 } }
+
+[[ops]]
+op = "module.ensure"
+id = "forms"
+
+[[ops]]
+op = "board.ensure"
+slug = "notice"
+name = "공지·학부모 안내"
+kind = "notice"
+sort_order = 0
+
+[[ops]]
+op = "board.ensure"
+slug = "news"
+name = "수업 소식"
+kind = "gallery"
+layout = "card"
+sort_order = 1
+policy = { write = "editor", comment = "member" }
+
+[[ops]]
+op = "page.ensure"
+slug = "home"
+title = "첫 화면"
+layout = "blocks"
+publish = true
+
+[[ops]]
+op = "page.ensure"
+slug = "classes"
+title = "강좌 안내"
+layout = "blocks"
+publish = true
+
+[[ops]]
+op = "page.ensure"
+slug = "teachers"
+title = "강사 소개"
+layout = "blocks"
+publish = true
+
+[[ops]]
+op = "page.ensure"
+slug = "consult"
+title = "상담 신청"
+layout = "blocks"
+publish = true
+
+[[ops]]
+op = "settings.ensure"
+values = { home_page = "home", show_search = false }
+
+[[ops]]
+op = "menu.ensure"
+location = "header"
+items = [
+  { label = "강좌 안내", link = { kind = "page", slug = "classes" } },
+  { label = "강사 소개", link = { kind = "page", slug = "teachers" } },
+  { label = "공지·학부모 안내", link = { kind = "board", slug = "notice" } },
+  { label = "수업 소식", link = { kind = "board", slug = "news" } },
+  { label = "상담 신청", link = { kind = "page", slug = "consult" } },
+]
+
+[[ops]]
+op = "widgets.ensure"
+items = [
+  { kind = "hero", region = "main", scope = "home", config = { eyebrow = "어떤 학생을 무엇으로 가르치는지 한 줄로", button = { label = "상담 신청", link = "/p/consult" }, button2 = { label = "강좌 안내", link = "/p/classes" } } },
+  { kind = "features", region = "main", scope = "home", title = "강좌", config = { style = "cards", items = [
+    { title = "초등 반", text = "대상 학년과 수업 목표를 적습니다.", link = "/p/classes" },
+    { title = "중등 반", text = "대상 학년과 수업 목표를 적습니다.", link = "/p/classes" },
+    { title = "고등 반", text = "대상 학년과 수업 목표를 적습니다.", link = "/p/classes" },
+  ] } },
+  { kind = "features", region = "main", scope = "home", title = "수업 방식", config = { style = "rows", tone = "soft", items = [
+    { title = "반 인원", text = "한 반에 몇 명까지 받는지 적습니다." },
+    { title = "숙제와 확인", text = "숙제를 어떻게 내고 확인하는지 적습니다." },
+    { title = "학부모 안내", text = "수업 소식을 언제, 어떻게 알리는지 적습니다." },
+  ] } },
+  { kind = "latest_posts", region = "main", scope = "home", title = "공지·학부모 안내", config = { board = "notice", limit = 4 } },
+  { kind = "latest_posts", region = "main", scope = "home", title = "수업 소식", config = { board = "news", limit = 3, view = "card" } },
+  { kind = "cta", region = "main", scope = "home", title = "수업이 맞는지 먼저 이야기해 보세요", config = { text = "학년과 원하는 수업을 남겨 주시면 상담 시간을 잡아 드립니다.", button = { label = "상담 신청", link = "/p/consult" } } },
+  { kind = "visit", region = "main", scope = "home", title = "오시는 길", config = { name = "학원 이름", address = "주소를 적어 주세요", phone = "02-000-0000", transit = "가까운 역이나 정류장에서 오는 길을 적어 주세요.", parking = "차량 운행이나 주차 안내를 적어 주세요." } },
+  { kind = "hero", region = "main", scope = "page:classes", config = { title = "강좌 안내", text = "반별 대상, 시간표, 수강료를 적어 둡니다." } },
+  { kind = "hours", region = "main", scope = "page:classes", title = "시간표", config = { note = "시간표는 학기마다 바뀔 수 있습니다.", rows = [
+    { days = "초등 반 (월·수·금)", time = "15:00 ~ 16:30" },
+    { days = "중등 반 (화·목)", time = "17:00 ~ 19:00" },
+    { days = "고등 반 (월~금)", time = "19:30 ~ 22:00" },
+  ] } },
+  { kind = "price_list", region = "main", scope = "page:classes", title = "수강료", config = { tone = "soft", note = "교습비는 관할 교육지원청에 등록한 금액과 같게 적어 주세요.", groups = [
+    { name = "한 달 기준", items = [
+      { name = "초등 반", price = "000,000원", note = "주 3회" },
+      { name = "중등 반", price = "000,000원", note = "주 2회" },
+      { name = "고등 반", price = "000,000원", note = "주 5회" },
+    ] },
+  ] } },
+  { kind = "faq", region = "main", scope = "page:classes", title = "자주 묻는 질문", config = { items = [
+    { q = "중간에 들어갈 수 있나요?", a = "반마다 진도가 달라 상담 뒤 정합니다." },
+    { q = "보강은 어떻게 하나요?", a = "보강 방법을 여기에 적어 주세요." },
+    { q = "환불은 어떻게 되나요?", a = "환불 기준을 여기에 적어 주세요." },
+  ] } },
+  { kind = "hero", region = "main", scope = "page:teachers", config = { title = "강사 소개", text = "누가 어떤 과목을 가르치는지 소개합니다." } },
+  { kind = "team", region = "main", scope = "page:teachers", config = { items = [
+    { name = "이름을 적어 주세요", role = "원장 · 과목", bio = "가르치는 과목과 경력을 사실대로 적습니다." },
+    { name = "이름을 적어 주세요", role = "강사 · 과목", bio = "가르치는 과목과 경력을 사실대로 적습니다." },
+    { name = "이름을 적어 주세요", role = "강사 · 과목", bio = "가르치는 과목과 경력을 사실대로 적습니다." },
+  ] } },
+  { kind = "hero", region = "main", scope = "page:consult", config = { title = "상담 신청", text = "학년과 원하는 수업을 남겨 주세요. 상담 시간을 잡아 연락드립니다." } },
+  { kind = "contact_form", region = "main", scope = "page:consult", config = { form = "consult", purpose = "수강 상담 연락", submit = "상담 신청", done = "신청을 받았습니다. 상담 시간을 잡아 연락드리겠습니다.", fields = [
+    { key = "name", label = "보호자 이름", required = true },
+    { key = "contact", label = "연락처", type = "tel", required = true },
+    { key = "grade", label = "학생 학년", type = "select", required = true, options = ["초등", "중등", "고등", "그 밖"] },
+    { key = "message", label = "원하는 수업과 궁금한 점", type = "textarea" },
+  ] } },
+]

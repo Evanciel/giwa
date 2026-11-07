@@ -1,0 +1,132 @@
+# 중개·디렉터리 플랫폼 (ADR-0139). 업체·전문가 목록은 카드형 게시판이고 분야·지역 칸으로 거른다.
+# 회원이 입점 글을 쓰면 관리자가 승인한 뒤 보인다. 요청 게시판은 회원이 일을 맡길 글을 쓴다. 글자는 예시다.
+id = "platform"
+name = "중개 플랫폼"
+description = "업체·전문가 카드 목록(분야·지역 거르기), 맡길 일 요청, 이용 방법, 입점 신청"
+theme_note = "밝은 바탕에 선명한 파랑, 둥근 카드"
+
+[[ops]]
+op = "tokens.ensure"
+tokens = { color = { bg = "#fbfcfe", fg = "#141a2c", primary = "#1f56d1", muted = "#545c70", surface = "#ffffff", border = "#e0e5ef" }, color_dark = { bg = "#10131c", fg = "#e9edf6", primary = "#9db8f7", muted = "#a0a8bb", surface = "#171b27", border = "#2a3042" }, radius = { sm = 8, md = 14, lg = 20 }, layout = { max_width = 1200 } }
+
+[[ops]]
+op = "module.ensure"
+id = "forms"
+
+[[ops]]
+op = "board.ensure"
+slug = "listings"
+name = "업체 찾기"
+kind = "free"
+layout = "card"
+sort_order = 0
+policy = { write = "member", comment = "member", write_approval = "all" }
+field_schema = [
+  { key = "field", label = "분야", type = "select", list = true, filter = true, options = [{ value = "home", label = "집·생활" }, { value = "lesson", label = "레슨" }, { value = "design", label = "디자인" }, { value = "business", label = "사업 지원" }] },
+  { key = "area", label = "지역", type = "select", list = true, filter = true, options = [{ value = "seoul", label = "서울" }, { value = "gyeonggi", label = "경기·인천" }, { value = "other", label = "그 밖의 지역" }, { value = "online", label = "온라인" }] },
+  { key = "price", label = "기본 비용", type = "text", list = true, help = "예: 시간당 00,000원부터" },
+  { key = "phone", label = "연락처", type = "phone" },
+  { key = "site", label = "누리집", type = "url" },
+]
+
+[[ops]]
+op = "board.ensure"
+slug = "requests"
+name = "맡길 일"
+kind = "qna"
+layout = "list"
+sort_order = 1
+policy = { write = "member", comment = "member" }
+field_schema = [
+  { key = "field", label = "분야", type = "select", list = true, filter = true, options = [{ value = "home", label = "집·생활" }, { value = "lesson", label = "레슨" }, { value = "design", label = "디자인" }, { value = "business", label = "사업 지원" }] },
+  { key = "budget", label = "예산", type = "text", list = true },
+  { key = "deadline", label = "받는 마감", type = "date", role = "deadline", list = true, filter = true },
+]
+
+[[ops]]
+op = "board.ensure"
+slug = "notice"
+name = "공지"
+kind = "notice"
+sort_order = 2
+
+[[ops]]
+op = "page.ensure"
+slug = "home"
+title = "첫 화면"
+layout = "blocks"
+publish = true
+
+[[ops]]
+op = "page.ensure"
+slug = "guide"
+title = "이용 안내"
+layout = "blocks"
+publish = true
+
+[[ops]]
+op = "page.ensure"
+slug = "join"
+title = "입점 신청"
+layout = "blocks"
+publish = true
+
+[[ops]]
+op = "settings.ensure"
+values = { home_page = "home", show_search = true }
+
+[[ops]]
+op = "menu.ensure"
+location = "header"
+items = [
+  { label = "업체 찾기", link = { kind = "board", slug = "listings" } },
+  { label = "맡길 일", link = { kind = "board", slug = "requests" } },
+  { label = "이용 안내", link = { kind = "page", slug = "guide" } },
+  { label = "입점 신청", link = { kind = "page", slug = "join" } },
+  { label = "공지", link = { kind = "board", slug = "notice" } },
+]
+
+[[ops]]
+op = "widgets.ensure"
+items = [
+  { kind = "hero", region = "main", scope = "home", config = { eyebrow = "누가 누구를 찾는 곳인지 한 줄로", button = { label = "업체 찾기", link = "/b/listings" }, button2 = { label = "일 맡기기", link = "/b/requests" } } },
+  { kind = "search", region = "main", scope = "home", config = { placeholder = "분야나 지역으로 찾아보세요" } },
+  { kind = "features", region = "main", scope = "home", title = "분야", config = { style = "cards", items = [
+    { title = "집·생활", text = "청소, 수리, 이사", link = "/b/listings?f.field=home" },
+    { title = "레슨", text = "운동, 악기, 외국어", link = "/b/listings?f.field=lesson" },
+    { title = "디자인", text = "로고, 인쇄물, 누리집", link = "/b/listings?f.field=design" },
+    { title = "사업 지원", text = "세무, 번역, 촬영", link = "/b/listings?f.field=business" },
+  ] } },
+  { kind = "features", region = "main", scope = "home", title = "이용 방법", config = { style = "steps", tone = "soft", items = [
+    { title = "찾기", text = "분야와 지역으로 업체를 고릅니다." },
+    { title = "묻기", text = "업체 글의 연락처나 댓글로 직접 묻습니다." },
+    { title = "맡기기", text = "조건이 맞으면 서로 정한 방법으로 일을 맡깁니다." },
+  ] } },
+  { kind = "latest_posts", region = "main", scope = "home", title = "새로 들어온 업체", config = { board = "listings", limit = 6, view = "card" } },
+  { kind = "latest_posts", region = "main", scope = "home", title = "최근 맡길 일", config = { board = "requests", limit = 5 } },
+  { kind = "stats", region = "main", scope = "home", config = { items = [
+    { value = "000곳", label = "등록된 업체" },
+    { value = "0,000건", label = "올라온 요청" },
+    { value = "00개", label = "분야" },
+  ] } },
+  { kind = "cta", region = "main", scope = "home", title = "일을 받고 싶으신가요", config = { text = "업체 소개를 올리면 확인한 뒤 목록에 보입니다.", button = { label = "입점 신청", link = "/p/join" } } },
+  { kind = "hero", region = "main", scope = "page:guide", config = { title = "이용 안내", text = "이 사이트가 하는 일과 하지 않는 일을 적어 둡니다." } },
+  { kind = "features", region = "main", scope = "page:guide", title = "찾는 분께", config = { style = "rows", items = [
+    { title = "업체 찾기", text = "목록의 분야·지역 칸으로 거릅니다." },
+    { title = "맡길 일 올리기", text = "회원 가입 뒤 맡길 일에 내용과 예산, 마감을 적습니다." },
+    { title = "거래", text = "거래 조건과 비용은 업체와 직접 정합니다. 사이트는 거래 당사자가 아닙니다." },
+  ] } },
+  { kind = "faq", region = "main", scope = "page:guide", title = "자주 묻는 질문", config = { tone = "soft", items = [
+    { q = "이용료가 있나요?", a = "이용료 정책을 여기에 적어 주세요." },
+    { q = "업체 정보는 누가 확인하나요?", a = "입점 글은 운영자가 확인한 뒤 보입니다. 확인 기준을 여기에 적어 주세요." },
+    { q = "문제가 생기면 어디에 알리나요?", a = "공지의 신고 안내나 입점 신청 화면의 연락처로 알려 주세요." },
+  ] } },
+  { kind = "hero", region = "main", scope = "page:join", config = { title = "입점 신청", text = "업체 소개를 남겨 주시면 확인한 뒤 연락드립니다." } },
+  { kind = "contact_form", region = "main", scope = "page:join", config = { form = "join", purpose = "입점 검토와 연락", submit = "신청하기", done = "신청을 받았습니다. 확인한 뒤 연락드리겠습니다.", fields = [
+    { key = "company", label = "업체 이름", required = true },
+    { key = "name", label = "담당자 이름", required = true },
+    { key = "contact", label = "연락처", type = "tel", required = true },
+    { key = "field", label = "분야", type = "select", required = true, options = ["집·생활", "레슨", "디자인", "사업 지원", "그 밖의 분야"] },
+    { key = "message", label = "업체 소개", type = "textarea", required = true },
+  ] } },
+]

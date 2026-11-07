@@ -54,11 +54,11 @@
 {%- elif id == "blog" %}
 <rect x="36" y="24" width="88" height="7" rx="2" class="sa-line"/>
 <rect x="36" y="36" width="88" height="17" rx="3" class="sa-box"/><rect x="36" y="56" width="88" height="17" rx="3" class="sa-box"/><rect x="36" y="76" width="88" height="17" rx="3" class="sa-box"/>
-{%- elif id == "company" or id == "org" %}
+{%- elif id == "company" or id == "org" or id == "office" %}
 <rect x="8" y="21" width="144" height="30" rx="3" class="sa-hero"/>
 <rect x="8" y="56" width="45" height="22" rx="3" class="sa-box"/><rect x="57" y="56" width="46" height="22" rx="3" class="sa-box"/><rect x="107" y="56" width="45" height="22" rx="3" class="sa-box"/>
 <rect x="8" y="82" width="144" height="10" rx="2" class="sa-line"/>
-{%- elif id == "cafe" %}
+{%- elif id == "cafe" or id == "church" %}
 <rect x="8" y="21" width="144" height="34" rx="3" class="sa-hero"/>
 <rect x="8" y="60" width="70" height="32" rx="3" class="sa-box"/><rect x="82" y="60" width="70" height="14" rx="3" class="sa-side"/><rect x="82" y="78" width="70" height="14" rx="3" class="sa-side"/>
 {%- elif id == "landing" %}
@@ -76,10 +76,40 @@
 <rect x="8" y="21" width="36" height="71" rx="3" class="sa-side"/>
 <rect x="50" y="21" width="80" height="7" rx="2" class="sa-line"/><rect x="50" y="33" width="102" height="4" rx="2" class="sa-line"/><rect x="50" y="41" width="96" height="4" rx="2" class="sa-line"/><rect x="50" y="49" width="100" height="4" rx="2" class="sa-line"/>
 <rect x="50" y="59" width="102" height="22" rx="3" class="sa-box"/>
-{%- elif id == "event" or id == "course" %}
+{%- elif id == "event" or id == "course" or id == "club" %}
 <rect x="8" y="21" width="144" height="24" rx="3" class="sa-hero"/>
 <rect x="8" y="50" width="45" height="42" rx="3" class="sa-box"/><rect x="57" y="50" width="46" height="42" rx="3" class="sa-box"/><rect x="107" y="50" width="45" height="42" rx="3" class="sa-box"/>
 <rect x="13" y="55" width="16" height="6" rx="3" class="sa-bar"/><rect x="62" y="55" width="16" height="6" rx="3" class="sa-bar"/><rect x="112" y="55" width="16" height="6" rx="3" class="sa-bar"/>
+{%- elif id == "shop" %}
+<rect x="8" y="21" width="144" height="24" rx="3" class="sa-hero"/>
+<rect x="8" y="50" width="33" height="19" rx="2" class="sa-side"/><rect x="45" y="50" width="33" height="19" rx="2" class="sa-side"/><rect x="82" y="50" width="33" height="19" rx="2" class="sa-side"/><rect x="119" y="50" width="33" height="19" rx="2" class="sa-side"/>
+<rect x="8" y="73" width="33" height="19" rx="2" class="sa-side"/><rect x="45" y="73" width="33" height="19" rx="2" class="sa-side"/><rect x="82" y="73" width="33" height="19" rx="2" class="sa-side"/><rect x="119" y="73" width="33" height="19" rx="2" class="sa-side"/>
+{%- elif id == "platform" %}
+<rect x="8" y="21" width="144" height="28" rx="3" class="sa-hero"/><rect x="30" y="31" width="100" height="8" rx="4" class="sa-bg"/>
+<rect x="8" y="54" width="32" height="7" rx="3.5" class="sa-bar"/><rect x="44" y="54" width="32" height="7" rx="3.5" class="sa-bar"/><rect x="80" y="54" width="32" height="7" rx="3.5" class="sa-bar"/><rect x="116" y="54" width="32" height="7" rx="3.5" class="sa-bar"/>
+<rect x="8" y="66" width="45" height="26" rx="3" class="sa-box"/><rect x="57" y="66" width="46" height="26" rx="3" class="sa-box"/><rect x="107" y="66" width="45" height="26" rx="3" class="sa-box"/>
+{%- elif id == "clinic" %}
+<rect x="8" y="21" width="92" height="36" rx="3" class="sa-hero"/><rect x="104" y="21" width="48" height="36" rx="3" class="sa-side"/>
+<rect x="109" y="28" width="38" height="4" rx="2" class="sa-line"/><rect x="109" y="36" width="38" height="4" rx="2" class="sa-line"/><rect x="109" y="44" width="38" height="4" rx="2" class="sa-line"/>
+<rect x="8" y="62" width="45" height="30" rx="3" class="sa-box"/><rect x="57" y="62" width="46" height="30" rx="3" class="sa-box"/><rect x="107" y="62" width="45" height="30" rx="3" class="sa-box"/>
+{%- elif id == "academy" %}
+<rect x="8" y="21" width="144" height="22" rx="3" class="sa-hero"/>
+<rect x="8" y="48" width="30" height="9" rx="2" class="sa-side"/><rect x="42" y="48" width="110" height="9" rx="2" class="sa-box"/>
+<rect x="8" y="59" width="30" height="9" rx="2" class="sa-side"/><rect x="42" y="59" width="110" height="9" rx="2" class="sa-box"/>
+<rect x="8" y="70" width="30" height="9" rx="2" class="sa-side"/><rect x="42" y="70" width="110" height="9" rx="2" class="sa-box"/>
+<rect x="8" y="81" width="30" height="9" rx="2" class="sa-side"/><rect x="42" y="81" width="110" height="9" rx="2" class="sa-box"/>
+{%- elif id == "stay" %}
+<rect x="8" y="21" width="144" height="40" rx="3" class="sa-hero"/>
+<rect x="8" y="65" width="45" height="27" rx="3" class="sa-side"/><rect x="57" y="65" width="46" height="27" rx="3" class="sa-side"/><rect x="107" y="65" width="45" height="27" rx="3" class="sa-side"/>
+{%- elif id == "realty" %}
+<rect x="8" y="21" width="26" height="8" rx="4" class="sa-bar"/><rect x="38" y="21" width="26" height="8" rx="4" class="sa-line"/><rect x="68" y="21" width="26" height="8" rx="4" class="sa-line"/>
+<rect x="8" y="34" width="45" height="27" rx="3" class="sa-box"/><rect x="57" y="34" width="46" height="27" rx="3" class="sa-box"/><rect x="107" y="34" width="45" height="27" rx="3" class="sa-box"/>
+<rect x="8" y="65" width="45" height="27" rx="3" class="sa-box"/><rect x="57" y="65" width="46" height="27" rx="3" class="sa-box"/><rect x="107" y="65" width="45" height="27" rx="3" class="sa-box"/>
+<rect x="8" y="34" width="45" height="14" rx="3" class="sa-side"/><rect x="57" y="34" width="46" height="14" rx="3" class="sa-side"/><rect x="107" y="34" width="45" height="14" rx="3" class="sa-side"/>
+<rect x="8" y="65" width="45" height="14" rx="3" class="sa-side"/><rect x="57" y="65" width="46" height="14" rx="3" class="sa-side"/><rect x="107" y="65" width="45" height="14" rx="3" class="sa-side"/>
+{%- elif id == "linkbio" %}
+<circle cx="80" cy="31" r="8" class="sa-hero"/><rect x="56" y="43" width="48" height="5" rx="2" class="sa-line"/>
+<rect x="40" y="53" width="80" height="9" rx="4.5" class="sa-box"/><rect x="40" y="66" width="80" height="9" rx="4.5" class="sa-box"/><rect x="40" y="79" width="80" height="9" rx="4.5" class="sa-box"/>
 {%- else %}
 <rect x="8" y="21" width="144" height="8" rx="2" class="sa-line"/>
 <rect x="8" y="34" width="144" height="13" rx="3" class="sa-box"/><rect x="8" y="51" width="144" height="13" rx="3" class="sa-box"/><rect x="8" y="68" width="144" height="13" rx="3" class="sa-box"/>

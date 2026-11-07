@@ -1,0 +1,126 @@
+# 동호회·모임 (ADR-0139). 모임 일정은 카드형 게시판 글이고 모임일·신청 마감 칸으로 다가오는 모임만 거른다.
+# 회원 게시판은 가입한 사람만 읽는다. 팬 모임·동창회·소모임도 이름만 바꿔 쓴다. 글자는 예시다.
+id = "club"
+name = "동호회·모임"
+description = "다가오는 모임 일정(모임일·장소·마감), 활동 사진, 가입 인사, 회원 게시판, 모임 안내, 가입 신청"
+theme_note = "밝은 바탕에 활기찬 주황, 둥근 모서리"
+
+[[ops]]
+op = "tokens.ensure"
+tokens = { color = { bg = "#fffcf9", fg = "#24180f", primary = "#b93f0b", muted = "#665a50", surface = "#ffffff", border = "#efe3d8" }, color_dark = { bg = "#18120e", fg = "#f4ece5", primary = "#f8a676", muted = "#b6a99e", surface = "#221a14", border = "#3a2e25" }, radius = { sm = 10, md = 16, lg = 24 }, layout = { max_width = 1120 } }
+
+[[ops]]
+op = "module.ensure"
+id = "forms"
+
+[[ops]]
+op = "board.ensure"
+slug = "meetups"
+name = "모임 일정"
+kind = "free"
+layout = "card"
+sort_order = 0
+policy = { write = "editor", comment = "member" }
+field_schema = [
+  { key = "date", label = "모임일", type = "date", list = true },
+  { key = "deadline", label = "신청 마감", type = "date", role = "deadline", list = true, filter = true },
+  { key = "place", label = "장소", type = "text", list = true },
+  { key = "fee", label = "참가비", type = "text" },
+  { key = "seats", label = "모집 인원", type = "number" },
+]
+
+[[ops]]
+op = "board.ensure"
+slug = "photos"
+name = "활동 사진"
+kind = "gallery"
+layout = "gallery"
+sort_order = 1
+policy = { write = "member", comment = "member" }
+
+[[ops]]
+op = "board.ensure"
+slug = "hello"
+name = "가입 인사"
+kind = "free"
+layout = "list"
+sort_order = 2
+policy = { write = "member", comment = "member" }
+
+[[ops]]
+op = "board.ensure"
+slug = "members"
+name = "회원 게시판"
+kind = "free"
+layout = "list"
+sort_order = 3
+policy = { list = "member", read = "member", write = "member", comment = "member" }
+
+[[ops]]
+op = "board.ensure"
+slug = "notice"
+name = "공지"
+kind = "notice"
+sort_order = 4
+
+[[ops]]
+op = "page.ensure"
+slug = "home"
+title = "첫 화면"
+layout = "blocks"
+publish = true
+
+[[ops]]
+op = "page.ensure"
+slug = "about"
+title = "모임 안내"
+layout = "blocks"
+publish = true
+
+[[ops]]
+op = "page.ensure"
+slug = "join"
+title = "가입 신청"
+layout = "blocks"
+publish = true
+
+[[ops]]
+op = "settings.ensure"
+values = { home_page = "home", show_search = false }
+
+[[ops]]
+op = "menu.ensure"
+location = "header"
+items = [
+  { label = "모임 안내", link = { kind = "page", slug = "about" } },
+  { label = "모임 일정", link = { kind = "board", slug = "meetups" } },
+  { label = "활동 사진", link = { kind = "board", slug = "photos" } },
+  { label = "가입 인사", link = { kind = "board", slug = "hello" } },
+  { label = "회원 게시판", link = { kind = "board", slug = "members" } },
+  { label = "공지", link = { kind = "board", slug = "notice" } },
+]
+
+[[ops]]
+op = "widgets.ensure"
+items = [
+  { kind = "hero", region = "main", scope = "home", config = { eyebrow = "무엇을 함께하는 모임인지 한 줄로", button = { label = "가입 신청", link = "/p/join" }, button2 = { label = "모임 일정", link = "/b/meetups?f.deadline=open" } } },
+  { kind = "latest_posts", region = "main", scope = "home", title = "다가오는 모임", config = { board = "meetups", limit = 4, view = "card" } },
+  { kind = "gallery_grid", region = "main", scope = "home", title = "활동 사진", config = { board = "photos", limit = 8, columns = 4 } },
+  { kind = "latest_posts", region = "main", scope = "home", title = "가입 인사", config = { board = "hello", limit = 5 } },
+  { kind = "latest_posts", region = "main", scope = "home", title = "공지", config = { board = "notice", limit = 3 } },
+  { kind = "cta", region = "main", scope = "home", title = "함께하실래요", config = { text = "가입 신청을 남기면 운영진이 확인하고 연락드립니다.", button = { label = "가입 신청", link = "/p/join" }, button2 = { label = "모임 안내", link = "/p/about" } } },
+  { kind = "hero", region = "main", scope = "page:about", config = { title = "모임 안내", text = "모임이 생긴 까닭과 함께 지킬 약속을 적어 둡니다." } },
+  { kind = "features", region = "main", scope = "page:about", title = "이렇게 모입니다", config = { style = "rows", tone = "soft", items = [
+    { title = "정기 모임", text = "언제, 어디서 모이는지 적습니다." },
+    { title = "회비", text = "얼마를 어떻게 쓰는지 적습니다." },
+    { title = "운영진", text = "누가 무엇을 맡는지 적습니다." },
+  ] } },
+  { kind = "markdown_block", region = "main", scope = "page:about", title = "회칙", config = { body = "1. 서로 존중합니다.\n2. 모임 참석이 어려우면 미리 알립니다.\n3. 회비는 공지한 날까지 냅니다.\n\n모임에 맞게 고쳐 쓰세요." } },
+  { kind = "hero", region = "main", scope = "page:join", config = { title = "가입 신청", text = "간단한 소개를 남겨 주세요. 운영진이 확인하고 연락드립니다." } },
+  { kind = "contact_form", region = "main", scope = "page:join", config = { form = "join", purpose = "가입 확인 연락", submit = "가입 신청", done = "신청을 받았습니다. 운영진이 확인하고 연락드리겠습니다.", fields = [
+    { key = "name", label = "이름 또는 별명", required = true },
+    { key = "contact", label = "연락처", required = true },
+    { key = "how", label = "알게 된 곳", type = "select", options = ["지인 소개", "검색", "SNS", "그 밖"] },
+    { key = "message", label = "자기소개", type = "textarea", required = true },
+  ] } },
+]

@@ -14,7 +14,7 @@ Structure, design and module changes go through changesets: stage, preview URL, 
 
 모두 `--json` 을 받고, 비대화형이며, 다시 실행해도 안전하다. 실패하면 `error.next` 에 다음 명령이 있다.
 
-- `maru init --data <dir> --preset <blog|community|cafe|company|landing|portfolio|org|magazine|event|jobs|course|docs> --name <이름> --yes`
+- `maru init --data <dir> --preset <blog|community|cafe|company|landing|portfolio|org|magazine|event|jobs|course|docs|shop|platform|clinic|academy|stay|realty|church|club|linkbio|office> --name <이름> --yes`
 - `maru service install` / `status` / `uninstall`
 - `maru serve --bind 127.0.0.1:<port>`
 - `maru mcp install --client <claude-code|claude-desktop|cursor> --scope <...>`

@@ -1,0 +1,120 @@
+# 전문 사무소 (ADR-0139). 법률·세무·노무·회계·특허 사무소처럼 업무 분야, 구성원, 칼럼, 상담 신청이 중심이다.
+# 변호사·세무사 등은 직역마다 광고 규정이 있어 승소율·성공률 같은 성과 숫자와 후기를 두지 않는다. 글자는 예시다.
+id = "office"
+name = "전문 사무소"
+description = "업무 분야, 구성원 소개, 상담 절차, 칼럼·소식, 상담 신청(분야 고르기), 오시는 길"
+theme_note = "짙은 먹색 남색에 각진 작은 모서리"
+
+[[ops]]
+op = "tokens.ensure"
+tokens = { color = { bg = "#fbfbfa", fg = "#181b21", primary = "#2c3d58", muted = "#575c66", surface = "#ffffff", border = "#e2e3e6" }, color_dark = { bg = "#121418", fg = "#e9ebef", primary = "#a9bad6", muted = "#a2a7b1", surface = "#191c22", border = "#2c3038" }, radius = { sm = 2, md = 4, lg = 6 }, layout = { max_width = 1160 } }
+
+[[ops]]
+op = "module.ensure"
+id = "forms"
+
+[[ops]]
+op = "board.ensure"
+slug = "column"
+name = "칼럼"
+kind = "blog"
+layout = "webzine"
+sort_order = 0
+policy = { write = "editor", comment = "none" }
+field_schema = [
+  { key = "area", label = "분야", type = "select", list = true, filter = true, options = [{ value = "a", label = "업무 분야 하나" }, { value = "b", label = "업무 분야 둘" }, { value = "c", label = "업무 분야 셋" }] },
+]
+
+[[ops]]
+op = "board.ensure"
+slug = "notice"
+name = "소식"
+kind = "notice"
+sort_order = 1
+
+[[ops]]
+op = "page.ensure"
+slug = "home"
+title = "첫 화면"
+layout = "blocks"
+publish = true
+
+[[ops]]
+op = "page.ensure"
+slug = "practice"
+title = "업무 분야"
+layout = "blocks"
+publish = true
+
+[[ops]]
+op = "page.ensure"
+slug = "people"
+title = "구성원"
+layout = "blocks"
+publish = true
+
+[[ops]]
+op = "page.ensure"
+slug = "consult"
+title = "상담 신청"
+layout = "blocks"
+publish = true
+
+[[ops]]
+op = "settings.ensure"
+values = { home_page = "home", show_search = false }
+
+[[ops]]
+op = "menu.ensure"
+location = "header"
+items = [
+  { label = "업무 분야", link = { kind = "page", slug = "practice" } },
+  { label = "구성원", link = { kind = "page", slug = "people" } },
+  { label = "칼럼", link = { kind = "board", slug = "column" } },
+  { label = "소식", link = { kind = "board", slug = "notice" } },
+  { label = "상담 신청", link = { kind = "page", slug = "consult" } },
+]
+
+[[ops]]
+op = "widgets.ensure"
+items = [
+  { kind = "hero", region = "main", scope = "home", config = { eyebrow = "어떤 일을 맡는 사무소인지 한 줄로", button = { label = "상담 신청", link = "/p/consult" }, button2 = { label = "업무 분야", link = "/p/practice" } } },
+  { kind = "features", region = "main", scope = "home", title = "업무 분야", config = { style = "cards", items = [
+    { title = "업무 분야 하나", text = "어떤 일을 맡는지 한 문장으로 적습니다.", link = "/p/practice" },
+    { title = "업무 분야 둘", text = "어떤 일을 맡는지 한 문장으로 적습니다.", link = "/p/practice" },
+    { title = "업무 분야 셋", text = "어떤 일을 맡는지 한 문장으로 적습니다.", link = "/p/practice" },
+  ] } },
+  { kind = "features", region = "main", scope = "home", title = "상담 절차", config = { style = "steps", tone = "soft", items = [
+    { title = "상담 신청", text = "사건이나 일의 개요를 남깁니다." },
+    { title = "일정 안내", text = "담당자가 연락해 상담 날짜를 잡습니다." },
+    { title = "상담", text = "자료를 함께 보고 방법과 비용을 설명합니다." },
+    { title = "위임", text = "맡기기로 하면 계약서를 씁니다." },
+  ] } },
+  { kind = "latest_posts", region = "main", scope = "home", title = "칼럼", config = { board = "column", limit = 3, view = "card" } },
+  { kind = "latest_posts", region = "main", scope = "home", title = "소식", config = { board = "notice", limit = 4 } },
+  { kind = "cta", region = "main", scope = "home", title = "먼저 상담해 보세요", config = { text = "상담 신청을 남기면 담당자가 영업일 안에 연락드립니다.", button = { label = "상담 신청", link = "/p/consult" } } },
+  { kind = "visit", region = "main", scope = "home", title = "오시는 길", config = { name = "사무소 이름", address = "주소를 적어 주세요", phone = "02-000-0000", transit = "가까운 역이나 정류장에서 오는 길을 적어 주세요.", parking = "주차 안내를 적어 주세요." } },
+  { kind = "hero", region = "main", scope = "page:practice", config = { title = "업무 분야", text = "맡는 일을 분야별로 적어 둡니다." } },
+  { kind = "features", region = "main", scope = "page:practice", config = { style = "rows", items = [
+    { title = "업무 분야 하나", text = "어떤 일을, 어떤 절차로 맡는지 적습니다." },
+    { title = "업무 분야 둘", text = "어떤 일을, 어떤 절차로 맡는지 적습니다." },
+    { title = "업무 분야 셋", text = "어떤 일을, 어떤 절차로 맡는지 적습니다." },
+  ] } },
+  { kind = "faq", region = "main", scope = "page:practice", title = "자주 묻는 질문", config = { tone = "soft", items = [
+    { q = "상담 비용이 있나요?", a = "상담 비용 기준을 여기에 적어 주세요." },
+    { q = "어떤 자료를 챙겨 가야 하나요?", a = "분야별로 챙길 자료를 적어 주세요." },
+  ] } },
+  { kind = "hero", region = "main", scope = "page:people", config = { title = "구성원", text = "누가 어떤 일을 맡는지 소개합니다." } },
+  { kind = "team", region = "main", scope = "page:people", config = { items = [
+    { name = "이름을 적어 주세요", role = "대표 · 자격", bio = "맡는 분야와 경력을 사실대로 적습니다." },
+    { name = "이름을 적어 주세요", role = "구성원 · 자격", bio = "맡는 분야와 경력을 사실대로 적습니다." },
+    { name = "이름을 적어 주세요", role = "구성원 · 자격", bio = "맡는 분야와 경력을 사실대로 적습니다." },
+  ] } },
+  { kind = "hero", region = "main", scope = "page:consult", config = { title = "상담 신청", text = "일의 개요를 남겨 주세요. 담당자가 연락드립니다." } },
+  { kind = "contact_form", region = "main", scope = "page:consult", config = { form = "consult", purpose = "상담 일정 연락", submit = "상담 신청", done = "신청을 받았습니다. 담당자가 연락드리겠습니다.", fields = [
+    { key = "name", label = "이름", required = true },
+    { key = "contact", label = "연락처", type = "tel", required = true },
+    { key = "area", label = "분야", type = "select", required = true, options = ["업무 분야 하나", "업무 분야 둘", "업무 분야 셋", "잘 모르겠음"] },
+    { key = "message", label = "일의 개요", type = "textarea", required = true, help = "주민등록번호 같은 민감한 정보는 적지 마세요." },
+  ] } },
+]

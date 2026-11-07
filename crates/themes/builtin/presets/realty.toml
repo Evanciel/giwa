@@ -1,0 +1,116 @@
+# 부동산 중개 (ADR-0139). 매물은 카드형 게시판 글이고 거래 종류·매물 종류 칸으로 거른다.
+# 공인중개사법 제18조의2와 국토교통부 고시가 매물 표시·광고 명시사항을 정한다. 칸과 바닥글은 그 자리를
+# 마련한 것이고, 정확한 항목은 운영자가 최신 고시로 확인한다. 글자는 예시다.
+id = "realty"
+name = "부동산 중개"
+description = "매물 카드 목록(거래 종류·매물 종류·명시사항 칸), 매물 내놓기·문의, 중개사 소개, 바닥글 사무소 정보"
+theme_note = "짙은 남색에 단정한 작은 모서리"
+
+[[ops]]
+op = "tokens.ensure"
+tokens = { color = { bg = "#fbfbfc", fg = "#141a26", primary = "#1e3a6e", muted = "#535b6a", surface = "#ffffff", border = "#e0e3ea" }, color_dark = { bg = "#10131a", fg = "#e8ebf2", primary = "#9cb5e6", muted = "#a0a7b5", surface = "#171b24", border = "#2a2f3b" }, radius = { sm = 4, md = 8, lg = 12 }, layout = { max_width = 1200 } }
+
+[[ops]]
+op = "module.ensure"
+id = "forms"
+
+[[ops]]
+op = "board.ensure"
+slug = "listings"
+name = "매물"
+kind = "gallery"
+layout = "card"
+sort_order = 0
+policy = { write = "editor", comment = "none" }
+field_schema = [
+  { key = "deal", label = "거래 종류", type = "select", required = true, list = true, filter = true, options = [{ value = "sale", label = "매매" }, { value = "jeonse", label = "전세" }, { value = "monthly", label = "월세" }] },
+  { key = "type", label = "매물 종류", type = "select", required = true, list = true, filter = true, options = [{ value = "apt", label = "아파트" }, { value = "villa", label = "빌라·다세대" }, { value = "officetel", label = "오피스텔" }, { value = "oneroom", label = "원룸" }, { value = "store", label = "상가·사무실" }, { value = "land", label = "토지" }] },
+  { key = "price", label = "가격", type = "text", required = true, list = true, help = "매매가, 보증금, 월세를 적습니다. 예: 보증금 0,000만 원 / 월 00만 원" },
+  { key = "address", label = "소재지", type = "text", required = true, list = true, help = "동·리까지 적습니다." },
+  { key = "area", label = "전용면적", type = "text", required = true, list = true, help = "예: 00.00㎡" },
+  { key = "floor", label = "해당 층 / 총 층", type = "text", help = "예: 3층 / 15층" },
+  { key = "rooms", label = "방 / 욕실 수", type = "text", help = "예: 3개 / 2개" },
+  { key = "direction", label = "방향", type = "text", help = "기준이 되는 곳을 함께 적습니다. 예: 남향(거실 기준)" },
+  { key = "approved", label = "사용승인일", type = "date" },
+  { key = "movein", label = "입주 가능일", type = "text", help = "예: 즉시, 협의" },
+  { key = "maintenance", label = "관리비", type = "text" },
+  { key = "parking", label = "주차", type = "text" },
+  { key = "closed", label = "거래 완료", type = "boolean", list = true, filter = true },
+]
+
+[[ops]]
+op = "board.ensure"
+slug = "notice"
+name = "공지"
+kind = "notice"
+sort_order = 1
+
+[[ops]]
+op = "page.ensure"
+slug = "home"
+title = "첫 화면"
+layout = "blocks"
+publish = true
+
+[[ops]]
+op = "page.ensure"
+slug = "about"
+title = "중개사무소 소개"
+layout = "blocks"
+publish = true
+
+[[ops]]
+op = "page.ensure"
+slug = "contact"
+title = "매물 내놓기·문의"
+layout = "blocks"
+publish = true
+
+[[ops]]
+op = "settings.ensure"
+values = { home_page = "home", show_search = true }
+
+[[ops]]
+op = "menu.ensure"
+location = "header"
+items = [
+  { label = "매물", link = { kind = "board", slug = "listings" } },
+  { label = "중개사무소 소개", link = { kind = "page", slug = "about" } },
+  { label = "공지", link = { kind = "board", slug = "notice" } },
+  { label = "매물 내놓기·문의", link = { kind = "page", slug = "contact" } },
+]
+
+[[ops]]
+op = "widgets.ensure"
+items = [
+  { kind = "hero", region = "main", scope = "home", config = { eyebrow = "어느 동네의 어떤 매물을 다루는지 한 줄로", button = { label = "매물 보기", link = "/b/listings?f.closed=0" }, button2 = { label = "매물 내놓기", link = "/p/contact" } } },
+  { kind = "features", region = "main", scope = "home", title = "거래 종류", config = { style = "cards", items = [
+    { title = "매매", text = "사고파는 매물", link = "/b/listings?f.deal=sale" },
+    { title = "전세", text = "전세 매물", link = "/b/listings?f.deal=jeonse" },
+    { title = "월세", text = "월세 매물", link = "/b/listings?f.deal=monthly" },
+  ] } },
+  { kind = "latest_posts", region = "main", scope = "home", title = "새로 나온 매물", config = { board = "listings", limit = 6, view = "card" } },
+  { kind = "features", region = "main", scope = "home", title = "중개 순서", config = { style = "steps", tone = "soft", items = [
+    { title = "상담", text = "원하는 지역, 예산, 입주 시기를 듣습니다." },
+    { title = "매물 보기", text = "조건에 맞는 매물을 함께 봅니다." },
+    { title = "확인", text = "등기부와 건축물대장을 함께 확인합니다." },
+    { title = "계약", text = "계약서와 확인·설명서를 드립니다." },
+  ] } },
+  { kind = "latest_posts", region = "main", scope = "home", title = "공지", config = { board = "notice", limit = 3 } },
+  { kind = "visit", region = "main", scope = "home", title = "오시는 길", config = { name = "중개사무소 이름", address = "주소를 적어 주세요", phone = "02-000-0000", transit = "가까운 역이나 정류장에서 오는 길을 적어 주세요." } },
+  { kind = "hero", region = "main", scope = "page:about", config = { title = "중개사무소 소개", text = "어느 지역을 얼마나 오래 다뤘는지 사실대로 적습니다." } },
+  { kind = "team", region = "main", scope = "page:about", title = "중개사", config = { items = [
+    { name = "이름을 적어 주세요", role = "대표 공인중개사", bio = "다루는 지역과 매물 종류를 적습니다." },
+    { name = "이름을 적어 주세요", role = "소속 공인중개사", bio = "다루는 지역과 매물 종류를 적습니다." },
+  ] } },
+  { kind = "visit", region = "main", scope = "page:about", title = "오시는 길", config = { name = "중개사무소 이름", address = "주소를 적어 주세요", phone = "02-000-0000", parking = "주차 안내를 적어 주세요." } },
+  { kind = "hero", region = "main", scope = "page:contact", config = { title = "매물 내놓기·문의", text = "내놓을 매물이나 찾는 조건을 남겨 주세요." } },
+  { kind = "contact_form", region = "main", scope = "page:contact", config = { form = "contact", purpose = "매물 상담 연락", fields = [
+    { key = "name", label = "이름", required = true },
+    { key = "contact", label = "연락처", type = "tel", required = true },
+    { key = "kind", label = "문의 종류", type = "select", required = true, options = ["매물 내놓기", "매물 찾기", "그 밖의 문의"] },
+    { key = "deal", label = "거래 종류", type = "select", options = ["매매", "전세", "월세"] },
+    { key = "message", label = "지역·예산·조건", type = "textarea", required = true },
+  ] } },
+  { kind = "markdown_block", region = "footer", scope = "all", config = { body = "중개사무소 이름 · 대표 공인중개사 이름을 적어 주세요 · 주소를 적어 주세요\n\n전화 02-000-0000 · 중개사무소 등록번호 00000-0000-00000 · 사업자등록번호 000-00-00000" } },
+]

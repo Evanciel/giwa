@@ -10,7 +10,7 @@ use std::process::{Child, Command, Stdio};
 use serde_json::Value;
 
 const BIN: &str = env!("CARGO_BIN_EXE_maru");
-const TYPES: [&str; 10] = [
+const TYPES: [&str; 20] = [
     "docs",
     "cafe",
     "company",
@@ -21,6 +21,16 @@ const TYPES: [&str; 10] = [
     "event",
     "jobs",
     "course",
+    "shop",
+    "platform",
+    "clinic",
+    "academy",
+    "stay",
+    "realty",
+    "church",
+    "club",
+    "linkbio",
+    "office",
 ];
 
 struct Server(Child);
@@ -551,4 +561,139 @@ fn 옮긴_주소는_변경_묶음으로_담고_되돌린다() {
         maru(&data, &["page", "show", "install"])["parent_id"],
         start["id"]
     );
+}
+
+/// ADR-0139: 새 종류는 메뉴로 가는 화면이 모두 뜨고 화면마다 h1 이 하나다.
+#[test]
+fn 새_종류의_메뉴_화면은_모두_뜨고_제목은_하나다() {
+    for id in &TYPES[10..] {
+        let tmp = tempfile::tempdir().unwrap();
+        let data = tmp.path().join("사이트");
+        maru(&data, &["init", "--preset", id, "--yes"]);
+        let (_server, bind) = start_server(&data);
+        let (_, _, home) = get(&bind, "/");
+        let pages: Vec<String> = links(&home)
+            .into_iter()
+            .filter(|l| (l.starts_with("/p/") || l.starts_with("/b/")) && !l.contains('?'))
+            .collect();
+        assert!(!pages.is_empty(), "{id}: 메뉴가 있어야");
+        for link in pages {
+            let (status, _, body) = get(&bind, &link);
+            if status == 200 {
+                assert_eq!(body.matches("<h1").count(), 1, "{id} {link}: h1 은 하나");
+                assert!(!body.contains("undefined"), "{id} {link}");
+            } else {
+                assert!(status == 303, "{id}: {link} → {status}");
+            }
+        }
+    }
+}
+
+/// ADR-0139: 매물 칸으로 거르고, 거래 완료는 빼고 본다.
+#[test]
+fn 부동산_매물은_거래_종류로_거르고_완료한_것을_뺀다() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("사이트");
+    maru(&data, &["init", "--preset", "realty", "--yes"]);
+    let common = [
+        "--field",
+        "type=apt",
+        "--field",
+        "price=0억 원",
+        "--field",
+        "address=어느 동",
+        "--field",
+        "area=00㎡",
+    ];
+    for (title, deal, closed) in [
+        ("매매 시험 매물", "sale", "false"),
+        ("전세 시험 매물", "jeonse", "false"),
+        ("끝난 시험 매물", "sale", "true"),
+    ] {
+        let deal = format!("deal={deal}");
+        let closed = format!("closed={closed}");
+        let mut args = vec![
+            "post",
+            "new",
+            "--publish",
+            "--board",
+            "listings",
+            "--title",
+            title,
+            "--body",
+            "설명",
+            "--field",
+            &deal,
+            "--field",
+            &closed,
+        ];
+        args.extend(common);
+        maru(&data, &args);
+    }
+    // 필수 칸이 빠지면 받지 않는다.
+    let bad = run(
+        &data,
+        &[
+            "post",
+            "new",
+            "--publish",
+            "--board",
+            "listings",
+            "--title",
+            "빈 매물",
+            "--body",
+            "설명",
+        ],
+    );
+    assert_eq!(bad["ok"], false, "{bad}");
+
+    let (_server, bind) = start_server(&data);
+    let (status, _, sale) = get(&bind, "/b/listings?f.deal=sale");
+    assert_eq!(status, 200, "{sale}");
+    assert!(sale.contains("매매 시험 매물"), "{sale}");
+    assert!(!sale.contains("전세 시험 매물"), "{sale}");
+    let (_, _, open) = get(&bind, "/b/listings?f.closed=0");
+    assert!(
+        open.contains("매매 시험 매물") && open.contains("전세 시험 매물"),
+        "{open}"
+    );
+    assert!(!open.contains("끝난 시험 매물"), "{open}");
+    // 바닥글에 사무소 정보 자리가 있다.
+    assert!(sale.contains("중개사무소 등록번호"), "{sale}");
+}
+
+/// ADR-0139: 숙박 예약 문의는 받은 내용으로 DB 에 남는다. 병원은 후기 블록이 없다.
+#[test]
+fn 숙박_예약_문의는_db_에_남고_병원에는_후기가_없다() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("사이트");
+    maru(&data, &["init", "--preset", "stay", "--yes"]);
+    // 손님 확인 질문은 기본으로 켜져 있다. 폼 저장만 보려고 끈다.
+    maru(&data, &["site", "set", "--captcha", "off"]);
+    let (server, bind) = start_server(&data);
+    let origin = format!("http://{bind}");
+    let action = "/m/forms/submit/booking";
+    let (status, _, page) = get(&bind, "/p/booking");
+    assert_eq!(status, 200, "{page}");
+    assert!(page.contains(action), "{page}");
+
+    let body = "f_name=시험 이름&f_contact=010-0000-0000&f_checkin=2026-12-24&f_nights=2박\
+                &f_guests=4명&f_message=바비큐 되나요&consent=1";
+    let (status, _, out) = post_form(&bind, action, &origin, body);
+    assert_eq!(status, 200, "{out}");
+    assert!(out.contains("문의를 받았습니다"), "{out}");
+    drop(server);
+    let saved = rows(&data, "booking");
+    assert_eq!(saved.len(), 1, "{saved:?}");
+    assert!(
+        saved[0].contains("2026-12-24") && saved[0].contains("2박"),
+        "{saved:?}"
+    );
+
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("사이트");
+    maru(&data, &["init", "--preset", "clinic", "--yes"]);
+    let widgets = maru(&data, &["widget", "list"]).to_string();
+    assert!(!widgets.contains("testimonials"), "{widgets}");
+    assert!(!widgets.contains("후기"), "{widgets}");
 }

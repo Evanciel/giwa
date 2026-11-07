@@ -1,0 +1,129 @@
+# 숙박·펜션 (ADR-0139). 객실은 사진형 게시판 글이고 인원·크기·요금 칸을 쓴다.
+# 예약 결제는 범위 밖이다. 예약 문의 폼으로 받는다. 글자는 예시다.
+id = "stay"
+name = "숙박·펜션"
+description = "객실 사진 목록(인원·크기·요금), 요금표, 이용 안내, 예약 문의, 여행 후기, 오시는 길"
+theme_note = "따뜻한 모래 바탕에 올리브 초록, 크게 둥근 모서리"
+
+[[ops]]
+op = "tokens.ensure"
+tokens = { color = { bg = "#fbfaf6", fg = "#1f1f17", primary = "#566628", muted = "#605f52", surface = "#ffffff", border = "#e7e4d8" }, color_dark = { bg = "#151510", fg = "#efeee5", primary = "#c3d58a", muted = "#aeac9d", surface = "#1e1e17", border = "#33332a" }, radius = { sm = 10, md = 16, lg = 26 }, layout = { max_width = 1180 } }
+
+[[ops]]
+op = "module.ensure"
+id = "forms"
+
+[[ops]]
+op = "board.ensure"
+slug = "rooms"
+name = "객실"
+kind = "gallery"
+layout = "gallery"
+sort_order = 0
+policy = { write = "editor", comment = "none" }
+field_schema = [
+  { key = "guests", label = "기준·최대 인원", type = "text", list = true, help = "예: 2명 / 최대 4명" },
+  { key = "size", label = "크기", type = "text", list = true, help = "예: 00㎡" },
+  { key = "price", label = "요금", type = "text", list = true, help = "예: 비수기 주중 000,000원부터" },
+  { key = "features", label = "갖춘 것", type = "multiselect", options = [{ value = "kitchen", label = "취사" }, { value = "bbq", label = "바비큐" }, { value = "spa", label = "스파" }, { value = "pet", label = "반려동물" }] },
+]
+
+[[ops]]
+op = "board.ensure"
+slug = "reviews"
+name = "여행 후기"
+kind = "gallery"
+layout = "card"
+sort_order = 1
+policy = { write = "member", comment = "member" }
+
+[[ops]]
+op = "board.ensure"
+slug = "notice"
+name = "공지"
+kind = "notice"
+sort_order = 2
+
+[[ops]]
+op = "page.ensure"
+slug = "home"
+title = "첫 화면"
+layout = "blocks"
+publish = true
+
+[[ops]]
+op = "page.ensure"
+slug = "guide"
+title = "이용 안내"
+layout = "blocks"
+publish = true
+
+[[ops]]
+op = "page.ensure"
+slug = "booking"
+title = "예약 문의"
+layout = "blocks"
+publish = true
+
+[[ops]]
+op = "settings.ensure"
+values = { home_page = "home", show_search = false }
+
+[[ops]]
+op = "menu.ensure"
+location = "header"
+items = [
+  { label = "객실", link = { kind = "board", slug = "rooms" } },
+  { label = "이용 안내", link = { kind = "page", slug = "guide" } },
+  { label = "여행 후기", link = { kind = "board", slug = "reviews" } },
+  { label = "공지", link = { kind = "board", slug = "notice" } },
+  { label = "예약 문의", link = { kind = "page", slug = "booking" } },
+]
+
+[[ops]]
+op = "widgets.ensure"
+items = [
+  { kind = "hero", region = "main", scope = "home", config = { eyebrow = "어디에 있는 어떤 숙소인지 한 줄로", button = { label = "예약 문의", link = "/p/booking" }, button2 = { label = "객실 보기", link = "/b/rooms" } } },
+  { kind = "gallery_grid", region = "main", scope = "home", title = "객실", config = { board = "rooms", limit = 6, columns = 3 } },
+  { kind = "features", region = "main", scope = "home", title = "머무는 동안", config = { style = "bento", tone = "soft", items = [
+    { title = "가장 자랑할 시설", text = "무엇을 할 수 있는지 두세 문장으로 적습니다." },
+    { title = "바비큐", text = "이용 시간과 준비물을 적습니다." },
+    { title = "주변 즐길 거리", text = "가까운 곳을 적습니다." },
+    { title = "아침", text = "제공 여부를 적습니다." },
+  ] } },
+  { kind = "price_list", region = "main", scope = "home", title = "요금", config = { note = "1박 기준이며 인원이 늘면 더 받습니다. 요금은 예시입니다.", groups = [
+    { name = "비수기", items = [
+      { name = "주중", price = "000,000원" },
+      { name = "주말·공휴일 전날", price = "000,000원" },
+    ] },
+    { name = "성수기", items = [
+      { name = "주중", price = "000,000원" },
+      { name = "주말·공휴일 전날", price = "000,000원" },
+    ] },
+  ] } },
+  { kind = "hours", region = "main", scope = "home", title = "입실·퇴실", config = { tone = "soft", rows = [
+    { days = "입실", time = "15:00부터" },
+    { days = "퇴실", time = "11:00까지" },
+  ] } },
+  { kind = "latest_posts", region = "main", scope = "home", title = "여행 후기", config = { board = "reviews", limit = 3, view = "card" } },
+  { kind = "visit", region = "main", scope = "home", title = "오시는 길", config = { name = "숙소 이름", address = "주소를 적어 주세요", phone = "010-0000-0000", transit = "가까운 역이나 터미널에서 오는 길을 적어 주세요.", parking = "주차 안내를 적어 주세요." } },
+  { kind = "hero", region = "main", scope = "page:guide", config = { title = "이용 안내", text = "입실·퇴실, 예약과 환불, 지켜 주실 것을 적어 둡니다." } },
+  { kind = "hours", region = "main", scope = "page:guide", title = "입실·퇴실", config = { note = "이른 입실과 늦은 퇴실은 미리 물어 주세요.", rows = [
+    { days = "입실", time = "15:00부터" },
+    { days = "퇴실", time = "11:00까지" },
+  ] } },
+  { kind = "faq", region = "main", scope = "page:guide", title = "자주 묻는 질문", config = { tone = "soft", items = [
+    { q = "예약은 어떻게 하나요?", a = "예약 문의에 날짜와 인원을 남기면 빈 객실과 입금 방법을 알려 드립니다." },
+    { q = "취소하면 환불되나요?", a = "환불 기준을 날짜별로 여기에 적어 주세요." },
+    { q = "반려동물과 함께 갈 수 있나요?", a = "가능한 객실과 조건을 적어 주세요." },
+  ] } },
+  { kind = "hero", region = "main", scope = "page:booking", config = { title = "예약 문의", text = "날짜와 인원을 남겨 주세요. 빈 객실을 확인해 연락드립니다." } },
+  { kind = "contact_form", region = "main", scope = "page:booking", config = { form = "booking", purpose = "예약 확인 연락", submit = "문의하기", done = "문의를 받았습니다. 빈 객실을 확인해 연락드리겠습니다.", fields = [
+    { key = "name", label = "예약자 이름", required = true },
+    { key = "contact", label = "연락처", type = "tel", required = true },
+    { key = "checkin", label = "입실 날짜", type = "date", required = true },
+    { key = "nights", label = "머무는 밤", type = "select", required = true, options = ["1박", "2박", "3박 이상"] },
+    { key = "guests", label = "인원", required = true },
+    { key = "message", label = "원하는 객실과 요청", type = "textarea" },
+  ] } },
+]
