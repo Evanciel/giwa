@@ -2,7 +2,7 @@
 {% if toc %}
 <nav class="toc" aria-labelledby="toc-title">
   <details open>
-    <summary id="toc-title">목차</summary>
+    <summary id="toc-title">{{ "목차"|t }}</summary>
     <ol>
       {% for t in toc %}<li class="toc-l{{ t.level }}"><a href="#{{ t.id }}">{{ t.text }}</a></li>
       {% endfor %}

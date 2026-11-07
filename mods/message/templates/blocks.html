@@ -3,15 +3,15 @@
 {% block main_class %}wrap account-wrap{% endblock %}
 {% block main %}
 <section class="account me" aria-labelledby="message-blocks-title">
-  <h1 id="message-blocks-title">차단한 회원</h1>
-  <p class="hint">차단한 회원은 나에게 쪽지를 보낼 수 없고, 그 회원의 글·댓글은 접혀 보입니다. 상대에게 알리지 않습니다.</p>
+  <h1 id="message-blocks-title">{{ "차단한 회원"|t }}</h1>
+  <p class="hint">{{ "차단한 회원은 나에게 쪽지를 보낼 수 없고, 그 회원의 글·댓글은 접혀 보입니다. 상대에게 알리지 않습니다."|t }}</p>
   {% if add %}
   <form class="account-form block-confirm" method="post" action="/m/message/block">
-    <p><strong>{{ add }}</strong> 님을 차단할까요?</p>
+    <p><strong>{{ add }}</strong> {{ "님을 차단할까요?"|t }}</p>
     <input type="hidden" name="name" value="{{ add }}">
     <input type="hidden" name="action" value="on">
-    <button type="submit">차단</button>
-    <a href="/m/message/blocks">그만두기</a>
+    <button type="submit">{{ "차단"|t }}</button>
+    <a href="/m/message/blocks">{{ "그만두기"|t }}</a>
   </form>
   {% endif %}
   {% if names %}
@@ -21,11 +21,11 @@
       <form method="post" action="/m/message/block">
         <input type="hidden" name="name" value="{{ name }}">
         <input type="hidden" name="action" value="off">
-        <button type="submit" class="pill">풀기</button>
+        <button type="submit" class="pill">{{ "풀기"|t }}</button>
       </form>
     </li>{% endfor %}
   </ul>
-  {% else %}<p class="empty">차단한 회원이 없습니다.</p>{% endif %}
-  <p class="account-links"><a href="/m/message">쪽지함으로</a></p>
+  {% else %}<p class="empty">{{ "차단한 회원이 없습니다."|t }}</p>{% endif %}
+  <p class="account-links"><a href="/m/message">{{ "쪽지함으로"|t }}</a></p>
 </section>
 {% endblock %}

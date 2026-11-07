@@ -8,7 +8,7 @@
   <div class="tab-panel" role="tabpanel" id="{{ t.id }}" aria-labelledby="{{ t.id }}-tab">
     <h3 class="tab-panel-title">{{ t.label }}</h3>
     {% with show_date = w.data.show_date, numbered = false %}{% with w = {"data": {"posts": t.posts, "pages": w.data.pages, "page_size": w.data.page_size, "auto": w.data.auto}} %}{% include "widgets/_post_lines.html" %}{% endwith %}{% endwith %}
-    {% if t.more_url %}<p class="tab-more"><a class="widget-more" href="{{ t.more_url }}">더 보기<span class="visually-hidden"> — {{ t.label }}</span></a></p>{% endif %}
+    {% if t.more_url %}<p class="tab-more"><a class="widget-more" href="{{ t.more_url }}">{{ "더 보기"|t }}<span class="visually-hidden"> — {{ t.label }}</span></a></p>{% endif %}
   </div>
   {% endfor %}
 </div>

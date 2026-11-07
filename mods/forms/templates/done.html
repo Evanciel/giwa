@@ -2,8 +2,8 @@
 {% block main_class %}wrap account-wrap{% endblock %}
 {% block main %}
 <section class="account">
-  <h1>보냈습니다</h1>
+  <h1>{{ "보냈습니다"|t }}</h1>
   <p>{{ done }}</p>
-  <p><a href="{{ site.home_url }}">처음으로</a></p>
+  <p><a href="{{ site.home_url }}">{{ "처음으로"|t }}</a></p>
 </section>
 {% endblock %}

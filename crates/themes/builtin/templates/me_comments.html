@@ -4,8 +4,8 @@
 {% block main %}
 <section class="account me" aria-labelledby="me-comments-title">
   <div class="me-head">
-    <h1 id="me-comments-title">내가 쓴 댓글 <span class="count">{{ me.total }}</span></h1>
-    <p class="hint"><a href="/me">내 정보로 돌아가기</a></p>
+    <h1 id="me-comments-title">{{ "내가 쓴 댓글"|t }} <span class="count">{{ me.total }}</span></h1>
+    <p class="hint"><a href="/me">{{ "내 정보로 돌아가기"|t }}</a></p>
   </div>
   {% if me.comments %}
   <ul class="me-posts">
@@ -15,6 +15,6 @@
       </li>{% endfor %}
   </ul>
   {% include "_pagination.html" %}
-  {% else %}<p class="empty">아직 쓴 댓글이 없습니다.</p>{% endif %}
+  {% else %}<p class="empty">{{ "아직 쓴 댓글이 없습니다."|t }}</p>{% endif %}
 </section>
 {% endblock %}

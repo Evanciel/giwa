@@ -1,1 +1,1 @@
-{% if page.children %}<nav class="page-children" aria-label="이 아래 페이지"><h2>이 아래 페이지</h2><ul>{% for c in page.children %}<li><a href="{{ c.url }}">{{ c.title }}</a></li>{% endfor %}</ul></nav>{% endif %}
+{% if page.children %}<nav class="page-children" aria-label="{{ "이 아래 페이지"|t }}"><h2>{{ "이 아래 페이지"|t }}</h2><ul>{% for c in page.children %}<li><a href="{{ c.url }}">{{ c.title }}</a></li>{% endfor %}</ul></nav>{% endif %}

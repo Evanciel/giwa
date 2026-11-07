@@ -5,15 +5,15 @@
 {# 추천 수 칸 (GAP Q29): 사이트 설정 list_votes 를 켜고 반응 모듈이 수를 줄 때만. 순위 목록은 순위가 먼저다. #}
 {% set votes = vote_counts if (site.list_votes and vote_counts is defined and vote_counts) else none %}
 <div class="post-table{% if votes %} has-votes{% endif %}">
-  <div class="post-row post-row-head" aria-hidden="true"><span class="num">{% if votes %}{{ votes.label }}{% else %}번호{% endif %}</span><span class="subject">제목</span>{% if board.write_url %}<span class="writer">글쓴이</span>{% endif %}<span class="date">{% if board.order == "activity" %}최근 활동{% else %}날짜{% endif %}</span><span class="hits">조회</span></div>
+  <div class="post-row post-row-head" aria-hidden="true"><span class="num">{% if votes %}{{ votes.label }}{% else %}{{ "번호"|t }}{% endif %}</span><span class="subject">{{ "제목"|t }}</span>{% if board.write_url %}<span class="writer">{{ "글쓴이"|t }}</span>{% endif %}<span class="date">{% if board.order == "activity" %}{{ "최근 활동"|t }}{% else %}{{ "날짜"|t }}{% endif %}</span><span class="hits">{{ "조회"|t }}</span></div>
   <ul>
   {% for post in posts %}
   <li class="post-row{% if post.current %} is-current{% endif %}"{% if post.current %} aria-current="page"{% endif %}>
-    <span class="num">{% if post.rank %}<span class="rank{% if post.rank <= 3 %} rank-top{% endif %}" title="{{ post.rank }}위">{{ post.rank }}</span>{% elif votes %}{% set n = votes.by_id[post.id] or 0 %}<span class="vote-box{% if not n %} zero{% endif %}" title="{{ votes.label }} {{ n }}">{{ n }}</span>{% else %}{{ post.number }}{% endif %}</span>
+    <span class="num">{% if post.rank %}<span class="rank{% if post.rank <= 3 %} rank-top{% endif %}" title="{{ post.rank }}{{ "위"|t }}">{{ post.rank }}</span>{% elif votes %}{% set n = votes.by_id[post.id] or 0 %}<span class="vote-box{% if not n %} zero{% endif %}" title="{{ votes.label }} {{ n }}">{{ n }}</span>{% else %}{{ post.number }}{% endif %}</span>
     <span class="subject">{% include "_reply_mark.html" %}{% if post.category and not post.reply %}<a class="cat" href="{{ post.category.url }}">{{ post.category.name }}</a> {% endif %}{% if board.row_thumbs and post.thumb and not post.is_secret %}<span class="row-thumb" aria-hidden="true"><img src="{{ post.thumb.src }}" alt="" width="{{ post.thumb.width }}" height="{{ post.thumb.height }}" loading="lazy" decoding="async"></span>{% endif %}{% if post.deadline %}<span class="dday{% if post.deadline.closed %} closed{% endif %}">{{ post.deadline.label }}</span> {% endif %}<a class="title" href="{{ post.url }}">{% if post.is_secret %}{% include "_lock.html" %}{% endif %}{{ post.title }}</a>{% include "_title_marks.html" %}{% if post.fields %}<span class="list-fields">{% for f in post.fields %}<span class="list-field" title="{{ f.label }}">{{ f.text }}</span>{% endfor %}</span>{% endif %}</span>
-    {% if board.write_url %}<span class="writer">{% if post.author %}<span class="author-name"{% if not post.author.guest %} data-member="{{ post.author.name }}"{% endif %}>{{ post.author.name }}</span>{% if post.author.badge %} <span class="level-badge{% if post.author.badge.staff %} staff{% endif %}" title="{{ post.author.badge.title }}">{{ post.author.badge.label }}</span>{% endif %}{% if post.author.guest %} <span class="comment-badge">비회원</span>{% endif %}{% endif %}</span>{% endif %}
+    {% if board.write_url %}<span class="writer">{% if post.author %}<span class="author-name"{% if not post.author.guest %} data-member="{{ post.author.name }}"{% endif %}>{{ post.author.name }}</span>{% if post.author.badge %} <span class="level-badge{% if post.author.badge.staff %} staff{% endif %}" title="{{ post.author.badge.title }}">{{ post.author.badge.label }}</span>{% endif %}{% if post.author.guest %} <span class="comment-badge">{{ "비회원"|t }}</span>{% endif %}{% endif %}</span>{% endif %}
     {% if board.order == "activity" %}<time class="date" datetime="{{ post.activity_at }}" title="{{ post.activity_date }}">{{ post.activity_at|ago(site.tz) }}</time>{% else %}<time class="date" datetime="{{ post.published_at }}" title="{{ post.date }}">{{ post.published_at|ago(site.tz) }}</time>{% endif %}
-    <span class="hits">{% if post.views is not none %}<span class="hits-label">조회 </span>{{ post.views|short_count }}{% endif %}</span>
+    <span class="hits">{% if post.views is not none %}<span class="hits-label">{{ "조회"|t }} </span>{{ post.views|short_count }}{% endif %}</span>
   </li>
   {% endfor %}
   </ul>
@@ -27,12 +27,12 @@
       {% if layout == "gallery" %}<div class="tile-cap">{% endif %}
       <h2>{% include "_reply_mark.html" %}<a href="{{ post.url }}">{% if post.is_secret %}{% include "_lock.html" %}{% endif %}{{ post.title }}</a>{% include "_title_marks.html" %}</h2>
       {% if post.fields %}<p class="list-fields">{% for f in post.fields %}<span class="list-field" title="{{ f.label }}">{{ f.text }}</span>{% endfor %}</p>{% endif %}
-      {% if post.deadline %}<p class="event-meta"><span class="dday{% if post.deadline.closed %} closed{% endif %}">{{ post.deadline.label }}</span> 참여 {{ post.comments or 0 }}</p>{% endif %}
+      {% if post.deadline %}<p class="event-meta"><span class="dday{% if post.deadline.closed %} closed{% endif %}">{{ post.deadline.label }}</span> {{ "참여"|t }} {{ post.comments or 0 }}</p>{% endif %}
       {% if layout == "card" %}
-      {% if post.is_secret %}<p class="summary secret">작성자와 관리자만 읽을 수 있는 글입니다.</p>
+      {% if post.is_secret %}<p class="summary secret">{{ "작성자와 관리자만 읽을 수 있는 글입니다."|t }}</p>
       {% elif post.summary %}<p class="summary">{{ post.summary }}</p>{% endif %}
       {% endif %}
-      <p class="meta">{% if post.author and board.write_url %}<span class="author"{% if not post.author.guest %} data-member="{{ post.author.name }}"{% endif %}>{{ post.author.name }}</span>{% if post.author.badge %} <span class="level-badge{% if post.author.badge.staff %} staff{% endif %}" title="{{ post.author.badge.title }}">{{ post.author.badge.label }}</span>{% endif %} · {% endif %}<time datetime="{{ post.published_at }}">{{ post.date }}</time>{% if post.views is not none %} · <span class="views">조회 {{ post.views|short_count }}</span>{% endif %}</p>
+      <p class="meta">{% if post.author and board.write_url %}<span class="author"{% if not post.author.guest %} data-member="{{ post.author.name }}"{% endif %}>{{ post.author.name }}</span>{% if post.author.badge %} <span class="level-badge{% if post.author.badge.staff %} staff{% endif %}" title="{{ post.author.badge.title }}">{{ post.author.badge.label }}</span>{% endif %} · {% endif %}<time datetime="{{ post.published_at }}">{{ post.date }}</time>{% if post.views is not none %} · <span class="views">{{ "조회"|t }} {{ post.views|short_count }}</span>{% endif %}</p>
       {% if layout == "gallery" %}</div>{% endif %}
     </article>
   </li>
@@ -46,8 +46,8 @@
       {% if post.thumb %}<a class="thumb" href="{{ post.url }}" tabindex="-1" aria-hidden="true"><img src="{{ post.thumb.src }}" alt="" width="{{ post.thumb.width }}" height="{{ post.thumb.height }}" loading="lazy" decoding="async"></a>{% endif %}
       <h2>{% include "_reply_mark.html" %}<a href="{{ post.url }}">{% if post.is_secret %}{% include "_lock.html" %}{% endif %}{{ post.title }}</a>{% include "_title_marks.html" %}</h2>
       {% if post.fields %}<p class="list-fields">{% for f in post.fields %}<span class="list-field" title="{{ f.label }}">{{ f.text }}</span>{% endfor %}</p>{% endif %}
-      <p class="meta">{% if post.author and board.write_url %}<span class="author"{% if not post.author.guest %} data-member="{{ post.author.name }}"{% endif %}>{{ post.author.name }}</span>{% if post.author.badge %} <span class="level-badge{% if post.author.badge.staff %} staff{% endif %}" title="{{ post.author.badge.title }}">{{ post.author.badge.label }}</span>{% endif %}{% if post.author.guest %} <span class="comment-badge">비회원</span>{% endif %} · {% endif %}{% if post.category %}<a class="cat" href="{{ post.category.url }}">{{ post.category.name }}</a> · {% endif %}<time datetime="{{ post.published_at }}">{{ post.date }}</time>{% if post.views is not none %} · <span class="views">조회 {{ post.views|short_count }}</span>{% endif %}</p>
-      {% if post.is_secret %}<p class="summary secret">작성자와 관리자만 읽을 수 있는 글입니다.</p>
+      <p class="meta">{% if post.author and board.write_url %}<span class="author"{% if not post.author.guest %} data-member="{{ post.author.name }}"{% endif %}>{{ post.author.name }}</span>{% if post.author.badge %} <span class="level-badge{% if post.author.badge.staff %} staff{% endif %}" title="{{ post.author.badge.title }}">{{ post.author.badge.label }}</span>{% endif %}{% if post.author.guest %} <span class="comment-badge">{{ "비회원"|t }}</span>{% endif %} · {% endif %}{% if post.category %}<a class="cat" href="{{ post.category.url }}">{{ post.category.name }}</a> · {% endif %}<time datetime="{{ post.published_at }}">{{ post.date }}</time>{% if post.views is not none %} · <span class="views">{{ "조회"|t }} {{ post.views|short_count }}</span>{% endif %}</p>
+      {% if post.is_secret %}<p class="summary secret">{{ "작성자와 관리자만 읽을 수 있는 글입니다."|t }}</p>
       {% elif post.summary %}<p class="summary">{{ post.summary }}</p>{% endif %}
     </article>
   </li>
@@ -56,5 +56,5 @@
 {% endif %}
 {% if not pager_below %}{% include "_pagination.html" %}{% endif %}
 {% else %}
-<p class="empty">아직 글이 없습니다.</p>
+<p class="empty">{{ "아직 글이 없습니다."|t }}</p>
 {% endif %}

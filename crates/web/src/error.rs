@@ -6,6 +6,7 @@ use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse, Response};
 use maru_core::output::Failure;
 use maru_core::{Code, Error, clock};
+use maru_themes::tr;
 use serde_json::json;
 
 use crate::AppState;
@@ -47,7 +48,7 @@ pub async fn page(state: &AppState, err: &Error) -> Response {
     let body = err.body(rid.as_deref());
     let code = status(err);
     let message = match err.code() {
-        Code::NotFound => "페이지를 찾을 수 없습니다.".to_owned(),
+        Code::NotFound => tr("페이지를 찾을 수 없습니다.").to_owned(),
         _ => body.message.clone(),
     };
     let html = state

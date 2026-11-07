@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% block main %}
-<h1 class="page-title">태그</h1>
+<h1 class="page-title">{{ "태그"|t }}</h1>
 {% if tags %}
 <ul class="tags tag-index">
   {% for t in tags %}<li><a href="{{ t.url }}" rel="tag">#{{ t.name }} <span class="count">{{ t.posts }}</span></a></li>{% endfor %}
 </ul>
 {% else %}
-<p class="empty">아직 태그가 없습니다.</p>
+<p class="empty">{{ "아직 태그가 없습니다."|t }}</p>
 {% endif %}
 {% endblock %}

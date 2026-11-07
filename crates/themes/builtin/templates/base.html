@@ -26,22 +26,22 @@
 <link rel="stylesheet" href="/assets/site.css">
 </head>
 <body>
-<a class="skip" href="#main">본문 바로가기</a>
+<a class="skip" href="#main">{{ "본문 바로가기"|t }}</a>
 <header class="site-header">
   <div class="wrap">
     <a class="brand" href="{{ site.home_url }}">{{ site.name }}</a>
     {% if widgets.masthead %}<div class="region region-masthead">{% for w in widgets.masthead %}{% include "_widget.html" %}{% endfor %}</div>{% endif %}
-    {% if site.menus and site.menus.header %}<nav class="site-nav" aria-label="주 메뉴">{% with items = site.menus.header %}{% include "_menu.html" %}{% endwith %}</nav>{% endif %}
+    {% if site.menus and site.menus.header %}<nav class="site-nav" aria-label="{{ "주 메뉴"|t }}">{% with items = site.menus.header %}{% include "_menu.html" %}{% endwith %}</nav>{% endif %}
     {% if site.show_search %}<form class="site-search" role="search" action="{{ site.search_url }}" method="get">
-      <label class="visually-hidden" for="site-q">사이트 검색</label>
-      <input id="site-q" type="search" name="q" maxlength="100" placeholder="검색" autocomplete="off" enterkeyhint="search">
-      <button type="submit" aria-label="검색"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="7" cy="7" r="4.8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10.6 10.6 14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+      <label class="visually-hidden" for="site-q">{{ "사이트 검색"|t }}</label>
+      <input id="site-q" type="search" name="q" maxlength="100" placeholder="{{ "검색"|t }}" autocomplete="off" enterkeyhint="search">
+      <button type="submit" aria-label="{{ "검색"|t }}"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="7" cy="7" r="4.8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10.6 10.6 14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
     </form>{% endif %}
-    {% if site.show_account %}<a class="site-account" href="{{ site.account_url }}">내 계정</a>{% endif %}
+    {% if site.show_account %}<a class="site-account" href="{{ site.account_url }}">{{ "내 계정"|t }}</a>{% endif %}
   </div>
 </header>
 {# 최근 본 게시판 (GAP Q11, ADR-0096). HTML 은 모두에게 같고(캐시) 목록은 이 브라우저에만 있다. site.js 가 채운다. #}
-<nav class="recent-boards" aria-label="최근 본 게시판" data-recent-boards hidden><div class="wrap"></div></nav>
+<nav class="recent-boards" aria-label="{{ "최근 본 게시판"|t }}" data-recent-boards hidden><div class="wrap"></div></nav>
 {# 위젯 영역 (ADR-0059): header·hero·main·sidebar·footer. 비어 있으면 아무것도 그리지 않는다. #}
 {% if widgets.header %}<div class="region region-header"><div class="wrap">{% for w in widgets.header %}{% include "_widget.html" %}{% endfor %}</div></div>{% endif %}
 {% if widgets.hero %}<div class="region region-hero"><div class="wrap">{% for w in widgets.hero %}{% include "_widget.html" %}{% endfor %}</div></div>{% endif %}
@@ -51,27 +51,27 @@
 {% if widgets.main %}<div class="region region-main">{% for w in widgets.main %}{% include "_widget.html" %}{% endfor %}</div>{% endif %}
 {% block main %}{% endblock %}
 </main>
-{% if widgets.sidebar %}<aside class="region region-sidebar" aria-label="곁가지">{% for w in widgets.sidebar %}{% include "_widget.html" %}{% endfor %}</aside>{% endif %}
+{% if widgets.sidebar %}<aside class="region region-sidebar" aria-label="{{ "곁가지"|t }}">{% for w in widgets.sidebar %}{% include "_widget.html" %}{% endfor %}</aside>{% endif %}
 </div>
 {# 광고 자리 (GAP Q24, ADR-0109): 후원 띠는 접고 펼친다(이 브라우저에 기억), 양옆은 넓은 화면만,
    아래 고정은 휴대폰만(닫으면 이번 방문 동안 숨김). 비어 있으면 아무것도 그리지 않는다. #}
-{% if widgets.sponsor %}<section class="region region-sponsor" aria-label="후원" data-sponsor><div class="wrap">
-  <div class="sponsor-head"><span class="sponsor-title">후원</span><button type="button" class="sponsor-toggle" aria-controls="sponsor-items" aria-expanded="true" hidden>접기</button></div>
+{% if widgets.sponsor %}<section class="region region-sponsor" aria-label="{{ "후원"|t }}" data-sponsor><div class="wrap">
+  <div class="sponsor-head"><span class="sponsor-title">{{ "후원"|t }}</span><button type="button" class="sponsor-toggle" aria-controls="sponsor-items" aria-expanded="true" hidden>{{ "접기"|t }}</button></div>
   <div class="sponsor-items" id="sponsor-items">{% for w in widgets.sponsor %}{% include "_widget.html" %}{% endfor %}</div>
 </div></section>{% endif %}
 <footer class="site-footer">
   {% if widgets.footer %}<div class="region region-footer"><div class="wrap">{% for w in widgets.footer %}{% include "_widget.html" %}{% endfor %}</div></div>{% endif %}
   <div class="wrap">
-    {% if site.menus and site.menus.footer %}<nav class="footer-nav" aria-label="하단 메뉴">{% with items = site.menus.footer %}{% include "_menu.html" %}{% endwith %}</nav>{% endif %}
+    {% if site.menus and site.menus.footer %}<nav class="footer-nav" aria-label="{{ "하단 메뉴"|t }}">{% with items = site.menus.footer %}{% include "_menu.html" %}{% endwith %}</nav>{% endif %}
     <p id="page-end">{{ site.name }} · <a href="{{ site.rss_url }}">RSS</a></p>
   </div>
 </footer>
-{% if widgets.rail %}<aside class="region region-rail" aria-label="광고">
+{% if widgets.rail %}<aside class="region region-rail" aria-label="{{ "광고"|t }}">
   <div class="rail-side rail-left">{% for w in widgets.rail %}{% if loop.index is odd %}{% include "_widget.html" %}{% endif %}{% endfor %}</div>
   <div class="rail-side rail-right">{% for w in widgets.rail %}{% if loop.index is even %}{% include "_widget.html" %}{% endif %}{% endfor %}</div>
 </aside>{% endif %}
-{% if widgets.sticky %}<div class="region region-sticky" data-sticky-ad>{% for w in widgets.sticky %}{% include "_widget.html" %}{% endfor %}<button type="button" class="sticky-close" hidden><span aria-hidden="true">×</span><span class="visually-hidden">아래 광고 닫기</span></button></div>{% endif %}
-{% block page_jump %}<nav class="page-jump" aria-label="쪽 이동" hidden><a href="#main">맨 위</a><a href="#page-end">맨 아래</a></nav>{% endblock %}
+{% if widgets.sticky %}<div class="region region-sticky" data-sticky-ad>{% for w in widgets.sticky %}{% include "_widget.html" %}{% endfor %}<button type="button" class="sticky-close" hidden><span aria-hidden="true">×</span><span class="visually-hidden">{{ "아래 광고 닫기"|t }}</span></button></div>{% endif %}
+{% block page_jump %}<nav class="page-jump" aria-label="{{ "쪽 이동"|t }}" hidden><a href="#main">{{ "맨 위"|t }}</a><a href="#page-end">{{ "맨 아래"|t }}</a></nav>{% endblock %}
 {% if widgets.popup %}
 {# 팝업 (ADR-0060). 처음엔 숨겨 두고 site.js 가 「보지 않기」 기한을 보고 연다. JS 가 없으면 뜨지 않는다. #}
 <div class="popups">{% for w in widgets.popup %}{% include "widgets/popup.html" %}{% endfor %}</div>

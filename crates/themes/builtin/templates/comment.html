@@ -4,88 +4,88 @@
 {% block main %}
 <section class="account" aria-labelledby="comment-title">
 {% if comment.view == "compose" %}
-  <h1 id="comment-title">댓글 쓰기</h1>
+  <h1 id="comment-title">{{ "댓글 쓰기"|t }}</h1>
   <p class="account-lead"><a href="{{ comment.back }}">{{ comment.post_title }}</a></p>
   {% if comment.error %}<p class="form-error" role="alert">{{ comment.error }}</p>{% endif %}
   <form class="account-form" method="post" action="{{ comment.action }}">
     {% if comment.reply_to %}<input type="hidden" name="reply_to" value="{{ comment.reply_to }}">{% endif %}
-    <label for="body">내용</label>
+    <label for="body">{{ "내용"|t }}</label>
     <textarea id="body" name="body" rows="5" maxlength="{{ comment.max_chars }}" required{% if site.stickers %} data-stickers="code"{% endif %}>{{ comment.body }}</textarea>
     {% if site.stickers %}<script src="/assets/stickers.js" defer{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %}></script>{% endif %}
     {% if comment.image %}
     <input type="hidden" name="image" value="{{ comment.image }}">
-    <p class="comment-image"><img src="{{ comment.image }}" alt="붙일 그림"></p>
+    <p class="comment-image"><img src="{{ comment.image }}" alt="{{ "붙일 그림"|t }}"></p>
     {% endif %}
     {% if comment.guest %}
-    <label for="name">이름</label>
+    <label for="name">{{ "이름"|t }}</label>
     <input id="name" type="text" name="name" value="{{ comment.name }}" minlength="2" maxlength="20" autocomplete="nickname" required>
-    <label for="password">비밀번호</label>
+    <label for="password">{{ "비밀번호"|t }}</label>
     <input id="password" type="password" name="password" value="{{ comment.password }}" minlength="4" maxlength="64" autocomplete="new-password" required>
     {% endif %}
     {% if comment.captcha %}
     <input type="hidden" name="captcha_token" value="{{ comment.captcha.token }}">
-    <label for="captcha">확인 질문: {{ comment.captcha.question }}</label>
+    <label for="captcha">{{ "확인 질문:"|t }} {{ comment.captcha.question }}</label>
     <input id="captcha" type="text" name="captcha_answer" inputmode="numeric" autocomplete="off" required aria-describedby="captcha-hint"{% if not comment.error %} autofocus{% endif %}>
-    <p id="captcha-hint" class="hint">답을 숫자로 적어 주세요. 자동 프로그램이 댓글을 붓는 것을 막는 질문입니다.</p>
+    <p id="captcha-hint" class="hint">{{ "답을 숫자로 적어 주세요. 자동 프로그램이 댓글을 붓는 것을 막는 질문입니다."|t }}</p>
     {% endif %}
-    <div class="trap" aria-hidden="true"><label>웹사이트 <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
-    <button type="submit">댓글 달기</button>
+    <div class="trap" aria-hidden="true"><label>{{ "웹사이트"|t }} <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+    <button type="submit">{{ "댓글 달기"|t }}</button>
   </form>
-  <p class="account-links"><a href="{{ comment.back }}">글로 돌아가기</a></p>
+  <p class="account-links"><a href="{{ comment.back }}">{{ "글로 돌아가기"|t }}</a></p>
 
 {% elif comment.view == "edit" %}
-  <h1 id="comment-title">댓글 고치기</h1>
+  <h1 id="comment-title">{{ "댓글 고치기"|t }}</h1>
   {% if comment.error %}<p class="form-error" role="alert">{{ comment.error }}</p>{% endif %}
   <form class="account-form" method="post" action="{{ comment.action }}">
     <input type="hidden" name="_csrf" value="{{ comment.csrf }}">
-    <label for="body">내용</label>
+    <label for="body">{{ "내용"|t }}</label>
     <textarea id="body" name="body" rows="5" maxlength="{{ comment.max_chars }}" required{% if site.stickers %} data-stickers="code"{% endif %}>{{ comment.body }}</textarea>
     {% if site.stickers %}<script src="/assets/stickers.js" defer{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %}></script>{% endif %}
     {% if comment.image or comment.image_url %}
     <div class="comment-image-field" data-comment-image hidden>
       <input type="hidden" name="image" value="{{ comment.image or '' }}">
       {% if comment.image_url %}
-      <label for="comment-image-file">그림 붙이기 <span class="muted">(한 장)</span></label>
+      <label for="comment-image-file">{{ "그림 붙이기"|t }} <span class="muted">{{ "(한 장)"|t }}</span></label>
       <input id="comment-image-file" type="file" data-upload="{{ comment.image_url }}" accept="image/jpeg,image/png,image/gif,image/webp">
       {% endif %}
-      <p class="comment-image-preview" data-image-preview hidden><img alt="붙인 그림"> <button type="button" data-image-remove>빼기</button></p>
+      <p class="comment-image-preview" data-image-preview hidden><img alt="{{ "붙인 그림"|t }}"> <button type="button" data-image-remove>{{ "빼기"|t }}</button></p>
       <p class="hint" role="status" data-image-status></p>
     </div>
     <script src="/assets/comment-image.js" defer{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %}></script>
     {% endif %}
     {% if comment.needs_password %}
-    <label for="password">쓸 때 정한 비밀번호</label>
+    <label for="password">{{ "쓸 때 정한 비밀번호"|t }}</label>
     <input id="password" type="password" name="password" autocomplete="current-password" required>
     {% endif %}
-    <button type="submit">고치기</button>
+    <button type="submit">{{ "고치기"|t }}</button>
   </form>
-  <p class="account-links"><a href="{{ comment.back }}">글로 돌아가기</a></p>
+  <p class="account-links"><a href="{{ comment.back }}">{{ "글로 돌아가기"|t }}</a></p>
 
 {% elif comment.view == "delete" %}
-  <h1 id="comment-title">댓글 지우기</h1>
+  <h1 id="comment-title">{{ "댓글 지우기"|t }}</h1>
   {% if comment.error %}<p class="form-error" role="alert">{{ comment.error }}</p>{% endif %}
   <blockquote class="comment-quote"><p><strong>{{ comment.author_name }}</strong></p><p>{{ comment.body }}</p></blockquote>
   <form class="account-form" method="post" action="{{ comment.action }}">
     <input type="hidden" name="_csrf" value="{{ comment.csrf }}">
     {% if comment.needs_password %}
-    <label for="password">쓸 때 정한 비밀번호</label>
+    <label for="password">{{ "쓸 때 정한 비밀번호"|t }}</label>
     <input id="password" type="password" name="password" autocomplete="current-password" required>
     {% endif %}
-    <button type="submit" class="danger">지우기</button>
+    <button type="submit" class="danger">{{ "지우기"|t }}</button>
   </form>
-  <p class="account-links"><a href="{{ comment.back }}">글로 돌아가기</a></p>
+  <p class="account-links"><a href="{{ comment.back }}">{{ "글로 돌아가기"|t }}</a></p>
 
 {% elif comment.view == "accept" %}
-  <h1 id="comment-title">{% if comment.accepted %}채택 취소{% else %}답변 채택{% endif %}</h1>
+  <h1 id="comment-title">{% if comment.accepted %}{{ "채택 취소"|t }}{% else %}{{ "답변 채택"|t }}{% endif %}</h1>
   <p class="account-lead"><a href="{{ comment.back }}">{{ comment.post_title }}</a></p>
   {% if comment.error %}<p class="form-error" role="alert">{{ comment.error }}</p>{% endif %}
   <blockquote class="comment-quote"><p><strong>{{ comment.author_name }}</strong></p><p>{{ comment.body }}</p></blockquote>
-  <p class="hint">{% if comment.accepted %}이 댓글의 채택을 뺍니다.{% else %}이 댓글을 답변으로 채택합니다. 다른 댓글이 채택되어 있었다면 이것으로 바뀝니다.{% endif %}</p>
+  <p class="hint">{% if comment.accepted %}{{ "이 댓글의 채택을 뺍니다."|t }}{% else %}{{ "이 댓글을 답변으로 채택합니다. 다른 댓글이 채택되어 있었다면 이것으로 바뀝니다."|t }}{% endif %}</p>
   <form class="account-form" method="post" action="{{ comment.action }}">
     <input type="hidden" name="_csrf" value="{{ comment.csrf }}">
-    <button type="submit">{% if comment.accepted %}채택 취소{% else %}채택하기{% endif %}</button>
+    <button type="submit">{% if comment.accepted %}{{ "채택 취소"|t }}{% else %}{{ "채택하기"|t }}{% endif %}</button>
   </form>
-  <p class="account-links"><a href="{{ comment.back }}">글로 돌아가기</a></p>
+  <p class="account-links"><a href="{{ comment.back }}">{{ "글로 돌아가기"|t }}</a></p>
 
 {% else %}
   <h1 id="comment-title">{{ comment.heading }}</h1>

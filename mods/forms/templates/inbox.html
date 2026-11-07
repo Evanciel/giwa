@@ -3,27 +3,27 @@
 {% block main_class %}wrap wide{% endblock %}
 {% block main %}
 <section class="account me forms-inbox" aria-labelledby="forms-title">
-  <h1 id="forms-title">받은 문의{% if total %} <span class="count">{{ total }}</span>{% endif %}</h1>
-  <nav class="post-actions" aria-label="폼">
-    <a href="/m/forms"{% if not form %} aria-current="page"{% endif %}>전체</a>
+  <h1 id="forms-title">{{ "받은 문의"|t }}{% if total %} <span class="count">{{ total }}</span>{% endif %}</h1>
+  <nav class="post-actions" aria-label="{{ "폼"|t }}">
+    <a href="/m/forms"{% if not form %} aria-current="page"{% endif %}>{{ "전체"|t }}</a>
     {% for n in forms %}<a href="/m/forms?form={{ n }}"{% if form == n %} aria-current="page"{% endif %}>{{ n }}</a>{% endfor %}
-    {% if items %}<a href="{{ export }}">CSV 내려받기</a>{% endif %}
+    {% if items %}<a href="{{ export }}">{{ "CSV 내려받기"|t }}</a>{% endif %}
   </nav>
   {% if items %}
   <ul class="report-list">
     {% for s in items %}<li class="{% if not s.read %}is-new{% endif %}">
-      <p class="report-head"><strong>{{ s.form }}</strong> <span class="hint">{{ s.at }}</span>{% if not s.read %} <span class="badge">새 글</span>{% endif %}</p>
+      <p class="report-head"><strong>{{ s.form }}</strong> <span class="hint">{{ s.at }}</span>{% if not s.read %} <span class="badge">{{ "새 글"|t }}</span>{% endif %}</p>
       <dl class="forms-values">{% for c in s.fields %}<dt>{{ c.key }}</dt><dd>{{ c.value }}</dd>{% endfor %}</dl>
       <div class="report-resolve">
-        {% if not s.read %}<form method="post" action="/m/forms/{{ s.id }}/read"><button type="submit">읽음</button></form>{% endif %}
-        <form method="post" action="/m/forms/{{ s.id }}/delete"><button type="submit">지우기</button></form>
+        {% if not s.read %}<form method="post" action="/m/forms/{{ s.id }}/read"><button type="submit">{{ "읽음"|t }}</button></form>{% endif %}
+        <form method="post" action="/m/forms/{{ s.id }}/delete"><button type="submit">{{ "지우기"|t }}</button></form>
       </div>
     </li>{% endfor %}
   </ul>
-  {% else %}<p class="muted">받은 문의가 없습니다.</p>{% endif %}
-  {% if prev or next %}<nav class="pagination" aria-label="쪽">
-    {% if prev %}<a href="{{ base }}{% if form %}&{% else %}?{% endif %}page={{ prev }}" rel="prev">이전</a>{% endif %}
-    {% if next %}<a href="{{ base }}{% if form %}&{% else %}?{% endif %}page={{ next }}" rel="next">다음</a>{% endif %}
+  {% else %}<p class="muted">{{ "받은 문의가 없습니다."|t }}</p>{% endif %}
+  {% if prev or next %}<nav class="pagination" aria-label="{{ "쪽"|t }}">
+    {% if prev %}<a href="{{ base }}{% if form %}&{% else %}?{% endif %}page={{ prev }}" rel="prev">{{ "이전"|t }}</a>{% endif %}
+    {% if next %}<a href="{{ base }}{% if form %}&{% else %}?{% endif %}page={{ next }}" rel="next">{{ "다음"|t }}</a>{% endif %}
   </nav>{% endif %}
 </section>
 {% endblock %}

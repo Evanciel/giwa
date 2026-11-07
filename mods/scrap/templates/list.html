@@ -3,27 +3,27 @@
 {% block main_class %}wrap account-wrap{% endblock %}
 {% block main %}
 <section class="account me" aria-labelledby="scrap-title">
-  <h1 id="scrap-title">내 스크랩{% if total %} <span class="count">{{ total }}</span>{% endif %}</h1>
+  <h1 id="scrap-title">{{ "내 스크랩"|t }}{% if total %} <span class="count">{{ total }}</span>{% endif %}</h1>
   {% if items %}
   <ul class="me-posts scrap-list">
     {% for p in items %}<li>
-      {% if p.url %}<a href="{{ p.url }}">{{ p.title }}</a>{% else %}<span class="muted">볼 수 없는 글입니다</span>{% endif %}
+      {% if p.url %}<a href="{{ p.url }}">{{ p.title }}</a>{% else %}<span class="muted">{{ "볼 수 없는 글입니다"|t }}</span>{% endif %}
       <span class="hint">{% if p.board %}{{ p.board }} · {% endif %}{{ p.date }}</span>
       <form method="post" action="/m/scrap/post/{{ p.post_id }}">
         <input type="hidden" name="from" value="list">
         <input type="hidden" name="page" value="{{ page }}">
-        <button type="submit" class="pill">빼기</button>
+        <button type="submit" class="pill">{{ "빼기"|t }}</button>
       </form>
     </li>{% endfor %}
   </ul>
   {% if prev or next %}
-  <nav class="post-actions" aria-label="쪽 나눔">
-    {% if prev %}<a href="/m/scrap?page={{ prev }}" rel="prev">이전</a>{% endif %}
-    {% if next %}<a href="/m/scrap?page={{ next }}" rel="next">다음</a>{% endif %}
+  <nav class="post-actions" aria-label="{{ "쪽 나눔"|t }}">
+    {% if prev %}<a href="/m/scrap?page={{ prev }}" rel="prev">{{ "이전"|t }}</a>{% endif %}
+    {% if next %}<a href="/m/scrap?page={{ next }}" rel="next">{{ "다음"|t }}</a>{% endif %}
   </nav>
   {% endif %}
   {% else %}
-  <p class="empty">아직 스크랩한 글이 없습니다. 글 아래의 스크랩 단추로 모아 두세요.</p>
+  <p class="empty">{{ "아직 스크랩한 글이 없습니다. 글 아래의 스크랩 단추로 모아 두세요."|t }}</p>
   {% endif %}
 </section>
 {% endblock %}

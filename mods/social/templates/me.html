@@ -1,16 +1,16 @@
 {# 내 정보의 소셜 로그인 칸 (ADR-0114). #}
 <section class="me-block" id="social" aria-labelledby="me-social">
-  <h2 id="me-social">소셜 로그인</h2>
+  <h2 id="me-social">{{ "소셜 로그인"|t }}</h2>
   <ul class="social-links">
     {% for p in s.data.providers %}<li>
       <span class="social-name">{{ p.label }}</span>
       {% if p.linked %}
-      <span class="hint">연결됨{% if p.linked.email %} · {{ p.linked.email }}{% endif %} · {{ p.linked.date }}</span>
-      <form method="post" action="{{ p.unlink_action }}"><button type="submit" class="link-btn">연결 끊기</button></form>
+      <span class="hint">{{ "연결됨"|t }}{% if p.linked.email %} · {{ p.linked.email }}{% endif %} · {{ p.linked.date }}</span>
+      <form method="post" action="{{ p.unlink_action }}"><button type="submit" class="link-btn">{{ "연결 끊기"|t }}</button></form>
       {% elif p.link_url %}
-      <a class="btn-small" href="{{ p.link_url }}">연결하기</a>
+      <a class="btn-small" href="{{ p.link_url }}">{{ "연결하기"|t }}</a>
       {% endif %}
     </li>{% endfor %}
   </ul>
-  <p class="hint">연결하면 그 계정으로도 로그인할 수 있습니다. 비밀번호가 없으면 마지막 연결은 끊을 수 없습니다.</p>
+  <p class="hint">{{ "연결하면 그 계정으로도 로그인할 수 있습니다. 비밀번호가 없으면 마지막 연결은 끊을 수 없습니다."|t }}</p>
 </section>

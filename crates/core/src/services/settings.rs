@@ -88,7 +88,11 @@ pub struct SettingsPatch {
 
 /// 저장된 값 위에 기본값을 채운다. 모르는 키나 잘못된 값은 기본값으로 둔다.
 pub async fn site(ctx: &Ctx) -> Result<SiteSettings> {
-    Ok(from_pairs(ctx.store.settings().await?))
+    let s = from_pairs(ctx.store.settings().await?);
+    // 오류·편지 문장은 `Ctx` 없이 만들어지므로 읽을 때마다 프로세스 언어를 맞춘다 (ADR-0134).
+    // 다른 프로세스(CLI)가 언어를 바꿔도 서버의 다음 요청부터 따라간다.
+    crate::messages::set_lang(&s.lang);
+    Ok(s)
 }
 
 fn from_pairs(pairs: Vec<(String, Value)>) -> SiteSettings {

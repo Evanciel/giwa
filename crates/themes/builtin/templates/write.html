@@ -4,87 +4,87 @@
 {% block main %}
 <section class="account" aria-labelledby="write-title">
 {% if write.view == "form" %}
-  <h1 id="write-title">{% if write.reply %}답변 쓰기{% elif write.mode == "new" %}글쓰기{% else %}글 고치기{% endif %}</h1>
-  <p class="account-lead"><a href="{{ write.back }}">{{ write.board.name }}</a>{% if write.review and write.mode == "new" %} · 관리자가 확인한 뒤에 목록에 보입니다.{% endif %}</p>
+  <h1 id="write-title">{% if write.reply %}{{ "답변 쓰기"|t }}{% elif write.mode == "new" %}{{ "글쓰기"|t }}{% else %}{{ "글 고치기"|t }}{% endif %}</h1>
+  <p class="account-lead"><a href="{{ write.back }}">{{ write.board.name }}</a>{% if write.review and write.mode == "new" %} {{ "· 관리자가 확인한 뒤에 목록에 보입니다."|t }}{% endif %}</p>
   {% if write.error %}<p class="form-error" role="alert">{{ write.error }}</p>{% endif %}
   <form class="account-form write-form" method="post" action="{{ write.action }}">
     <input type="hidden" name="_csrf" value="{{ write.csrf }}">
     {% if write.reply %}
     <input type="hidden" name="reply_to" value="{{ write.reply.id }}">
-    <p class="reply-to">답변할 글: <strong>{{ write.reply.title }}</strong>{% if write.reply.secret %} · 비밀글이라 답변도 비밀글이 됩니다{% endif %}</p>
+    <p class="reply-to">{{ "답변할 글:"|t }} <strong>{{ write.reply.title }}</strong>{% if write.reply.secret %} {{ "· 비밀글이라 답변도 비밀글이 됩니다"|t }}{% endif %}</p>
     {% endif %}
     {% if write.categories %}
-    <label for="category">분류</label>
+    <label for="category">{{ "분류"|t }}</label>
     <select id="category" name="category">
-      <option value="">분류 없음</option>
+      <option value="">{{ "분류 없음"|t }}</option>
       {% for c in write.categories %}<option value="{{ c.slug }}"{% if c.selected %} selected{% endif %}>{{ c.name }}</option>{% endfor %}
     </select>
     {% endif %}
-    <label for="title">제목</label>
+    <label for="title">{{ "제목"|t }}</label>
     <input id="title" type="text" name="title" value="{{ write.title }}" maxlength="200" required{% if not write.error %} autofocus{% endif %}>
-    <label for="body">내용</label>
+    <label for="body">{{ "내용"|t }}</label>
     <textarea id="body" name="body" rows="14" required aria-describedby="body-hint"{% if site.stickers %} data-stickers="markdown"{% endif %}>{{ write.body }}</textarea>
     {% if site.stickers %}<script src="/assets/stickers.js" defer{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %}></script>{% endif %}
-    <p id="body-hint" class="hint">빈 줄로 문단을 나눕니다. <code>**굵게**</code>, <code>- 목록</code>, 주소는 그대로 붙여 넣으면 됩니다.</p>
+    <p id="body-hint" class="hint">{{ "빈 줄로 문단을 나눕니다."|t }} <code>{{ "**굵게**"|t }}</code>, <code>{{ "- 목록"|t }}</code>{{ ", 주소는 그대로 붙여 넣으면 됩니다."|t }}</p>
     {% if write.upload %}
     <div class="write-attach" data-attach-url="{{ write.upload }}" hidden>
-      <label for="attach">그림·파일 붙이기</label>
+      <label for="attach">{{ "그림·파일 붙이기"|t }}</label>
       <input id="attach" type="file" multiple aria-describedby="attach-hint">
-      <p id="attach-hint" class="hint">그림(jpg·png·gif·webp)과 문서(pdf·hwp·docx·xlsx·zip 등)를 한 건에 10MB 까지 올려 내용에 넣습니다. 내용에 넣은 파일은 글을 읽는 누구나 받을 수 있습니다.</p>
+      <p id="attach-hint" class="hint">{{ "그림(jpg·png·gif·webp)과 문서(pdf·hwp·docx·xlsx·zip 등)를 한 건에 10MB 까지 올려 내용에 넣습니다. 내용에 넣은 파일은 글을 읽는 누구나 받을 수 있습니다."|t }}</p>
       <p class="hint" role="status" data-attach-status></p>
     </div>
     <script src="/assets/write.js" defer{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %}></script>
     {% endif %}
     {% if write.fields %}
     <fieldset class="post-fields-input">
-      <legend>{{ write.board.name }} 항목</legend>
+      <legend>{{ write.board.name }} {{ "항목"|t }}</legend>
       {% with fields = write.fields, shown = write.fields_shown %}{% include "_field_inputs.html" %}{% endwith %}
     </fieldset>
     {% endif %}
-    <label for="tags">태그</label>
+    <label for="tags">{{ "태그"|t }}</label>
     <input id="tags" type="text" name="tags" value="{{ write.tags }}" maxlength="400" aria-describedby="tags-hint">
-    <p id="tags-hint" class="hint">쉼표로 나눠 적습니다. 예: 국밥, 부산</p>
+    <p id="tags-hint" class="hint">{{ "쉼표로 나눠 적습니다. 예: 국밥, 부산"|t }}</p>
     {% if write.can_secret %}
-    <label class="check"><input type="checkbox" name="secret"{% if write.secret %} checked{% endif %}> 비밀글 (나와 관리자만 읽습니다)</label>
+    <label class="check"><input type="checkbox" name="secret"{% if write.secret %} checked{% endif %}> {{ "비밀글 (나와 관리자만 읽습니다)"|t }}</label>
     {% endif %}
     {% if write.guest %}
     <fieldset class="comment-guest">
-      <legend>비회원으로 쓰기</legend>
+      <legend>{{ "비회원으로 쓰기"|t }}</legend>
       <div class="comment-guest-row">
-        <label>이름 <input type="text" name="name" value="{{ write.name }}" minlength="2" maxlength="20" autocomplete="nickname" required></label>
-        <label>비밀번호 <input type="password" name="password" value="{{ write.password }}" minlength="4" maxlength="64" autocomplete="new-password" required></label>
+        <label>{{ "이름"|t }} <input type="text" name="name" value="{{ write.name }}" minlength="2" maxlength="20" autocomplete="nickname" required></label>
+        <label>{{ "비밀번호"|t }} <input type="password" name="password" value="{{ write.password }}" minlength="4" maxlength="64" autocomplete="new-password" required></label>
       </div>
-      <p class="hint">비밀번호는 나중에 고치거나 지울 때 씁니다.</p>
+      <p class="hint">{{ "비밀번호는 나중에 고치거나 지울 때 씁니다."|t }}</p>
     </fieldset>
     {% endif %}
     {% if write.needs_password %}
-    <label for="password">쓸 때 정한 비밀번호</label>
+    <label for="password">{{ "쓸 때 정한 비밀번호"|t }}</label>
     <input id="password" type="password" name="password" autocomplete="current-password" required>
     {% endif %}
     {% if write.captcha %}
     <input type="hidden" name="captcha_token" value="{{ write.captcha.token }}">
-    <label for="captcha">확인 질문: {{ write.captcha.question }}</label>
+    <label for="captcha">{{ "확인 질문:"|t }} {{ write.captcha.question }}</label>
     <input id="captcha" type="text" name="captcha_answer" inputmode="numeric" autocomplete="off" required aria-describedby="captcha-hint">
-    <p id="captcha-hint" class="hint">답을 숫자로 적어 주세요. 자동 프로그램이 글을 붓는 것을 막는 질문입니다.</p>
+    <p id="captcha-hint" class="hint">{{ "답을 숫자로 적어 주세요. 자동 프로그램이 글을 붓는 것을 막는 질문입니다."|t }}</p>
     {% endif %}
-    <div class="trap" aria-hidden="true"><label>웹사이트 <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
-    <button type="submit">{% if write.mode == "new" %}올리기{% else %}고치기{% endif %}</button>
+    <div class="trap" aria-hidden="true"><label>{{ "웹사이트"|t }} <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+    <button type="submit">{% if write.mode == "new" %}{{ "올리기"|t }}{% else %}{{ "고치기"|t }}{% endif %}</button>
   </form>
-  <p class="account-links"><a href="{{ write.back }}">돌아가기</a></p>
+  <p class="account-links"><a href="{{ write.back }}">{{ "돌아가기"|t }}</a></p>
 
 {% elif write.view == "delete" %}
-  <h1 id="write-title">글 지우기</h1>
-  <p class="account-lead">「{{ write.post_title }}」 을 지웁니다.</p>
+  <h1 id="write-title">{{ "글 지우기"|t }}</h1>
+  <p class="account-lead">「{{ write.post_title }}{{ "」 을 지웁니다."|t }}</p>
   {% if write.error %}<p class="form-error" role="alert">{{ write.error }}</p>{% endif %}
   <form class="account-form" method="post" action="{{ write.action }}">
     <input type="hidden" name="_csrf" value="{{ write.csrf }}">
     {% if write.needs_password %}
-    <label for="password">쓸 때 정한 비밀번호</label>
+    <label for="password">{{ "쓸 때 정한 비밀번호"|t }}</label>
     <input id="password" type="password" name="password" autocomplete="current-password" required>
     {% endif %}
-    <button type="submit">지우기</button>
+    <button type="submit">{{ "지우기"|t }}</button>
   </form>
-  <p class="account-links"><a href="{{ write.back }}">글로 돌아가기</a></p>
+  <p class="account-links"><a href="{{ write.back }}">{{ "글로 돌아가기"|t }}</a></p>
 
 {% else %}
   <h1 id="write-title">{{ write.heading }}</h1>

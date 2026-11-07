@@ -121,6 +121,8 @@ pub(crate) async fn actor(ctx: &Ctx) -> Result<Actor> {
 pub(crate) async fn open(g: &Global) -> Result<(Ctx, Config, Db)> {
     let (mut ctx, config, db) = maru_storage::open(&DataDir::new(&g.data)).await?;
     ctx.extensions = crate::modules::registry(&db)?;
+    // 오류 문장의 언어를 사이트 언어로 맞춘다 (ADR-0134). 못 읽으면 한국어 그대로.
+    let _ = maru_core::services::settings::site(&ctx).await;
     Ok((ctx, config, db))
 }
 

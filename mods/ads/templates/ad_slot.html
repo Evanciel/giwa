@@ -1,6 +1,6 @@
 {# 광고 자리 (ADR-0079). 모든 광고에 「광고」 표시. 애드센스 코드는 화면의 nonce 를 단다. #}
 <div class="ad-slot ad-{{ w.data.provider }}">
-  <p class="ad-label">광고</p>
+  <p class="ad-label">{{ "광고"|t }}</p>
   {% if w.data.provider == "adsense" %}
   {% if csp_nonce %}
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ w.data.client }}" crossorigin="anonymous" nonce="{{ csp_nonce }}"></script>

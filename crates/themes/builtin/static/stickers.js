@@ -2,6 +2,13 @@
 // 댓글은 글자라 `:cat-1:` 을, 공개 글쓰기는 Markdown 이라 그림 문법을 넣는다.
 (function () {
   "use strict";
+  // 영어 사이트 문구 (ADR-0134). `<html lang>` 을 보고, 표에 없으면 한국어 그대로. {n} 은 값 자리.
+  var MARU_EN = document.documentElement.lang.indexOf("en") === 0 ? {
+    "스티커": "Stickers",
+    "스티커 고르기": "Choose a sticker",
+    "스티커를 불러오지 못했습니다.": "Could not load stickers.",
+  } : null;
+  function T(s, n) { return ((MARU_EN && MARU_EN[s]) || s).replace("{n}", n); }
   var loaded = null;
 
   function load() {
@@ -51,12 +58,12 @@
     var open = document.createElement("button");
     open.type = "button";
     open.className = "sticker-open";
-    open.textContent = "스티커";
+    open.textContent = T("스티커");
     open.setAttribute("aria-expanded", "false");
     var panel = document.createElement("div");
     panel.className = "sticker-panel";
     panel.setAttribute("role", "group");
-    panel.setAttribute("aria-label", "스티커 고르기");
+    panel.setAttribute("aria-label", T("스티커 고르기"));
     panel.hidden = true;
 
     function toggle(show) {
@@ -75,7 +82,7 @@
             if (first) first.focus();
           })
           .catch(function () {
-            panel.textContent = "스티커를 불러오지 못했습니다.";
+            panel.textContent = T("스티커를 불러오지 못했습니다.");
           });
       }
     });

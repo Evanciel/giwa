@@ -1,10 +1,10 @@
 {# 내 정보의 알림 칸 (ADR-0069). #}
 <section class="me-block" aria-labelledby="me-notify">
-  <h2 id="me-notify">알림{% if s.data.unread %} <span class="count" aria-label="새 알림 {{ s.data.unread }}개">{{ s.data.unread }}</span>{% endif %}</h2>
+  <h2 id="me-notify">{{ "알림"|t }}{% if s.data.unread %} <span class="count" aria-label="{{ "새 알림"|t }} {{ s.data.unread }}{{ "개"|t }}">{{ s.data.unread }}</span>{% endif %}</h2>
   {% if s.data.items %}
   <ul class="notify-list">
     {% for n in s.data.items %}{% include "mod/notify/row.html" %}{% endfor %}
   </ul>
-  <p><a href="{{ s.data.more_url }}">모두 보기</a></p>
-  {% else %}<p class="empty">아직 알림이 없습니다.</p>{% endif %}
+  <p><a href="{{ s.data.more_url }}">{{ "모두 보기"|t }}</a></p>
+  {% else %}<p class="empty">{{ "아직 알림이 없습니다."|t }}</p>{% endif %}
 </section>

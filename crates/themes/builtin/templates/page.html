@@ -7,7 +7,7 @@
 {% elif page.layout == "docs" %}
 <div class="docs">
   <article class="page page--docs">
-    <p class="docs-jump"><a href="#docs-nav">문서 목록으로</a></p>
+    <p class="docs-jump"><a href="#docs-nav">{{ "문서 목록으로"|t }}</a></p>
     {% include "_crumbs.html" %}
     <header>
       <h1>{{ page.title }}</h1>
@@ -15,12 +15,12 @@
     {% with toc = page.toc %}{% include "_toc.html" %}{% endwith %}
     <div class="prose">{{ page.body_html | safe }}</div>
     {% include "_page_children.html" %}
-    {% if page.prev or page.next %}<nav class="docs-pager" aria-label="앞뒤 문서">
-      {% if page.prev %}<a class="docs-prev" rel="prev" href="{{ page.prev.url }}"><span>이전</span>{{ page.prev.title }}</a>{% endif %}
-      {% if page.next %}<a class="docs-next" rel="next" href="{{ page.next.url }}"><span>다음</span>{{ page.next.title }}</a>{% endif %}
+    {% if page.prev or page.next %}<nav class="docs-pager" aria-label="{{ "앞뒤 문서"|t }}">
+      {% if page.prev %}<a class="docs-prev" rel="prev" href="{{ page.prev.url }}"><span>{{ "이전"|t }}</span>{{ page.prev.title }}</a>{% endif %}
+      {% if page.next %}<a class="docs-next" rel="next" href="{{ page.next.url }}"><span>{{ "다음"|t }}</span>{{ page.next.title }}</a>{% endif %}
     </nav>{% endif %}
   </article>
-  <nav class="docs-nav" id="docs-nav" aria-label="문서 목록">
+  <nav class="docs-nav" id="docs-nav" aria-label="{{ "문서 목록"|t }}">
     <ul>
       {% for n in page.tree recursive %}<li><a href="{{ n.url }}"{% if n.slug == page.slug %} aria-current="page"{% endif %}>{{ n.title }}</a>{% if n.children %}<ul>{{ loop(n.children) }}</ul>{% endif %}</li>
       {% endfor %}

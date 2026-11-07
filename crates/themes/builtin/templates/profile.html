@@ -5,12 +5,12 @@
 <section class="account profile" aria-labelledby="profile-title">
   <div class="me-head">
     <h1 id="profile-title">{{ profile.name }}{% if profile.badge %} <span class="level-badge{% if profile.badge.staff %} staff{% endif %}" title="{{ profile.badge.title }}">{{ profile.badge.label }}</span>{% endif %}</h1>
-    <p class="hint">{{ profile.joined }} 가입 · 글 {{ profile.post_count }} · 댓글 {{ profile.comment_count }}</p>
+    <p class="hint">{{ profile.joined }} {{ "가입 · 글"|t }} {{ profile.post_count }} {{ "· 댓글"|t }} {{ profile.comment_count }}</p>
     {% if profile.bio %}<p class="profile-bio">{{ profile.bio }}</p>{% endif %}
   </div>
 
   <section class="me-block" aria-labelledby="profile-posts">
-    <h2 id="profile-posts">최근 글{% if profile.post_count %} <span class="count">{{ profile.post_count }}</span>{% endif %}</h2>
+    <h2 id="profile-posts">{{ "최근 글"|t }}{% if profile.post_count %} <span class="count">{{ profile.post_count }}</span>{% endif %}</h2>
     {% if profile.posts %}
     <ul class="me-posts">
       {% for p in profile.posts %}<li>
@@ -18,11 +18,11 @@
         <span class="hint">{{ p.board }}{% if p.date %} · {{ p.date }}{% endif %}</span>
       </li>{% endfor %}
     </ul>
-    {% else %}<p class="empty">공개된 글이 없습니다.</p>{% endif %}
+    {% else %}<p class="empty">{{ "공개된 글이 없습니다."|t }}</p>{% endif %}
   </section>
 
   <section class="me-block" aria-labelledby="profile-comments">
-    <h2 id="profile-comments">최근 댓글{% if profile.comment_count %} <span class="count">{{ profile.comment_count }}</span>{% endif %}</h2>
+    <h2 id="profile-comments">{{ "최근 댓글"|t }}{% if profile.comment_count %} <span class="count">{{ profile.comment_count }}</span>{% endif %}</h2>
     {% if profile.comments %}
     <ul class="me-posts">
       {% for c in profile.comments %}<li>
@@ -30,7 +30,7 @@
         <span class="hint">{{ c.board }} · {{ c.post_title }} · {{ c.date }}</span>
       </li>{% endfor %}
     </ul>
-    {% else %}<p class="empty">공개된 댓글이 없습니다.</p>{% endif %}
+    {% else %}<p class="empty">{{ "공개된 댓글이 없습니다."|t }}</p>{% endif %}
   </section>
 </section>
 {% endblock %}

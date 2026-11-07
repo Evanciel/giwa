@@ -4,9 +4,9 @@
 <article class="post">
   <header>
     <p class="crumb"><a href="{{ board.url }}">{{ board.name }}</a>{% if post.category %} <span aria-hidden="true">›</span> <a href="{{ post.category.url }}">{{ post.category.name }}</a>{% endif %}</p>
-    <div class="post-title-row"><h1>{{ post.title }}</h1><button type="button" class="head-share" data-share hidden aria-label="공유" title="공유"><svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="15" cy="4.5" r="2.2"/><circle cx="5" cy="10" r="2.2"/><circle cx="15" cy="15.5" r="2.2"/><path d="M7 9l6-3.4M7 11l6 3.4"/></g></svg></button></div>
+    <div class="post-title-row"><h1>{{ post.title }}</h1><button type="button" class="head-share" data-share hidden aria-label="{{ "공유"|t }}" title="{{ "공유"|t }}"><svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="15" cy="4.5" r="2.2"/><circle cx="5" cy="10" r="2.2"/><circle cx="15" cy="15.5" r="2.2"/><path d="M7 9l6-3.4M7 11l6 3.4"/></g></svg></button></div>
     {% if post.source %}<p class="post-source">{{ post.source.label }} <a href="{{ post.source.href }}" rel="nofollow noopener ugc" target="_blank">{{ post.source.host }}</a></p>{% endif %}
-    <p class="meta">{% if post.author and board.write_url %}<span class="author"{% if not post.author.guest %} data-member="{{ post.author.name }}"{% endif %}>{{ post.author.name }}</span>{% if post.author.badge %} <span class="level-badge{% if post.author.badge.staff %} staff{% endif %}" title="{{ post.author.badge.title }}">{{ post.author.badge.label }}</span>{% endif %}{% if post.author.guest %} <span class="comment-badge">비회원</span>{% endif %} · {% endif %}<time datetime="{{ post.published_at }}">{{ post.date }}</time>{% if post.views is not none %} · <span class="views">조회 {{ post.views|short_count }}</span>{% endif %}</p>
+    <p class="meta">{% if post.author and board.write_url %}<span class="author"{% if not post.author.guest %} data-member="{{ post.author.name }}"{% endif %}>{{ post.author.name }}</span>{% if post.author.badge %} <span class="level-badge{% if post.author.badge.staff %} staff{% endif %}" title="{{ post.author.badge.title }}">{{ post.author.badge.label }}</span>{% endif %}{% if post.author.guest %} <span class="comment-badge">{{ "비회원"|t }}</span>{% endif %} · {% endif %}<time datetime="{{ post.published_at }}">{{ post.date }}</time>{% if post.views is not none %} · <span class="views">{{ "조회"|t }} {{ post.views|short_count }}</span>{% endif %}</p>
   </header>
   {% with toc = post.toc %}{% include "_toc.html" %}{% endwith %}
   {# body_html 은 서버가 ammonia 로 정화한 값만 들어온다. |safe 는 여기에만 쓴다. #}
@@ -14,49 +14,49 @@
   <dl class="post-fields">
     {% for f in post.fields if f.role != "source" %}<div class="post-field post-field-{{ f.type }}"><dt>{{ f.label }}</dt><dd>{% if f.href %}<a href="{{ f.href }}" rel="{% if f.role == "sponsored" %}sponsored nofollow noopener{% else %}nofollow ugc{% endif %}">{{ f.text }}</a>{% else %}{{ f.text }}{% endif %}</dd></div>{% endfor %}
   </dl>
-  {% if post.sponsored %}<p class="sponsored-note">제휴 링크가 있는 글입니다. 링크로 구매하면 사이트가 수수료를 받을 수 있습니다.</p>{% endif %}
+  {% if post.sponsored %}<p class="sponsored-note">{{ "제휴 링크가 있는 글입니다. 링크로 구매하면 사이트가 수수료를 받을 수 있습니다."|t }}</p>{% endif %}
   {% endif %}
   <div class="prose">{{ post.body_html | safe }}</div>
   {% if post.tags %}
-  <ul class="tags" aria-label="태그">
+  <ul class="tags" aria-label="{{ "태그"|t }}">
     {% for t in post.tags %}<li><a href="{{ t.url }}" rel="tag">#{{ t.name }}</a></li>{% endfor %}
   </ul>
   {% endif %}
   {% if post.wiki %}
   <section class="wiki-backlinks" aria-labelledby="wiki-back">
-    <h2 id="wiki-back">이 문서를 가리키는 문서</h2>
-    {% if post.wiki.backlinks %}<ul>{% for b in post.wiki.backlinks %}<li><a href="{{ b.url }}">{{ b.title }}</a></li>{% endfor %}</ul>{% else %}<p class="empty">아직 없습니다.</p>{% endif %}
+    <h2 id="wiki-back">{{ "이 문서를 가리키는 문서"|t }}</h2>
+    {% if post.wiki.backlinks %}<ul>{% for b in post.wiki.backlinks %}<li><a href="{{ b.url }}">{{ b.title }}</a></li>{% endfor %}</ul>{% else %}<p class="empty">{{ "아직 없습니다."|t }}</p>{% endif %}
   </section>
   {% endif %}
-  {% if board.write_url and post.author and post.author.signature %}<p class="post-signature"><span class="visually-hidden">글쓴이 서명: </span>{{ post.author.signature }}</p>{% endif %}
-  {% if board.write_url and post.author and post.author.url %}<p class="post-author-more"><a href="{{ post.author.url }}">{{ post.author.name }} 님의 다른 글·댓글 보기</a></p>{% endif %}
+  {% if board.write_url and post.author and post.author.signature %}<p class="post-signature"><span class="visually-hidden">{{ "글쓴이 서명:"|t }} </span>{{ post.author.signature }}</p>{% endif %}
+  {% if board.write_url and post.author and post.author.url %}<p class="post-author-more"><a href="{{ post.author.url }}">{{ post.author.name }} {{ "님의 다른 글·댓글 보기"|t }}</a></p>{% endif %}
   {% if post.parent %}
-  <p class="post-parent">답변한 글: <a href="{{ post.parent.url }}">{{ post.parent.title }}</a></p>
+  <p class="post-parent">{{ "답변한 글:"|t }} <a href="{{ post.parent.url }}">{{ post.parent.title }}</a></p>
   {% endif %}
   {% if post.edit_url or post.reply_url %}
-  <p class="post-actions"><a href="{{ board.url }}">목록</a>{% if post.reply_url %}<a href="{{ post.reply_url }}" rel="nofollow">답변</a>{% endif %}{% if post.edit_url %}<a href="{{ post.edit_url }}" rel="nofollow">고치기</a><a href="{{ post.delete_url }}" rel="nofollow">지우기</a>{% endif %}</p>
+  <p class="post-actions"><a href="{{ board.url }}">{{ "목록"|t }}</a>{% if post.reply_url %}<a href="{{ post.reply_url }}" rel="nofollow">{{ "답변"|t }}</a>{% endif %}{% if post.edit_url %}<a href="{{ post.edit_url }}" rel="nofollow">{{ "고치기"|t }}</a><a href="{{ post.delete_url }}" rel="nofollow">{{ "지우기"|t }}</a>{% endif %}</p>
   {% endif %}
   {% if board.write_url and post.author and post.author.url %}
   {# 글쓴이 카드 (GAP Q2·Q30): 왼쪽 누구인지·할 수 있는 것, 오른쪽 그 회원의 최근 글·댓글 탭.
      쪽지·차단 단추는 로그인한 사람의 막대(member_actions)로 스킨 스크립트가 채운다(공개 HTML 은 모두에게 같다). #}
   {% set a = post.author %}
-  <aside class="author-card" aria-label="글쓴이"{% if a.recent_posts or a.recent_comments %} data-recent{% endif %}>
+  <aside class="author-card" aria-label="{{ "글쓴이"|t }}"{% if a.recent_posts or a.recent_comments %} data-recent{% endif %}>
     <div class="author-card-who">
       <p class="author-card-name"><a href="{{ a.url }}">{{ a.name }}</a>{% if a.badge %} <span class="level-badge{% if a.badge.staff %} staff{% endif %}" title="{{ a.badge.title }}">{{ a.badge.label }}</span>{% endif %}</p>
-      <p class="author-card-meta">가입 {{ a.joined }}{% if a.post_count is defined %} · 글 {{ a.post_count }} · 댓글 {{ a.comment_count }}{% endif %}</p>
-      <p class="author-card-actions" data-member-actions="{{ a.name }}"><a href="{{ a.url }}">프로필 보기</a></p>
+      <p class="author-card-meta">{{ "가입"|t }} {{ a.joined }}{% if a.post_count is defined %} {{ "· 글"|t }} {{ a.post_count }} {{ "· 댓글"|t }} {{ a.comment_count }}{% endif %}</p>
+      <p class="author-card-actions" data-member-actions="{{ a.name }}"><a href="{{ a.url }}">{{ "프로필 보기"|t }}</a></p>
       {% if a.bio %}<div class="author-card-bio" data-clamp><p>{{ a.bio }}</p></div>{% endif %}
     </div>
     {% if a.recent_posts or a.recent_comments %}
     <div class="author-card-recent post-tabs" data-tabs>
-      <div class="tab-list" role="tablist" aria-label="{{ a.name }} 님의 최근 활동" hidden><button type="button" role="tab" id="ac-posts-tab" aria-controls="ac-posts" aria-selected="true">최근 글</button><button type="button" role="tab" id="ac-comments-tab" aria-controls="ac-comments" aria-selected="false" tabindex="-1">최근 댓글</button></div>
+      <div class="tab-list" role="tablist" aria-label="{{ a.name }} {{ "님의 최근 활동"|t }}" hidden><button type="button" role="tab" id="ac-posts-tab" aria-controls="ac-posts" aria-selected="true">{{ "최근 글"|t }}</button><button type="button" role="tab" id="ac-comments-tab" aria-controls="ac-comments" aria-selected="false" tabindex="-1">{{ "최근 댓글"|t }}</button></div>
       <div class="tab-panel" role="tabpanel" id="ac-posts" aria-labelledby="ac-posts-tab">
-        <h3 class="tab-panel-title">최근 글</h3>
-        {% if a.recent_posts %}<ul class="author-recent">{% for x in a.recent_posts %}<li><a href="{{ x.url }}">{{ x.title }}</a>{% if x.date %}<span class="date">{{ x.date }}</span>{% endif %}</li>{% endfor %}</ul>{% else %}<p class="empty">다른 글이 없습니다.</p>{% endif %}
+        <h3 class="tab-panel-title">{{ "최근 글"|t }}</h3>
+        {% if a.recent_posts %}<ul class="author-recent">{% for x in a.recent_posts %}<li><a href="{{ x.url }}">{{ x.title }}</a>{% if x.date %}<span class="date">{{ x.date }}</span>{% endif %}</li>{% endfor %}</ul>{% else %}<p class="empty">{{ "다른 글이 없습니다."|t }}</p>{% endif %}
       </div>
       <div class="tab-panel" role="tabpanel" id="ac-comments" aria-labelledby="ac-comments-tab">
-        <h3 class="tab-panel-title">최근 댓글</h3>
-        {% if a.recent_comments %}<ul class="author-recent">{% for c in a.recent_comments %}<li><a href="{{ c.url }}">{{ c.excerpt }}</a><span class="date">{{ c.date }}</span></li>{% endfor %}</ul>{% else %}<p class="empty">댓글이 없습니다.</p>{% endif %}
+        <h3 class="tab-panel-title">{{ "최근 댓글"|t }}</h3>
+        {% if a.recent_comments %}<ul class="author-recent">{% for c in a.recent_comments %}<li><a href="{{ c.url }}">{{ c.excerpt }}</a><span class="date">{{ c.date }}</span></li>{% endfor %}</ul>{% else %}<p class="empty">{{ "댓글이 없습니다."|t }}</p>{% endif %}
       </div>
     </div>
     <script src="/assets/tabs.js" defer{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %}></script>
@@ -67,14 +67,14 @@
 {% if slots and slots.post_footer %}<div class="slot-row" id="reactions">{% for s in slots.post_footer %}{% include s.template %}{% endfor %}</div>{% endif %}
 {% if comments.open or comments.locked or comments.items %}{% include "_comments.html" %}{% endif %}
 {% if (nearby.prev or nearby.next) and not board_list %}
-<nav class="post-nav" aria-label="이전 글과 다음 글">
-  {% if nearby.prev %}<a class="post-nav-prev" href="{{ nearby.prev.url }}"><span class="post-nav-label">이전 글</span><span class="post-nav-title">{% if nearby.prev.is_secret %}{% include "_lock.html" %}{% endif %}{{ nearby.prev.title }}</span></a>{% endif %}
-  {% if nearby.next %}<a class="post-nav-next" href="{{ nearby.next.url }}"><span class="post-nav-label">다음 글</span><span class="post-nav-title">{% if nearby.next.is_secret %}{% include "_lock.html" %}{% endif %}{{ nearby.next.title }}</span></a>{% endif %}
+<nav class="post-nav" aria-label="{{ "이전 글과 다음 글"|t }}">
+  {% if nearby.prev %}<a class="post-nav-prev" href="{{ nearby.prev.url }}"><span class="post-nav-label">{{ "이전 글"|t }}</span><span class="post-nav-title">{% if nearby.prev.is_secret %}{% include "_lock.html" %}{% endif %}{{ nearby.prev.title }}</span></a>{% endif %}
+  {% if nearby.next %}<a class="post-nav-next" href="{{ nearby.next.url }}"><span class="post-nav-label">{{ "다음 글"|t }}</span><span class="post-nav-title">{% if nearby.next.is_secret %}{% include "_lock.html" %}{% endif %}{{ nearby.next.title }}</span></a>{% endif %}
 </nav>
 {% endif %}
 {% if nearby.related %}
 <section class="related" aria-labelledby="related-title">
-  <h2 id="related-title">관련 글</h2>
+  <h2 id="related-title">{{ "관련 글"|t }}</h2>
   <ul>
     {% for r in nearby.related %}
     <li>
@@ -95,6 +95,6 @@
 </section>
 {% endif %}
 {# 긴 글에서 손이 닿는 곳에: 맨 위·목록. 스크립트 없이 화면에 붙어 있다 (ADR-0054). #}
-<nav class="float-nav" aria-label="빠른 이동"><a href="#main">맨 위</a><a href="#page-end">맨 아래</a><a class="float-wide" href="{{ board.url }}">목록</a>{% if slots and slots.post_footer %}<a class="float-wide" href="#reactions">추천</a>{% endif %}{% if comments.open or comments.locked or comments.items %}<a href="#comments">댓글</a>{% endif %}<button type="button" data-share hidden>공유</button></nav>
+<nav class="float-nav" aria-label="{{ "빠른 이동"|t }}"><a href="#main">{{ "맨 위"|t }}</a><a href="#page-end">{{ "맨 아래"|t }}</a><a class="float-wide" href="{{ board.url }}">{{ "목록"|t }}</a>{% if slots and slots.post_footer %}<a class="float-wide" href="#reactions">{{ "추천"|t }}</a>{% endif %}{% if comments.open or comments.locked or comments.items %}<a href="#comments">{{ "댓글"|t }}</a>{% endif %}<button type="button" data-share hidden>{{ "공유"|t }}</button></nav>
 {% endblock %}
 {% block page_jump %}{% endblock %}

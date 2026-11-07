@@ -1,5 +1,6 @@
 //! 공개 사이트. 비로그인 Actor 로 공개 조회 서비스(`posts::public_*`, `pages::public_*`)만 부른다.
 
+use maru_themes::tr;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 
@@ -428,7 +429,7 @@ async fn board_inner(
                         "label": match days {
                             0 => "D-day".to_owned(),
                             d if d > 0 => format!("D-{d}"),
-                            _ => "마감".to_owned(),
+                            _ => tr("마감").to_owned(),
                         },
                         "closed": days < 0,
                     });
@@ -462,9 +463,9 @@ async fn board_inner(
         .collect::<Vec<_>>();
     // 목록 순서 단추 (GAP Q7): 분류·거르기를 유지한다.
     let sorts = [
-        (posts::ListSort::Latest, "최신"),
-        (posts::ListSort::Views, "조회"),
-        (posts::ListSort::Comments, "댓글"),
+        (posts::ListSort::Latest, tr("최신")),
+        (posts::ListSort::Views, tr("조회")),
+        (posts::ListSort::Comments, tr("댓글")),
     ]
     .iter()
     .map(|(s, label)| {
@@ -496,7 +497,7 @@ async fn board_inner(
         "sorts": sorts,
         "views": if switchable {
             json!(["list", "card"].iter().map(|v| json!({
-                "label": if *v == "list" { "목록" } else { "카드" },
+                "label": if *v == "list" { tr("목록") } else { tr("카드") },
                 "url": filtered_path(&sorted_path(&viewed(urls::path(&target), v), sort), &found.filters, None),
                 "current": *v == layout,
             })).collect::<Vec<_>>())
@@ -532,7 +533,7 @@ async fn board_search(
     let (found, pager) = search_view(state, site, actor, &params, Some(board), &base).await?;
     Ok(json!({
         "meta": json!({
-            "title": format!("“{}” 검색 · {} · {}", params.q.trim(), board.name, site.settings.name),
+            "title": format!("{} · {} · {}", tr("“{q}” 검색").replace("{q}", params.q.trim()), board.name, site.settings.name),
             "noindex": true,
         }),
         "site": site.json,
@@ -576,7 +577,7 @@ fn search_form(action: &str, q: &str, range: Range, sort: Sort) -> Value {
         "sort": sort.as_str(),
         "ranges": RANGES.iter().map(|(r, label)| json!({
             "value": r.as_str(),
-            "label": label,
+            "label": tr(label),
             "current": *r == range,
         })).collect::<Vec<_>>(),
         "searched": false,
@@ -627,8 +628,8 @@ async fn search_view(
         )
     };
     view["sorts"] = json!([
-        { "label": "정확도순", "url": keep(Sort::Rank), "current": sort == Sort::Rank },
-        { "label": "최신순", "url": keep(Sort::New), "current": sort == Sort::New },
+        { "label": tr("정확도순"), "url": keep(Sort::Rank), "current": sort == Sort::Rank },
+        { "label": tr("최신순"), "url": keep(Sort::New), "current": sort == Sort::New },
     ]);
     let input = SearchInput {
         q: q.to_owned(),
@@ -744,9 +745,13 @@ async fn search_inner(state: &AppState, p: SearchParams) -> Result<Value> {
     let (found, pager) = search_view(state, &site, &actor, &p, None, &base).await?;
     let q = p.q.trim();
     let title = if q.is_empty() {
-        format!("검색 · {}", site.settings.name)
+        format!("{} · {}", tr("검색"), site.settings.name)
     } else {
-        format!("“{q}” 검색 · {}", site.settings.name)
+        format!(
+            "{} · {}",
+            tr("“{q}” 검색").replace("{q}", q),
+            site.settings.name
+        )
     };
     Ok(json!({
         // 검색 결과는 검색 엔진에 내보내지 않는다.
@@ -824,19 +829,19 @@ fn field_filters(
                 .find(|(k, _)| *k == d.key)
                 .map(|(_, v)| v.as_str());
             let mut choices = vec![json!({
-                "label": "전체",
+                "label": tr("전체"),
                 "url": filtered_path(base, active, Some((&d.key, None))),
                 "current": now.is_none(),
             })];
             let values: Vec<(String, String)> = if d.kind == "boolean" {
                 vec![
-                    ("0".to_owned(), format!("{} 빼기", d.label)),
-                    ("1".to_owned(), format!("{}만", d.label)),
+                    ("0".to_owned(), tr("{n} 빼기").replace("{n}", &d.label)),
+                    ("1".to_owned(), tr("{n}만").replace("{n}", &d.label)),
                 ]
             } else if d.kind == "date" {
                 vec![
-                    ("open".to_owned(), "진행 중".to_owned()),
-                    ("closed".to_owned(), "마감".to_owned()),
+                    ("open".to_owned(), tr("진행 중").to_owned()),
+                    ("closed".to_owned(), tr("마감").to_owned()),
                 ]
             } else {
                 d.options
@@ -1219,8 +1224,8 @@ async fn comments_json(
         "orders": (count > 1).then(|| {
             let base = urls::path(&Target::Post { board: &board.slug, post: &post.slug });
             [
-                (comments::CommentOrder::Oldest, "등록순"),
-                (comments::CommentOrder::Newest, "최신순"),
+                (comments::CommentOrder::Oldest, tr("등록순")),
+                (comments::CommentOrder::Newest, tr("최신순")),
             ]
             .iter()
             .map(|(o, label)| json!({
@@ -1257,7 +1262,7 @@ async fn tags_index_inner(state: &AppState) -> Result<Value> {
         .collect::<Vec<_>>();
     Ok(json!({
         "meta": json!({
-            "title": format!("태그 · {}", site.settings.name),
+            "title": format!("{} · {}", tr("태그"), site.settings.name),
             "description": site.settings.description,
         }),
         "site": site.json,
@@ -1285,7 +1290,7 @@ async fn tag_page_inner(state: &AppState, slug: &str, q: PageQuery) -> Result<Va
     Ok(json!({
         "meta": json!({
             "title": format!("#{} · {}", tag.name, site.settings.name),
-            "description": format!("'{}' 태그가 달린 글 {}개", tag.name, list.total),
+            "description": tr("'{tag}' 태그가 달린 글 {n}개").replace("{tag}", &tag.name).replace("{n}", &list.total.to_string()),
             // 글이 없는 태그 화면은 검색에 내보내지 않는다.
             "noindex": list.total == 0,
         }),
@@ -1345,7 +1350,11 @@ async fn recent_inner(state: &AppState, q: PageQuery) -> Result<Value> {
             });
         }
     }
-    let title = if popular { "인기 글" } else { "새 글" };
+    let title = if popular {
+        tr("인기 글")
+    } else {
+        tr("새 글")
+    };
     let mut out = json!({
         "meta": json!({
             "title": format!("{title} · {}", site.settings.name),

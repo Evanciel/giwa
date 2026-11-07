@@ -20,6 +20,7 @@ use maru_core::services::members::{self, ProfilePatch, SignupInput};
 use maru_core::services::{captcha, comments, posts, settings, totp};
 use maru_core::urls::{self, Target};
 use maru_core::{Code, Error};
+use maru_themes::tr;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -131,9 +132,9 @@ async fn link_invalid(state: &AppState, headers: &HeaderMap) -> Response {
         state,
         headers,
         StatusCode::UNAUTHORIZED,
-        "링크를 쓸 수 없습니다",
-        "링크가 만료됐거나 이미 쓰였습니다. 다시 요청하세요.",
-        json!([{ "label": "비밀번호 찾기", "href": "/forgot" }, { "label": "로그인", "href": "/login" }]),
+        tr("링크를 쓸 수 없습니다"),
+        tr("링크가 만료됐거나 이미 쓰였습니다. 다시 요청하세요."),
+        json!([{ "label": tr("비밀번호 찾기"), "href": "/forgot" }, { "label": tr("로그인"), "href": "/login" }]),
     )
     .await
 }
@@ -143,8 +144,8 @@ async fn csrf_failed(state: &AppState, headers: &HeaderMap) -> Response {
         state,
         headers,
         StatusCode::FORBIDDEN,
-        "요청을 확인하지 못했습니다",
-        "화면이 오래됐거나 다른 곳에서 보낸 요청입니다. 화면을 새로 고친 뒤 다시 시도하세요.",
+        tr("요청을 확인하지 못했습니다"),
+        tr("화면이 오래됐거나 다른 곳에서 보낸 요청입니다. 화면을 새로 고친 뒤 다시 시도하세요."),
         json!([]),
     )
     .await
@@ -199,7 +200,7 @@ async fn login_page(
         state,
         headers,
         status,
-        "로그인",
+        tr("로그인"),
         json!({ "view": "login", "next": next, "email": email, "error": error }),
     )
     .await
@@ -300,7 +301,7 @@ async fn totp_page(
         state,
         headers,
         status,
-        "2단계 인증",
+        tr("2단계 인증"),
         json!({ "view": "totp", "next": next_or_me(next), "error": error }),
     )
     .await
@@ -432,7 +433,7 @@ async fn signup_page(
         state,
         headers,
         status,
-        "회원 가입",
+        tr("회원 가입"),
         json!({
             "view": "signup",
             "email": email,
@@ -483,7 +484,7 @@ async fn signup(
             StatusCode::BAD_REQUEST,
             &f.email,
             &f.display_name,
-            Some("두 비밀번호가 다릅니다.".into()),
+            Some(tr("두 비밀번호가 다릅니다.").into()),
         )
         .await;
     }
@@ -505,9 +506,9 @@ async fn signup(
                 &state,
                 &headers,
                 StatusCode::OK,
-                "메일을 확인하세요",
-                "적어 주신 주소로 확인 메일을 보냈습니다. 메일의 링크를 누르면 가입이 끝납니다. 이미 가입한 주소라면 안내 메일이 갑니다.",
-                json!([{ "label": "로그인", "href": "/login" }]),
+                tr("메일을 확인하세요"),
+                tr("적어 주신 주소로 확인 메일을 보냈습니다. 메일의 링크를 누르면 가입이 끝납니다. 이미 가입한 주소라면 안내 메일이 갑니다."),
+                json!([{ "label": tr("로그인"), "href": "/login" }]),
             )
             .await
         }
@@ -516,9 +517,9 @@ async fn signup(
                 &state,
                 &headers,
                 StatusCode::OK,
-                "가입을 받았습니다",
-                "이제 로그인할 수 있습니다. 이미 가입한 주소라면 안내 메일이 갑니다.",
-                json!([{ "label": "로그인", "href": "/login" }]),
+                tr("가입을 받았습니다"),
+                tr("이제 로그인할 수 있습니다. 이미 가입한 주소라면 안내 메일이 갑니다."),
+                json!([{ "label": tr("로그인"), "href": "/login" }]),
             )
             .await
         }
@@ -538,7 +539,7 @@ async fn forgot_form(State(state): State<AppState>, headers: HeaderMap) -> Respo
         &state,
         &headers,
         StatusCode::OK,
-        "비밀번호 찾기",
+        tr("비밀번호 찾기"),
         json!({ "view": "forgot" }),
     )
     .await
@@ -567,9 +568,9 @@ async fn forgot(
         &state,
         &headers,
         StatusCode::OK,
-        "메일을 확인하세요",
-        "그 주소로 가입돼 있으면 비밀번호를 다시 정하는 메일을 보냈습니다. 링크는 1시간 동안 한 번만 쓸 수 있습니다.",
-        json!([{ "label": "로그인", "href": "/login" }]),
+        tr("메일을 확인하세요"),
+        tr("그 주소로 가입돼 있으면 비밀번호를 다시 정하는 메일을 보냈습니다. 링크는 1시간 동안 한 번만 쓸 수 있습니다."),
+        json!([{ "label": tr("로그인"), "href": "/login" }]),
     )
     .await
 }
@@ -596,7 +597,7 @@ async fn reset_page(
         state,
         headers,
         status,
-        "비밀번호 다시 정하기",
+        tr("비밀번호 다시 정하기"),
         json!({
             "view": "reset",
             "action": format!("/reset/{token}"),
@@ -637,7 +638,7 @@ async fn reset(
             &headers,
             StatusCode::BAD_REQUEST,
             &token,
-            Some("두 비밀번호가 다릅니다.".into()),
+            Some(tr("두 비밀번호가 다릅니다.").into()),
         )
         .await;
     }
@@ -679,7 +680,7 @@ async fn verify_form(
         &state,
         &headers,
         StatusCode::OK,
-        "메일 인증",
+        tr("메일 인증"),
         json!({ "view": "verify", "action": format!("/verify/{token}"), "display_name": member.display_name }),
     )
     .await
@@ -824,11 +825,15 @@ async fn me(
         Err(res) => return *res,
     };
     let done = match q.done.as_str() {
-        "profile" => Some("닉네임과 자기소개를 저장했습니다."),
-        "password" => Some("비밀번호를 바꿨습니다. 다른 기기의 로그인은 모두 끊었습니다."),
-        "verified" => Some("메일 인증이 끝났습니다. 환영합니다."),
-        "totp_start" => Some("인증 앱에 아래 값을 넣고, 앱이 보여 주는 6자리 코드로 확인하세요."),
-        "totp_off" => Some("2단계 인증을 껐습니다."),
+        "profile" => Some(tr("닉네임과 자기소개를 저장했습니다.")),
+        "password" => Some(tr(
+            "비밀번호를 바꿨습니다. 다른 기기의 로그인은 모두 끊었습니다.",
+        )),
+        "verified" => Some(tr("메일 인증이 끝났습니다. 환영합니다.")),
+        "totp_start" => Some(tr(
+            "인증 앱에 아래 값을 넣고, 앱이 보여 주는 6자리 코드로 확인하세요.",
+        )),
+        "totp_off" => Some(tr("2단계 인증을 껐습니다.")),
         _ => None,
     };
     me_page(&state, &who, StatusCode::OK, done, None).await
@@ -873,7 +878,7 @@ async fn me_page_with(
     let (error_in, error) = error.map_or((None, None), |(k, m)| (Some(k), Some(m)));
     let ctx = json!({
         "site": crate::public::site_json(state).await,
-        "meta": { "title": format!("내 정보 · {}", site.name), "noindex": true },
+        "meta": { "title": format!("{} · {}", tr("내 정보"), site.name), "noindex": true },
         "me": {
             "csrf": who.session.csrf_token,
             "email": who.member.email,
@@ -931,7 +936,7 @@ async fn my_comments_page(
     };
     let ctx = json!({
         "site": crate::public::site_json(&state).await,
-        "meta": { "title": format!("내가 쓴 댓글 · {}", site.name), "noindex": true },
+        "meta": { "title": format!("{} · {}", tr("내가 쓴 댓글"), site.name), "noindex": true },
         "me": { "display_name": who.member.display_name, "total": list.total, "comments": items },
         "pagination": crate::public::pagination(&list, "/me/comments"),
     });
@@ -959,10 +964,10 @@ async fn my_comments(
             };
             let status = match c.status {
                 CommentStatus::Published => None,
-                CommentStatus::Pending => Some("승인 대기"),
-                CommentStatus::Hidden => Some("숨김"),
-                CommentStatus::Spam => Some("스팸 처리"),
-                CommentStatus::Deleted => Some("지움"),
+                CommentStatus::Pending => Some(tr("승인 대기")),
+                CommentStatus::Hidden => Some(tr("숨김")),
+                CommentStatus::Spam => Some(tr("스팸 처리")),
+                CommentStatus::Deleted => Some(tr("지움")),
             };
             json!({
                 "excerpt": excerpt,
@@ -1082,7 +1087,7 @@ async fn password(
             &who,
             StatusCode::BAD_REQUEST,
             None,
-            Some(("password", "두 비밀번호가 다릅니다.".into())),
+            Some(("password", tr("두 비밀번호가 다릅니다.").into())),
         )
         .await;
     }
@@ -1133,7 +1138,7 @@ async fn withdraw(
             &who,
             StatusCode::BAD_REQUEST,
             None,
-            Some(("withdraw", "탈퇴에 동의하는 칸을 골라 주세요.".into())),
+            Some(("withdraw", tr("탈퇴에 동의하는 칸을 골라 주세요.").into())),
         )
         .await;
     }
@@ -1146,9 +1151,9 @@ async fn withdraw(
                 &state,
                 &headers,
                 StatusCode::OK,
-                "탈퇴했습니다",
-                "그동안 고마웠습니다. 쓰신 글은 「탈퇴한 회원」 이름으로 남습니다.",
-                json!([{ "label": "첫 화면", "href": "/" }]),
+                tr("탈퇴했습니다"),
+                tr("그동안 고마웠습니다. 쓰신 글은 「탈퇴한 회원」 이름으로 남습니다."),
+                json!([{ "label": tr("첫 화면"), "href": "/" }]),
             )
             .await;
             clear_session(&state, res)
@@ -1208,7 +1213,9 @@ async fn totp_action(
                     &state,
                     &fresh,
                     StatusCode::OK,
-                    Some("2단계 인증을 켰습니다. 다른 기기의 로그인은 모두 끊었습니다."),
+                    Some(tr(
+                        "2단계 인증을 켰습니다. 다른 기기의 로그인은 모두 끊었습니다.",
+                    )),
                     None,
                     Some(done.recovery_codes),
                 )
@@ -1230,7 +1237,9 @@ async fn totp_action(
                 &state,
                 &who,
                 StatusCode::OK,
-                Some("복구 코드를 새로 만들었습니다. 이전 코드는 이제 쓸 수 없습니다."),
+                Some(tr(
+                    "복구 코드를 새로 만들었습니다. 이전 코드는 이제 쓸 수 없습니다.",
+                )),
                 None,
                 Some(codes),
             )

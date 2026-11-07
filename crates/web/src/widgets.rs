@@ -13,6 +13,7 @@ use maru_core::services::widgets::{
 use maru_core::services::{anonymous_actor, boards, media, posts, settings};
 use maru_core::urls::{self, Target};
 use maru_core::{Actor, Result, markdown};
+use maru_themes::tr;
 use serde_json::{Map, Value, json};
 
 use crate::AppState;
@@ -218,7 +219,7 @@ async fn view(
             let c: SearchConfig = cfg(w)?;
             json!({
                 "action": urls::path(&Target::Search),
-                "placeholder": if c.placeholder.is_empty() { "검색" } else { c.placeholder.as_str() },
+                "placeholder": if c.placeholder.is_empty() { tr("검색") } else { c.placeholder.as_str() },
             })
         }
         "account_box" => {

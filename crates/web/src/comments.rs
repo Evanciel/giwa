@@ -19,6 +19,7 @@ use maru_core::services::comments::{self, CommentRules, Editable, GuestAuthor, N
 use maru_core::services::{anonymous_actor, captcha, posts, settings};
 use maru_core::urls::{self, Target};
 use maru_core::{Code, Error};
+use maru_themes::tr;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -260,28 +261,44 @@ async fn compose(
         "max_chars": rules.max_chars,
         "error": error,
     });
-    page(state, headers, status, "댓글 쓰기", view, None).await
+    page(state, headers, status, tr("댓글 쓰기"), view, None).await
 }
 
 async fn members_only(state: &AppState, headers: &HeaderMap, back: &str) -> Response {
     let login = urls::with_query("/login", &[("next", back)]);
     let view = json!({
         "view": "notice",
-        "heading": "회원만 댓글을 쓸 수 있습니다",
-        "body": "로그인한 뒤 다시 써 주세요.",
-        "links": [{ "label": "로그인", "href": login }, { "label": "글로 돌아가기", "href": back }],
+        "heading": tr("회원만 댓글을 쓸 수 있습니다"),
+        "body": tr("로그인한 뒤 다시 써 주세요."),
+        "links": [{ "label": tr("로그인"), "href": login }, { "label": tr("글로 돌아가기"), "href": back }],
     });
-    page(state, headers, StatusCode::UNAUTHORIZED, "댓글", view, None).await
+    page(
+        state,
+        headers,
+        StatusCode::UNAUTHORIZED,
+        tr("댓글"),
+        view,
+        None,
+    )
+    .await
 }
 
 async fn refused(state: &AppState, headers: &HeaderMap) -> Response {
     let view = json!({
         "view": "notice",
-        "heading": "요청을 확인하지 못했습니다",
-        "body": "다른 곳에서 보낸 요청이거나 자동 입력으로 보입니다. 글 화면에서 다시 써 주세요.",
+        "heading": tr("요청을 확인하지 못했습니다"),
+        "body": tr("다른 곳에서 보낸 요청이거나 자동 입력으로 보입니다. 글 화면에서 다시 써 주세요."),
         "links": [],
     });
-    page(state, headers, StatusCode::FORBIDDEN, "댓글", view, None).await
+    page(
+        state,
+        headers,
+        StatusCode::FORBIDDEN,
+        tr("댓글"),
+        view,
+        None,
+    )
+    .await
 }
 
 /// `comment.html` 한 장. 로그인했으면 세션 CSRF, 아니면 로그인 전 CSRF 쿠키를 쓴다.
@@ -396,9 +413,9 @@ async fn form_page(
         "error": error,
     });
     let heading = if mode == "edit" {
-        "댓글 고치기"
+        tr("댓글 고치기")
     } else {
-        "댓글 지우기"
+        tr("댓글 지우기")
     };
     let csrf = who.as_ref().map(|w| w.session.csrf_token.clone());
     page(state, headers, status, heading, view, csrf.as_deref()).await
@@ -454,9 +471,9 @@ async fn accept_page(
         "error": error,
     });
     let heading = if t.accepted {
-        "채택 취소"
+        tr("채택 취소")
     } else {
-        "답변 채택"
+        tr("답변 채택")
     };
     page(
         state,

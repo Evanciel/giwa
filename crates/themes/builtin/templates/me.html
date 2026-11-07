@@ -5,12 +5,12 @@
 <section class="account me" aria-labelledby="me-title">
   <div class="me-head">
     <h1 id="me-title">{{ me.display_name }}</h1>
-    <p class="hint">{{ me.email }} · {{ me.joined }} 가입{% if me.admin_url %} · <a href="{{ me.admin_url }}">관리 화면</a>{% endif %}</p>
+    <p class="hint">{{ me.email }} · {{ me.joined }} {{ "가입"|t }}{% if me.admin_url %} · <a href="{{ me.admin_url }}">{{ "관리 화면"|t }}</a>{% endif %}</p>
   </div>
   {% if me.notice %}<p class="form-notice" role="status">{{ me.notice }}</p>{% endif %}
 
   <section class="me-block" aria-labelledby="me-posts">
-    <h2 id="me-posts">내가 쓴 글</h2>
+    <h2 id="me-posts">{{ "내가 쓴 글"|t }}</h2>
     {% if me.posts %}
     <ul class="me-posts">
       {% for p in me.posts %}<li>
@@ -18,11 +18,11 @@
         <span class="hint">{% if p.board %}{{ p.board }} · {% endif %}{{ p.status }} · {{ p.date }}</span>
       </li>{% endfor %}
     </ul>
-    {% else %}<p class="empty">아직 쓴 글이 없습니다.</p>{% endif %}
+    {% else %}<p class="empty">{{ "아직 쓴 글이 없습니다."|t }}</p>{% endif %}
   </section>
 
   <section class="me-block" aria-labelledby="me-comments">
-    <h2 id="me-comments">내가 쓴 댓글{% if me.comments_total %} <span class="count">{{ me.comments_total }}</span>{% endif %}</h2>
+    <h2 id="me-comments">{{ "내가 쓴 댓글"|t }}{% if me.comments_total %} <span class="count">{{ me.comments_total }}</span>{% endif %}</h2>
     {% if me.comments %}
     <ul class="me-posts">
       {% for c in me.comments %}<li>
@@ -30,123 +30,123 @@
         <span class="hint">{% if c.board %}{{ c.board }} · {% endif %}{{ c.post_title }}{% if c.status %} · {{ c.status }}{% endif %} · {{ c.date }}</span>
       </li>{% endfor %}
     </ul>
-    {% if me.comments_total > me.comments | length %}<p><a href="/me/comments">댓글 모두 보기</a></p>{% endif %}
-    {% else %}<p class="empty">아직 쓴 댓글이 없습니다.</p>{% endif %}
+    {% if me.comments_total > me.comments | length %}<p><a href="/me/comments">{{ "댓글 모두 보기"|t }}</a></p>{% endif %}
+    {% else %}<p class="empty">{{ "아직 쓴 댓글이 없습니다."|t }}</p>{% endif %}
   </section>
   {% if slots and slots.me_sections %}{% for s in slots.me_sections %}{% include s.template %}{% endfor %}{% endif %}
 
   <section class="me-block" aria-labelledby="me-profile">
-    <h2 id="me-profile">닉네임·자기소개·서명</h2>
+    <h2 id="me-profile">{{ "닉네임·자기소개·서명"|t }}</h2>
     {% if me.error_in == "profile" %}<p class="form-error" role="alert">{{ me.error }}</p>{% endif %}
     <form class="account-form" method="post" action="/me/profile">
       <input type="hidden" name="_csrf" value="{{ me.csrf }}">
-      <label for="display_name">닉네임</label>
+      <label for="display_name">{{ "닉네임"|t }}</label>
       <input id="display_name" type="text" name="display_name" value="{{ me.display_name }}" minlength="2" maxlength="20" autocomplete="nickname" required>
-      <label for="bio">자기소개 <span class="hint">공개 프로필과 글 아래에 보입니다. {{ me.max_bio }}자까지</span></label>
+      <label for="bio">{{ "자기소개"|t }} <span class="hint">{{ "공개 프로필과 글 아래에 보입니다."|t }} {{ me.max_bio }}{{ "자까지"|t }}</span></label>
       <textarea id="bio" name="bio" rows="3" maxlength="{{ me.max_bio }}">{{ me.bio }}</textarea>
-      <label for="signature">서명 <span class="hint">내 글 본문 아래에 붙습니다. {{ me.max_signature }}자, {{ me.max_signature_lines }}줄까지</span></label>
+      <label for="signature">{{ "서명"|t }} <span class="hint">{{ "내 글 본문 아래에 붙습니다."|t }} {{ me.max_signature }}{{ "자,"|t }} {{ me.max_signature_lines }}{{ "줄까지"|t }}</span></label>
       <textarea id="signature" name="signature" rows="{{ me.max_signature_lines }}" maxlength="{{ me.max_signature }}">{{ me.signature }}</textarea>
-      <button type="submit">저장</button>
+      <button type="submit">{{ "저장"|t }}</button>
     </form>
-    <p class="hint"><a href="{{ me.profile_url }}">내 공개 프로필 보기</a></p>
+    <p class="hint"><a href="{{ me.profile_url }}">{{ "내 공개 프로필 보기"|t }}</a></p>
   </section>
 
   <section class="me-block" aria-labelledby="me-password">
-    <h2 id="me-password">비밀번호</h2>
-    {% if not me.has_password %}<p class="hint">소셜 로그인으로 가입해 비밀번호가 없습니다. 정해 두면 이메일로도 로그인할 수 있습니다.</p>{% endif %}
+    <h2 id="me-password">{{ "비밀번호"|t }}</h2>
+    {% if not me.has_password %}<p class="hint">{{ "소셜 로그인으로 가입해 비밀번호가 없습니다. 정해 두면 이메일로도 로그인할 수 있습니다."|t }}</p>{% endif %}
     {% if me.error_in == "password" %}<p class="form-error" role="alert">{{ me.error }}</p>{% endif %}
     <form class="account-form" method="post" action="/me/password">
       <input type="hidden" name="_csrf" value="{{ me.csrf }}">
-      {% if me.has_password %}<label for="current">지금 비밀번호</label>
+      {% if me.has_password %}<label for="current">{{ "지금 비밀번호"|t }}</label>
       <input id="current" type="password" name="current" autocomplete="current-password" required>{% endif %}
-      <label for="password">새 비밀번호</label>
+      <label for="password">{{ "새 비밀번호"|t }}</label>
       <input id="password" type="password" name="password" minlength="{{ me.min_password }}" autocomplete="new-password" required>
-      <label for="password2">새 비밀번호 다시</label>
+      <label for="password2">{{ "새 비밀번호 다시"|t }}</label>
       <input id="password2" type="password" name="password2" minlength="{{ me.min_password }}" autocomplete="new-password" required>
-      <button type="submit">비밀번호 바꾸기</button>
+      <button type="submit">{{ "비밀번호 바꾸기"|t }}</button>
     </form>
   </section>
 
   <section class="me-block" id="me-totp" aria-labelledby="me-totp-title">
-    <h2 id="me-totp-title">2단계 인증</h2>
+    <h2 id="me-totp-title">{{ "2단계 인증"|t }}</h2>
     {% if me.error_in == "totp" %}<p class="form-error" role="alert">{{ me.error }}</p>{% endif %}
     {% if me.totp.codes %}
     <div class="totp-codes" role="region" aria-labelledby="totp-codes-title">
-      <h3 id="totp-codes-title">복구 코드</h3>
-      <p class="hint">휴대폰을 잃었을 때 코드 대신 하나씩 넣습니다. 한 번 쓴 코드는 다시 쓸 수 없고, <strong>이 화면을 벗어나면 다시 볼 수 없습니다.</strong> 안전한 곳에 적어 두세요.</p>
+      <h3 id="totp-codes-title">{{ "복구 코드"|t }}</h3>
+      <p class="hint">{{ "휴대폰을 잃었을 때 코드 대신 하나씩 넣습니다. 한 번 쓴 코드는 다시 쓸 수 없고,"|t }} <strong>{{ "이 화면을 벗어나면 다시 볼 수 없습니다."|t }}</strong> {{ "안전한 곳에 적어 두세요."|t }}</p>
       <ol class="code-list">{% for c in me.totp.codes %}<li><code>{{ c }}</code></li>{% endfor %}</ol>
     </div>
     {% endif %}
     {% if me.totp.enabled %}
-    <p>켜져 있습니다. 로그인할 때 비밀번호 다음에 인증 앱의 코드를 넣습니다. <span class="hint">남은 복구 코드 {{ me.totp.recovery_left }}개</span></p>
+    <p>{{ "켜져 있습니다. 로그인할 때 비밀번호 다음에 인증 앱의 코드를 넣습니다."|t }} <span class="hint">{{ "남은 복구 코드"|t }} {{ me.totp.recovery_left }}{{ "개"|t }}</span></p>
     <details class="totp-more">
-      <summary>복구 코드 새로 만들기</summary>
+      <summary>{{ "복구 코드 새로 만들기"|t }}</summary>
       <form class="account-form" method="post" action="/me/totp/recovery">
         <input type="hidden" name="_csrf" value="{{ me.csrf }}">
-        <label for="totp-recovery-code">지금 인증 코드</label>
+        <label for="totp-recovery-code">{{ "지금 인증 코드"|t }}</label>
         <input id="totp-recovery-code" type="text" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="20" required>
-        <button type="submit" class="secondary">새로 만들기</button>
+        <button type="submit" class="secondary">{{ "새로 만들기"|t }}</button>
       </form>
     </details>
     <details class="totp-more">
-      <summary>2단계 인증 끄기</summary>
+      <summary>{{ "2단계 인증 끄기"|t }}</summary>
       <form class="account-form" method="post" action="/me/totp/disable">
         <input type="hidden" name="_csrf" value="{{ me.csrf }}">
-        <label for="totp-off-code">지금 인증 코드 또는 복구 코드</label>
+        <label for="totp-off-code">{{ "지금 인증 코드 또는 복구 코드"|t }}</label>
         <input id="totp-off-code" type="text" name="code" autocomplete="one-time-code" maxlength="20" required>
-        <button type="submit" class="danger">끄기</button>
+        <button type="submit" class="danger">{{ "끄기"|t }}</button>
       </form>
     </details>
     {% elif me.totp.setup %}
     <ol class="totp-steps">
-      <li>휴대폰의 인증 앱(OTP 앱)으로 아래 QR 코드를 찍습니다. 찍을 수 없으면 「키 직접 입력」을 고르고 아래 키를 넣습니다. 종류는 「시간 기준」입니다.
-        {% if me.totp.setup.qr %}<div class="totp-qr" role="img" aria-label="인증 앱 등록용 QR 코드. 아래 키와 같은 내용입니다.">{{ me.totp.setup.qr|safe }}</div>{% endif %}
+      <li>{{ "휴대폰의 인증 앱(OTP 앱)으로 아래 QR 코드를 찍습니다. 찍을 수 없으면 「키 직접 입력」을 고르고 아래 키를 넣습니다. 종류는 「시간 기준」입니다."|t }}
+        {% if me.totp.setup.qr %}<div class="totp-qr" role="img" aria-label="{{ "인증 앱 등록용 QR 코드. 아래 키와 같은 내용입니다."|t }}">{{ me.totp.setup.qr|safe }}</div>{% endif %}
         <p class="totp-secret"><code>{{ me.totp.setup.secret }}</code></p>
-        <p class="hint">이 기기에 인증 앱이 있으면 <a href="{{ me.totp.setup.uri }}">링크로 바로 넣기</a>.</p>
+        <p class="hint">{{ "이 기기에 인증 앱이 있으면"|t }} <a href="{{ me.totp.setup.uri }}">{{ "링크로 바로 넣기"|t }}</a>.</p>
       </li>
-      <li>앱이 보여 주는 6자리 코드를 넣고 켭니다.
+      <li>{{ "앱이 보여 주는 6자리 코드를 넣고 켭니다."|t }}
         <form class="account-form inline" method="post" action="/me/totp/enable">
           <input type="hidden" name="_csrf" value="{{ me.csrf }}">
-          <label class="visually-hidden" for="totp-code">인증 코드</label>
+          <label class="visually-hidden" for="totp-code">{{ "인증 코드"|t }}</label>
           <input id="totp-code" type="text" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="10" required>
-          <button type="submit">확인하고 켜기</button>
+          <button type="submit">{{ "확인하고 켜기"|t }}</button>
         </form>
       </li>
     </ol>
     <form method="post" action="/me/totp/disable">
       <input type="hidden" name="_csrf" value="{{ me.csrf }}">
-      <button type="submit" class="secondary">설정 그만두기</button>
+      <button type="submit" class="secondary">{{ "설정 그만두기"|t }}</button>
     </form>
     {% else %}
-    <p class="hint">비밀번호가 새어 나가도 휴대폰의 인증 앱 코드 없이는 들어올 수 없게 합니다.</p>
+    <p class="hint">{{ "비밀번호가 새어 나가도 휴대폰의 인증 앱 코드 없이는 들어올 수 없게 합니다."|t }}</p>
     <form method="post" action="/me/totp/start">
       <input type="hidden" name="_csrf" value="{{ me.csrf }}">
-      <button type="submit" class="secondary">2단계 인증 켜기</button>
+      <button type="submit" class="secondary">{{ "2단계 인증 켜기"|t }}</button>
     </form>
     {% endif %}
   </section>
 
   <section class="me-block" aria-labelledby="me-session">
-    <h2 id="me-session">로그아웃</h2>
+    <h2 id="me-session">{{ "로그아웃"|t }}</h2>
     <form method="post" action="/logout">
       <input type="hidden" name="_csrf" value="{{ me.csrf }}">
-      <button type="submit" class="secondary">로그아웃</button>
+      <button type="submit" class="secondary">{{ "로그아웃"|t }}</button>
     </form>
   </section>
 
   {% if not me.is_owner %}
   <details class="me-block me-danger"{% if me.error_in == "withdraw" %} open{% endif %}>
-    <summary>회원 탈퇴</summary>
-    <p class="hint">탈퇴하면 이메일·비밀번호가 지워지고 다시 되돌릴 수 없습니다. 쓴 글은 「탈퇴한 회원」 이름으로 남습니다.</p>
+    <summary>{{ "회원 탈퇴"|t }}</summary>
+    <p class="hint">{{ "탈퇴하면 이메일·비밀번호가 지워지고 다시 되돌릴 수 없습니다. 쓴 글은 「탈퇴한 회원」 이름으로 남습니다."|t }}</p>
     {% if me.error_in == "withdraw" %}<p class="form-error" role="alert">{{ me.error }}</p>{% endif %}
     <form class="account-form" method="post" action="/me/withdraw">
       <input type="hidden" name="_csrf" value="{{ me.csrf }}">
-      {% if me.has_password %}<label for="withdraw-pw">비밀번호</label>
+      {% if me.has_password %}<label for="withdraw-pw">{{ "비밀번호"|t }}</label>
       <input id="withdraw-pw" type="password" name="password" autocomplete="current-password" required>
-      {% else %}<label for="withdraw-pw">확인을 위해 지금 닉네임(<strong>{{ me.display_name }}</strong>)을 입력하세요</label>
+      {% else %}<label for="withdraw-pw">{{ "확인을 위해 지금 닉네임("|t }}<strong>{{ me.display_name }}</strong>{{ ")을 입력하세요"|t }}</label>
       <input id="withdraw-pw" type="text" name="password" autocomplete="off" required>{% endif %}
-      <label class="check"><input type="checkbox" name="agree" value="yes" required> 위 내용을 읽었고 탈퇴합니다</label>
-      <button type="submit" class="danger">탈퇴하기</button>
+      <label class="check"><input type="checkbox" name="agree" value="yes" required> {{ "위 내용을 읽었고 탈퇴합니다"|t }}</label>
+      <button type="submit" class="danger">{{ "탈퇴하기"|t }}</button>
     </form>
   </details>
   {% endif %}

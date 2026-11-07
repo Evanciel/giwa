@@ -2,8 +2,8 @@
 <div class="account-box" data-account-box="{{ w.data.bar_url }}">
   {% if w.data.intro %}<p class="account-box-intro">{{ w.data.intro }}</p>{% endif %}
   <div class="account-box-guest">
-    <a class="account-box-login" href="{{ w.data.login_url }}">로그인</a>
-    <p class="account-box-sub"><a href="{{ w.data.forgot_url }}">비밀번호 찾기</a>{% if w.data.signup_url %} · <a href="{{ w.data.signup_url }}">회원가입</a>{% endif %}</p>
+    <a class="account-box-login" href="{{ w.data.login_url }}">{{ "로그인"|t }}</a>
+    <p class="account-box-sub"><a href="{{ w.data.forgot_url }}">{{ "비밀번호 찾기"|t }}</a>{% if w.data.signup_url %} · <a href="{{ w.data.signup_url }}">{{ "회원가입"|t }}</a>{% endif %}</p>
   </div>
   {% if w.data.links %}<ul class="account-box-links">{% for l in w.data.links %}<li><a href="{{ l.link.href }}"{% if l.link.external %} rel="noopener noreferrer"{% endif %}>{{ l.label }}</a></li>{% endfor %}</ul>{% endif %}
 </div>

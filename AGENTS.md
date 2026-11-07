@@ -137,6 +137,10 @@ maru changeset preview-url <id> --json
 
 `maru token create --auto-apply` 는 승인을 건너뛴다. 사용자가 위험을 알고 요청할 때만 만든다.
 
+### 영어 사이트
+
+- `maru site set --lang en`: 손님 화면의 틀(버튼·안내·날짜)과 오류·편지 문장이 영어가 됩니다. 프리셋이 만든 게시판 이름·메뉴·페이지는 한국어이므로 영어로 바꿉니다. 관리 화면은 한국어입니다.
+
 ### 테마
 
 - `maru theme list`, `maru theme apply <id>`: 프리셋의 색과 모양만 입힙니다. 글과 구조는 그대로입니다. 토큰은 `maru theme tokens get|set` (`maru design` 과 같습니다).

@@ -29,32 +29,32 @@
 <script src="/assets/community.js" defer{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %}></script>
 </head>
 <body class="cm{% block body_class %}{% endblock %}">
-<a class="skip" href="#main">본문 바로가기</a>
+<a class="skip" href="#main">{{ "본문 바로가기"|t }}</a>
 <div class="cm-topbar">
   <div class="cm-inner">
     <p class="cm-tagline">{{ site.description }}</p>
     {# 로그인 상태는 화면마다 다르므로 HTML 에 굽지 않는다. community.js 가 /me/bar 로 채운다. JS 가 없으면 「내 계정」 링크만 남는다. #}
-    <nav class="cm-account" aria-label="회원" data-bar="{{ site.account_bar_url }}">
-      {% if site.show_account %}<a href="{{ site.account_url }}">내 계정</a>{% endif %}
+    <nav class="cm-account" aria-label="{{ "회원"|t }}" data-bar="{{ site.account_bar_url }}">
+      {% if site.show_account %}<a href="{{ site.account_url }}">{{ "내 계정"|t }}</a>{% endif %}
     </nav>
-    <button class="cm-mode" type="button" aria-pressed="false" hidden><span class="visually-hidden">어두운 화면</span><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M13.5 9.8A5.6 5.6 0 0 1 6.2 2.5a5.6 5.6 0 1 0 7.3 7.3Z" fill="currentColor"/></svg></button>
+    <button class="cm-mode" type="button" aria-pressed="false" hidden><span class="visually-hidden">{{ "어두운 화면"|t }}</span><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M13.5 9.8A5.6 5.6 0 0 1 6.2 2.5a5.6 5.6 0 1 0 7.3 7.3Z" fill="currentColor"/></svg></button>
   </div>
 </div>
 <header class="cm-header">
   <div class="cm-inner">
     {# 휴대폰 단추 (GAP Q13, ADR-0098): 스크립트가 서랍·검색 덮개를 쓸 수 있을 때만 보인다. #}
-    <button class="cm-icon cm-drawer-open" type="button" aria-controls="cm-drawer" aria-expanded="false" hidden><span class="visually-hidden">메뉴 열기</span><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M3 5.5h14M3 10h14M3 14.5h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+    <button class="cm-icon cm-drawer-open" type="button" aria-controls="cm-drawer" aria-expanded="false" hidden><span class="visually-hidden">{{ "메뉴 열기"|t }}</span><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M3 5.5h14M3 10h14M3 14.5h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
     <a class="cm-brand" href="{{ site.home_url }}">{{ site.name }}</a>
-    {% if site.show_search %}<button class="cm-icon cm-search-open" type="button" aria-controls="cm-search-sheet" aria-expanded="false" hidden><span class="visually-hidden">검색 열기</span><svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="7" cy="7" r="4.8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10.6 10.6 14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>{% endif %}
+    {% if site.show_search %}<button class="cm-icon cm-search-open" type="button" aria-controls="cm-search-sheet" aria-expanded="false" hidden><span class="visually-hidden">{{ "검색 열기"|t }}</span><svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="7" cy="7" r="4.8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10.6 10.6 14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>{% endif %}
     {% if widgets.masthead %}<div class="region region-masthead">{% for w in widgets.masthead %}{% include "_widget.html" %}{% endfor %}</div>{% endif %}
   </div>
 </header>
 {# 메뉴 줄 (GAP Q12, ADR-0097): 스크롤하면 위에 붙는다. 하위 게시판이 있는 그룹은 가리키거나 초점을 주면 펼치고,
    「전체 메뉴」는 모든 그룹을 한 판에 보인다(스크립트 없이 details). #}
-{% if site.menus and site.menus.header %}<nav class="cm-nav" aria-label="게시판"><div class="cm-inner">
+{% if site.menus and site.menus.header %}<nav class="cm-nav" aria-label="{{ "게시판"|t }}"><div class="cm-inner">
   <div class="cm-nav-groups">{% with items = site.menus.header %}{% include "_menu.html" %}{% endwith %}</div>
   <details class="cm-allmenu">
-    <summary>전체 메뉴</summary>
+    <summary>{{ "전체 메뉴"|t }}</summary>
     <div class="cm-allmenu-panel"><div class="cm-inner">
       {% for item in site.menus.header %}<div class="cm-allmenu-group">
         <a class="cm-allmenu-head" href="{{ item.href }}"{% if item.external %} rel="noopener noreferrer"{% endif %}>{{ item.label }}</a>
@@ -64,15 +64,15 @@
   </details>
 </div></nav>{% endif %}
 {# 최근 본 게시판 (GAP Q11·Q27, ADR-0096·0111): 메뉴 줄 바로 아래. HTML 은 모두에게 같고(캐시) 목록은 이 브라우저에만 있다. site.js 가 채운다. #}
-<nav class="recent-boards" aria-label="최근 본 게시판" data-recent-boards hidden><div class="cm-inner"></div></nav>
+<nav class="recent-boards" aria-label="{{ "최근 본 게시판"|t }}" data-recent-boards hidden><div class="cm-inner"></div></nav>
 {# 검색 + 바로가기 단추 (메뉴 위치 quick) #}
 {% if site.show_search or (site.menus and site.menus.quick) %}<div class="cm-searchbar"><div class="cm-inner">
   {% if site.show_search %}<form class="cm-search" role="search" action="{{ site.search_url }}" method="get">
-    <label class="visually-hidden" for="site-q">사이트 검색</label>
-    <input id="site-q" type="search" name="q" maxlength="100" placeholder="게시판 전체에서 찾기" autocomplete="off" enterkeyhint="search">
-    <button type="submit" aria-label="검색"><svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="7" cy="7" r="4.8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10.6 10.6 14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+    <label class="visually-hidden" for="site-q">{{ "사이트 검색"|t }}</label>
+    <input id="site-q" type="search" name="q" maxlength="100" placeholder="{{ "게시판 전체에서 찾기"|t }}" autocomplete="off" enterkeyhint="search">
+    <button type="submit" aria-label="{{ "검색"|t }}"><svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="7" cy="7" r="4.8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10.6 10.6 14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
   </form>{% endif %}
-  {% if site.menus and site.menus.quick %}<nav class="cm-quick" aria-label="바로가기"><ul>{% for item in site.menus.quick %}<li><a href="{{ item.href }}"{% if item.external %} rel="noopener noreferrer"{% endif %}>{{ item.label }}</a></li>{% endfor %}</ul></nav>{% endif %}
+  {% if site.menus and site.menus.quick %}<nav class="cm-quick" aria-label="{{ "바로가기"|t }}"><ul>{% for item in site.menus.quick %}<li><a href="{{ item.href }}"{% if item.external %} rel="noopener noreferrer"{% endif %}>{{ item.label }}</a></li>{% endfor %}</ul></nav>{% endif %}
 </div></div>{% endif %}
 {% if widgets.header %}<div class="region region-header"><div class="cm-inner">{% for w in widgets.header %}{% include "_widget.html" %}{% endfor %}</div></div>{% endif %}
 {% if widgets.hero %}<div class="region region-hero"><div class="cm-inner">{% for w in widgets.hero %}{% include "_widget.html" %}{% endfor %}</div></div>{% endif %}
@@ -81,54 +81,54 @@
 {% if widgets.main %}<div class="region region-main">{% for w in widgets.main %}{% include "_widget.html" %}{% endfor %}</div>{% endif %}
 {% block main %}{% endblock %}
 </main>
-{% if widgets.sidebar %}<aside class="region region-sidebar" aria-label="곁가지">{% for w in widgets.sidebar %}{% include "_widget.html" %}{% endfor %}</aside>{% endif %}
+{% if widgets.sidebar %}<aside class="region region-sidebar" aria-label="{{ "곁가지"|t }}">{% for w in widgets.sidebar %}{% include "_widget.html" %}{% endfor %}</aside>{% endif %}
 {# 양옆 광고: 본문 판 바깥에서 본문과 같은 높이로 시작하고, 스크롤하면 메뉴 줄 아래에 붙는다. #}
-{% if widgets.rail %}<aside class="region region-rail" aria-label="광고">
+{% if widgets.rail %}<aside class="region region-rail" aria-label="{{ "광고"|t }}">
   <div class="rail-side rail-left"><div class="rail-stick">{% for w in widgets.rail %}{% if loop.index is odd %}{% include "_widget.html" %}{% endif %}{% endfor %}</div></div>
   <div class="rail-side rail-right"><div class="rail-stick">{% for w in widgets.rail %}{% if loop.index is even %}{% include "_widget.html" %}{% endif %}{% endfor %}</div></div>
 </aside>{% endif %}
 </div>
 {# 광고 자리 (GAP Q24, ADR-0109): 후원 띠는 접고 펼친다(이 브라우저에 기억), 양옆은 넓은 화면만,
    아래 고정은 휴대폰만(닫으면 이번 방문 동안 숨김). 비어 있으면 아무것도 그리지 않는다. #}
-{% if widgets.sponsor %}<section class="region region-sponsor" aria-label="후원" data-sponsor><div class="cm-inner">
-  <div class="sponsor-head"><span class="sponsor-title">후원</span><button type="button" class="sponsor-toggle" aria-controls="sponsor-items" aria-expanded="true" hidden>접기</button></div>
+{% if widgets.sponsor %}<section class="region region-sponsor" aria-label="{{ "후원"|t }}" data-sponsor><div class="cm-inner">
+  <div class="sponsor-head"><span class="sponsor-title">{{ "후원"|t }}</span><button type="button" class="sponsor-toggle" aria-controls="sponsor-items" aria-expanded="true" hidden>{{ "접기"|t }}</button></div>
   <div class="sponsor-items" id="sponsor-items">{% for w in widgets.sponsor %}{% include "_widget.html" %}{% endfor %}</div>
 </div></section>{% endif %}
 <footer class="cm-footer">
   {% if widgets.footer %}<div class="region region-footer"><div class="cm-inner">{% for w in widgets.footer %}{% include "_widget.html" %}{% endfor %}</div></div>{% endif %}
   <div class="cm-inner">
-    {% if site.menus and site.menus.footer %}<nav class="footer-nav" aria-label="하단 메뉴">{% with items = site.menus.footer %}{% include "_menu.html" %}{% endwith %}</nav>{% endif %}
+    {% if site.menus and site.menus.footer %}<nav class="footer-nav" aria-label="{{ "하단 메뉴"|t }}">{% with items = site.menus.footer %}{% include "_menu.html" %}{% endwith %}</nav>{% endif %}
     <p id="page-end"><strong>{{ site.name }}</strong> · <a href="{{ site.rss_url }}">RSS</a></p>
   </div>
 </footer>
-{% if widgets.sticky %}<div class="region region-sticky" data-sticky-ad>{% for w in widgets.sticky %}{% include "_widget.html" %}{% endfor %}<button type="button" class="sticky-close" hidden><span aria-hidden="true">×</span><span class="visually-hidden">아래 광고 닫기</span></button></div>{% endif %}
-{% block page_jump %}<nav class="page-jump" aria-label="쪽 이동" hidden><a href="#main">맨 위</a><a href="#page-end">맨 아래</a></nav>{% endblock %}
+{% if widgets.sticky %}<div class="region region-sticky" data-sticky-ad>{% for w in widgets.sticky %}{% include "_widget.html" %}{% endfor %}<button type="button" class="sticky-close" hidden><span aria-hidden="true">×</span><span class="visually-hidden">{{ "아래 광고 닫기"|t }}</span></button></div>{% endif %}
+{% block page_jump %}<nav class="page-jump" aria-label="{{ "쪽 이동"|t }}" hidden><a href="#main">{{ "맨 위"|t }}</a><a href="#page-end">{{ "맨 아래"|t }}</a></nav>{% endblock %}
 {% if widgets.popup %}
 <div class="popups">{% for w in widgets.popup %}{% include "widgets/popup.html" %}{% endfor %}</div>
 {% endif %}
 {# 휴대폰 서랍 메뉴와 검색 덮개 (GAP Q13, ADR-0098). 닫혀 있으면 보이지 않고, 스크립트가 없으면 열 단추도 없다. #}
-<dialog class="cm-drawer" id="cm-drawer" aria-label="메뉴">
+<dialog class="cm-drawer" id="cm-drawer" aria-label="{{ "메뉴"|t }}">
   <div class="cm-sheet-head">
     <a class="cm-brand" href="{{ site.home_url }}">{{ site.name }}</a>
-    <button class="cm-icon" type="button" data-close><span class="visually-hidden">메뉴 닫기</span><svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button>
+    <button class="cm-icon" type="button" data-close><span class="visually-hidden">{{ "메뉴 닫기"|t }}</span><svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button>
   </div>
   {% if site.menus and site.menus.quick %}<ul class="cm-drawer-quick">{% for item in site.menus.quick %}<li><a href="{{ item.href }}"{% if item.external %} rel="noopener noreferrer"{% endif %}>{{ item.label }}</a></li>{% endfor %}</ul>{% endif %}
-  {% if site.menus and site.menus.header %}<nav class="cm-drawer-nav" aria-label="전체 게시판">{% for item in site.menus.header %}<div class="cm-drawer-group">
+  {% if site.menus and site.menus.header %}<nav class="cm-drawer-nav" aria-label="{{ "전체 게시판"|t }}">{% for item in site.menus.header %}<div class="cm-drawer-group">
     <a class="cm-drawer-head" href="{{ item.href }}"{% if item.external %} rel="noopener noreferrer"{% endif %}>{{ item.label }}</a>
     {% if item.children %}<ul>{% for child in item.children %}<li><a href="{{ child.href }}"{% if child.external %} rel="noopener noreferrer"{% endif %}>{{ child.label }}</a></li>{% endfor %}</ul>{% endif %}
   </div>{% endfor %}</nav>{% endif %}
-  {% if site.menus and site.menus.footer %}<nav class="cm-drawer-foot" aria-label="하단 메뉴">{% with items = site.menus.footer %}{% include "_menu.html" %}{% endwith %}</nav>{% endif %}
+  {% if site.menus and site.menus.footer %}<nav class="cm-drawer-foot" aria-label="{{ "하단 메뉴"|t }}">{% with items = site.menus.footer %}{% include "_menu.html" %}{% endwith %}</nav>{% endif %}
 </dialog>
-{% if site.show_search %}<dialog class="cm-search-sheet" id="cm-search-sheet" aria-label="검색">
+{% if site.show_search %}<dialog class="cm-search-sheet" id="cm-search-sheet" aria-label="{{ "검색"|t }}">
   <form class="cm-search" role="search" action="{{ site.search_url }}" method="get">
-    <label class="visually-hidden" for="sheet-q">사이트 검색</label>
-    <input id="sheet-q" type="search" name="q" maxlength="100" placeholder="게시판 전체에서 찾기" autocomplete="off" enterkeyhint="search">
-    <button type="submit" aria-label="검색"><svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="7" cy="7" r="4.8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10.6 10.6 14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+    <label class="visually-hidden" for="sheet-q">{{ "사이트 검색"|t }}</label>
+    <input id="sheet-q" type="search" name="q" maxlength="100" placeholder="{{ "게시판 전체에서 찾기"|t }}" autocomplete="off" enterkeyhint="search">
+    <button type="submit" aria-label="{{ "검색"|t }}"><svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="7" cy="7" r="4.8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10.6 10.6 14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
   </form>
-  <button class="cm-icon" type="button" data-close><span class="visually-hidden">검색 닫기</span><svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button>
+  <button class="cm-icon" type="button" data-close><span class="visually-hidden">{{ "검색 닫기"|t }}</span><svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button>
   {# 최근 검색어는 이 브라우저에만 남는다(서버로 보내지 않음). #}
   <section class="cm-recent-q" data-recent-searches hidden>
-    <div class="cm-recent-q-head"><h2>최근 검색어</h2><button type="button" data-clear>전체 삭제</button></div>
+    <div class="cm-recent-q-head"><h2>{{ "최근 검색어"|t }}</h2><button type="button" data-clear>{{ "전체 삭제"|t }}</button></div>
     <ul></ul>
   </section>
 </dialog>{% endif %}

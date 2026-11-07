@@ -1,11 +1,61 @@
 //! 사용자 대면 문장 카탈로그. 키로 찾고 `{name}` 자리를 채운다.
 //!
-//! 지금은 한국어만 있다. 영어는 출시 직전에 같은 키로 추가한다.
+//! 한국어가 기본이고 영어판은 `messages_en.rs` 에 같은 키로 있다 (ADR-0134). 오류는 `Ctx` 없이
+//! 만들어지므로 언어는 프로세스 전역이다. 사이트 설정을 읽을 때 맞춘다(`settings::site`).
 
 use std::collections::BTreeMap;
+use std::sync::atomic::{AtomicU8, Ordering};
+
+#[path = "messages_en.rs"]
+mod en;
+
+const KO: u8 = 0;
+const EN: u8 = 1;
+const UNSET: u8 = u8::MAX;
+static LANG: AtomicU8 = AtomicU8::new(UNSET);
+
+fn code(lang: &str) -> u8 {
+    if lang.trim().to_ascii_lowercase().starts_with("en") {
+        EN
+    } else {
+        KO
+    }
+}
+
+/// 이 프로세스의 언어를 사이트 언어로 맞춘다. 환경 변수 `MARU_LANG` 이 있으면 그것이 먼저다.
+pub fn set_lang(site_lang: &str) {
+    let env = std::env::var("MARU_LANG")
+        .ok()
+        .filter(|l| !l.trim().is_empty());
+    LANG.store(code(env.as_deref().unwrap_or(site_lang)), Ordering::Relaxed);
+}
+
+/// 지금 언어: `ko` 또는 `en`.
+pub fn lang() -> &'static str {
+    let mut c = LANG.load(Ordering::Relaxed);
+    if c == UNSET {
+        c = std::env::var("MARU_LANG").map_or(KO, |l| code(&l));
+    }
+    if c == EN { "en" } else { "ko" }
+}
+
+/// 지금 언어로 찾는다. 영어판에 없으면 한국어.
+pub fn lookup(key: &str) -> Option<&'static str> {
+    lookup_in(lang(), key)
+}
+
+/// 정한 언어로 찾는다. 영어판에 없으면 한국어.
+pub fn lookup_in(lang: &str, key: &str) -> Option<&'static str> {
+    if code(lang) == EN
+        && let Some(text) = en::lookup(key)
+    {
+        return Some(text);
+    }
+    lookup_ko(key)
+}
 
 /// 키에 해당하는 한국어 문장.
-pub fn lookup(key: &str) -> Option<&'static str> {
+fn lookup_ko(key: &str) -> Option<&'static str> {
     let text = match key {
         "error.internal" => "내부 오류가 발생했습니다. 요청 ID와 함께 로그를 확인하세요.",
         "error.usage" => "명령 사용법이 올바르지 않습니다.",
@@ -390,7 +440,12 @@ pub fn lookup(key: &str) -> Option<&'static str> {
 
 /// 키를 찾아 `{name}` 자리를 채운다. 없는 키는 키 자체를 돌려준다(누락이 화면에 드러나도록).
 pub fn render(key: &str, args: &BTreeMap<&'static str, String>) -> String {
-    let Some(template) = lookup(key) else {
+    render_in(lang(), key, args)
+}
+
+/// 정한 언어로 [`render`].
+pub fn render_in(lang: &str, key: &str, args: &BTreeMap<&'static str, String>) -> String {
+    let Some(template) = lookup_in(lang, key) else {
         return key.to_owned();
     };
     let mut out = template.to_owned();
@@ -409,9 +464,52 @@ mod tests {
         let mut args = BTreeMap::new();
         args.insert("port", "8080".to_owned());
         assert_eq!(
-            render("error.port_in_use", &args),
+            render_in("ko", "error.port_in_use", &args),
             "8080 포트를 다른 프로그램이 사용 중입니다."
         );
+        assert_eq!(
+            render_in("en", "error.port_in_use", &args),
+            "Port 8080 is in use by another program."
+        );
+    }
+
+    /// 소스의 `"키" =>` 줄에서 키를 모은다.
+    fn keys_of(src: &str) -> Vec<&str> {
+        src.lines()
+            .filter_map(|l| {
+                let l = l.trim().strip_prefix('"')?;
+                let (key, rest) = l.split_once('"')?;
+                (rest.trim_start().starts_with("=>") && key.contains('.')).then_some(key)
+            })
+            .collect()
+    }
+
+    fn slots(text: &str) -> Vec<&str> {
+        let mut out: Vec<&str> = text
+            .split('{')
+            .skip(1)
+            .filter_map(|p| p.split_once('}').map(|(name, _)| name))
+            .filter(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'))
+            .collect();
+        out.sort_unstable();
+        out.dedup();
+        out
+    }
+
+    #[test]
+    fn 영어판은_키와_자리가_한국어판과_같다() {
+        let ko = keys_of(include_str!("messages.rs"));
+        let en = keys_of(include_str!("messages_en.rs"));
+        assert!(ko.len() > 200, "{}", ko.len());
+        for key in &ko {
+            let k = lookup_ko(key).unwrap_or_else(|| panic!("{key}"));
+            let e = en::lookup(key).unwrap_or_else(|| panic!("영어판에 없음: {key}"));
+            assert_eq!(slots(k), slots(e), "{key}");
+            assert!(!e.chars().any(|c| ('가'..='힣').contains(&c)), "{key}: {e}");
+        }
+        for key in &en {
+            assert!(lookup_ko(key).is_some(), "한국어판에 없음: {key}");
+        }
     }
 
     #[test]

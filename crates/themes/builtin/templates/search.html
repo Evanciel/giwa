@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block main %}
-<h1 class="page-title">검색</h1>
+<h1 class="page-title">{{ "검색"|t }}</h1>
 {% include "_search_form.html" %}
 {% if search.searched %}{% include "_hits.html" %}
-{% else %}<p class="empty hint">띄어 쓰면 모든 말이 든 글, <code>OR</code> 는 어느 하나, <code>"큰따옴표"</code> 는 붙은 그대로, <code>-낱말</code> 은 빼고 찾습니다.</p>{% endif %}
+{% else %}<p class="empty hint">{{ "띄어 쓰면 모든 말이 든 글,"|t }} <code>OR</code> {{ "는 어느 하나,"|t }} <code>{{ "\"큰따옴표\""|t }}</code> {{ "는 붙은 그대로,"|t }} <code>{{ "-낱말"|t }}</code> {{ "은 빼고 찾습니다."|t }}</p>{% endif %}
 {% endblock %}

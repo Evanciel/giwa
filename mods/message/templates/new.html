@@ -3,15 +3,15 @@
 {% block main_class %}wrap account-wrap{% endblock %}
 {% block main %}
 <section class="account" aria-labelledby="message-new-title">
-  <h1 id="message-new-title">쪽지 쓰기</h1>
+  <h1 id="message-new-title">{{ "쪽지 쓰기"|t }}</h1>
   {% if error %}<p class="form-error" role="alert">{{ error }}</p>{% endif %}
   <form class="account-form" method="post" action="/m/message/send">
-    <label for="message-to">받는 회원 이름</label>
+    <label for="message-to">{{ "받는 회원 이름"|t }}</label>
     <input id="message-to" type="text" name="to" value="{{ to }}" required>
-    <label for="message-body">내용</label>
+    <label for="message-body">{{ "내용"|t }}</label>
     <textarea id="message-body" name="body" rows="6" maxlength="{{ max_chars }}" required>{{ body }}</textarea>
-    <button type="submit">보내기</button>
+    <button type="submit">{{ "보내기"|t }}</button>
   </form>
-  <p class="account-links"><a href="/m/message">쪽지함으로</a></p>
+  <p class="account-links"><a href="/m/message">{{ "쪽지함으로"|t }}</a></p>
 </section>
 {% endblock %}

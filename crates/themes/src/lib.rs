@@ -4,7 +4,9 @@
 //! Phase 3 changeset 미리보기는 이 목록 앞에 오버레이 소스 하나를 더하면 된다.
 
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::path::{Component, Path, PathBuf};
+use std::sync::OnceLock;
 
 use maru_core::services::presets::Preset;
 use maru_core::{Code, Error, Result};
@@ -90,6 +92,7 @@ fn public_env(
     env.add_filter("ago", ago);
     env.add_filter("short_count", short_count);
     env.add_filter("stickers", stickers_filter);
+    env.add_filter("t", t);
     env.set_loader(move |name| {
         if let Some(text) = dir.as_deref().and_then(|d| read_user(d, "templates", name)) {
             return Ok(Some(text));
@@ -251,28 +254,44 @@ pub fn preset(id: &str) -> Result<Preset> {
 /// 모든 링크가 읽기 어려워진다. 속성값은 항상 큰따옴표로 감싸므로 `/` 는 안전하다.
 /// 「방금 전」「5분 전」「3시간 전」, 하루가 넘으면 날짜 `2026. 11. 4.` (GAP Q11, ADR-0096).
 /// `tz` 는 사이트 시간대(분, 기본 한국 +540). 시각이 아니면 빈 문자열.
-fn ago(at: minijinja::Value, tz: Option<i32>) -> String {
+/// 영어 사이트는 「just now」「5 min ago」「3 hr ago」. 날짜는 숫자뿐이라 그대로 둔다.
+fn ago(state: &minijinja::State, at: minijinja::Value, tz: Option<i32>) -> String {
+    ago_in(is_en(state), at, tz)
+}
+
+fn ago_in(en: bool, at: minijinja::Value, tz: Option<i32>) -> String {
     let Some(at) = at.as_str() else {
         return String::new();
     };
-    match maru_core::clock::seconds_since(at) {
+    match (maru_core::clock::seconds_since(at), en) {
         // 시계가 조금 어긋나 앞으로 온 시각도 「방금」으로 본다.
-        Some(s) if (-300..60).contains(&s) => "방금 전".to_owned(),
-        Some(s) if (60..3600).contains(&s) => format!("{}분 전", s / 60),
-        Some(s) if (3600..86_400).contains(&s) => format!("{}시간 전", s / 3600),
+        (Some(s), false) if (-300..60).contains(&s) => "방금 전".to_owned(),
+        (Some(s), false) if (60..3600).contains(&s) => format!("{}분 전", s / 60),
+        (Some(s), false) if (3600..86_400).contains(&s) => format!("{}시간 전", s / 3600),
+        (Some(s), true) if (-300..60).contains(&s) => "just now".to_owned(),
+        (Some(s), true) if (60..3600).contains(&s) => format!("{} min ago", s / 60),
+        (Some(s), true) if (3600..86_400).contains(&s) => format!("{} hr ago", s / 3600),
         _ => maru_core::clock::display_date(at, tz.unwrap_or(540)),
     }
 }
 
 /// 수 줄여 쓰기 (ADR-0096): 9,999 까지는 쉼표, 1만부터 「1.2만」, 1억부터 「1.2억」.
 /// 소수 첫째 자리에서 버린다(실제보다 많아 보이지 않게). 수가 아니면 그대로.
-fn short_count(n: minijinja::Value) -> String {
+/// 영어 사이트는 1,000 부터 「1.2K」, 100만부터 「1.2M」, 10억부터 「1.2B」.
+fn short_count(state: &minijinja::State, n: minijinja::Value) -> String {
+    short_count_in(is_en(state), n)
+}
+
+fn short_count_in(en: bool, n: minijinja::Value) -> String {
     let Some(n) = n.as_i64() else {
         return n.to_string();
     };
-    let (unit, div) = match n.unsigned_abs() {
-        a if a >= 100_000_000 => ("억", 100_000_000),
-        a if a >= 10_000 => ("만", 10_000),
+    let (unit, div) = match (n.unsigned_abs(), en) {
+        (a, false) if a >= 100_000_000 => ("억", 100_000_000),
+        (a, false) if a >= 10_000 => ("만", 10_000),
+        (a, true) if a >= 1_000_000_000 => ("B", 1_000_000_000),
+        (a, true) if a >= 1_000_000 => ("M", 1_000_000),
+        (a, true) if a >= 1_000 => ("K", 1_000),
         _ => return grouped(n),
     };
     let tenths = n / (div / 10);
@@ -281,6 +300,49 @@ fn short_count(n: minijinja::Value) -> String {
         format!("{whole}{unit}")
     } else {
         format!("{whole}.{frac}{unit}")
+    }
+}
+
+/// 공개 화면 영어 문구 (ADR-0134). 키는 템플릿의 한국어 원문이다.
+fn english() -> &'static HashMap<String, String> {
+    static EN: OnceLock<HashMap<String, String>> = OnceLock::new();
+    EN.get_or_init(|| {
+        Builtin::get("i18n/en.toml")
+            .and_then(|f| toml::from_str(std::str::from_utf8(&f.data).ok()?).ok())
+            .unwrap_or_default()
+    })
+}
+
+/// Rust 가 만드는 공개 화면 문구 (ADR-0134). 프로세스 언어가 영어면 영어표에서, 아니면 그대로.
+pub fn tr(ko: &'static str) -> &'static str {
+    if maru_core::messages::lang() == "en" {
+        english().get(ko).map_or(ko, String::as_str)
+    } else {
+        ko
+    }
+}
+
+/// 화면이 영어인지. 템플릿 문맥의 `site.lang`, 없으면 프로세스 언어.
+fn is_en(state: &minijinja::State) -> bool {
+    let site = state
+        .lookup("site")
+        .and_then(|s| s.get_attr("lang").ok())
+        .and_then(|l| l.as_str().map(str::to_owned));
+    site.as_deref()
+        .unwrap_or(maru_core::messages::lang())
+        .starts_with("en")
+}
+
+/// `{{ "한국어"|t }}`. 영어 사이트면 표의 영어로 바꾼다. 표에 있는 글자는 템플릿에 쓴 원문이라
+/// 그대로(HTML 로) 내보내고, 표에 없는 값(변수 등)은 다른 값처럼 이스케이프된다.
+fn t(state: &minijinja::State, text: minijinja::Value) -> minijinja::Value {
+    let Some(s) = text.as_str() else {
+        return text;
+    };
+    match english().get(s) {
+        Some(en) if is_en(state) => minijinja::Value::from_safe_string(en.clone()),
+        Some(_) => minijinja::Value::from_safe_string(s.to_owned()),
+        None => text,
     }
 }
 
@@ -599,10 +661,99 @@ mod tests {
     }
 
     #[test]
+    fn 영어_사이트는_t_와_시간과_수를_영어로() {
+        let mut env = Environment::new();
+        env.set_auto_escape_callback(|_| AutoEscape::Html);
+        env.add_filter("ago", ago);
+        env.add_filter("short_count", short_count);
+        env.add_filter("t", t);
+        let en = |src: &str, at: &str, n: i64| {
+            env.render_str(
+                src,
+                minijinja::context! { site => minijinja::context! { lang => "en" }, at => at, n => n },
+            )
+            .unwrap()
+        };
+        assert_eq!(en(r#"{{ "회원가입"|t }}"#, "", 0), "Sign up");
+        assert_eq!(
+            en(r#"{{ "표에 없는 <b>"|t }}"#, "", 0),
+            "표에 없는 &lt;b&gt;"
+        );
+        assert_eq!(en("{{ x|t }}", "", 0), "");
+        assert_eq!(en("{{ at|ago }}", &maru_core::clock::now(), 0), "just now");
+        let five = maru_core::clock::minutes_later(-5);
+        assert_eq!(en("{{ at|ago }}", &five, 0), "5 min ago");
+        for (n, want) in [
+            (999, "999"),
+            (1_234, "1.2K"),
+            (12_345, "12.3K"),
+            (1_250_000, "1.2M"),
+            (3_000_000_000, "3B"),
+        ] {
+            assert_eq!(en("{{ n|short_count }}", "", n), want);
+        }
+        let ko = env
+            .render_str(
+                r#"{{ "회원가입"|t }}"#,
+                minijinja::context! { site => minijinja::context! { lang => "ko" } },
+            )
+            .unwrap();
+        assert_eq!(ko, "회원가입");
+    }
+
+    /// 템플릿의 `"…"|t` 가 모두 영어표에 있다.
+    #[test]
+    fn 감싼_문구는_모두_영어표에_있다() {
+        fn walk(dir: &Path, into: &mut Vec<PathBuf>) {
+            for e in std::fs::read_dir(dir).unwrap() {
+                let p = e.unwrap().path();
+                if p.is_dir() {
+                    walk(&p, into);
+                } else if p.extension().is_some_and(|x| x == "html") {
+                    into.push(p);
+                }
+            }
+        }
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let mut all = Vec::new();
+        walk(&root.join("builtin"), &mut all);
+        for m in std::fs::read_dir(root.join("../../mods")).unwrap() {
+            let t = m.unwrap().path().join("templates");
+            if t.is_dir() {
+                walk(&t, &mut all);
+            }
+        }
+        let table = english();
+        let mut missing = Vec::new();
+        let mut count = 0;
+        for f in &all {
+            let src = std::fs::read_to_string(f).unwrap();
+            for (q, end) in [("\"", "\"|t"), ("'", "'|t")] {
+                let parts: Vec<&str> = src.split(end).collect();
+                // 마지막 조각은 `|t` 앞이 아니다.
+                for part in &parts[..parts.len() - 1] {
+                    let Some(at) = part.rfind(q) else { continue };
+                    let key = part[at + 1..].replace("\\\"", "\"");
+                    if part[..at].ends_with('\\') {
+                        continue;
+                    }
+                    count += 1;
+                    if !table.contains_key(&key) {
+                        missing.push(format!("{}: {key}", f.display()));
+                    }
+                }
+            }
+        }
+        assert!(count > 300, "{count}");
+        assert!(missing.is_empty(), "{missing:#?}");
+    }
+
+    #[test]
     fn ago_and_short_count_filters() {
         let mut env = Environment::new();
         env.add_filter("ago", ago);
         env.add_filter("short_count", short_count);
+        env.add_filter("t", t);
         let render = |src: &str, at: &str| {
             env.render_str(src, minijinja::context! { at => at })
                 .unwrap()

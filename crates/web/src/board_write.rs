@@ -21,6 +21,7 @@ use maru_core::services::comments::GuestAuthor;
 use maru_core::services::{boards, captcha, categories, settings};
 use maru_core::urls::{self, Target};
 use maru_core::{Actor, Code};
+use maru_themes::tr;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -225,12 +226,12 @@ async fn may_write(
     }
     let view = json!({
         "view": "notice",
-        "heading": "이 게시판에는 글을 쓸 수 없습니다",
-        "body": "게시판 관리자가 정한 역할만 글을 씁니다.",
-        "links": [{ "label": "게시판으로", "href": urls::path(&Target::Board { board: &board.slug }) }],
+        "heading": tr("이 게시판에는 글을 쓸 수 없습니다"),
+        "body": tr("게시판 관리자가 정한 역할만 글을 씁니다."),
+        "links": [{ "label": tr("게시판으로"), "href": urls::path(&Target::Board { board: &board.slug }) }],
     });
     Err(Box::new(
-        page(state, StatusCode::FORBIDDEN, "글쓰기", view, who, None).await,
+        page(state, StatusCode::FORBIDDEN, tr("글쓰기"), view, who, None).await,
     ))
 }
 
@@ -307,14 +308,14 @@ async fn create(
         Ok(_) => {
             let view = json!({
                 "view": "notice",
-                "heading": "글을 받았습니다",
-                "body": "관리자가 확인한 뒤에 목록에 보입니다.",
-                "links": [{ "label": "게시판으로", "href": urls::path(&Target::Board { board: &board.slug }) }],
+                "heading": tr("글을 받았습니다"),
+                "body": tr("관리자가 확인한 뒤에 목록에 보입니다."),
+                "links": [{ "label": tr("게시판으로"), "href": urls::path(&Target::Board { board: &board.slug }) }],
             });
             page(
                 &state,
                 StatusCode::OK,
-                "글쓰기",
+                tr("글쓰기"),
                 view,
                 who.as_ref(),
                 Some(&headers),
@@ -479,7 +480,7 @@ async fn delete_page(
         "needs_password": e.by_password,
         "error": error,
     });
-    page(state, status, "글 지우기", view, who, Some(headers)).await
+    page(state, status, tr("글 지우기"), view, who, Some(headers)).await
 }
 
 async fn delete(
@@ -650,9 +651,9 @@ async fn render_form(
         "error": error,
     });
     let heading = match (fv.mode, parent.is_some()) {
-        (Mode::New, true) => "답변 쓰기",
-        (Mode::New, false) => "글쓰기",
-        _ => "글 고치기",
+        (Mode::New, true) => tr("답변 쓰기"),
+        (Mode::New, false) => tr("글쓰기"),
+        _ => tr("글 고치기"),
     };
     page(state, status, heading, view, who, Some(headers)).await
 }
@@ -660,14 +661,14 @@ async fn render_form(
 async fn refused(state: &AppState, headers: &HeaderMap, who: Option<&SignedIn>) -> Response {
     let view = json!({
         "view": "notice",
-        "heading": "요청을 확인하지 못했습니다",
-        "body": "다른 곳에서 보낸 요청이거나 화면을 너무 오래 열어 두었습니다. 글쓰기 화면을 새로 열어 다시 보내 주세요.",
+        "heading": tr("요청을 확인하지 못했습니다"),
+        "body": tr("다른 곳에서 보낸 요청이거나 화면을 너무 오래 열어 두었습니다. 글쓰기 화면을 새로 열어 다시 보내 주세요."),
         "links": [],
     });
     page(
         state,
         StatusCode::FORBIDDEN,
-        "글쓰기",
+        tr("글쓰기"),
         view,
         who,
         Some(headers),

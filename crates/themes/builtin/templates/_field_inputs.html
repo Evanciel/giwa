@@ -12,7 +12,7 @@
 <label for="{{ f.id }}">{{ f.label }}{% if f.required %} <span class="req" aria-hidden="true">*</span>{% endif %}</label>
 {% if f.type == "select" %}
 <select id="{{ f.id }}" name="{{ f.name }}"{% if f.required %} required{% endif %}>
-  <option value="">고르세요</option>
+  <option value="">{{ "고르세요"|t }}</option>
   {% for o in f.options %}<option value="{{ o.value }}"{% if o.checked %} selected{% endif %}>{{ o.label }}</option>{% endfor %}
 </select>
 {% elif f.type == "textarea" %}

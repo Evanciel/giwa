@@ -1,6 +1,14 @@
 // 글쓰기 화면의 파일 붙이기 (ADR-0065). 파일을 올리고 받은 마크다운을 내용 칸에 넣는다.
 // 스크립트가 없으면 칸이 숨은 채로 남고 글쓰기는 그대로 된다.
 (function () {
+  // 영어 사이트 문구 (ADR-0134). `<html lang>` 을 보고, 표에 없으면 한국어 그대로. {n} 은 값 자리.
+  var MARU_EN = document.documentElement.lang.indexOf("en") === 0 ? {
+    "{n} 올리는 중…": "Uploading {n}…",
+    "내용에 넣었습니다: {n}": "Added to the post: {n}",
+    "올리지 못했습니다.": "Upload failed.",
+    "올리지 못했습니다. 연결을 확인하세요.": "Upload failed. Check your connection.",
+  } : null;
+  function T(s, n) { return ((MARU_EN && MARU_EN[s]) || s).replace("{n}", n); }
   var box = document.querySelector("[data-attach-url]");
   var body = document.getElementById("body");
   var csrf = document.querySelector('.write-form input[name="_csrf"]');
@@ -25,7 +33,7 @@
     input.disabled = true;
     for (var i = 0; i < files.length; i++) {
       var f = files[i];
-      status.textContent = f.name + " 올리는 중…";
+      status.textContent = T("{n} 올리는 중…", f.name);
       try {
         var res = await fetch(box.dataset.attachUrl + "?filename=" + encodeURIComponent(f.name), {
           method: "POST",
@@ -35,13 +43,13 @@
         });
         var out = await res.json();
         if (!res.ok || !out.ok) {
-          status.textContent = f.name + ": " + ((out.error && out.error.message) || "올리지 못했습니다.");
+          status.textContent = f.name + ": " + ((out.error && out.error.message) || T("올리지 못했습니다."));
           break;
         }
         insert(out.data.markdown);
-        status.textContent = "내용에 넣었습니다: " + f.name;
+        status.textContent = T("내용에 넣었습니다: {n}", f.name);
       } catch (e) {
-        status.textContent = f.name + ": 올리지 못했습니다. 연결을 확인하세요.";
+        status.textContent = f.name + ": " + T("올리지 못했습니다. 연결을 확인하세요.");
         break;
       }
     }

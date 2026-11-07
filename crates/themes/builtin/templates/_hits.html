@@ -6,9 +6,9 @@
 </div>
 {% else %}
 <div class="search-head">
-  <p class="search-count" role="status"><strong>“{{ search.q }}”</strong> 검색 결과 {{ search.total }}건</p>
+  <p class="search-count" role="status"><strong>“{{ search.q }}”</strong> {{ "검색 결과"|t }} {{ search.total }}{{ "건"|t }}</p>
   {% if search.total > 1 and not search.literal %}
-  <ul class="search-sort" aria-label="정렬">
+  <ul class="search-sort" aria-label="{{ "정렬"|t }}">
     {% for s in search.sorts %}<li><a href="{{ s.url }}"{% if s.current %} aria-current="true"{% endif %}>{{ s.label }}</a></li>{% endfor %}
   </ul>
   {% endif %}
@@ -19,7 +19,7 @@
   <li>
     <article>
       <h2><a href="{{ h.url }}">{{ h.title }}</a></h2>
-      <p class="meta">{% if h.board %}<a class="cat" href="{{ h.board.url }}">{{ h.board.name }}</a>{% else %}페이지{% endif %}{% if h.date %} · <time datetime="{{ h.published_at }}">{{ h.date }}</time>{% endif %}</p>
+      <p class="meta">{% if h.board %}<a class="cat" href="{{ h.board.url }}">{{ h.board.name }}</a>{% else %}{{ "페이지"|t }}{% endif %}{% if h.date %} · <time datetime="{{ h.published_at }}">{{ h.date }}</time>{% endif %}</p>
       {% if h.snippet %}<p class="snippet">{% for s in h.snippet %}{% if s.hit %}<mark>{{ s.text }}</mark>{% else %}{{ s.text }}{% endif %}{% endfor %}</p>{% endif %}
       {% if h.tags %}<p class="hit-tags">{% for t in h.tags %}<a href="{{ t.url }}">#{{ t.name }}</a>{% endfor %}</p>{% endif %}
     </article>
@@ -29,9 +29,9 @@
 {% include "_pagination.html" %}
 {% else %}
 <div class="empty">
-  <p>찾는 글이 없습니다. 다른 말로 찾아 보세요.</p>
-  {% if search.literal %}<p class="hint">댓글·글쓴이는 적은 글자 그대로(띄어쓰기 포함) 찾습니다. 더 짧게 적어 보세요.</p>
-  {% else %}<p class="hint">2글자 이상 낱말로, 띄어쓰기를 바꿔서, 또는 「제목+내용」 으로 넓혀 보세요.</p>{% endif %}
+  <p>{{ "찾는 글이 없습니다. 다른 말로 찾아 보세요."|t }}</p>
+  {% if search.literal %}<p class="hint">{{ "댓글·글쓴이는 적은 글자 그대로(띄어쓰기 포함) 찾습니다. 더 짧게 적어 보세요."|t }}</p>
+  {% else %}<p class="hint">{{ "2글자 이상 낱말로, 띄어쓰기를 바꿔서, 또는 「제목+내용」 으로 넓혀 보세요."|t }}</p>{% endif %}
 </div>
 {% endif %}
 {% endif %}

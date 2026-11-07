@@ -50,5 +50,5 @@
   {% endif %}
   {% endif %}
   <p class="map-address">{% if w.data.name %}<strong>{{ w.data.name }}</strong> {% endif %}{{ w.data.address }}</p>
-  <p class="map-links"><a href="{{ w.data.naver_url }}" rel="noopener noreferrer">네이버 지도</a> <a href="{{ w.data.kakao_url }}" rel="noopener noreferrer">카카오맵</a></p>
+  <p class="map-links"><a href="{{ w.data.naver_url }}" rel="noopener noreferrer">{{ "네이버 지도"|t }}</a> <a href="{{ w.data.kakao_url }}" rel="noopener noreferrer">{{ "카카오맵"|t }}</a></p>
 </div>

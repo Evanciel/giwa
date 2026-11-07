@@ -2,6 +2,27 @@
 // 공개 화면 HTML 은 모두에게 같다(캐시). 로그인한 사람의 이름·알림 수는 /me/bar 에서 따로 받는다.
 (function () {
   "use strict";
+  // 영어 사이트 문구 (ADR-0134). `<html lang>` 을 보고, 표에 없으면 한국어 그대로. {n} 은 값 자리.
+  var MARU_EN = document.documentElement.lang.indexOf("en") === 0 ? {
+    "{n} 전체 보기": "All {n}",
+    "{n} 지우기": "Remove {n}",
+    "내 댓글": "My comments",
+    "내 메뉴": "My menu",
+    "내 정보": "My account",
+    "내 프로필": "My profile",
+    "로그아웃": "Log out",
+    "로그인": "Log in",
+    "모두 읽기": "Mark all read",
+    "목록을 불러오지 못했습니다.": "Could not load the list.",
+    "불러오는 중…": "Loading…",
+    "새 {n}이 없습니다.": "No new {n}.",
+    "읽지 않은 {n}개": "{n} unread",
+    "전체 보기": "View all",
+    "지우기": "Clear",
+    "프로필 보기": "View profile",
+    "회원가입": "Sign up",
+  } : null;
+  function T(s, n) { return ((MARU_EN && MARU_EN[s]) || s).replace("{n}", n); }
   var root = document.documentElement;
   var KEY = "maru.mode";
 
@@ -31,7 +52,7 @@
     var a = el("a", { href: item.url }, item.label);
     if (item.count > 0) {
       var c = el("span", { "class": "cm-count" }, item.count > 99 ? "99+" : String(item.count));
-      c.setAttribute("aria-label", "읽지 않은 " + item.count + "개");
+      c.setAttribute("aria-label", T("읽지 않은 {n}개", item.count));
       a.appendChild(document.createTextNode(" "));
       a.appendChild(c);
     }
@@ -89,7 +110,7 @@
     var c = button.querySelector(".cm-count");
     if (c) c.remove();
     if (n > 0) {
-      c = el("span", { "class": "cm-count", "aria-label": "읽지 않은 " + n + "개" }, n > 99 ? "99+" : String(n));
+      c = el("span", { "class": "cm-count", "aria-label": T("읽지 않은 {n}개", n) }, n > 99 ? "99+" : String(n));
       button.appendChild(c);
     }
   }
@@ -105,15 +126,15 @@
         li.appendChild(a);
         ul.appendChild(li);
       }
-      add("내 정보", bar.me_url);
-      if (bar.profile_url) add("내 프로필", bar.profile_url);
-      if (bar.comments_url) add("내 댓글", bar.comments_url);
+      add(T("내 정보"), bar.me_url);
+      if (bar.profile_url) add(T("내 프로필"), bar.profile_url);
+      if (bar.comments_url) add(T("내 댓글"), bar.comments_url);
       (bar.items || []).forEach(function (it) { if (it.menu) add(it.label, it.url, it.note); });
       if (bar.logout) {
         var li = el("li", { "class": "cm-pop-sep" });
         var f = el("form", { method: "post", action: bar.logout.url });
         f.appendChild(el("input", { type: "hidden", name: "_csrf", value: bar.logout.csrf }));
-        f.appendChild(el("button", { type: "submit" }, "로그아웃"));
+        f.appendChild(el("button", { type: "submit" }, T("로그아웃")));
         li.appendChild(f);
         ul.appendChild(li);
       }
@@ -126,7 +147,7 @@
   function panelFill(item, button) {
     return function load(box, ready) {
       box.textContent = "";
-      box.appendChild(el("p", { "class": "cm-pop-empty" }, "불러오는 중…"));
+      box.appendChild(el("p", { "class": "cm-pop-empty" }, T("불러오는 중…")));
       fetch(item.panel, { credentials: "same-origin", headers: { "Accept": "application/json" } })
         .then(function (r) { return r.ok ? r.json() : null; })
         .catch(function () { return null; })
@@ -134,8 +155,8 @@
           if (!openPop || openPop.box !== box) return;
           box.textContent = "";
           if (!d || !Array.isArray(d.items)) {
-            box.appendChild(el("p", { "class": "cm-pop-empty" }, "목록을 불러오지 못했습니다."));
-            box.appendChild(el("a", { "class": "cm-pop-more", href: item.url }, "전체 보기"));
+            box.appendChild(el("p", { "class": "cm-pop-empty" }, T("목록을 불러오지 못했습니다.")));
+            box.appendChild(el("a", { "class": "cm-pop-more", href: item.url }, T("전체 보기")));
             ready();
             return;
           }
@@ -143,7 +164,7 @@
           var head = el("div", { "class": "cm-pop-head" });
           head.appendChild(el("strong", {}, item.label));
           if (d.unread > 0 && d.read_all_url) {
-            var all = el("button", { type: "button" }, "모두 읽기");
+            var all = el("button", { type: "button" }, T("모두 읽기"));
             all.addEventListener("click", function (ev) {
               ev.stopPropagation();
               all.disabled = true;
@@ -155,7 +176,7 @@
           }
           box.appendChild(head);
           if (!d.items.length) {
-            box.appendChild(el("p", { "class": "cm-pop-empty" }, "새 " + item.label + "이 없습니다."));
+            box.appendChild(el("p", { "class": "cm-pop-empty" }, T("새 {n}이 없습니다.", item.label)));
           } else {
             var ul = el("ul", { "class": "cm-pop-list" });
             d.items.forEach(function (n) {
@@ -170,7 +191,7 @@
             });
             box.appendChild(ul);
           }
-          box.appendChild(el("a", { "class": "cm-pop-more", href: d.more_url || item.url }, item.label + " 전체 보기"));
+          box.appendChild(el("a", { "class": "cm-pop-more", href: d.more_url || item.url }, T("{n} 전체 보기", item.label)));
           ready();
         });
     };
@@ -180,7 +201,7 @@
     var items = [];
     if (bar.signed_in) {
       var me = el("button", { type: "button", "class": "cm-me" }, bar.name);
-      popover(me, "내 메뉴", myMenu(bar));
+      popover(me, T("내 메뉴"), myMenu(bar));
       items.push(me);
       (bar.items || []).forEach(function (it) {
         if (it.menu) return;
@@ -191,8 +212,8 @@
         items.push(b);
       });
     } else {
-      items.push(el("a", { href: bar.login_url }, "로그인"));
-      if (bar.signup_url) items.push(el("a", { href: bar.signup_url, "class": "cm-join" }, "회원가입"));
+      items.push(el("a", { href: bar.login_url }, T("로그인")));
+      if (bar.signup_url) items.push(el("a", { href: bar.signup_url, "class": "cm-join" }, T("회원가입")));
     }
     nav.textContent = "";
     items.forEach(function (n) { nav.appendChild(n); });
@@ -209,7 +230,7 @@
   }
   function memberMenus(bar) {
     // 프로필 보기는 코어 화면이라 늘 첫 항목이다 (GAP Q2).
-    var actions = [{ label: "프로필 보기", url: "/u/" }].concat(
+    var actions = [{ label: T("프로필 보기"), url: "/u/" }].concat(
       [].concat.apply([], (bar.items || []).map(function (i) { return i.member_actions || []; })));
     if (!bar.signed_in) return;
     // 글쓴이 카드의 단추 줄 (GAP Q30): 프로필 보기 뒤에 모듈 항목(쪽지·차단 등)을 단추처럼 단다.
@@ -355,7 +376,7 @@
     list.forEach(function (q) {
       var li = el("li", {});
       li.appendChild(el("a", { href: form.getAttribute("action") + "?q=" + encodeURIComponent(q) }, q));
-      var del = el("button", { type: "button", "aria-label": q + " 지우기" }, "지우기");
+      var del = el("button", { type: "button", "aria-label": T("{n} 지우기", q) }, T("지우기"));
       del.addEventListener("click", function () {
         saveQ(loadQ().filter(function (x) { return x !== q; }));
         recentSearches(dlg);

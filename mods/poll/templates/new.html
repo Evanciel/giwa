@@ -3,18 +3,18 @@
 {% block main_class %}wrap account-wrap{% endblock %}
 {% block main %}
 <section class="account" aria-labelledby="poll-new-title">
-  <h1 id="poll-new-title">투표 만들기</h1>
-  <p class="hint">글: {{ post_title }}</p>
+  <h1 id="poll-new-title">{{ "투표 만들기"|t }}</h1>
+  <p class="hint">{{ "글:"|t }} {{ post_title }}</p>
   {% if error %}<p class="form-error" role="alert">{{ error }}</p>{% endif %}
   <form class="account-form" method="post" action="/m/poll/new/{{ post_id }}">
-    <label for="poll-question">질문</label>
+    <label for="poll-question">{{ "질문"|t }}</label>
     <input id="poll-question" type="text" name="question" value="{{ question }}" maxlength="200" required>
-    <label for="poll-options">보기 <span class="hint">(줄마다 하나, 2~10개)</span></label>
+    <label for="poll-options">{{ "보기"|t }} <span class="hint">{{ "(줄마다 하나, 2~10개)"|t }}</span></label>
     <textarea id="poll-options" name="options" rows="5" required>{{ options }}</textarea>
-    <label for="poll-closes">마감 시각 <span class="hint">(비우면 직접 마감할 때까지)</span></label>
+    <label for="poll-closes">{{ "마감 시각"|t }} <span class="hint">{{ "(비우면 직접 마감할 때까지)"|t }}</span></label>
     <input id="poll-closes" type="datetime-local" name="closes_at" value="{{ closes_at }}">
-    <label class="check"><input type="checkbox" name="multiple" value="on"{% if multiple %} checked{% endif %}> 여러 개 고를 수 있게</label>
-    <button type="submit">만들기</button>
+    <label class="check"><input type="checkbox" name="multiple" value="on"{% if multiple %} checked{% endif %}> {{ "여러 개 고를 수 있게"|t }}</label>
+    <button type="submit">{{ "만들기"|t }}</button>
   </form>
 </section>
 {% endblock %}

@@ -5,9 +5,9 @@
   {% for post in w.data.posts %}
   <li>
     {% if numbered %}<span class="rank" aria-hidden="true">{{ loop.index }}</span>{% endif %}
-    <span class="subject"><a class="title" href="{{ post.url }}">{{ post.title }}</a>{% if post.comments %} <span class="comment-count" aria-label="댓글 {{ post.comments }}개">[{{ post.comments }}]</span>{% endif %}{% if post.is_new %} <span class="new-mark"><span aria-hidden="true">N</span><span class="visually-hidden">새 글</span></span>{% endif %}{% if post.solved %} <span class="solved-mark">해결</span>{% endif %}</span>
+    <span class="subject"><a class="title" href="{{ post.url }}">{{ post.title }}</a>{% if post.comments %} <span class="comment-count" aria-label="{{ "댓글"|t }} {{ post.comments }}{{ "개"|t }}">[{{ post.comments }}]</span>{% endif %}{% if post.is_new %} <span class="new-mark"><span aria-hidden="true">N</span><span class="visually-hidden">{{ "새 글"|t }}</span></span>{% endif %}{% if post.solved %} <span class="solved-mark">{{ "해결"|t }}</span>{% endif %}</span>
     {% if show_date %}<time class="date" datetime="{{ post.published_at }}">{{ post.date }}</time>{% endif %}
   </li>
   {% endfor %}
 </ol>
-{% else %}<p class="widget-empty">아직 글이 없습니다.</p>{% endif %}
+{% else %}<p class="widget-empty">{{ "아직 글이 없습니다."|t }}</p>{% endif %}

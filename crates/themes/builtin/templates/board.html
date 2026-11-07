@@ -3,23 +3,23 @@
 {% block main_class %}wrap{% if board.layout != "webzine" and not search.searched %} wide{% endif %}{% endblock %}
 {% block main %}
 <div class="board-head" data-visit="{{ board.url }}" data-visit-name="{{ board.name }}" data-board="{{ board.slug }}">
-  <h1 class="page-title">{{ board.name }}{% if category %} <span class="page-sub">· {{ category.name }}</span>{% endif %}{% if search.searched %} <span class="page-sub">· 검색</span>{% endif %}</h1>
-  {% if slots and slots.post_list and not search.searched %}{% for s in slots.post_list %}{% if s.data.hot_url %}<a class="hot-link" href="{{ s.data.hot_url }}?board={{ board.slug }}" rel="nofollow">인기글만</a>{% endif %}{% endfor %}{% endif %}
+  <h1 class="page-title">{{ board.name }}{% if category %} <span class="page-sub">· {{ category.name }}</span>{% endif %}{% if search.searched %} <span class="page-sub">{{ "· 검색"|t }}</span>{% endif %}</h1>
+  {% if slots and slots.post_list and not search.searched %}{% for s in slots.post_list %}{% if s.data.hot_url %}<a class="hot-link" href="{{ s.data.hot_url }}?board={{ board.slug }}" rel="nofollow">{{ "인기글만"|t }}</a>{% endif %}{% endfor %}{% endif %}
   {% if posts and sorts and not search.searched %}<details class="head-sort">
-    <summary><span class="visually-hidden">목록 순서: </span>{% for s in sorts %}{% if s.current %}{{ s.label }}{% endif %}{% endfor %} 순</summary>
-    <ul>{% for s in sorts %}<li><a href="{{ s.url }}" rel="nofollow"{% if s.current %} aria-current="page"{% endif %}>{{ s.label }} 순</a></li>{% endfor %}</ul>
+    <summary><span class="visually-hidden">{{ "목록 순서:"|t }} </span>{% for s in sorts %}{% if s.current %}{{ s.label }}{% endif %}{% endfor %} {{ "순"|t }}</summary>
+    <ul>{% for s in sorts %}<li><a href="{{ s.url }}" rel="nofollow"{% if s.current %} aria-current="page"{% endif %}>{{ s.label }} {{ "순"|t }}</a></li>{% endfor %}</ul>
   </details>{% endif %}
-  {% if board.write_url and not search.searched %}<a class="write-button" href="{{ board.write_url }}">글쓰기</a>{% endif %}
+  {% if board.write_url and not search.searched %}<a class="write-button" href="{{ board.write_url }}">{{ "글쓰기"|t }}</a>{% endif %}
 </div>
 {% if board.description and not search.searched %}<p class="board-desc">{{ board.description }}</p>{% endif %}
 {% if search.searched %}
-<p class="search-back"><a href="{{ board.url }}">← {{ board.name }} 목록으로</a></p>
+<p class="search-back"><a href="{{ board.url }}">← {{ board.name }} {{ "목록으로"|t }}</a></p>
 {% include "_hits.html" %}
 {% else %}
 {% if categories %}
-<nav class="cats board-cats" aria-label="분류">
+<nav class="cats board-cats" aria-label="{{ "분류"|t }}">
   <ul>
-    <li><a href="{{ board.url }}"{% if not category %} aria-current="page"{% endif %}>전체</a></li>
+    <li><a href="{{ board.url }}"{% if not category %} aria-current="page"{% endif %}>{{ "전체"|t }}</a></li>
     {% for c in categories %}
     <li><a href="{{ c.url }}"{% if c.current %} aria-current="page"{% endif %}>{{ c.name }}</a></li>
     {% endfor %}
@@ -27,17 +27,17 @@
 </nav>
 {% endif %}
 {% for g in field_filters %}
-<nav class="cats field-filter" aria-label="{{ g.label }}(으)로 거르기">
+<nav class="cats field-filter" aria-label="{{ g.label }}{{ "(으)로 거르기"|t }}">
   <ul>
     {% for c in g.choices %}<li><a href="{{ c.url }}" rel="nofollow"{% if c.current %} aria-current="page"{% endif %}>{{ c.label }}</a></li>{% endfor %}
   </ul>
 </nav>
 {% endfor %}
 {% if notices %}
-<ul class="notice-list" aria-label="공지">
+<ul class="notice-list" aria-label="{{ "공지"|t }}">
   {% for post in notices %}
   <li>
-    <span class="badge">공지</span>
+    <span class="badge">{{ "공지"|t }}</span>
     <a href="{{ post.url }}">{% if post.is_secret %}{% include "_lock.html" %}{% endif %}{{ post.title }}</a>
     <time datetime="{{ post.published_at }}">{{ post.date }}</time>
   </li>
@@ -50,39 +50,39 @@
 {% if (posts and sorts) or board.write_url or views %}
 <div class="list-foot">
   {% if posts and sorts %}
-  <nav class="cats list-sort" aria-label="목록 순서">
+  <nav class="cats list-sort" aria-label="{{ "목록 순서"|t }}">
     <ul>
       {% for s in sorts %}<li><a href="{{ s.url }}" rel="nofollow"{% if s.current %} aria-current="page"{% endif %}>{{ s.label }}</a></li>{% endfor %}
     </ul>
   </nav>
   {% endif %}
   {% if views %}
-  <nav class="cats view-switch" aria-label="보기 방식">
+  <nav class="cats view-switch" aria-label="{{ "보기 방식"|t }}">
     <ul>
       {% for v in views %}<li><a href="{{ v.url }}" rel="nofollow"{% if v.current %} aria-current="page"{% endif %}>{{ v.label }}</a></li>{% endfor %}
     </ul>
   </nav>
   {% endif %}
-  {% if board.write_url %}<a class="write-button" href="{{ board.write_url }}">글쓰기</a>{% endif %}
+  {% if board.write_url %}<a class="write-button" href="{{ board.write_url }}">{{ "글쓰기"|t }}</a>{% endif %}
 </div>
 {% endif %}
 {# 휴대폰 떠 있는 글쓰기 단추 (GAP Q28, ADR-0111). 넓은 화면에서는 숨는다. #}
-{% if board.write_url %}<a class="fab-write" href="{{ board.write_url }}"><span aria-hidden="true">✎</span><span class="visually-hidden">글쓰기</span></a>{% endif %}
+{% if board.write_url %}<a class="fab-write" href="{{ board.write_url }}"><span aria-hidden="true">✎</span><span class="visually-hidden">{{ "글쓰기"|t }}</span></a>{% endif %}
 {% if wiki %}
-<section class="wiki-index" aria-label="위키 살피기">
+<section class="wiki-index" aria-label="{{ "위키 살피기"|t }}">
   <div>
-    <h2>필요한 문서</h2>
-    {% if wiki.wanted %}<ul>{% for w in wiki.wanted %}<li><a class="wikilink wikilink-new" href="{{ w.create_url }}" rel="nofollow">{{ w.title }}</a> <span class="hint">{{ w.count }}곳에서 가리킴</span></li>{% endfor %}</ul>{% else %}<p class="empty">없습니다.</p>{% endif %}
+    <h2>{{ "필요한 문서"|t }}</h2>
+    {% if wiki.wanted %}<ul>{% for w in wiki.wanted %}<li><a class="wikilink wikilink-new" href="{{ w.create_url }}" rel="nofollow">{{ w.title }}</a> <span class="hint">{{ w.count }}{{ "곳에서 가리킴"|t }}</span></li>{% endfor %}</ul>{% else %}<p class="empty">{{ "없습니다."|t }}</p>{% endif %}
   </div>
   <div>
-    <h2>외톨이 문서</h2>
-    {% if wiki.orphans %}<ul>{% for o in wiki.orphans %}<li><a href="{{ o.url }}">{{ o.title }}</a></li>{% endfor %}</ul>{% else %}<p class="empty">없습니다.</p>{% endif %}
+    <h2>{{ "외톨이 문서"|t }}</h2>
+    {% if wiki.orphans %}<ul>{% for o in wiki.orphans %}<li><a href="{{ o.url }}">{{ o.title }}</a></li>{% endfor %}</ul>{% else %}<p class="empty">{{ "없습니다."|t }}</p>{% endif %}
   </div>
 </section>
 {% endif %}
 {% endif %}
 <div class="list-pager">
 {% if not search.searched %}{% include "_pagination.html" %}{% endif %}
-{% if search %}<section class="board-search" aria-label="{{ board.name }} 안에서 검색">{% include "_search_form.html" %}</section>{% endif %}
+{% if search %}<section class="board-search" aria-label="{{ board.name }} {{ "안에서 검색"|t }}">{% include "_search_form.html" %}</section>{% endif %}
 </div>
 {% endblock %}

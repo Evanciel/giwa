@@ -1,12 +1,12 @@
 {% if pagination and pagination.total_pages > 1 %}
-<nav class="pagination" aria-label="페이지">
-  {% if pagination.first_url %}<a class="page-edge" href="{{ pagination.first_url }}">처음</a>{% endif %}
-  {% if pagination.prev_url %}<a rel="prev" href="{{ pagination.prev_url }}">이전</a>{% endif %}
+<nav class="pagination" aria-label="{{ "페이지"|t }}">
+  {% if pagination.first_url %}<a class="page-edge" href="{{ pagination.first_url }}">{{ "처음"|t }}</a>{% endif %}
+  {% if pagination.prev_url %}<a rel="prev" href="{{ pagination.prev_url }}">{{ "이전"|t }}</a>{% endif %}
   {% if pagination.pages %}<ol class="page-nums">
-    {% for p in pagination.pages %}<li{% if p.far %} class="far"{% endif %}>{% if p.current %}<span aria-current="page"><span class="visually-hidden">현재 </span>{{ p.n }}</span>{% else %}<a href="{{ p.url }}" aria-label="{{ p.n }}쪽">{{ p.n }}</a>{% endif %}</li>{% endfor %}
+    {% for p in pagination.pages %}<li{% if p.far %} class="far"{% endif %}>{% if p.current %}<span aria-current="page"><span class="visually-hidden">{{ "현재"|t }} </span>{{ p.n }}</span>{% else %}<a href="{{ p.url }}" aria-label="{{ p.n }}{{ "쪽"|t }}">{{ p.n }}</a>{% endif %}</li>{% endfor %}
   </ol>{% endif %}
   <span class="page-of">{{ pagination.page }} / {{ pagination.total_pages }}</span>
-  {% if pagination.next_url %}<a rel="next" href="{{ pagination.next_url }}">다음</a>{% endif %}
-  {% if pagination.last_url %}<a class="page-edge" href="{{ pagination.last_url }}">마지막</a>{% endif %}
+  {% if pagination.next_url %}<a rel="next" href="{{ pagination.next_url }}">{{ "다음"|t }}</a>{% endif %}
+  {% if pagination.last_url %}<a class="page-edge" href="{{ pagination.last_url }}">{{ "마지막"|t }}</a>{% endif %}
 </nav>
 {% endif %}

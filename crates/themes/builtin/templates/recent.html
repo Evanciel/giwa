@@ -3,33 +3,33 @@
 {% block main_class %}wrap wide{% endblock %}
 {% block main %}
 <div class="board-head">
-  <h1 class="page-title">{{ recent.title }} <span class="page-sub">· 모든 게시판</span></h1>
+  <h1 class="page-title">{{ recent.title }} <span class="page-sub">{{ "· 모든 게시판"|t }}</span></h1>
 </div>
-<nav class="cats" aria-label="모아보기 순서">
+<nav class="cats" aria-label="{{ "모아보기 순서"|t }}">
   <ul>
-    <li><a href="{{ recent.latest_url }}"{% if not recent.popular %} aria-current="page"{% endif %}>새 글</a></li>
-    <li><a href="{{ recent.popular_url }}" rel="nofollow"{% if recent.popular %} aria-current="page"{% endif %}>인기 글</a></li>
-    {% if slots and slots.post_list %}{% for s in slots.post_list %}{% if s.data.hot_url %}<li><a href="{{ s.data.hot_url }}" rel="nofollow">{{ s.data.label }} 많은 글</a></li>{% endif %}{% endfor %}{% endif %}
+    <li><a href="{{ recent.latest_url }}"{% if not recent.popular %} aria-current="page"{% endif %}>{{ "새 글"|t }}</a></li>
+    <li><a href="{{ recent.popular_url }}" rel="nofollow"{% if recent.popular %} aria-current="page"{% endif %}>{{ "인기 글"|t }}</a></li>
+    {% if slots and slots.post_list %}{% for s in slots.post_list %}{% if s.data.hot_url %}<li><a href="{{ s.data.hot_url }}" rel="nofollow">{{ s.data.label }} {{ "많은 글"|t }}</a></li>{% endif %}{% endfor %}{% endif %}
   </ul>
 </nav>
-{% if recent.popular %}<p class="hint">최근 {{ recent.days }}일 동안 많이 읽은 글입니다.</p>{% endif %}
+{% if recent.popular %}<p class="hint">{{ "최근"|t }} {{ recent.days }}{{ "일 동안 많이 읽은 글입니다."|t }}</p>{% endif %}
 {% if posts %}
 <div class="post-table recent-table">
-  <div class="post-row post-row-head" aria-hidden="true"><span class="board-col">게시판</span><span class="subject">제목</span><span class="writer">글쓴이</span><span class="date">날짜</span><span class="hits">조회</span></div>
+  <div class="post-row post-row-head" aria-hidden="true"><span class="board-col">{{ "게시판"|t }}</span><span class="subject">{{ "제목"|t }}</span><span class="writer">{{ "글쓴이"|t }}</span><span class="date">{{ "날짜"|t }}</span><span class="hits">{{ "조회"|t }}</span></div>
   <ul>
   {% for post in posts %}
   <li class="post-row">
     <span class="board-col">{% if post.board %}<a href="{{ post.board.url }}">{{ post.board.name }}</a>{% endif %}</span>
     <span class="subject"><a class="title" href="{{ post.url }}">{{ post.title }}</a>{% include "_title_marks.html" %}</span>
-    <span class="writer">{% if post.author %}<span class="author-name"{% if not post.author.guest %} data-member="{{ post.author.name }}"{% endif %}>{{ post.author.name }}</span>{% if post.author.badge %} <span class="level-badge{% if post.author.badge.staff %} staff{% endif %}" title="{{ post.author.badge.title }}">{{ post.author.badge.label }}</span>{% endif %}{% if post.author.guest %} <span class="comment-badge">비회원</span>{% endif %}{% endif %}</span>
+    <span class="writer">{% if post.author %}<span class="author-name"{% if not post.author.guest %} data-member="{{ post.author.name }}"{% endif %}>{{ post.author.name }}</span>{% if post.author.badge %} <span class="level-badge{% if post.author.badge.staff %} staff{% endif %}" title="{{ post.author.badge.title }}">{{ post.author.badge.label }}</span>{% endif %}{% if post.author.guest %} <span class="comment-badge">{{ "비회원"|t }}</span>{% endif %}{% endif %}</span>
     <time class="date" datetime="{{ post.published_at }}" title="{{ post.date }}">{{ post.published_at|ago(site.tz) }}</time>
-    <span class="hits">{% if post.views is not none %}<span class="hits-label">조회 </span>{{ post.views|short_count }}{% endif %}</span>
+    <span class="hits">{% if post.views is not none %}<span class="hits-label">{{ "조회"|t }} </span>{{ post.views|short_count }}{% endif %}</span>
   </li>
   {% endfor %}
   </ul>
 </div>
 {% if pagination %}{% include "_pagination.html" %}{% endif %}
 {% else %}
-<p class="empty">아직 글이 없습니다.</p>
+<p class="empty">{{ "아직 글이 없습니다."|t }}</p>
 {% endif %}
 {% endblock %}

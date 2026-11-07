@@ -3,18 +3,18 @@
 {% block main %}
 <div class="board-head">
   <h1 class="page-title">{{ hot.title }}</h1>
-  {% if hot.board_url %}<a class="hot-link" href="{{ hot.board_url }}">← 전체 목록</a>{% endif %}
+  {% if hot.board_url %}<a class="hot-link" href="{{ hot.board_url }}">{{ "← 전체 목록"|t }}</a>{% endif %}
 </div>
-<p class="hint">{{ hot.label }} {{ hot.threshold }}개 이상 받은 글입니다.</p>
+<p class="hint">{{ hot.label }} {{ hot.threshold }}{{ "개 이상 받은 글입니다."|t }}</p>
 {% if hot.items %}
 <ul class="me-posts hot-list">
   {% for p in hot.items %}<li>
-    <a href="{{ p.url }}">{{ p.title }}</a> <span class="hot-mark">인기</span>
+    <a href="{{ p.url }}">{{ p.title }}</a> <span class="hot-mark">{{ "인기"|t }}</span>
     <span class="hint">{{ p.board }} · {{ hot.label }} {{ p.count }} · {{ p.date }}</span>
   </li>{% endfor %}
 </ul>
-{% if hot.prev or hot.next %}<nav class="pagination" aria-label="쪽">{% if hot.prev %}<a href="{{ hot.prev }}" rel="prev">이전</a>{% endif %}{% if hot.next %}<a href="{{ hot.next }}" rel="next">다음</a>{% endif %}</nav>{% endif %}
+{% if hot.prev or hot.next %}<nav class="pagination" aria-label="{{ "쪽"|t }}">{% if hot.prev %}<a href="{{ hot.prev }}" rel="prev">{{ "이전"|t }}</a>{% endif %}{% if hot.next %}<a href="{{ hot.next }}" rel="next">{{ "다음"|t }}</a>{% endif %}</nav>{% endif %}
 {% else %}
-<p class="empty">아직 인기글이 없습니다.</p>
+<p class="empty">{{ "아직 인기글이 없습니다."|t }}</p>
 {% endif %}
 {% endblock %}

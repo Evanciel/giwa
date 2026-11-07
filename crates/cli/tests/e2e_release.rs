@@ -69,6 +69,9 @@ fn release_server() -> (String, Files) {
             );
             let _ = stream.write_all(head.as_bytes());
             let _ = stream.write_all(&body);
+            // 바로 닫으면 윈도우에서 RST 로 끊겨 큰 본문이 잘릴 수 있다. 쓰기만 닫고 상대가 닫을 때까지 읽는다.
+            let _ = stream.shutdown(std::net::Shutdown::Write);
+            let _ = std::io::copy(&mut reader, &mut std::io::sink());
         }
     });
     (base, files)

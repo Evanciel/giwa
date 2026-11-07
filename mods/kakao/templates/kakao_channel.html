@@ -2,8 +2,8 @@
 <div class="kakao-channel">
   {% if w.data.name %}<p class="kakao-channel-name">{{ w.data.name }}</p>{% endif %}
   <p class="kakao-channel-links">
-    <a class="kakao-channel-button" href="{{ w.data.home_url }}" rel="noopener noreferrer">채널 보기</a>
-    {% if w.data.chat_url %}<a class="kakao-channel-button" href="{{ w.data.chat_url }}" rel="noopener noreferrer">1:1 채팅</a>{% endif %}
+    <a class="kakao-channel-button" href="{{ w.data.home_url }}" rel="noopener noreferrer">{{ "채널 보기"|t }}</a>
+    {% if w.data.chat_url %}<a class="kakao-channel-button" href="{{ w.data.chat_url }}" rel="noopener noreferrer">{{ "1:1 채팅"|t }}</a>{% endif %}
   </p>
-  <p class="kakao-channel-note">누르면 카카오톡 채널로 이동합니다. 친구 추가와 대화는 카카오에서 이어집니다.</p>
+  <p class="kakao-channel-note">{{ "누르면 카카오톡 채널로 이동합니다. 친구 추가와 대화는 카카오에서 이어집니다."|t }}</p>
 </div>

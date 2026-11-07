@@ -91,7 +91,7 @@
 | S4 | 관리 화면: 게시판·메뉴·페이지·회원·설정·디자인 | ✅ | `/admin/boards`·`pages`·`menus`·`members`·`settings`·`design`, 실패하면 쓴 값 유지 (ADR-0064) |
 | S5 | 메일 발송 설정(SMTP) | ✅ | ADR-0051·0083. 보낼 편지함·파일 전송(기본)·SMTP(starttls·tls, 이 컴퓨터 안 중계만 암호화 없음). `maru mail setup|test`, 비밀번호는 `secrets/`·환경 변수(백업 밖) |
 | S6 | 백업·복원 화면 | ✅ | `.tar.gz` 하나(manifest·VACUUM INTO 사본·media·themes·config), 비밀 빼기, 서버 잠금으로 켜진 동안 복원 거부, CLI·REST·관리 화면(복원은 CLI 안내) (ADR-0063) |
-| S7 | 다국어 | ❌ | 전역 지침: 출시 직전에 한꺼번에 |
+| S7 | 다국어 | ✅ | `site.lang = en` 이면 손님 화면(템플릿 `"…"|t`, 스크립트, 상대 시간·수 줄임)과 오류·편지 문장이 영어. 관리 화면·CLI 사람용 출력·모듈 Rust 문자열·프리셋 내용은 한국어 (ADR-0134) |
 | S8 | 외부 공개(`maru expose`), MCP 서버 | ✅ | ADR-0117·0118. MCP: stdio·`/mcp`, `mcp install`, 스코프별 툴, 모듈 툴 자동 노출. 구조·디자인 툴은 changeset 뒤(Phase 3). 공개: `expose --quick`·`--hostname`·`status`·`stop`, 터널 뒤 방문자 주소. 임시 터널은 진짜로 확인, 내 도메인 명령은 계정으로 돌려 보지 않음 |
 | S9 | 사이트 글꼴 올리기(woff2) → 토큰 `font.*` | ✅ | ADR-0048. woff2·woff·ttf·otf, 글 안 `:font[]{slug}` 과 토큰 둘 다 |
 | S10 | 광고 자리(애드센스 등): 위젯 영역 + CSP 허용 목록 설정 | ✅ | ADR-0079. 모듈 `ads`: 자체 배너·애드센스 위젯, 「광고」 표시. 허용 목록 대신 애드센스가 있는 화면에만 nonce strict CSP. 동의 관리(CMP)는 없음 |

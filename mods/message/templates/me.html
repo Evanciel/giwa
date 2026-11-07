@@ -1,13 +1,13 @@
 {# 내 정보의 쪽지 칸 (ADR-0070). #}
 <section class="me-block" aria-labelledby="me-message">
-  <h2 id="me-message">쪽지{% if s.data.unread %} <span class="count" aria-label="읽지 않은 쪽지 {{ s.data.unread }}통">{{ s.data.unread }}</span>{% endif %}</h2>
+  <h2 id="me-message">{{ "쪽지"|t }}{% if s.data.unread %} <span class="count" aria-label="{{ "읽지 않은 쪽지"|t }} {{ s.data.unread }}{{ "통"|t }}">{{ s.data.unread }}</span>{% endif %}</h2>
   {% if s.data.items %}
   <ul class="me-posts">
     {% for m in s.data.items %}<li>
       <a href="{{ m.url }}">{{ m.excerpt }}</a>
-      <span class="hint">{{ m.other }} · {{ m.date }}{% if m.unread %} · 안 읽음{% endif %}</span>
+      <span class="hint">{{ m.other }} · {{ m.date }}{% if m.unread %} {{ "· 안 읽음"|t }}{% endif %}</span>
     </li>{% endfor %}
   </ul>
-  {% else %}<p class="empty">받은 쪽지가 없습니다.</p>{% endif %}
-  <p class="post-actions"><a href="{{ s.data.more_url }}">쪽지함</a><a href="{{ s.data.new_url }}">쪽지 쓰기</a></p>
+  {% else %}<p class="empty">{{ "받은 쪽지가 없습니다."|t }}</p>{% endif %}
+  <p class="post-actions"><a href="{{ s.data.more_url }}">{{ "쪽지함"|t }}</a><a href="{{ s.data.new_url }}">{{ "쪽지 쓰기"|t }}</a></p>
 </section>

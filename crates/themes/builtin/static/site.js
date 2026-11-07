@@ -1,5 +1,36 @@
 // Maru 내장 테마 스크립트 (ADR-0060). 팝업과 최근 본 게시판(ADR-0096), 로그인 상자(ADR-0100).
 // 「N일 보지 않기」 기한은 이 브라우저의 localStorage 에만 둔다. 저장소를 못 쓰면 닫기만 된다.
+// 아래 이름(MARU_EN, T)이 전역으로 새지 않게 파일 전체를 블록으로 감싼다. 사용자 테마 스크립트와 겹치지 않는다.
+{
+// 영어 사이트 문구 (ADR-0134). `<html lang>` 을 보고, 표에 없으면 한국어 그대로. {n} 은 값 자리.
+const MARU_EN = document.documentElement.lang.startsWith("en") ? {
+  "{n} 지우기": "Remove {n}",
+  "공유": "Share",
+  "글 화면으로": "Open post",
+  "내 정보": "My account",
+  "다음": "Next",
+  "닫기": "Close",
+  "로그아웃": "Log out",
+  "보기": "Show",
+  "복사됨": "Copied",
+  "불러오는 중…": "Loading…",
+  "빠른 보기": "Quick view",
+  "이전": "Previous",
+  "읽지 않은 {n}개": "{n} unread",
+  "자동 넘김 다시": "Resume slideshow",
+  "자동 넘김 멈춤": "Pause slideshow",
+  "접기": "Less",
+  "즐겨찾기": "Favorites",
+  "즐겨찾기에 넣기": "Add to favorites",
+  "즐겨찾기에서 빼기": "Remove from favorites",
+  "지우기": "Clear",
+  "차단한 회원의 글입니다.": "Post from a blocked member.",
+  "차단한 회원의 댓글입니다.": "Comment from a blocked member.",
+  "최근 본 게시판": "Recently viewed",
+  "펼치기": "More",
+} : null;
+const T = (s, n) => ((MARU_EN && MARU_EN[s]) || s).replace("{n}", n);
+
 (() => {
   const PREFIX = "maru-popup:";
   const store = {
@@ -71,7 +102,7 @@
   const box = nav.firstElementChild || nav;
   const label = document.createElement("span");
   label.className = "recent-boards-label";
-  label.textContent = "최근 본 게시판";
+  label.textContent = T("최근 본 게시판");
   const ul = document.createElement("ul");
   const clear = document.createElement("button");
   const more = document.createElement("button");
@@ -92,7 +123,7 @@
     const x = document.createElement("button");
     x.type = "button";
     x.className = "recent-board-drop";
-    x.setAttribute("aria-label", b.name.slice(0, 40) + " 지우기");
+    x.setAttribute("aria-label", T("{n} 지우기", b.name.slice(0, 40)));
     x.textContent = "×";
     x.addEventListener("click", () => {
       list = list.filter((v) => v.url !== b.url);
@@ -111,20 +142,20 @@
   more.type = "button";
   more.className = "recent-boards-more";
   more.setAttribute("aria-expanded", "false");
-  more.textContent = "펼치기";
+  more.textContent = T("펼치기");
   more.hidden = true;
   more.addEventListener("click", () => {
     const open = !nav.classList.contains("is-open");
     nav.classList.toggle("is-open", open);
     more.setAttribute("aria-expanded", open ? "true" : "false");
-    more.textContent = open ? "접기" : "펼치기";
+    more.textContent = open ? T("접기") : T("펼치기");
   });
   const fit = () => {
     if (!nav.classList.contains("is-open")) more.hidden = ul.scrollWidth <= ul.clientWidth + 1;
   };
   clear.type = "button";
   clear.className = "recent-boards-clear";
-  clear.textContent = "지우기";
+  clear.textContent = T("지우기");
   clear.addEventListener("click", () => {
     list = [];
     save([]);
@@ -163,7 +194,7 @@
       hello.className = "account-box-hello";
       const name = document.createElement("strong");
       name.textContent = b.name;
-      hello.append(name, "님, 반갑습니다.");
+      hello.append(...(MARU_EN ? ["Welcome, ", name, "."] : [name, "님, 반갑습니다."]));
       me.append(hello);
       for (const i of items) {
         if (!i.note) continue;
@@ -184,13 +215,13 @@
           const c = document.createElement("span");
           c.className = "account-box-count";
           c.textContent = count > 99 ? "99+" : String(count);
-          c.setAttribute("aria-label", "읽지 않은 " + count + "개");
+          c.setAttribute("aria-label", T("읽지 않은 {n}개", count));
           a.append(" ", c);
         }
         li.append(a);
         ul.append(li);
       };
-      add("내 정보", b.me_url);
+      add(T("내 정보"), b.me_url);
       for (const i of items) if (!i.menu) add(i.label, i.url, i.count);
       for (const i of items) if (i.menu) add(i.label, i.url);
       me.append(ul);
@@ -205,7 +236,7 @@
         const s = document.createElement("button");
         s.type = "submit";
         s.className = "account-box-logout";
-        s.textContent = "로그아웃";
+        s.textContent = T("로그아웃");
         f.append(t, s);
         me.append(f);
       }
@@ -228,7 +259,7 @@
     note.className = "member-fold";
     const show = document.createElement("button");
     show.type = "button";
-    show.textContent = "보기";
+    show.textContent = T("보기");
     note.append(text + " ", show);
     parts.forEach((p) => p.classList.add("member-folded"));
     where.insertBefore(note, before);
@@ -245,14 +276,14 @@
       const row = host.closest(".comment, .post-row, .post-list > li, .post-grid > li");
       if (row) {
         const parts = Array.from(row.children).filter((c) => !c.classList.contains("member-fold"));
-        fold(parts, row.firstChild, row, row.classList.contains("comment") ? "차단한 회원의 댓글입니다." : "차단한 회원의 글입니다.");
+        fold(parts, row.firstChild, row, row.classList.contains("comment") ? T("차단한 회원의 댓글입니다.") : T("차단한 회원의 글입니다."));
         return;
       }
       // 글 화면: 머리(제목·글쓴이)는 두고 본문 쪽만 접는다.
       const article = host.closest("article.post");
       if (!article || !host.closest("article.post > header")) return;
       const parts = Array.from(article.querySelectorAll(":scope > .post-fields, :scope > .prose, :scope > .tags, :scope > .post-signature"));
-      if (parts.length) fold(parts, parts[0], article, "차단한 회원의 글입니다.");
+      if (parts.length) fold(parts, parts[0], article, T("차단한 회원의 글입니다."));
     });
   });
 })();
@@ -270,15 +301,15 @@
     if (!dlg) {
       dlg = document.createElement("dialog");
       dlg.className = "quick-view";
-      dlg.setAttribute("aria-label", "빠른 보기");
+      dlg.setAttribute("aria-label", T("빠른 보기"));
       const bar = document.createElement("div");
       bar.className = "quick-view-bar";
       const shut = document.createElement("button");
       shut.type = "button";
-      shut.textContent = "닫기";
+      shut.textContent = T("닫기");
       shut.addEventListener("click", close);
       const full = document.createElement("a");
-      full.textContent = "글 화면으로";
+      full.textContent = T("글 화면으로");
       const body = document.createElement("div");
       body.className = "quick-view-body";
       bar.append(shut, full);
@@ -295,7 +326,7 @@
     }
     const body = dlg.querySelector(".quick-view-body");
     dlg.querySelector(".quick-view-bar a").href = href;
-    body.textContent = "불러오는 중…";
+    body.textContent = T("불러오는 중…");
     pushed = push;
     if (push) {
       const u = new URL(location.href);
@@ -354,8 +385,8 @@
         return;
       }
       navigator.clipboard.writeText(url).then(() => {
-        say("복사됨");
-        setTimeout(() => say("공유"), 1500);
+        say(T("복사됨"));
+        setTimeout(() => say(T("공유")), 1500);
       }, () => {});
     });
   }
@@ -373,11 +404,11 @@
     const more = document.createElement("button");
     more.type = "button";
     more.className = "clamp-toggle";
-    more.textContent = "펼치기";
+    more.textContent = T("펼치기");
     more.setAttribute("aria-expanded", "false");
     more.addEventListener("click", () => {
       const open = box.classList.toggle("is-clamped") === false;
-      more.textContent = open ? "접기" : "펼치기";
+      more.textContent = open ? T("접기") : T("펼치기");
       more.setAttribute("aria-expanded", open ? "true" : "false");
     });
     box.append(more);
@@ -413,7 +444,7 @@
       group.className = "fav-boards";
       const label = document.createElement("span");
       label.className = "recent-boards-label";
-      label.textContent = "즐겨찾기";
+      label.textContent = T("즐겨찾기");
       const ul = document.createElement("ul");
       for (const b of favs) {
         const li = document.createElement("li");
@@ -437,8 +468,8 @@
     btn.className = "board-star";
     const paint = () => {
       btn.setAttribute("aria-pressed", on ? "true" : "false");
-      btn.textContent = (on ? "★" : "☆") + " 즐겨찾기";
-      btn.title = on ? "즐겨찾기에서 빼기" : "즐겨찾기에 넣기";
+      btn.textContent = (on ? "★" : "☆") + " " + T("즐겨찾기");
+      btn.title = on ? T("즐겨찾기에서 빼기") : T("즐겨찾기에 넣기");
     };
     paint();
     btn.addEventListener("click", () => {
@@ -482,7 +513,7 @@
     const paint = (folded) => {
       items.hidden = folded;
       btn.setAttribute("aria-expanded", folded ? "false" : "true");
-      btn.textContent = folded ? "펼치기" : "접기";
+      btn.textContent = folded ? T("펼치기") : T("접기");
     };
     paint(read(localStorage, KEY) === "1");
     btn.hidden = false;
@@ -537,8 +568,8 @@
       b.setAttribute("aria-label", label);
       return b;
     };
-    const prev = btn("‹", "이전");
-    const next = btn("›", "다음");
+    const prev = btn("‹", T("이전"));
+    const next = btn("›", T("다음"));
     const count = document.createElement("span");
     count.className = "panel-count";
     count.setAttribute("aria-live", "polite");
@@ -554,7 +585,7 @@
     let paused = false;
     let resting = false;
     if (auto && !reduce) {
-      const pause = btn("❚❚", "자동 넘김 멈춤");
+      const pause = btn("❚❚", T("자동 넘김 멈춤"));
       const tick = () => {
         clearInterval(timer);
         timer = null;
@@ -563,7 +594,7 @@
       pause.addEventListener("click", () => {
         paused = !paused;
         pause.textContent = paused ? "▶" : "❚❚";
-        pause.setAttribute("aria-label", paused ? "자동 넘김 다시" : "자동 넘김 멈춤");
+        pause.setAttribute("aria-label", paused ? T("자동 넘김 다시") : T("자동 넘김 멈춤"));
         tick();
       });
       const rest = (v) => () => { resting = v; tick(); };
@@ -606,3 +637,4 @@
     }, { passive: true });
   }
 })();
+}
