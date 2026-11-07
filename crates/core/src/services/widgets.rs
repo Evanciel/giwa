@@ -438,14 +438,23 @@ pub async fn get(ctx: &Ctx, actor: &Actor, id: &str) -> Result<Widget> {
 /// 공개 화면에 붙일 켜진 위젯. 영역 → 순서. 권한을 보지 않는다(설정은 공개 화면에 그대로 드러나는 값이다).
 /// 팝업은 기간 안(`starts_at ≤ 지금 < ends_at`)인 것만 (ADR-0060).
 pub async fn for_screen(ctx: &Ctx, screen: Screen<'_>) -> Result<Vec<Widget>> {
+    Ok(on_screen(ctx.store.list_widgets().await?, screen))
+}
+
+/// 목록에서 이 화면에 붙을 것만. 화면 편집기의 초안도 같은 규칙으로 고른다 (ADR-0138).
+pub fn on_screen(list: Vec<Widget>, screen: Screen<'_>) -> Vec<Widget> {
     let now = clock::now();
-    Ok(ctx
-        .store
-        .list_widgets()
-        .await?
-        .into_iter()
+    list.into_iter()
         .filter(|w| w.enabled && screen.matches(&w.scope) && in_period(w, &now))
-        .collect())
+        .collect()
+}
+
+/// 아직 저장하지 않은 위젯(화면 편집기 초안)을 놓을 때와 같은 규칙으로 살피고, 다듬은 설정을 돌려준다.
+pub async fn check_draft(ctx: &Ctx, kind: &str, region: &str, config: Value) -> Result<Value> {
+    let kind = check_kind(ctx, kind).await?;
+    let region = check_region(region)?;
+    check_pair(&kind, &region)?;
+    check_config(ctx, &kind, config).await
 }
 
 /// 저장 형식(UTC, 같은 자릿수)이라 문자열 비교로 앞뒤를 안다.

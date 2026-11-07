@@ -131,7 +131,11 @@
     this.renderObject(this.box, root, value);
     this.save();
   };
-  Form.prototype.save = function () { if (this.value) this.raw.value = JSON.stringify(this.value, null, 2); };
+  Form.prototype.save = function () {
+    if (!this.value) return;
+    this.raw.value = JSON.stringify(this.value, null, 2);
+    if (this.onsave) this.onsave(this.value);
+  };
   Form.prototype.redraw = function () { this.save(); this.start(false); };
 
   Form.prototype.renderObject = function (box, schema, obj) {
@@ -368,6 +372,10 @@
       renumber();
     });
   }
+
+  // 화면 편집기(page-editor.js, ADR-0138)가 오른쪽 판에서 같은 칸을 쓴다.
+  window.MaruForm = Form;
+  window.MaruBlank = blank;
 
   function init() { widgets(); menus(); }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);

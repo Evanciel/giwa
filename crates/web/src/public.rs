@@ -180,8 +180,10 @@ pub(crate) async fn render(state: &AppState, name: &str, ctx: Result<Value>) -> 
                 _ => Screen::Other,
             };
             let regions = crate::widgets::regions(state, screen).await;
+            let editing = crate::widgets::editing().is_some();
             // 광고 코드처럼 바뀌는 도메인을 쓰는 위젯은 이 화면에만 nonce 정책을 건다 (ADR-0079).
-            if wants_strict_csp(&regions) {
+            // 화면 편집기 캔버스에서는 광고 코드를 돌리지 않는다(자리만 보인다).
+            if !editing && wants_strict_csp(&regions) {
                 nonce = maru_core::services::auth::new_secret()
                     .ok()
                     .map(|s| s[..32].to_owned());
@@ -189,6 +191,7 @@ pub(crate) async fn render(state: &AppState, name: &str, ctx: Result<Value>) -> 
             if let Some(o) = v.as_object_mut() {
                 o.insert("widgets".into(), regions);
                 o.insert("csp_nonce".into(), json!(nonce));
+                o.insert("editing".into(), json!(editing));
             }
             state.theme.render(name, &v)
         }

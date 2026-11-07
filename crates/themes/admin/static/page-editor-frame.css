@@ -1,0 +1,27 @@
+/* 화면 편집기 캔버스 안에만 들어가는 표시 (ADR-0138). page-editor.js 가 iframe 문서에 link 로 넣는다. */
+html.maru-editing [data-maru-w] { cursor: pointer; position: relative; }
+html.maru-editing a, html.maru-editing button, html.maru-editing input, html.maru-editing summary { cursor: inherit; }
+.maru-hover { outline: 2px dashed #5b7cfa; outline-offset: -2px; }
+.maru-selected { outline: 2px solid #2f54eb; outline-offset: -2px; }
+.maru-dragging { opacity: .35; }
+.maru-empty, .maru-pending {
+  display: flex; flex-direction: column; align-items: center; gap: .2rem; text-align: center;
+  margin: .6rem 0; padding: 1.1rem 1rem; border: 2px dashed #a3b1d6; border-radius: 10px;
+  background: rgb(91 124 250 / .05); color: #45507a; font: 14px/1.5 system-ui, -apple-system, "Malgun Gothic", sans-serif;
+}
+.maru-pending { border-color: #e0a85a; background: rgb(224 168 90 / .08); color: #6a4a17; }
+.maru-empty strong, .maru-pending strong { font-weight: 700; }
+.maru-drop-region { box-shadow: inset 0 0 0 2px rgb(47 84 235 / .35); }
+.maru-drop {
+  position: absolute; z-index: 2147483646; height: 4px; border-radius: 2px; pointer-events: none;
+  background: #2f54eb; box-shadow: 0 0 0 2px #fff;
+}
+.maru-bar {
+  position: absolute; z-index: 2147483647; display: flex; align-items: center; gap: 2px; padding: 3px;
+  background: #1d2440; border-radius: 9px; box-shadow: 0 6px 20px rgb(0 0 0 / .25);
+  font: 13px/1 system-ui, -apple-system, "Malgun Gothic", sans-serif;
+}
+.maru-bar-name { color: #c9d2f5; padding: 0 .55rem; max-width: 14rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.maru-bar button { all: unset; color: #fff; padding: 6px 9px; border-radius: 6px; cursor: pointer; font: inherit; }
+.maru-bar button:hover, .maru-bar button:focus-visible { background: #3a4677; }
+.maru-bar button[data-act=remove]:hover { background: #a3312b; }

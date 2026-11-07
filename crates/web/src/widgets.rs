@@ -19,16 +19,41 @@ use serde_json::{Map, Value, json};
 use crate::AppState;
 use crate::public::{menu_value, summaries_any_board};
 
+/// 화면 편집기 캔버스를 그리는 중 (ADR-0138). `draft` 가 있으면 DB 대신 아직 저장하지 않은 목록을 그린다.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct Editing {
+    pub draft: Option<std::sync::Arc<Vec<Widget>>>,
+}
+
+tokio::task_local! {
+    pub(crate) static EDITING: Editing;
+}
+
+/// 지금 요청이 편집기 캔버스인가.
+pub(crate) fn editing() -> Option<Editing> {
+    EDITING.try_with(Clone::clone).ok()
+}
+
 /// 화면에 붙일 위젯을 영역별로: `{ "sidebar": [..], "main": [..] }`. 없으면 빈 객체.
 pub(crate) async fn regions(state: &AppState, screen: Screen<'_>) -> Value {
     let page_screen = matches!(screen, Screen::Home | Screen::Page(_) | Screen::HomePage(_));
-    let list = match widgets::for_screen(&state.ctx, screen).await {
-        Ok(l) => l,
-        Err(e) => {
-            tracing::warn!(error = ?e, "위젯 목록을 못 읽어 위젯 없이 그립니다");
-            return json!({});
-        }
+    let editing = editing();
+    let list = match editing.as_ref().and_then(|e| e.draft.clone()) {
+        Some(draft) => widgets::on_screen(draft.as_ref().clone(), screen),
+        None => match widgets::for_screen(&state.ctx, screen).await {
+            Ok(l) => l,
+            Err(e) => {
+                tracing::warn!(error = ?e, "위젯 목록을 못 읽어 위젯 없이 그립니다");
+                return json!({});
+            }
+        },
     };
+    // 편집 중에는 팝업이 화면을 가리지 않게 뺀다. 팝업은 층 판에서 고친다.
+    let list: Vec<Widget> = match editing {
+        Some(_) => list.into_iter().filter(|w| w.region != "popup").collect(),
+        None => list,
+    };
+    let editing = editing.is_some();
     if list.is_empty() {
         return json!({});
     }
@@ -42,7 +67,10 @@ pub(crate) async fn regions(state: &AppState, screen: Screen<'_>) -> Value {
     let mut out = Map::new();
     for w in &list {
         match view(state, &actor, &site, w).await {
-            Ok(Some(v)) => {
+            Ok(Some(mut v)) => {
+                if editing {
+                    v["edit_id"] = json!(w.id);
+                }
                 if let Some(arr) = out
                     .entry(w.region.clone())
                     .or_insert_with(|| json!([]))

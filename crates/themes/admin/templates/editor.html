@@ -1,0 +1,71 @@
+{% import "_icons.html" as ic %}<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>화면 편집 · {{ screen_label }} · {{ site.name | default("Maru") }}</title>
+<link rel="stylesheet" href="/admin/assets/admin.css">
+<link rel="stylesheet" href="/admin/assets/page-editor.css">
+</head>
+<body class="editor-body">
+{# 화면 편집기 (ADR-0138). 가운데 iframe 이 실제 공개 화면이고, page-editor.js 가 그 위에 고르기·끌어다 놓기를 얹는다. #}
+<div class="ed" data-editor data-csrf="{{ csrf }}" data-screen="{{ screen }}">
+  <header class="ed-top">
+    <a class="ed-back" href="/admin">{{ ic.icon("home") }}<span>관리로</span></a>
+    <form class="ed-screen" method="get" action="/admin/editor">
+      <label><span>화면</span>
+        <select name="screen" data-screen-pick>
+          {% for s in screens %}<option value="{{ s.id }}"{% if s.id == screen %} selected{% endif %}>{% if s.group != "첫 화면" %}{{ s.group }} · {% endif %}{{ s.label }}</option>{% endfor %}
+        </select>
+      </label>
+      <noscript><button type="submit" class="secondary">열기</button></noscript>
+    </form>
+    <div class="ed-devices" role="group" aria-label="화면 폭">
+      <button type="button" data-device="desktop" aria-pressed="true" title="데스크톱 (1280px)">데스크톱</button>
+      <button type="button" data-device="tablet" aria-pressed="false" title="태블릿 (768px)">태블릿</button>
+      <button type="button" data-device="mobile" aria-pressed="false" title="휴대폰 (390px)">휴대폰</button>
+    </div>
+    <div class="ed-history">
+      <button type="button" data-undo disabled title="되돌리기 (Ctrl+Z)">↶<span class="visually-hidden">되돌리기</span></button>
+      <button type="button" data-redo disabled title="다시 하기 (Ctrl+Y)">↷<span class="visually-hidden">다시 하기</span></button>
+    </div>
+    <p class="ed-status" role="status" aria-live="polite" data-status>{% if done %}발행했습니다.{% else %}고친 곳 없음{% endif %}</p>
+    <a class="button ghost small ed-view" href="/" target="_blank" rel="noopener" data-view>사이트 보기</a>
+    <button type="button" class="primary" data-publish disabled>발행</button>
+  </header>
+  {% if done %}<p class="ed-notice" role="note">사이트에 발행했습니다. 되돌리려면 <a href="/admin/changesets/{{ done }}">변경 묶음 화면</a>에서 「되돌리기」를 누르세요.</p>{% endif %}
+  <p class="ed-notice ed-restore" data-restore hidden>이 브라우저에 지난번 고치던 초안이 있습니다.
+    <button type="button" class="secondary" data-restore-yes>이어서 고치기</button>
+    <button type="button" class="link" data-restore-no>버리기</button></p>
+  <div class="ed-body">
+    <aside class="ed-left" aria-label="블록">
+      <div class="ed-tabs" role="tablist">
+        <button type="button" role="tab" id="tab-add" aria-controls="panel-add" aria-selected="true" data-tab="add">{{ ic.icon("plus") }}<span>더하기</span></button>
+        <button type="button" role="tab" id="tab-layers" aria-controls="panel-layers" aria-selected="false" data-tab="layers">{{ ic.icon("widgets") }}<span>층</span></button>
+      </div>
+      <div class="ed-panel" role="tabpanel" id="panel-add" aria-labelledby="tab-add" data-panel="add">
+        <p class="hint">블록을 화면으로 끌어다 놓거나, 누르면 고른 블록 아래에 들어갑니다.</p>
+        <div data-palette></div>
+      </div>
+      <div class="ed-panel" role="tabpanel" id="panel-layers" aria-labelledby="tab-layers" data-panel="layers" hidden>
+        <p class="hint">이 화면에 보이는 블록을 자리별로 보입니다. 끌어서 순서를 바꿉니다.</p>
+        <div data-layers></div>
+      </div>
+    </aside>
+    <main class="ed-canvas" id="main">
+      <div class="ed-stage" data-stage data-device="desktop">
+        <iframe title="편집 중인 화면: {{ screen_label }}" src="/admin/editor/frame?screen={{ screen }}" data-frame></iframe>
+      </div>
+    </main>
+    <aside class="ed-right" aria-label="고른 블록 설정">
+      <div data-inspector><p class="ed-empty-pick">화면에서 블록을 누르면<br>여기서 고칩니다.</p></div>
+    </aside>
+  </div>
+</div>
+<noscript><p class="ed-nojs">화면 편집기는 자바스크립트가 있어야 움직입니다. <a href="/admin/widgets">위젯 화면</a>에서 같은 일을 할 수 있습니다.</p></noscript>
+<script type="application/json" id="editor-data">{{ editor_json | safe }}</script>
+<script src="/admin/assets/admin-ui.js"></script>
+<script src="/admin/assets/page-editor.js"></script>
+</body>
+</html>

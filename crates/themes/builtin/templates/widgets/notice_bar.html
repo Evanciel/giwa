@@ -1,1 +1,1 @@
-<p class="widget widget-notice_bar" role="note">{% if w.data.link %}<a href="{{ w.data.link.href }}"{% if w.data.link.external %} rel="noopener noreferrer"{% endif %}>{{ w.data.text }}</a>{% else %}{{ w.data.text }}{% endif %}</p>
+<p class="widget widget-notice_bar" role="note"{% if w.edit_id %} data-maru-w="{{ w.edit_id }}"{% endif %}>{% if w.data.link %}<a href="{{ w.data.link.href }}"{% if w.data.link.external %} rel="noopener noreferrer"{% endif %}>{{ w.data.text }}</a>{% else %}{{ w.data.text }}{% endif %}</p>

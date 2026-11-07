@@ -214,7 +214,7 @@ fn card(
 }
 
 /// 영역 이름과, 사이트에서 어디쯤인지 한 줄.
-fn region_text(region: &str) -> (&'static str, &'static str) {
+pub(super) fn region_text(region: &str) -> (&'static str, &'static str) {
     match region {
         "header" => ("머리글 아래", "메뉴 바로 밑을 가로지르는 띠"),
         "hero" => ("큰 배너 자리", "첫 화면 맨 위 넓은 자리"),
@@ -248,7 +248,7 @@ fn scope_text(scope: &str, names: &Names<'_>) -> String {
     }
 }
 
-fn kind_icon(kind: &str) -> &'static str {
+pub(super) fn kind_icon(kind: &str) -> &'static str {
     match kind {
         "latest_posts" | "popular_posts" | "post_tabs" => "posts",
         "gallery_grid" | "image_banner" | "image_text" | "hero" => "image",
@@ -360,7 +360,7 @@ fn enum_label(description: &Value, value: &str) -> Option<String> {
 }
 
 /// `<script type="application/json">` 안에 넣을 JSON. `</script>` 로 빠져나가지 못하게 한다.
-fn script_json(v: &Value) -> String {
+pub(super) fn script_json(v: &Value) -> String {
     v.to_string()
         .replace('<', "\\u003c")
         .replace('>', "\\u003e")

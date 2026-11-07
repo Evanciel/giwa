@@ -68,15 +68,49 @@ fn op_view(op: &Value) -> Value {
         "preset.step" => return step_view(op),
         _ => name,
     };
-    let target = ["slug", "location", "id"]
-        .iter()
-        .find_map(|k| op[*k].as_str())
-        .unwrap_or_default();
+    let target = match name {
+        // 위젯 id 대신 무엇을 놓고 무엇을 고쳤는지 (화면 편집기 묶음, ADR-0138).
+        "widget.place" => {
+            maru_core::services::widgets::kind_name(op["kind"].as_str().unwrap_or_default())
+                .to_owned()
+        }
+        "widget.configure" => widget_patch_text(&op["patch"]),
+        _ => ["slug", "location", "id"]
+            .iter()
+            .find_map(|k| op[*k].as_str())
+            .unwrap_or_default()
+            .to_owned(),
+    };
     json!({
         "label": label,
         "target": target,
         "json": serde_json::to_string_pretty(op).unwrap_or_default(),
     })
+}
+
+/// 위젯 고치기에서 바뀐 칸을 사람 말로: 「순서 · 숨기기」.
+fn widget_patch_text(patch: &Value) -> String {
+    let Some(p) = patch.as_object() else {
+        return String::new();
+    };
+    let mut out = Vec::new();
+    for (key, word) in [
+        ("region", "자리 옮기기"),
+        ("position", "순서"),
+        ("scope", "보이는 곳"),
+        ("title", "제목"),
+        ("config", "설정"),
+    ] {
+        if p.contains_key(key) {
+            out.push(word);
+        }
+    }
+    match p.get("enabled").and_then(Value::as_bool) {
+        Some(true) => out.push("다시 보이기"),
+        Some(false) => out.push("숨기기"),
+        None => {}
+    }
+    out.join(" · ")
 }
 
 /// 테마(프리셋)의 한 단계. 모두 「없으면 만든다」라서 이미 있는 것은 건드리지 않는다.

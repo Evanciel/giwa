@@ -34,6 +34,7 @@ use crate::field_form;
 mod audit;
 mod changesets;
 mod dashboard;
+mod editor;
 mod modules;
 mod site;
 mod widgets;
@@ -89,6 +90,8 @@ pub fn routes() -> Router<AppState> {
         .merge(widgets::routes())
         .merge(audit::routes())
         .layer(middleware::map_response(admin_headers))
+        // 화면 편집기는 캔버스 iframe 을 담으므로 자기 머리글을 쓴다 (ADR-0138).
+        .merge(editor::routes())
 }
 
 /// 관리 화면은 캐시·프레임·리퍼러를 모두 막는다. 로그인 링크가 Referer 로 새지 않게 한다.

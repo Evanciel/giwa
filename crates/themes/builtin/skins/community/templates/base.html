@@ -46,7 +46,7 @@
     <button class="cm-icon cm-drawer-open" type="button" aria-controls="cm-drawer" aria-expanded="false" hidden><span class="visually-hidden">{{ "메뉴 열기"|t }}</span><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M3 5.5h14M3 10h14M3 14.5h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
     <a class="cm-brand" href="{{ site.home_url }}">{{ site.name }}</a>
     {% if site.show_search %}<button class="cm-icon cm-search-open" type="button" aria-controls="cm-search-sheet" aria-expanded="false" hidden><span class="visually-hidden">{{ "검색 열기"|t }}</span><svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="7" cy="7" r="4.8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10.6 10.6 14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>{% endif %}
-    {% if widgets.masthead %}<div class="region region-masthead">{% for w in widgets.masthead %}{% include "_widget.html" %}{% endfor %}</div>{% endif %}
+    {% if widgets.masthead %}<div class="region region-masthead"{% if editing %} data-maru-region="masthead"{% endif %}>{% for w in widgets.masthead %}{% include "_widget.html" %}{% endfor %}</div>{% endif %}
   </div>
 </header>
 {# 메뉴 줄 (GAP Q12, ADR-0097): 스크롤하면 위에 붙는다. 하위 게시판이 있는 그룹은 가리키거나 초점을 주면 펼치고,
@@ -74,14 +74,14 @@
   </form>{% endif %}
   {% if site.menus and site.menus.quick %}<nav class="cm-quick" aria-label="{{ "바로가기"|t }}"><ul>{% for item in site.menus.quick %}<li><a href="{{ item.href }}"{% if item.external %} rel="noopener noreferrer"{% endif %}>{{ item.label }}</a></li>{% endfor %}</ul></nav>{% endif %}
 </div></div>{% endif %}
-{% if widgets.header %}<div class="region region-header"><div class="cm-inner">{% for w in widgets.header %}{% include "_widget.html" %}{% endfor %}</div></div>{% endif %}
-{% if widgets.hero %}<div class="region region-hero"><div class="cm-inner">{% for w in widgets.hero %}{% include "_widget.html" %}{% endfor %}</div></div>{% endif %}
+{% if widgets.header or editing %}<div class="region region-header"{% if editing %} data-maru-region="header"{% endif %}><div class="cm-inner">{% for w in widgets.header %}{% include "_widget.html" %}{% endfor %}</div></div>{% endif %}
+{% if widgets.hero or editing %}<div class="region region-hero"{% if editing %} data-maru-region="hero"{% endif %}><div class="cm-inner">{% for w in widgets.hero %}{% include "_widget.html" %}{% endfor %}</div></div>{% endif %}
 <div class="cm-body cm-inner{% if widgets.sidebar %} has-side{% endif %}">
 <main id="main" class="cm-main {% block main_class %}wrap{% endblock %}">
-{% if widgets.main %}<div class="region region-main">{% for w in widgets.main %}{% include "_widget.html" %}{% endfor %}</div>{% endif %}
+{% if widgets.main or editing %}<div class="region region-main"{% if editing %} data-maru-region="main"{% endif %}>{% for w in widgets.main %}{% include "_widget.html" %}{% endfor %}</div>{% endif %}
 {% block main %}{% endblock %}
 </main>
-{% if widgets.sidebar %}<aside class="region region-sidebar" aria-label="{{ "곁가지"|t }}">{% for w in widgets.sidebar %}{% include "_widget.html" %}{% endfor %}</aside>{% endif %}
+{% if widgets.sidebar %}<aside class="region region-sidebar"{% if editing %} data-maru-region="sidebar"{% endif %} aria-label="{{ "곁가지"|t }}">{% for w in widgets.sidebar %}{% include "_widget.html" %}{% endfor %}</aside>{% endif %}
 {# 양옆 광고: 본문 판 바깥에서 본문과 같은 높이로 시작하고, 스크롤하면 메뉴 줄 아래에 붙는다. #}
 {% if widgets.rail %}<aside class="region region-rail" aria-label="{{ "광고"|t }}">
   <div class="rail-side rail-left"><div class="rail-stick">{% for w in widgets.rail %}{% if loop.index is odd %}{% include "_widget.html" %}{% endif %}{% endfor %}</div></div>
@@ -90,12 +90,12 @@
 </div>
 {# 광고 자리 (GAP Q24, ADR-0109): 후원 띠는 접고 펼친다(이 브라우저에 기억), 양옆은 넓은 화면만,
    아래 고정은 휴대폰만(닫으면 이번 방문 동안 숨김). 비어 있으면 아무것도 그리지 않는다. #}
-{% if widgets.sponsor %}<section class="region region-sponsor" aria-label="{{ "후원"|t }}" data-sponsor><div class="cm-inner">
+{% if widgets.sponsor %}<section class="region region-sponsor"{% if editing %} data-maru-region="sponsor"{% endif %} aria-label="{{ "후원"|t }}" data-sponsor><div class="cm-inner">
   <div class="sponsor-head"><span class="sponsor-title">{{ "후원"|t }}</span><button type="button" class="sponsor-toggle" aria-controls="sponsor-items" aria-expanded="true" hidden>{{ "접기"|t }}</button></div>
   <div class="sponsor-items" id="sponsor-items">{% for w in widgets.sponsor %}{% include "_widget.html" %}{% endfor %}</div>
 </div></section>{% endif %}
 <footer class="cm-footer">
-  {% if widgets.footer %}<div class="region region-footer"><div class="cm-inner">{% for w in widgets.footer %}{% include "_widget.html" %}{% endfor %}</div></div>{% endif %}
+  {% if widgets.footer or editing %}<div class="region region-footer"{% if editing %} data-maru-region="footer"{% endif %}><div class="cm-inner">{% for w in widgets.footer %}{% include "_widget.html" %}{% endfor %}</div></div>{% endif %}
   <div class="cm-inner">
     {% if site.menus and site.menus.footer %}<nav class="footer-nav" aria-label="{{ "하단 메뉴"|t }}">{% with items = site.menus.footer %}{% include "_menu.html" %}{% endwith %}</nav>{% endif %}
     <p id="page-end"><strong>{{ site.name }}</strong> · <a href="{{ site.rss_url }}">RSS</a></p>
