@@ -9,6 +9,10 @@ param([switch]$Quick)
 $ErrorActionPreference = "Continue"
 Set-Location (Split-Path -Parent $PSScriptRoot)
 
+# PATH 의 따옴표를 없앤다. 시스템 PATH 에 "...\Git\bin;...\Git\cmd" 처럼 묶인 항목이 있으면 git-bash 가
+# 넘겨줄 때 앞 따옴표만 떨어져 짝이 깨지고, cmd 와 cargo 가 그 뒤 항목(cargo-sqlx 등)을 찾지 못한다 (2026-11-07).
+$env:PATH = $env:PATH -replace '"', ''
+
 if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
     if ($env:CARGO_HOME -and (Test-Path (Join-Path $env:CARGO_HOME "bin/cargo.exe"))) {
         $env:PATH = (Join-Path $env:CARGO_HOME "bin") + ";" + $env:PATH
@@ -41,8 +45,8 @@ $forbidden = [ordered]@{
 }
 Write-Host "[check] deps" -ForegroundColor Cyan
 foreach ($crate in $forbidden.Keys) {
-    # stderr 는 cmd 가 버린다 (PowerShell 이 오류 레코드로 감싸 출력에 섞지 않도록)
-    $tree = cmd /c "cargo tree -p $crate -e normal --prefix none --format {p} 2>nul"
+    # stderr 는 버린다 (2>&1 처럼 섞으면 PowerShell 이 오류 레코드로 감싼다).
+    $tree = cargo tree -p $crate -e normal --prefix none --format "{p}" 2>$null
     if ($LASTEXITCODE -ne 0) { $failed += "deps($crate)"; continue }
     $names = $tree | ForEach-Object { ($_ -split " ")[0] } | Sort-Object -Unique
     foreach ($bad in $forbidden[$crate]) {
@@ -68,7 +72,7 @@ if (Test-Path "crates/storage/migrations") {
         [Console]::OutputEncoding = [Text.Encoding]::UTF8
         $targetDir = $null
         try {
-            $targetDir = (cmd /c "cargo metadata --format-version 1 --no-deps 2>nul" | Out-String | ConvertFrom-Json).target_directory
+            $targetDir = (cargo metadata --format-version 1 --no-deps 2>$null | Out-String | ConvertFrom-Json).target_directory
         } catch {}
         [Console]::OutputEncoding = $prevEncoding
         if (-not $targetDir) {
@@ -78,11 +82,14 @@ if (Test-Path "crates/storage/migrations") {
             $checkDb = Join-Path $targetDir "sqlx-check.db"
             Remove-Item "$checkDb*" -Force -ErrorAction SilentlyContinue
             $env:DATABASE_URL = "sqlite:" + ($checkDb -replace "\\", "/")
-            Step "sqlx-db" { cmd /c "sqlx database create && sqlx migrate run --source crates/storage/migrations" }
+            Step "sqlx-db" {
+                sqlx database create
+                if ($LASTEXITCODE -eq 0) { sqlx migrate run --source crates/storage/migrations }
+            }
             # 모듈 표도 있어야 모듈의 쿼리 매크로를 검증한다 (ADR-0066).
             foreach ($moduleMigrations in (Get-ChildItem "mods/*/migrations" -Directory -ErrorAction SilentlyContinue)) {
                 $source = $moduleMigrations.FullName
-                Step "sqlx-db($($moduleMigrations.Parent.Name))" { cmd /c "sqlx migrate run --ignore-missing --source `"$source`"" }
+                Step "sqlx-db($($moduleMigrations.Parent.Name))" { sqlx migrate run --ignore-missing --source $source }
             }
             Step "sqlx-prepare" { cargo sqlx prepare --workspace --check }
             Remove-Item Env:DATABASE_URL

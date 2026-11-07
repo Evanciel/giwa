@@ -120,19 +120,22 @@ fn sibling(exe: &Path, suffix: &str) -> PathBuf {
 }
 
 /// 돌고 있는 파일은 지울 수 없어도 이름은 바꿀 수 있다. 실패하면 되돌린다.
-fn swap(exe: &Path, new: &Path) -> std::io::Result<()> {
-    let old = sibling(exe, ".old");
-    let _ = std::fs::remove_file(&old);
+/// 지난번 `.old` 로 서버가 아직 돌고 있어 지울 수 없으면 겹치지 않는 이름에 둔다. 둔 곳을 돌려준다.
+fn swap(exe: &Path, new: &Path) -> std::io::Result<PathBuf> {
+    let mut old = sibling(exe, ".old");
+    if std::fs::remove_file(&old).is_err() && old.exists() {
+        old = sibling(exe, &format!(".old-{}", std::process::id()));
+    }
     std::fs::rename(exe, &old)?;
     if let Err(e) = std::fs::rename(new, exe) {
         let _ = std::fs::rename(&old, exe);
         return Err(e);
     }
-    Ok(())
+    Ok(old)
 }
 
-/// 받은 바이너리를 옆에 쓰고, 돌려 보고, 바꾼다.
-fn install(exe: &Path, new: &Path, binary: &[u8]) -> std::io::Result<bool> {
+/// 받은 바이너리를 옆에 쓰고, 돌려 보고, 바꾼다. 실행되지 않으면 `None`.
+fn install(exe: &Path, new: &Path, binary: &[u8]) -> std::io::Result<Option<PathBuf>> {
     std::fs::write(new, binary)?;
     #[cfg(unix)]
     {
@@ -140,10 +143,9 @@ fn install(exe: &Path, new: &Path, binary: &[u8]) -> std::io::Result<bool> {
         std::fs::set_permissions(new, std::fs::Permissions::from_mode(0o755))?;
     }
     if !runs_as_maru(new) {
-        return Ok(false);
+        return Ok(None);
     }
-    swap(exe, new)?;
-    Ok(true)
+    swap(exe, new).map(Some)
 }
 
 pub(crate) async fn run(args: UpdateArgs) -> Out {
@@ -206,13 +208,23 @@ pub(crate) async fn run(args: UpdateArgs) -> Out {
 
     let exe = std::env::current_exe().map_err(Error::internal)?;
     let new = sibling(&exe, &format!(".new-{}.exe", std::process::id()));
-    if !install(&exe, &new, &binary).unwrap_or(false) {
-        let _ = std::fs::remove_file(&new);
-        return Err(fail(
-            "새 바이너리를 놓거나 실행하지 못해 지금 판을 그대로 두었습니다.",
-            "maru doctor",
-        ));
-    }
+    let previous = match install(&exe, &new, &binary) {
+        Ok(Some(old)) => old,
+        Ok(None) => {
+            let _ = std::fs::remove_file(&new);
+            return Err(fail(
+                "받은 바이너리가 이 컴퓨터에서 실행되지 않아 지금 판을 그대로 두었습니다.",
+                "maru doctor",
+            ));
+        }
+        Err(e) => {
+            let _ = std::fs::remove_file(&new);
+            return Err(fail(
+                format!("새 바이너리를 놓지 못해 지금 판을 그대로 두었습니다: {e}"),
+                "maru doctor",
+            ));
+        }
+    };
     let human = format!(
         "{current} -> {latest} 로 바꿨습니다. 돌고 있는 서버는 다시 시작해야 새 판이 됩니다.\n체크섬은 확인했지만 서명은 아직 확인하지 않습니다."
     );
@@ -224,7 +236,7 @@ pub(crate) async fn run(args: UpdateArgs) -> Out {
             "updated": true,
             "sha256": got_sum,
             "signature_checked": false,
-            "previous": sibling(&exe, ".old"),
+            "previous": previous,
             "next": ["maru service stop", "maru service start"],
         }),
         human,
@@ -271,5 +283,31 @@ mod tests {
             assert!(base_url(Some(bad.into())).is_err(), "{bad}");
         }
         assert!(base_url(Some(DEFAULT_BASE.into())).is_err());
+    }
+
+    /// 지난번 판으로 서버가 돌고 있으면 `.old` 를 지울 수 없다. 그래도 바꾸고 둔 곳을 알린다.
+    #[cfg(windows)]
+    #[test]
+    fn 지난번_판이_돌고_있어도_바꾼다() {
+        use std::os::windows::fs::OpenOptionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let exe = dir.path().join("maru.exe");
+        let new = dir.path().join("maru.exe.new");
+        let old = dir.path().join("maru.exe.old");
+        std::fs::write(&exe, "지금").unwrap();
+        std::fs::write(&new, "새").unwrap();
+        std::fs::write(&old, "지난번").unwrap();
+        // 공유 없이 열어 돌고 있는 실행 파일처럼 지우지도 덮지도 못하게 한다.
+        let held = std::fs::OpenOptions::new()
+            .read(true)
+            .share_mode(0)
+            .open(&old)
+            .unwrap();
+        let moved = swap(&exe, &new).unwrap();
+        assert_ne!(moved, old);
+        assert_eq!(std::fs::read_to_string(&exe).unwrap(), "새");
+        assert_eq!(std::fs::read_to_string(&moved).unwrap(), "지금");
+        drop(held);
+        assert_eq!(std::fs::read_to_string(&old).unwrap(), "지난번");
     }
 }
