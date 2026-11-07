@@ -21,7 +21,7 @@ use crate::model::{
     PostStatus, PostTemplate, Revision, Role, Session, StatBatch, StatDay, StatPage, StatReferrer,
     Tag, TicketPurpose, Token, TotpChallenge, Widget,
 };
-use crate::model::{LinkPreview, LinkStatus, MemberActivity, MemberTotp, Signal};
+use crate::model::{LinkPreview, LinkStatus, MemberActivity, MemberTotp, Redirect, Signal};
 
 /// 댓글 관리 목록 조건. 비어 있는 조건은 거르지 않는다.
 #[derive(Debug, Clone, Copy, Default)]
@@ -281,6 +281,8 @@ pub trait Store: Send + Sync {
     async fn page_by_slug(&self, slug: &str) -> Result<Option<Page>>;
     async fn page_by_id(&self, id: &str) -> Result<Option<Page>>;
     async fn list_pages(&self, status: Option<PageStatus>) -> Result<Vec<Page>>;
+    async fn list_redirects(&self) -> Result<Vec<Redirect>>;
+    async fn redirect_of(&self, from: &str) -> Result<Option<Redirect>>;
     async fn menu_rows(&self, location: &str) -> Result<Vec<MenuRow>>;
     /// 모든 위젯. 영역 → 순서 → 만든 순.
     async fn list_widgets(&self) -> Result<Vec<Widget>>;
@@ -547,6 +549,9 @@ pub trait WriteTx: Send {
     async fn page_by_slug(&mut self, slug: &str) -> Result<Option<Page>>;
     async fn insert_page(&mut self, page: &Page) -> Result<()>;
     async fn update_page(&mut self, page: &Page) -> Result<()>;
+    /// 옮긴 주소를 남긴다. 이 주소로 오던 옛 주소도 새 곳으로 돌리고, 제자리로 돌아온 줄은 지운다.
+    async fn put_redirect(&mut self, row: &Redirect) -> Result<()>;
+    async fn delete_redirect(&mut self, from: &str) -> Result<()>;
     /// 검색 색인을 처음부터 다시 만든다 (글 수, 페이지 수).
     /// `insert_post`·`update_post`·페이지 쓰기는 같은 트랜잭션에서 색인을 스스로 맞춘다.
     async fn rebuild_search(&mut self) -> Result<(i64, i64)>;

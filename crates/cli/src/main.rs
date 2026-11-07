@@ -75,6 +75,9 @@ enum Command {
     /// 고정 페이지 (소개, 연락처 등)
     #[command(subcommand)]
     Page(PageCmd),
+    /// 옮긴 주소
+    #[command(subcommand)]
+    Redirect(RedirectCmd),
     /// 헤더·푸터 메뉴
     #[command(subcommand)]
     Menu(MenuCmd),
@@ -1006,11 +1009,14 @@ pub struct PageNewArgs {
     /// 본문 파일 (UTF-8). `-` 이면 표준 입력
     #[arg(long)]
     pub from: Option<PathBuf>,
-    /// default, wide
+    /// default, wide, blocks(섹션 블록), docs(문서)
     #[arg(long, default_value = "default")]
     pub layout: String,
     #[arg(long, default_value_t = 0)]
     pub sort_order: i64,
+    /// 위 페이지의 주소
+    #[arg(long)]
+    pub parent: Option<String>,
     /// 만든 뒤 바로 공개
     #[arg(long)]
     pub publish: bool,
@@ -1035,6 +1041,19 @@ pub struct PageEditArgs {
     pub layout: Option<String>,
     #[arg(long)]
     pub sort_order: Option<i64>,
+    /// 위 페이지의 주소. 빈 값이면 맨 위로
+    #[arg(long)]
+    pub parent: Option<String>,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum RedirectCmd {
+    /// 옮긴 주소 목록
+    List,
+    /// 옛 주소를 새 주소로 보낸다
+    Add { from: String, to: String },
+    /// 옮긴 주소를 지운다
+    Remove { from: String },
 }
 
 #[derive(Debug, Subcommand)]

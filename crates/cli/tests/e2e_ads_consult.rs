@@ -229,3 +229,147 @@ fn ad_slots_scope_the_strict_csp_and_consult_button_tells_where_it_goes() {
     );
     assert!(!board.body.contains("adsbygoogle"));
 }
+
+/// ADR-0130: 키가 없으면 링크뿐, 키를 넣은 화면만 넓어지고 값은 data-* 로만 간다.
+#[test]
+fn 지도와_카카오는_키를_넣은_화면만_바깥을_부른다() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("사이트");
+    maru(&data, &["init", "--preset", "company", "--yes"]);
+    maru(&data, &["module", "enable", "map"]);
+    maru(&data, &["module", "enable", "kakao"]);
+    maru(
+        &data,
+        &["page", "new", "visit", "--title", "오시는 길", "--publish"],
+    );
+    maru(
+        &data,
+        &["page", "new", "visit-map", "--title", "지도", "--publish"],
+    );
+
+    // 설정 검사는 모듈 몫이다.
+    let bad = place(
+        &data,
+        "map",
+        "main",
+        "all",
+        r#"{"address":"서울","provider":"kakao","key":"abc\"><script>"}"#,
+    );
+    assert_eq!(bad["ok"], false, "{bad}");
+    let bad = place(
+        &data,
+        "kakao_channel",
+        "main",
+        "all",
+        r#"{"channel":"abc"}"#,
+    );
+    assert_eq!(bad["ok"], false, "{bad}");
+
+    // 키 없는 지도와 채널: 모든 화면이 기본 CSP.
+    let ok = place(
+        &data,
+        "map",
+        "footer",
+        "all",
+        r#"{"address":"서울 중구 세종대로 110 <b>","name":"본사"}"#,
+    );
+    assert_eq!(ok["ok"], true, "{ok}");
+    let ok = place(
+        &data,
+        "kakao_channel",
+        "footer",
+        "all",
+        r#"{"channel":"_abC12","name":"채널","chat":true}"#,
+    );
+    assert_eq!(ok["ok"], true, "{ok}");
+    let (_server, bind) = start_server(&data);
+    let home = get(&bind, "/");
+    assert!(
+        home.header("content-security-policy")
+            .starts_with("default-src 'self'"),
+        "{}",
+        home.header("content-security-policy")
+    );
+    assert!(!home.body.contains("dapi.kakao.com"));
+    assert!(!home.body.contains("kakaocdn.net"));
+    assert!(home.body.contains("https://map.naver.com/p/search/"));
+    assert!(home.body.contains("https://map.kakao.com/?q="));
+    assert!(home.body.contains("&lt;b&gt;"), "주소는 글자로만 나간다");
+    assert!(home.body.contains("https://pf.kakao.com/_abC12/chat"));
+
+    // 키를 넣으면 그 위젯을 건 화면에서만 SDK 를 부른다.
+    let widgets = maru(&data, &["widget", "list"]);
+    assert!(widgets.to_string().contains("kakao_channel"), "{widgets}");
+    let ok = place(
+        &data,
+        "map",
+        "main",
+        "page:visit",
+        r#"{"address":"서울 중구 세종대로 110","provider":"kakao","key":"abcdef0123456789"}"#,
+    );
+    assert_eq!(ok["ok"], true, "{ok}");
+    let ok = place(
+        &data,
+        "map",
+        "main",
+        "page:visit-map",
+        r#"{"address":"서울 중구 세종대로 110","provider":"naver","key":"naverid123","lat":37.56,"lng":126.97}"#,
+    );
+    assert_eq!(ok["ok"], true, "{ok}");
+    let ok = place(
+        &data,
+        "kakao_share",
+        "main",
+        "page:visit",
+        r#"{"key":"abcdef0123456789abcdef0123456789","title":"제목 \"따옴표\""}"#,
+    );
+    assert_eq!(ok["ok"], true, "{ok}");
+    let visit = get(&bind, "/p/visit");
+    let csp = visit.header("content-security-policy");
+    assert!(csp.contains("'strict-dynamic'"), "{csp}");
+    assert!(
+        visit
+            .body
+            .contains("sdk.js?appkey=abcdef0123456789&amp;libraries=services&amp;autoload=false"),
+        "{}",
+        visit.body
+    );
+    assert!(visit.body.contains("kakao_js_sdk/2.8.4/kakao.min.js"));
+    assert!(visit.body.contains("integrity=\"sha384-"), "{}", visit.body);
+    assert!(
+        visit
+            .body
+            .contains("data-title=\"제목 &quot;따옴표&quot;\""),
+        "{}",
+        visit.body
+    );
+    let without_nonce = visit
+        .body
+        .split("<script")
+        .skip(1)
+        .filter(|tag| !tag.split('>').next().unwrap_or("").contains("nonce="))
+        .count();
+    assert_eq!(
+        without_nonce, 0,
+        "화면의 모든 script 에 nonce: {}",
+        visit.body
+    );
+    let naver = get(&bind, "/p/visit-map");
+    assert!(
+        naver.body.contains("data-key=\"naverid123\""),
+        "{}",
+        naver.body
+    );
+    assert!(
+        naver.body.contains("callback=maruNaverMap"),
+        "{}",
+        naver.body
+    );
+    assert!(naver.body.contains("data-lat=\"37.56\""), "{}", naver.body);
+    // 다른 화면은 그대로다.
+    assert!(
+        get(&bind, "/")
+            .header("content-security-policy")
+            .starts_with("default-src 'self'")
+    );
+}

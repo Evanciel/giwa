@@ -137,6 +137,16 @@ maru changeset preview-url <id> --json
 
 `maru token create --auto-apply` 는 승인을 건너뛴다. 사용자가 위험을 알고 요청할 때만 만든다.
 
+### 지도와 카카오톡
+
+키 없이도 됩니다. 사용자가 키를 주기 전에는 키를 넣지 않습니다. 위젯은 본문 위에 놓이니 지도 화면은 `maru page new <슬러그> --title <제목> --layout blocks --publish` 로 만듭니다.
+
+- 지도 `maru module enable map`, `maru widget place map --region main --scope page:<슬러그> --config '{"address":"주소","name":"이름"}'`: 주소와 네이버 지도·카카오맵 링크가 나옵니다.
+- 지도를 그 자리에 띄우려면 `"provider":"kakao"` + JavaScript 키, 또는 `"provider":"naver"` + Client ID 를 더합니다. 카카오 개발자 콘솔·네이버 클라우드에 사이트 주소를 먼저 등록해야 합니다. 주소 변환에 할당량이 쓰이니 좌표를 알면 `lat`·`lng` 을 넣습니다.
+- 카카오톡 공유 `maru module enable kakao`, `maru widget place kakao_share --config '{"key":"JavaScript 키"}'`. 공유 단추는 등록한 사이트 주소에서만 동작합니다. REST API 키와 Admin 키는 넣지 않습니다.
+- 카카오톡 채널 `maru widget place kakao_channel --config '{"channel":"_abc","chat":true}'`: 키 없이 채널 링크만 둡니다.
+- 키를 넣은 위젯이 있는 화면은 보안 정책(CSP)이 넓어지고, 방문자 브라우저가 카카오·네이버에 접속합니다. 그 사실을 사용자에게 알립니다.
+
 ## 5. 글
 
 `create_draft` → `update_draft` → 사람에게 보여 준 뒤 `publish_post`(`publish` 스코프). CLI: `maru post new --from 글.md`, `maru post publish <id>`. 댓글 정리는 `list_pending_comments`, `moderate_comment`.

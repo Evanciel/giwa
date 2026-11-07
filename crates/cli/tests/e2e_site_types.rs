@@ -10,7 +10,8 @@ use std::process::{Child, Command, Stdio};
 use serde_json::Value;
 
 const BIN: &str = env!("CARGO_BIN_EXE_maru");
-const TYPES: [&str; 9] = [
+const TYPES: [&str; 10] = [
+    "docs",
     "cafe",
     "company",
     "landing",
@@ -86,6 +87,12 @@ fn get(bind: &str, path: &str) -> (u16, String, String) {
         bind,
         &format!("GET {path} HTTP/1.1\r\nHost: {bind}\r\nConnection: close\r\n\r\n"),
     )
+}
+
+fn request_post_status(bind: &str, path: &str) -> u16 {
+    let raw =
+        format!("POST {path} HTTP/1.1@@Host: {bind}@@Connection: close@@Content-Length: 0@@@@");
+    request(bind, &raw.replace("@@", "\r\n")).0
 }
 
 /// 폼 제출. `origin` 이 비어 있지 않으면 그 출처에서 보낸 것처럼 보낸다.
@@ -376,4 +383,172 @@ fn 회원_전용_게시판은_로그인하면_읽히고_손님_화면과_목록�
     let (status, head, _) = with_cookie(&bind, "/b/notice", &cookie);
     assert_eq!(status, 200);
     assert!(!head.to_lowercase().contains("no-store"), "{head}");
+}
+
+/// ADR-0128: 문서는 목록·위치·앞뒤가 이어지고, 계층에 고리를 만들 수 없다.
+#[test]
+fn 문서_프리셋은_목록과_위치와_앞뒤로_이어진다() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("사이트");
+    maru(&data, &["init", "--preset", "docs", "--yes"]);
+    let (_server, bind) = start_server(&data);
+
+    let (status, _, body) = get(&bind, "/p/install");
+    assert_eq!(status, 200, "{body}");
+    assert!(body.contains("class=\"crumbs\""), "위치 표시: {body}");
+    assert!(
+        body.contains("aria-current=\"page\">설치"),
+        "지금 문서: {body}"
+    );
+    assert!(body.contains("자주 하는 일 하나"), "문서 목록: {body}");
+    assert!(body.contains("rel=\"prev\""), "{body}");
+    assert!(body.contains("/p/start"), "{body}");
+    assert!(body.contains("rel=\"next\""), "{body}");
+    assert!(body.contains("/p/first-steps"), "{body}");
+
+    // 위 페이지가 자기 아래가 될 수 없다.
+    let bad = run(&data, &["page", "edit", "start", "--parent", "install"]);
+    assert_eq!(bad["ok"], false, "{bad}");
+    let bad = run(&data, &["page", "edit", "start", "--parent", "없는주소"]);
+    assert_eq!(bad["ok"], false, "{bad}");
+
+    // 맨 위로 옮기면 위치 표시가 사라진다.
+    maru(&data, &["page", "edit", "install", "--parent", ""]);
+    let (_, _, body) = get(&bind, "/p/install");
+    assert!(!body.contains("class=\"crumbs\""), "{body}");
+}
+
+/// ADR-0128: 주소를 바꿔도 옛 링크가 살아 있고, 살아 있는 화면이 먼저다.
+#[test]
+fn 주소를_바꾸면_옛_주소가_새_주소로_간다() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("사이트");
+    maru(&data, &["init", "--preset", "company", "--yes"]);
+    let (_server, bind) = start_server(&data);
+    let location = |head: &str| {
+        head.lines()
+            .filter_map(|l| l.split_once(':'))
+            .find(|(k, _)| k.eq_ignore_ascii_case("location"))
+            .map(|(_, v)| v.trim().to_owned())
+            .unwrap_or_default()
+    };
+
+    maru(&data, &["page", "edit", "about", "--new-slug", "소개"]);
+    let (status, head, _) = get(&bind, "/p/about?x=1");
+    assert_eq!(status, 301, "{head}");
+    assert_eq!(location(&head), "/p/%EC%86%8C%EA%B0%9C?x=1");
+    assert_eq!(get(&bind, "/p/%EC%86%8C%EA%B0%9C").0, 200);
+
+    // 두 번 옮겨도 한 번에 간다.
+    maru(&data, &["page", "edit", "소개", "--new-slug", "company"]);
+    let (status, head, _) = get(&bind, "/p/about");
+    assert_eq!(status, 301, "{head}");
+    assert_eq!(location(&head), "/p/company");
+
+    // 옛 주소에 새 페이지를 만들면 그 페이지가 보인다.
+    maru(
+        &data,
+        &["page", "new", "about", "--title", "새 소개", "--publish"],
+    );
+    let (status, _, body) = get(&bind, "/p/about");
+    assert_eq!(status, 200);
+    assert!(body.contains("새 소개"), "{body}");
+
+    // 글 슬러그
+    let posted = maru(
+        &data,
+        &[
+            "post",
+            "new",
+            "--publish",
+            "--board",
+            "notice",
+            "--title",
+            "공지 하나",
+            "--body",
+            "본문",
+        ],
+    );
+    let id = posted["id"].as_str().unwrap();
+    let old = format!("/b/notice/{}", posted["slug"].as_str().unwrap());
+    maru(&data, &["post", "edit", id, "--slug", "first-notice"]);
+    let (status, head, _) = get(&bind, &old);
+    assert_eq!(status, 301, "{head}");
+    assert_eq!(location(&head), "/b/notice/first-notice");
+
+    // 직접 더하기: 다른 사이트에서 옮겨 올 때
+    maru(&data, &["redirect", "add", "/old/greeting", "/p/company"]);
+    let (status, head, _) = get(&bind, "/old/greeting");
+    assert_eq!(status, 301, "{head}");
+    assert_eq!(location(&head), "/p/company");
+    assert_eq!(request_post_status(&bind, "/old/greeting"), 404);
+
+    for (from, to) in [
+        ("/admin/x", "/p/company"),
+        ("/api/v1/posts", "/p/company"),
+        ("/old/a", "javascript:alert(1)"),
+        ("/old/a", "//evil.example"),
+        ("/old/greeting", "/old/greeting"),
+        ("/p/company", "/old/greeting"),
+    ] {
+        let v = run(&data, &["redirect", "add", from, to]);
+        assert_eq!(v["ok"], false, "{from} -> {to}: {v}");
+    }
+
+    let listed = maru(&data, &["redirect", "list"]);
+    assert!(listed.to_string().contains("/old/greeting"), "{listed}");
+    maru(&data, &["redirect", "remove", "/old/greeting"]);
+    assert_eq!(get(&bind, "/old/greeting").0, 404);
+}
+
+/// ADR-0128: 옮긴 주소도 변경 묶음으로 담고 한 번에 되돌린다.
+#[test]
+fn 옮긴_주소는_변경_묶음으로_담고_되돌린다() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("사이트");
+    maru(&data, &["init", "--preset", "docs", "--yes"]);
+    let ops = tmp.path().join("ops.json");
+    std::fs::write(
+        &ops,
+        r#"[{"op":"redirect.add","from":"/old","to":"/p/start"},
+            {"op":"page.update","slug":"install","patch":{"parent":"guides"}}]"#,
+    )
+    .unwrap();
+    let cs = maru(
+        &data,
+        &[
+            "changeset",
+            "new",
+            "--title",
+            "옮기기",
+            "--ops-file",
+            ops.to_str().unwrap(),
+        ],
+    );
+    let id = cs["id"].as_str().unwrap();
+    maru(&data, &["changeset", "apply", id]);
+    assert!(
+        maru(&data, &["redirect", "list"])
+            .to_string()
+            .contains("/old")
+    );
+    let parent = |d: &Path| {
+        let v = maru(d, &["page", "show", "install"]);
+        let guides = maru(d, &["page", "show", "guides"]);
+        v["parent_id"] == guides["id"]
+    };
+    assert!(parent(&data));
+
+    maru(&data, &["changeset", "revert", id]);
+    assert!(
+        !maru(&data, &["redirect", "list"])
+            .to_string()
+            .contains("/old")
+    );
+    assert!(!parent(&data), "위 페이지도 돌아가야 한다");
+    let start = maru(&data, &["page", "show", "start"]);
+    assert_eq!(
+        maru(&data, &["page", "show", "install"])["parent_id"],
+        start["id"]
+    );
 }

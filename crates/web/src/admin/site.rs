@@ -19,6 +19,7 @@ use maru_core::model::{
 };
 use maru_core::services::boards::{self, BoardPatch, NewBoard};
 use maru_core::services::pages::{self, NewPage, PagePatch};
+use maru_core::services::redirects;
 use maru_core::services::settings::{self, SettingsPatch};
 use maru_core::services::{design, fonts, members, menus};
 use maru_core::urls::{self, Target};
@@ -37,6 +38,8 @@ pub(super) fn routes() -> Router<AppState> {
         .route("/admin/pages", get(pages_page).post(page_create))
         .route("/admin/pages/{slug}", get(page_page).post(page_save))
         .route("/admin/pages/{slug}/{action}", post(page_action))
+        .route("/admin/redirects", post(redirect_add))
+        .route("/admin/redirects/delete", post(redirect_remove))
         .route("/admin/menus", get(menus_page))
         .route("/admin/menus/{location}", post(menu_save))
         .route("/admin/members", get(members_page))
@@ -525,6 +528,8 @@ struct PageForm {
     layout: String,
     #[serde(default)]
     sort_order: String,
+    #[serde(default)]
+    parent: String,
 }
 
 impl PageForm {
@@ -536,6 +541,7 @@ impl PageForm {
             body_md: p.body_md.clone(),
             layout: p.layout.clone(),
             sort_order: p.sort_order.to_string(),
+            parent: String::new(),
         }
     }
 }
@@ -573,6 +579,7 @@ async fn pages_page(
         "hide" => Some("숨겼습니다."),
         "delete" => Some("지웠습니다. 목록에서 되살릴 수 있습니다."),
         "restore" => Some("되살렸습니다."),
+        "redirect" => Some("옮긴 주소를 고쳤습니다."),
         _ => None,
     };
     pages_render(
@@ -598,13 +605,72 @@ async fn pages_render(
         Ok(l) => l,
         Err(e) => return fail(state, Some(who), &e).await,
     };
+    let moved = match redirects::list(&state.ctx, &who.actor).await {
+        Ok(l) => l,
+        Err(e) => return fail(state, Some(who), &e).await,
+    };
     let tz = tz(state).await;
     let items = list.iter().map(|p| page_json(p, tz)).collect::<Vec<_>>();
     let ctx = merge(
         base(state, Some(who), "pages").await,
-        json!({ "notice": notice, "error": error, "items": items, "form": form }),
+        json!({ "notice": notice, "error": error, "items": items, "form": form, "redirects": moved }),
     );
     render(state, status, "pages.html", &ctx)
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct RedirectForm {
+    #[serde(default, rename = "_csrf")]
+    csrf: String,
+    #[serde(default)]
+    from: String,
+    #[serde(default)]
+    to: String,
+}
+
+async fn redirect_add(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Form(f): Form<RedirectForm>,
+) -> Response {
+    let who = match require_post(&state, &headers, &f.csrf).await {
+        Ok(w) => w,
+        Err(r) => return *r,
+    };
+    let input = redirects::NewRedirect {
+        from: f.from,
+        to: f.to,
+    };
+    match redirects::add(&state.ctx, &who.actor, input).await {
+        Ok(_) => Redirect::to("/admin/pages?done=redirect").into_response(),
+        Err(e) if fixable(&e) => {
+            pages_render(
+                &state,
+                &who,
+                StatusCode::UNPROCESSABLE_ENTITY,
+                None,
+                Some(e.message()),
+                &PageForm::default(),
+            )
+            .await
+        }
+        Err(e) => fail(&state, Some(&who), &e).await,
+    }
+}
+
+async fn redirect_remove(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Form(f): Form<RedirectForm>,
+) -> Response {
+    let who = match require_post(&state, &headers, &f.csrf).await {
+        Ok(w) => w,
+        Err(r) => return *r,
+    };
+    match redirects::remove(&state.ctx, &who.actor, &f.from).await {
+        Ok(_) => Redirect::to("/admin/pages?done=redirect").into_response(),
+        Err(e) => fail(&state, Some(&who), &e).await,
+    }
 }
 
 async fn page_create(
@@ -622,6 +688,7 @@ async fn page_create(
         body_md: String::new(),
         layout: "default".into(),
         sort_order: 0,
+        parent: None,
     };
     match pages::create(&state.ctx, &who.actor, input).await {
         Ok(p) => {
@@ -685,7 +752,28 @@ async fn page_render(
     let tz = tz(state).await;
     let layouts: Vec<(&str, &str)> = PAGE_LAYOUTS
         .iter()
-        .map(|l| (*l, if *l == "wide" { "넓게" } else { "보통" }))
+        .map(|l| {
+            let label = match *l {
+                "wide" => "넓게",
+                "blocks" => "섹션 블록",
+                "docs" => "문서",
+                _ => "보통",
+            };
+            (*l, label)
+        })
+        .collect();
+    let others = match pages::list(&state.ctx, &who.actor, None).await {
+        Ok(l) => l,
+        Err(e) => return fail(state, Some(who), &e).await,
+    };
+    let parent = others
+        .iter()
+        .find(|p| Some(&p.id) == page.parent_id.as_ref())
+        .map_or("", |p| p.slug.as_str());
+    let parents: Vec<Value> = others
+        .iter()
+        .filter(|p| p.id != page.id && p.status != PageStatus::Deleted)
+        .map(|p| json!({ "id": p.slug, "label": p.title }))
         .collect();
     let ctx = merge(
         base(state, Some(who), "pages").await,
@@ -695,6 +783,8 @@ async fn page_render(
             "page": page_json(page, tz),
             "form": form,
             "layouts": choices(&layouts),
+            "parent": parent,
+            "parents": parents,
         }),
     );
     render(state, status, "page.html", &ctx)
@@ -724,6 +814,7 @@ async fn page_save(
             body_md: Some(f.body_md.clone()),
             layout: Some(f.layout.clone()),
             sort_order: Some(n),
+            parent: Some(f.parent.clone()),
         }),
         Err(e) => Err(e),
     };

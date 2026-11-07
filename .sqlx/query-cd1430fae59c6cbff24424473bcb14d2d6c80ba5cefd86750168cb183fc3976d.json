@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO redirects (from_path, to_path, created_at) VALUES (?, ?, ?)\n             ON CONFLICT (from_path) DO UPDATE SET to_path = excluded.to_path",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "cd1430fae59c6cbff24424473bcb14d2d6c80ba5cefd86750168cb183fc3976d"
+}

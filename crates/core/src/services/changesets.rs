@@ -17,7 +17,7 @@ use crate::design::Tokens;
 use crate::error::{Code, Error, Result};
 use crate::model::{Board, Changeset, ChangesetStatus, MenuItem, PageStatus};
 use crate::services::presets::{self, Preset};
-use crate::services::{auth, boards, design, menus, pages, settings, widgets};
+use crate::services::{auth, boards, design, menus, pages, redirects, settings, widgets};
 use crate::store::{Ctx, Tx};
 
 /// 한 changeset 에 담을 수 있는 연산 수.
@@ -53,6 +53,10 @@ pub enum ChangeOp {
     PageDelete { slug: String },
     #[serde(rename = "page.restore")]
     PageRestore { slug: String },
+    #[serde(rename = "redirect.add")]
+    RedirectAdd(Box<redirects::NewRedirect>),
+    #[serde(rename = "redirect.remove")]
+    RedirectRemove { from: String },
     #[serde(rename = "menu.set")]
     MenuSet {
         location: String,
@@ -97,6 +101,8 @@ impl ChangeOp {
             | Self::PageHide { .. }
             | Self::PageDelete { .. }
             | Self::PageRestore { .. }
+            | Self::RedirectAdd(_)
+            | Self::RedirectRemove { .. }
             | Self::MenuSet { .. }
             | Self::SettingsSet { .. }
             | Self::PresetStep { .. } => Permission::StructureEdit,
@@ -621,7 +627,10 @@ async fn run(ctx: &Ctx, actor: &Actor, op: &ChangeOp) -> Result<Vec<ChangeOp>> {
         }
         ChangeOp::PageUpdate { slug, patch } => {
             let before = pages::get(ctx, actor, slug).await?;
+            let parent = pages::parent_slug(ctx, &before).await?;
             let after = pages::update(ctx, actor, slug, patch.clone()).await?;
+            let mut before = serde_json::to_value(&before).map_err(Error::internal)?;
+            before["parent"] = Value::String(parent);
             vec![ChangeOp::PageUpdate {
                 slug: after.slug,
                 patch: restore_patch(patch, &before)?,
@@ -652,6 +661,26 @@ async fn run(ctx: &Ctx, actor: &Actor, op: &ChangeOp) -> Result<Vec<ChangeOp>> {
         ChangeOp::PageRestore { slug } => {
             pages::restore(ctx, actor, slug).await?;
             vec![ChangeOp::PageDelete { slug: slug.clone() }]
+        }
+        ChangeOp::RedirectAdd(input) => {
+            let before = redirects::get(ctx, actor, &input.from).await?;
+            let row = redirects::add(ctx, actor, (**input).clone()).await?;
+            vec![match before {
+                Some(b) => ChangeOp::RedirectAdd(Box::new(redirects::NewRedirect {
+                    from: b.from_path,
+                    to: b.to_path,
+                })),
+                None => ChangeOp::RedirectRemove {
+                    from: row.from_path,
+                },
+            }]
+        }
+        ChangeOp::RedirectRemove { from } => {
+            let row = redirects::remove(ctx, actor, from).await?;
+            vec![ChangeOp::RedirectAdd(Box::new(redirects::NewRedirect {
+                from: row.from_path,
+                to: row.to_path,
+            }))]
         }
         ChangeOp::MenuSet { location, items } => {
             let before = menus::get(ctx, location).await?;

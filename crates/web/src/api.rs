@@ -14,8 +14,8 @@ use maru_core::output::Success;
 use maru_core::services::changesets;
 use maru_core::services::{
     anonymous_actor, audit_log, backups, boards, categories, comments, design, files, fonts, links,
-    media, members, menus, pages, posts, retention, search, settings, signals, stats, tags,
-    templates, tokens, views, widgets, wiki,
+    media, members, menus, pages, posts, redirects, retention, search, settings, signals, stats,
+    tags, templates, tokens, views, widgets, wiki,
 };
 use maru_core::{Actor, Code, Error};
 use maru_modules::service as modules;
@@ -60,6 +60,12 @@ pub fn routes() -> Router<AppState> {
         .route("/pages", get(list_pages).post(create_page))
         .route("/pages/{slug}", get(get_page).patch(update_page))
         .route("/pages/{slug}/{action}", post(page_action))
+        .route(
+            "/redirects",
+            get(list_redirects)
+                .post(add_redirect)
+                .delete(remove_redirect),
+        )
         .route("/menus/{location}", get(get_menu).put(put_menu))
         .route("/widget-types", get(widget_types))
         .route("/widgets", get(list_widgets).post(place_widget))
@@ -456,6 +462,45 @@ async fn list_pages(
     Ok(ok(
         StatusCode::OK,
         pages::list(&state.ctx, &actor, status).await?,
+    ))
+}
+
+async fn list_redirects(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+) -> Result<Response, ApiError> {
+    Ok(ok(
+        StatusCode::OK,
+        redirects::list(&state.ctx, &actor).await?,
+    ))
+}
+
+async fn add_redirect(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    body: Result<Json<redirects::NewRedirect>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let Json(input) = body.map_err(bad_json)?;
+    Ok(ok(
+        StatusCode::CREATED,
+        redirects::add(&state.ctx, &actor, input).await?,
+    ))
+}
+
+#[derive(Debug, Deserialize)]
+struct RedirectQuery {
+    from: String,
+}
+
+/// `DELETE /redirects?from=/옛주소`
+async fn remove_redirect(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Query(q): Query<RedirectQuery>,
+) -> Result<Response, ApiError> {
+    Ok(ok(
+        StatusCode::OK,
+        redirects::remove(&state.ctx, &actor, &q.from).await?,
     ))
 }
 

@@ -22,6 +22,7 @@ pub mod moderation;
 pub mod pages;
 pub mod posts;
 pub mod presets;
+pub mod redirects;
 pub mod retention;
 pub mod search;
 pub mod sections;

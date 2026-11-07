@@ -251,7 +251,10 @@ fn cli_revisions_move_copy_and_bulk() {
     assert_eq!(moved["id"], id.as_str());
     assert_eq!(board_of(&data, &id), "free");
     assert_eq!(http(&bind, "GET", "/b/free/first", &[], "").status, 200);
-    assert_eq!(http(&bind, "GET", "/b/blog/first", &[], "").status, 404);
+    // 옛 주소는 새 주소로 옮겨 준다 (ADR-0128).
+    let old = http(&bind, "GET", "/b/blog/first", &[], "");
+    assert_eq!(old.status, 301);
+    assert_eq!(old.header("location").as_deref(), Some("/b/free/first"));
 
     // 복사는 초안.
     let copy = maru(&data, &["post", "copy", &id, "--board", "blog"]);

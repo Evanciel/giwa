@@ -1,0 +1,54 @@
+{# 지도 (ADR-0130). 주소와 링크는 키가 없어도, 지도를 못 불러와도 남는다.
+   값은 data-* 로 건네 스크립트 안에 글자를 넣지 않는다. #}
+<div class="map-widget">
+  {% if w.data.live and csp_nonce %}
+  <div class="map-box" data-key="{{ w.data.key }}" data-address="{{ w.data.address }}"{% if w.data.lat is not none %} data-lat="{{ w.data.lat }}" data-lng="{{ w.data.lng }}"{% endif %}></div>
+  {% if w.data.provider == "kakao" %}
+  <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey={{ w.data.key }}&amp;libraries=services&amp;autoload=false" nonce="{{ csp_nonce }}"></script>
+  <script nonce="{{ csp_nonce }}">(function () {
+    var box = document.currentScript.parentNode.querySelector('.map-box');
+    function fail() { box.classList.add('map-failed'); box.textContent = '지도를 불러오지 못했습니다. 아래 링크를 이용해 주세요.'; }
+    if (!window.kakao || !kakao.maps) { fail(); return; }
+    kakao.maps.load(function () {
+      var seoul = new kakao.maps.LatLng(37.5665, 126.978);
+      var map = new kakao.maps.Map(box, { center: seoul, level: 3 });
+      function show(at) { new kakao.maps.Marker({ map: map, position: at }); map.setCenter(at); }
+      if (box.dataset.lat) { show(new kakao.maps.LatLng(+box.dataset.lat, +box.dataset.lng)); return; }
+      new kakao.maps.services.Geocoder().addressSearch(box.dataset.address, function (result, status) {
+        if (status === kakao.maps.services.Status.OK) { show(new kakao.maps.LatLng(result[0].y, result[0].x)); } else { fail(); }
+      });
+    });
+  })();</script>
+  {% else %}
+  {# 파서가 부르면 maps.js 가 document.write 로 부품을 불러 strict CSP 에 막힌다. 스크립트로 넣어야 비동기로 돈다. #}
+  <script nonce="{{ csp_nonce }}">(function () {
+    var box = document.currentScript.parentNode.querySelector('.map-box');
+    function fail() { box.classList.add('map-failed'); box.textContent = '지도를 불러오지 못했습니다. 아래 링크를 이용해 주세요.'; }
+    window.navermap_authFailure = fail;
+    window.maruNaverMap = function () {
+      try {
+        var seoul = new naver.maps.LatLng(37.5665, 126.978);
+        var map = new naver.maps.Map(box, { center: seoul, zoom: 16 });
+        var show = function (at) { new naver.maps.Marker({ map: map, position: at }); map.setCenter(at); };
+        if (box.dataset.lat) { show(new naver.maps.LatLng(+box.dataset.lat, +box.dataset.lng)); return; }
+        var find = function () {
+          naver.maps.Service.geocode({ query: box.dataset.address }, function (status, response) {
+            var found = status === naver.maps.Service.Status.OK && response.v2.addresses[0];
+            if (found) { show(new naver.maps.LatLng(+found.y, +found.x)); } else { fail(); }
+          });
+        };
+        if (naver.maps.Service) { find(); } else { naver.maps.onJSContentLoaded = find; }
+      } catch (e) { fail(); }
+    };
+    var sdk = document.createElement('script');
+    sdk.src = 'https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=' + encodeURIComponent(box.dataset.key)
+      + (box.dataset.lat ? '' : '&submodules=geocoder') + '&callback=maruNaverMap';
+    sdk.async = true;
+    sdk.onerror = fail;
+    document.head.appendChild(sdk);
+  })();</script>
+  {% endif %}
+  {% endif %}
+  <p class="map-address">{% if w.data.name %}<strong>{{ w.data.name }}</strong> {% endif %}{{ w.data.address }}</p>
+  <p class="map-links"><a href="{{ w.data.naver_url }}" rel="noopener noreferrer">네이버 지도</a> <a href="{{ w.data.kakao_url }}" rel="noopener noreferrer">카카오맵</a></p>
+</div>

@@ -14,6 +14,7 @@ use maru_core::services::comments::{self, Moderation};
 use maru_core::services::media::{self, MediaPatch};
 use maru_core::services::pages::{NewPage, PagePatch};
 use maru_core::services::posts::{self, NewPost, PostPatch};
+use maru_core::services::redirects::NewRedirect;
 use maru_core::services::search::{self, SearchInput};
 use maru_core::services::settings::SettingsPatch;
 use maru_core::services::stats::{self, StatsQuery};
@@ -97,6 +98,13 @@ struct SettingsInput {
 struct BoardChange {
     slug: String,
     patch: BoardPatch,
+}
+
+#[allow(dead_code)]
+#[derive(JsonSchema)]
+struct RedirectFrom {
+    /// 지울 옛 주소
+    from: String,
 }
 
 #[allow(dead_code)]
@@ -243,7 +251,7 @@ const fn looked_up(
 }
 
 /// 변경 툴과 그 연산 이름. 입력은 그대로 `ChangeOp` 의 칸이다.
-const STAGED_OPS: [(&str, &str); 16] = [
+const STAGED_OPS: [(&str, &str); 18] = [
     ("create_board", "board.create"),
     ("update_board", "board.update"),
     ("delete_board", "board.delete"),
@@ -252,6 +260,8 @@ const STAGED_OPS: [(&str, &str); 16] = [
     ("publish_page", "page.publish"),
     ("hide_page", "page.hide"),
     ("delete_page", "page.delete"),
+    ("add_redirect", "redirect.add"),
+    ("remove_redirect", "redirect.remove"),
     ("update_menu", "menu.set"),
     ("set_tokens", "tokens.set"),
     ("set_site_settings", "settings.set"),
@@ -328,6 +338,18 @@ const SPECS: &[Spec] = &[
         "게시판을 지우는 연산을 담는다. 글이 있으면 적용할 때 멈춘다. Stage deleting a board; it stops if the board has posts.",
         Permission::StructureEdit,
         schema_of::<Staged<SlugInput>>,
+    ),
+    staged(
+        "add_redirect",
+        "옛 주소를 새 주소로 보내는 연산을 담는다. 슬러그를 바꾸면 저절로 남으니 다른 사이트에서 옮겨 올 때 쓴다. Stage a redirect from an old path.",
+        Permission::StructureEdit,
+        schema_of::<Staged<NewRedirect>>,
+    ),
+    staged(
+        "remove_redirect",
+        "옮긴 주소를 지우는 연산을 담는다. Stage removal of a redirect.",
+        Permission::StructureEdit,
+        schema_of::<Staged<RedirectFrom>>,
     ),
     staged(
         "create_page",

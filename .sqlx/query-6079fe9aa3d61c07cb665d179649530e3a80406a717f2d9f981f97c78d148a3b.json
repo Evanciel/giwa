@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM redirects WHERE from_path = to_path",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": []
+  },
+  "hash": "6079fe9aa3d61c07cb665d179649530e3a80406a717f2d9f981f97c78d148a3b"
+}

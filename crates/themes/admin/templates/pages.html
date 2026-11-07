@@ -49,4 +49,37 @@
     <button type="submit">만들기</button>
   </form>
 </section>
+
+<section aria-labelledby="redirects-title" class="site-section">
+  <h2 id="redirects-title">옮긴 주소</h2>
+  <p class="hint">없는 주소로 들어오면 새 주소로 보냅니다. 페이지나 글의 주소를 바꾸면 저절로 더해집니다.</p>
+  {% if redirects %}<table>
+    <thead><tr><th scope="col">옛 주소</th><th scope="col">새 주소</th><th scope="col"><span class="visually-hidden">작업</span></th></tr></thead>
+    <tbody>
+    {% for r in redirects %}<tr>
+      <td><code>{{ r.from_path }}</code></td>
+      <td><code>{{ r.to_path }}</code></td>
+      <td><form method="post" action="/admin/redirects/delete" class="inline">
+        <input type="hidden" name="_csrf" value="{{ csrf }}">
+        <input type="hidden" name="from" value="{{ r.from_path }}">
+        <button type="submit" class="warn" aria-label="{{ r.from_path }} 지우기">지우기</button>
+      </form></td>
+    </tr>{% endfor %}
+    </tbody>
+  </table>{% endif %}
+  <form method="post" action="/admin/redirects" class="stack site-form">
+    <input type="hidden" name="_csrf" value="{{ csrf }}">
+    <div class="form-grid">
+      <div class="stack">
+        <label for="r-from">옛 주소</label>
+        <input id="r-from" name="from" placeholder="/old/about" required autocomplete="off" spellcheck="false">
+      </div>
+      <div class="stack">
+        <label for="r-to">새 주소</label>
+        <input id="r-to" name="to" placeholder="/p/about" required autocomplete="off" spellcheck="false">
+      </div>
+    </div>
+    <button type="submit">더하기</button>
+  </form>
+</section>
 {% endblock %}

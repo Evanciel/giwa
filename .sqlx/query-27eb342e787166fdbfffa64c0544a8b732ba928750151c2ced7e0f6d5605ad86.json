@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, slug, title, body_md, status, layout, author_id, actor_type, sort_order,\n                published_at, created_at, updated_at\n         FROM pages WHERE id = ?",
+  "query": "SELECT id, slug, title, body_md, status, layout, parent_id, author_id, actor_type,\n                    sort_order, published_at, created_at, updated_at\n             FROM pages WHERE (?1 IS NULL OR status = ?1)\n             ORDER BY sort_order, title",
   "describe": {
     "columns": [
       {
@@ -70,8 +70,19 @@
         }
       },
       {
-        "name": "author_id",
+        "name": "parent_id",
         "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "pages",
+            "name": "parent_id"
+          }
+        }
+      },
+      {
+        "name": "author_id",
+        "ordinal": 7,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -82,7 +93,7 @@
       },
       {
         "name": "actor_type",
-        "ordinal": 7,
+        "ordinal": 8,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -93,7 +104,7 @@
       },
       {
         "name": "sort_order",
-        "ordinal": 8,
+        "ordinal": 9,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -104,7 +115,7 @@
       },
       {
         "name": "published_at",
-        "ordinal": 9,
+        "ordinal": 10,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -115,7 +126,7 @@
       },
       {
         "name": "created_at",
-        "ordinal": 10,
+        "ordinal": 11,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -126,7 +137,7 @@
       },
       {
         "name": "updated_at",
-        "ordinal": 11,
+        "ordinal": 12,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -147,6 +158,7 @@
       false,
       false,
       true,
+      true,
       false,
       false,
       true,
@@ -154,5 +166,5 @@
       false
     ]
   },
-  "hash": "bff3e7176daea873f8b27124ab343242c71ab9c25eb417b13e9c14c9a2a80adc"
+  "hash": "27eb342e787166fdbfffa64c0544a8b732ba928750151c2ced7e0f6d5605ad86"
 }

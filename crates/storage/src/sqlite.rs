@@ -10,7 +10,7 @@ use maru_core::model::{
     PostKind, PostStatus, PostTemplate, Revision, Role, Session, StatBatch, StatDay, StatPage,
     StatReferrer, Tag, TicketPurpose, Token, TotpChallenge, Widget,
 };
-use maru_core::model::{LinkPreview, LinkStatus, MemberActivity, MemberTotp};
+use maru_core::model::{LinkPreview, LinkStatus, MemberActivity, MemberTotp, Redirect};
 use maru_core::store::{
     AuditFilter, CommentQuery, LiteralSearchQuery, MenuRow, ModuleMigration, PopularQuery,
     PostFilter, PublishedQuery, SearchQuery, SearchRef, Store, WikiPage, WriteTx,
@@ -250,6 +250,7 @@ struct PageRow {
     body_md: String,
     status: String,
     layout: String,
+    parent_id: Option<String>,
     author_id: Option<String>,
     actor_type: String,
     sort_order: i64,
@@ -272,6 +273,7 @@ impl TryFrom<PageRow> for Page {
             title: r.title,
             body_md: r.body_md,
             layout: r.layout,
+            parent_id: r.parent_id,
             author_id: r.author_id,
             sort_order: r.sort_order,
             published_at: r.published_at,
@@ -284,8 +286,8 @@ impl TryFrom<PageRow> for Page {
 async fn page_by_slug<'e>(e: impl SqliteExecutor<'e>, slug: &str) -> Result<Option<Page>> {
     sqlx::query_as!(
         PageRow,
-        "SELECT id, slug, title, body_md, status, layout, author_id, actor_type, sort_order,
-                published_at, created_at, updated_at
+        "SELECT id, slug, title, body_md, status, layout, parent_id, author_id, actor_type,
+                sort_order, published_at, created_at, updated_at
          FROM pages WHERE slug = ?",
         slug
     )
@@ -299,8 +301,8 @@ async fn page_by_slug<'e>(e: impl SqliteExecutor<'e>, slug: &str) -> Result<Opti
 async fn page_by_id<'e>(e: impl SqliteExecutor<'e>, id: &str) -> Result<Option<Page>> {
     sqlx::query_as!(
         PageRow,
-        "SELECT id, slug, title, body_md, status, layout, author_id, actor_type, sort_order,
-                published_at, created_at, updated_at
+        "SELECT id, slug, title, body_md, status, layout, parent_id, author_id, actor_type,
+                sort_order, published_at, created_at, updated_at
          FROM pages WHERE id = ?",
         id
     )
@@ -1117,8 +1119,8 @@ impl Store for SqliteStore {
         let status = status.map(PageStatus::as_str);
         let rows = sqlx::query_as!(
             PageRow,
-            "SELECT id, slug, title, body_md, status, layout, author_id, actor_type, sort_order,
-                    published_at, created_at, updated_at
+            "SELECT id, slug, title, body_md, status, layout, parent_id, author_id, actor_type,
+                    sort_order, published_at, created_at, updated_at
              FROM pages WHERE (?1 IS NULL OR status = ?1)
              ORDER BY sort_order, title",
             status
@@ -1127,6 +1129,27 @@ impl Store for SqliteStore {
         .await
         .map_err(db_error)?;
         convert(rows)
+    }
+
+    async fn list_redirects(&self) -> Result<Vec<Redirect>> {
+        sqlx::query_as!(
+            Redirect,
+            "SELECT from_path, to_path, created_at FROM redirects ORDER BY from_path"
+        )
+        .fetch_all(&self.db.read)
+        .await
+        .map_err(db_error)
+    }
+
+    async fn redirect_of(&self, from: &str) -> Result<Option<Redirect>> {
+        sqlx::query_as!(
+            Redirect,
+            "SELECT from_path, to_path, created_at FROM redirects WHERE from_path = ?",
+            from
+        )
+        .fetch_optional(&self.db.read)
+        .await
+        .map_err(db_error)
     }
 
     async fn menu_rows(&self, location: &str) -> Result<Vec<MenuRow>> {
@@ -2716,15 +2739,16 @@ impl WriteTx for SqliteWriteTx {
     async fn insert_page(&mut self, p: &Page) -> Result<()> {
         let (status, actor_type) = (p.status.as_str(), p.actor_type.as_str());
         sqlx::query!(
-            "INSERT INTO pages (id, slug, title, body_md, status, layout, author_id, actor_type,
-                                sort_order, published_at, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO pages (id, slug, title, body_md, status, layout, parent_id, author_id,
+                                actor_type, sort_order, published_at, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             p.id,
             p.slug,
             p.title,
             p.body_md,
             status,
             p.layout,
+            p.parent_id,
             p.author_id,
             actor_type,
             p.sort_order,
@@ -2742,13 +2766,14 @@ impl WriteTx for SqliteWriteTx {
         let status = p.status.as_str();
         sqlx::query!(
             "UPDATE pages SET slug = ?, title = ?, body_md = ?, status = ?, layout = ?,
-                              sort_order = ?, published_at = ?, updated_at = ?
+                              parent_id = ?, sort_order = ?, published_at = ?, updated_at = ?
              WHERE id = ?",
             p.slug,
             p.title,
             p.body_md,
             status,
             p.layout,
+            p.parent_id,
             p.sort_order,
             p.published_at,
             p.updated_at,
@@ -2758,6 +2783,40 @@ impl WriteTx for SqliteWriteTx {
         .await
         .map_err(db_error)?;
         crate::search::put_page(&mut self.tx, p).await
+    }
+
+    async fn put_redirect(&mut self, row: &Redirect) -> Result<()> {
+        sqlx::query!(
+            "UPDATE redirects SET to_path = ?1 WHERE to_path = ?2",
+            row.to_path,
+            row.from_path
+        )
+        .execute(&mut *self.tx)
+        .await
+        .map_err(db_error)?;
+        sqlx::query!(
+            "INSERT INTO redirects (from_path, to_path, created_at) VALUES (?, ?, ?)
+             ON CONFLICT (from_path) DO UPDATE SET to_path = excluded.to_path",
+            row.from_path,
+            row.to_path,
+            row.created_at
+        )
+        .execute(&mut *self.tx)
+        .await
+        .map_err(db_error)?;
+        sqlx::query!("DELETE FROM redirects WHERE from_path = to_path")
+            .execute(&mut *self.tx)
+            .await
+            .map_err(db_error)?;
+        Ok(())
+    }
+
+    async fn delete_redirect(&mut self, from: &str) -> Result<()> {
+        sqlx::query!("DELETE FROM redirects WHERE from_path = ?", from)
+            .execute(&mut *self.tx)
+            .await
+            .map_err(db_error)?;
+        Ok(())
     }
 
     async fn rebuild_search(&mut self) -> Result<(i64, i64)> {

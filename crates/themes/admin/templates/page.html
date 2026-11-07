@@ -15,13 +15,20 @@
       <input id="p-title" name="title" value="{{ form.title }}" maxlength="120" required autocomplete="off">
     </div>
     <div class="stack">
-      <label for="p-slug">주소 <span class="hint">바꾸면 옛 주소는 열리지 않습니다</span></label>
+      <label for="p-slug">주소 <span class="hint">바꾸면 옛 주소에서 새 주소로 보내 줍니다</span></label>
       <input id="p-slug" name="slug" value="{{ form.slug }}" maxlength="80" required autocomplete="off" spellcheck="false">
     </div>
     <div class="stack">
       <label for="p-layout">폭</label>
       <select id="p-layout" name="layout">
         {% for c in layouts %}<option value="{{ c.id }}"{% if form.layout == c.id %} selected{% endif %}>{{ c.label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="stack">
+      <label for="p-parent">위 페이지</label>
+      <select id="p-parent" name="parent">
+        <option value="">없음 (맨 위)</option>
+        {% for c in parents %}<option value="{{ c.id }}"{% if parent == c.id %} selected{% endif %}>{{ c.label }}</option>{% endfor %}
       </select>
     </div>
     <div class="stack">

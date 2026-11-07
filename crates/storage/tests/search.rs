@@ -263,6 +263,7 @@ async fn index_follows_edits_and_board_filter() {
             body_md: "나중에 만든 소개 페이지".into(),
             layout: "default".into(),
             sort_order: 0,
+            parent: None,
         },
     )
     .await

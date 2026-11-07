@@ -12,7 +12,7 @@ use crate::fields;
 use crate::model::{
     Board, Category, CommentStatus, Listing, PageReq, Post, PostKind, PostStatus, Revision, Tag,
 };
-use crate::services::{boards, categories, comments, required_text, tags};
+use crate::services::{boards, categories, comments, redirects, required_text, tags};
 use crate::slug;
 use crate::store::{Ctx, PostFilter, PublishedQuery, Tx, WriteTx};
 
@@ -840,6 +840,17 @@ pub async fn update(ctx: &Ctx, actor: &Actor, id: &str, patch: PostPatch) -> Res
     }
     after.updated_at = clock::now();
     tx.update_post(&after).await?;
+    if after.slug != before.slug {
+        let old = crate::urls::path(&crate::urls::Target::Post {
+            board: &board.slug,
+            post: &before.slug,
+        });
+        let new = crate::urls::path(&crate::urls::Target::Post {
+            board: &board.slug,
+            post: &after.slug,
+        });
+        redirects::moved(&mut tx, &old, &new).await?;
+    }
     if after.title != before.title || after.body_md != before.body_md {
         tx.insert_revision(&revision_of(&after, actor)).await?;
     }
@@ -1188,6 +1199,17 @@ pub async fn move_to(ctx: &Ctx, actor: &Actor, id: &str, input: MoveInput) -> Re
     }
     after.updated_at = clock::now();
     tx.update_post(&after).await?;
+    if to.id != from.id || after.slug != before.slug {
+        let old = crate::urls::path(&crate::urls::Target::Post {
+            board: &from.slug,
+            post: &before.slug,
+        });
+        let new = crate::urls::path(&crate::urls::Target::Post {
+            board: &to.slug,
+            post: &after.slug,
+        });
+        redirects::moved(&mut tx, &old, &new).await?;
+    }
     tx.audit(
         actor,
         "post.move",

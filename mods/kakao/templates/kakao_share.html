@@ -1,0 +1,33 @@
+{# 카카오톡 공유 (ADR-0130). SDK 를 못 받으면 단추를 숨긴 채로 둔다. 값은 data-* 로 건넨다. #}
+{% if csp_nonce %}
+<div class="kakao-share">
+  <button type="button" class="kakao-share-button" hidden data-key="{{ w.data.key }}" data-title="{{ w.data.title }}" data-description="{{ w.data.description }}" data-image="{{ w.data.image }}">{{ w.data.label }}</button>
+  <script src="{{ w.data.sdk_url }}" integrity="{{ w.data.sdk_integrity }}" crossorigin="anonymous" nonce="{{ csp_nonce }}"></script>
+  <script nonce="{{ csp_nonce }}">(function () {
+    var button = document.currentScript.parentNode.querySelector('button');
+    if (!window.Kakao) { return; }
+    try { if (!Kakao.isInitialized()) { Kakao.init(button.dataset.key); } } catch (e) { return; }
+    button.hidden = false;
+    function meta(name) {
+      var found = document.querySelector('meta[property="' + name + '"], meta[name="' + name + '"]');
+      return found ? found.content : '';
+    }
+    button.addEventListener('click', function () {
+      var url = location.href.split('#')[0];
+      var link = { mobileWebUrl: url, webUrl: url };
+      var title = button.dataset.title || document.title;
+      var image = button.dataset.image || meta('og:image');
+      if (image) {
+        Kakao.Share.sendDefault({ objectType: 'feed', content: {
+          title: title,
+          description: button.dataset.description || meta('description'),
+          imageUrl: new URL(image, location.href).href,
+          link: link
+        } });
+      } else {
+        Kakao.Share.sendDefault({ objectType: 'text', text: title, link: link });
+      }
+    });
+  })();</script>
+</div>
+{% endif %}

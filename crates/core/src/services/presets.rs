@@ -42,6 +42,11 @@ pub enum Op {
         /// 비우면 `default`
         #[serde(default)]
         layout: String,
+        /// 위 페이지 주소. 앞선 연산에서 만들어 둔다 (ADR-0128)
+        #[serde(default)]
+        parent: String,
+        #[serde(default)]
+        sort_order: i64,
     },
     /// 모듈이 꺼져 있으면 켠다 (ADR-0127).
     #[serde(rename = "module.ensure")]
@@ -97,6 +102,8 @@ pub(crate) async fn apply_op(ctx: &Ctx, actor: &Actor, op: &Op) -> Result<OpResu
             body_md,
             publish,
             layout,
+            parent,
+            sort_order,
         } => {
             let res = pages::ensure(
                 ctx,
@@ -110,7 +117,8 @@ pub(crate) async fn apply_op(ctx: &Ctx, actor: &Actor, op: &Op) -> Result<OpResu
                     } else {
                         layout.clone()
                     },
-                    sort_order: 0,
+                    sort_order: *sort_order,
+                    parent: (!parent.is_empty()).then(|| parent.clone()),
                 },
             )
             .await?;

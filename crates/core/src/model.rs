@@ -526,7 +526,7 @@ impl<T> Listing<T> {
 
 /// 페이지 레이아웃 (ADR-0016: CHECK 없이 여기서 검증).
 /// `blocks` 는 섹션 블록을 화면 폭으로 그린다 (ADR-0125).
-pub const PAGE_LAYOUTS: [&str; 3] = ["default", "wide", "blocks"];
+pub const PAGE_LAYOUTS: [&str; 4] = ["default", "wide", "blocks", "docs"];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -562,12 +562,22 @@ pub struct Page {
     pub body_md: String,
     pub status: PageStatus,
     pub layout: String,
+    /// 위 페이지 (ADR-0128). 주소는 그대로 `/p/<주소>` 다.
+    pub parent_id: Option<Id>,
     pub author_id: Option<Id>,
     pub actor_type: AuthorType,
     pub sort_order: i64,
     pub published_at: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+}
+
+/// 옮긴 주소 (ADR-0128). 경로는 디코딩한 글자로 둔다.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Redirect {
+    pub from_path: String,
+    pub to_path: String,
+    pub created_at: String,
 }
 
 /// 메뉴 위치. `quick` 은 검색 칸 옆 바로가기 단추 줄이다 (GAP Q12, ADR-0097).

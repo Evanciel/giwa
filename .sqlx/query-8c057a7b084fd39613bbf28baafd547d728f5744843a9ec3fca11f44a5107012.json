@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT from_path, to_path, created_at FROM redirects WHERE from_path = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "from_path",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "redirects",
+            "name": "from_path"
+          }
+        }
+      },
+      {
+        "name": "to_path",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "redirects",
+            "name": "to_path"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "redirects",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "8c057a7b084fd39613bbf28baafd547d728f5744843a9ec3fca11f44a5107012"
+}

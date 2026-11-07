@@ -9,12 +9,15 @@ use crate::clock;
 use crate::error::{Code, Error, Result};
 use crate::model::{PAGE_LAYOUTS, Page, PageStatus, Revision};
 use crate::services::boards::Created;
-use crate::services::required_text;
+use crate::services::{redirects, required_text};
 use crate::slug;
 use crate::store::{Ctx, Tx};
+use crate::urls::{self, Target as UrlTarget};
 
 const MAX_TITLE: usize = 200;
 const MAX_BODY_BYTES: usize = 1024 * 1024;
+/// 페이지 계층은 네 단계까지다. 그보다 깊으면 읽는 사람이 길을 잃는다.
+const MAX_DEPTH: usize = 4;
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -27,6 +30,9 @@ pub struct NewPage {
     pub layout: String,
     #[serde(default)]
     pub sort_order: i64,
+    /// 위 페이지의 주소. 없으면 맨 위 (ADR-0128)
+    #[serde(default)]
+    pub parent: Option<String>,
 }
 
 fn default_layout() -> String {
@@ -46,6 +52,42 @@ pub struct PagePatch {
     pub layout: Option<String>,
     #[serde(default)]
     pub sort_order: Option<i64>,
+    /// 위 페이지의 주소. 빈 값이면 맨 위로 (ADR-0128)
+    #[serde(default)]
+    pub parent: Option<String>,
+}
+
+/// 위 페이지를 찾고 고리·깊이를 본다. `this` 는 옮기는 페이지 (새로 만들면 없다).
+async fn parent_id(tx: &mut Tx, this: Option<&str>, parent: &str) -> Result<Option<String>> {
+    if parent.trim().is_empty() {
+        return Ok(None);
+    }
+    let found = tx
+        .page_by_slug(parent.trim())
+        .await?
+        .ok_or_else(|| not_found(parent.trim()))?;
+    let mut depth = 1;
+    let mut at = Some(found.clone());
+    while let Some(p) = at {
+        if this == Some(p.id.as_str()) {
+            return Err(Error::new(Code::Validation)
+                .with_message("error.page_parent_cycle")
+                .arg("slug", parent.trim())
+                .next("maru page list"));
+        }
+        depth += 1;
+        if depth > MAX_DEPTH {
+            return Err(Error::new(Code::Validation)
+                .with_message("error.page_parent_deep")
+                .arg("max", MAX_DEPTH.to_string())
+                .next("maru page list"));
+        }
+        at = match &p.parent_id {
+            Some(id) => tx.page_by_id(id).await?,
+            None => None,
+        };
+    }
+    Ok(Some(found.id))
 }
 
 pub async fn create(ctx: &Ctx, actor: &Actor, input: NewPage) -> Result<Page> {
@@ -85,6 +127,10 @@ async fn create_inner(
             .arg("slug", slug.clone())
             .next(format!("maru page edit {slug}")));
     }
+    let parent = match &input.parent {
+        Some(p) => parent_id(&mut tx, None, p).await?,
+        None => None,
+    };
     let now = clock::now();
     let page = Page {
         id: clock::new_id(),
@@ -93,6 +139,7 @@ async fn create_inner(
         body_md,
         status: PageStatus::Draft,
         layout: input.layout,
+        parent_id: parent,
         author_id: actor.member_id().cloned(),
         actor_type: author_type,
         sort_order: input.sort_order,
@@ -149,11 +196,19 @@ pub async fn update(ctx: &Ctx, actor: &Actor, slug_: &str, patch: PagePatch) -> 
         }
         after.slug = s;
     }
+    if let Some(p) = &patch.parent {
+        after.parent_id = parent_id(&mut tx, Some(&before.id), p).await?;
+    }
     if after == before {
         return Ok(before);
     }
     after.updated_at = clock::now();
     tx.update_page(&after).await?;
+    if after.slug != before.slug {
+        let from = urls::path(&UrlTarget::Page { page: &before.slug });
+        let to = urls::path(&UrlTarget::Page { page: &after.slug });
+        redirects::moved(&mut tx, &from, &to).await?;
+    }
     if after.title != before.title || after.body_md != before.body_md {
         tx.insert_revision(&revision_of(&after, actor)).await?;
     }
@@ -300,6 +355,119 @@ pub async fn public_page(ctx: &Ctx, actor: &Actor, slug: &str) -> Result<Page> {
         .ok_or_else(|| not_found(slug))
 }
 
+/// 위 페이지의 주소. changeset 역연산이 되돌릴 값이다.
+pub async fn parent_slug(ctx: &Ctx, page: &Page) -> Result<String> {
+    Ok(match &page.parent_id {
+        Some(id) => ctx
+            .store
+            .page_by_id(id)
+            .await?
+            .map(|p| p.slug)
+            .unwrap_or_default(),
+        None => String::new(),
+    })
+}
+
+/// 페이지 하나로 가는 길.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+pub struct NavLink {
+    pub slug: String,
+    pub title: String,
+}
+
+/// 문서 목록의 한 칸.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+pub struct TreeNode {
+    pub slug: String,
+    pub title: String,
+    pub children: Vec<TreeNode>,
+}
+
+/// 페이지 주변의 길 (ADR-0128): 위쪽 경로, 바로 아래 페이지, 문서 목록과 앞뒤 문서.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, JsonSchema)]
+pub struct PageNav {
+    pub trail: Vec<NavLink>,
+    pub children: Vec<NavLink>,
+    pub tree: Vec<TreeNode>,
+    pub prev: Option<NavLink>,
+    pub next: Option<NavLink>,
+}
+
+fn link(p: &Page) -> NavLink {
+    NavLink {
+        slug: p.slug.clone(),
+        title: p.title.clone(),
+    }
+}
+
+/// `all` 은 공개 페이지 전부(순서대로). 숨긴 위 페이지는 없는 셈 친다.
+pub fn navigation(all: &[Page], current: &Page) -> PageNav {
+    let by_id = |id: &str| all.iter().find(|p| p.id == id);
+    let mut trail = Vec::new();
+    let mut at = current.parent_id.as_deref().and_then(by_id);
+    while let Some(p) = at {
+        if trail.len() >= MAX_DEPTH {
+            break;
+        }
+        trail.insert(0, link(p));
+        at = p.parent_id.as_deref().and_then(by_id);
+    }
+    let children = all
+        .iter()
+        .filter(|p| p.parent_id.as_deref() == Some(current.id.as_str()))
+        .map(link)
+        .collect();
+    let mut nav = PageNav {
+        trail,
+        children,
+        ..PageNav::default()
+    };
+    if current.layout != "docs" {
+        return nav;
+    }
+    let docs: Vec<&Page> = all.iter().filter(|p| p.layout == "docs").collect();
+    let is_doc = |id: &str| docs.iter().any(|p| p.id == id);
+    let roots: Vec<&Page> = docs
+        .iter()
+        .copied()
+        .filter(|p| !p.parent_id.as_deref().is_some_and(is_doc))
+        .collect();
+    nav.tree = roots.iter().map(|p| tree_node(&docs, p, 1)).collect();
+    let mut flat = Vec::new();
+    flatten(&nav.tree, &mut flat);
+    if let Some(i) = flat.iter().position(|n| n.slug == current.slug) {
+        nav.prev = i.checked_sub(1).and_then(|j| flat.get(j).cloned());
+        nav.next = flat.get(i + 1).cloned();
+    }
+    nav
+}
+
+fn tree_node(docs: &[&Page], page: &Page, depth: usize) -> TreeNode {
+    let children = if depth < MAX_DEPTH {
+        docs.iter()
+            .filter(|p| p.parent_id.as_deref() == Some(page.id.as_str()))
+            .map(|p| tree_node(docs, p, depth + 1))
+            .collect()
+    } else {
+        Vec::new()
+    };
+    TreeNode {
+        slug: page.slug.clone(),
+        title: page.title.clone(),
+        children,
+    }
+}
+
+fn flatten(nodes: &[TreeNode], out: &mut Vec<NavLink>) {
+    for n in nodes {
+        out.push(NavLink {
+            slug: n.slug.clone(),
+            title: n.title.clone(),
+        });
+        flatten(&n.children, out);
+    }
+}
+
 pub async fn public_pages(ctx: &Ctx, actor: &Actor) -> Result<Vec<Page>> {
     if !actor.has(Permission::SiteView) {
         return Ok(vec![]);
@@ -347,4 +515,65 @@ fn bad_transition(page: &Page, to: PageStatus) -> Error {
         .with_message("error.post_transition")
         .arg("from", page.status.as_str())
         .arg("to", to.as_str())
+}
+
+#[cfg(test)]
+mod nav_tests {
+    use super::*;
+    use crate::actor::AuthorType;
+
+    fn page(id: &str, parent: Option<&str>, layout: &str) -> Page {
+        Page {
+            id: id.into(),
+            slug: id.into(),
+            title: id.to_uppercase(),
+            body_md: String::new(),
+            status: PageStatus::Published,
+            layout: layout.into(),
+            parent_id: parent.map(Into::into),
+            author_id: None,
+            actor_type: AuthorType::Agent,
+            sort_order: 0,
+            published_at: None,
+            created_at: String::new(),
+            updated_at: String::new(),
+        }
+    }
+
+    #[test]
+    fn 문서는_위에서_아래로_읽는_순서로_앞뒤가_이어진다() {
+        let all = [
+            page("start", None, "docs"),
+            page("install", Some("start"), "docs"),
+            page("first", Some("start"), "docs"),
+            page("guide", None, "docs"),
+            page("about", None, "default"),
+        ];
+        let nav = navigation(&all, &all[2]);
+        assert_eq!(nav.trail[0].slug, "start");
+        assert_eq!(nav.prev.unwrap().slug, "install");
+        assert_eq!(nav.next.unwrap().slug, "guide");
+        assert_eq!(nav.tree.len(), 2, "문서가 아닌 페이지는 목록에 없다");
+        assert_eq!(nav.tree[0].children.len(), 2);
+
+        let top = navigation(&all, &all[0]);
+        assert!(top.prev.is_none());
+        assert_eq!(top.children.len(), 2);
+    }
+
+    #[test]
+    fn 숨긴_위_페이지는_없는_셈_친다() {
+        let all = [page("child", Some("hidden"), "docs")];
+        let nav = navigation(&all, &all[0]);
+        assert!(nav.trail.is_empty());
+        assert_eq!(nav.tree.len(), 1);
+    }
+
+    #[test]
+    fn 문서가_아닌_페이지는_목록을_만들지_않는다() {
+        let all = [page("a", None, "default"), page("b", Some("a"), "default")];
+        let nav = navigation(&all, &all[1]);
+        assert_eq!(nav.trail.len(), 1);
+        assert!(nav.tree.is_empty());
+    }
 }

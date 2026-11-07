@@ -255,6 +255,18 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "error.board_not_empty" => "`{slug}` 게시판에 글이 {count}개 있어 지울 수 없습니다.",
         "error.page_exists" => "`{slug}` 페이지가 이미 있습니다.",
         "error.page_not_found" => "`{slug}` 페이지를 찾을 수 없습니다.",
+        "error.page_parent_cycle" => {
+            "`{slug}` 는 이 페이지 아래에 있어 위 페이지로 삼을 수 없습니다."
+        }
+        "error.page_parent_deep" => "페이지 계층은 {max}단계까지입니다.",
+        "error.redirect_from" => {
+            "`{path}` 는 옮길 수 없는 주소입니다. 사이트 안의 경로여야 하고, 관리·API 주소는 안 됩니다."
+        }
+        "error.redirect_to" => {
+            "`{path}` 로는 보낼 수 없습니다. `/` 로 시작하는 경로나 http(s) 주소여야 합니다."
+        }
+        "error.redirect_loop" => "`{path}` 로 옮기면 주소가 제자리를 돕니다.",
+        "error.redirect_not_found" => "`{path}` 옮긴 주소가 없습니다.",
         "error.page_layout" => "레이아웃 `{value}` 는 지원하지 않습니다. 가능한 값: {allowed}",
         "error.menu_location" => "메뉴 위치 `{value}` 는 지원하지 않습니다. 가능한 값: {allowed}",
         "error.menu_depth" => "메뉴는 {max}단까지만 만들 수 있습니다.",

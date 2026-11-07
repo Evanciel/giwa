@@ -27,9 +27,9 @@ use crate::{
     AuditCmd, AuditListArgs, BackupArgs, BackupCmd, BoardCmd, CategoryCmd, ChangesetCmd, Command,
     CommentCmd, DesignCmd, FileCmd, FontCmd, Global, InitArgs, LinkCmd, LoginLinkArgs, MailCmd,
     MailSetupArgs, McpCmd, MediaCmd, MemberCmd, MenuCmd, MenuSetArgs, PageCmd, PostCmd,
-    PostListArgs, PostNewArgs, PrivacyCmd, RestoreArgs, SearchArgs, SearchCmd, ServeArgs,
-    SignalsArgs, SignalsCmd, SiteCmd, StatsArgs, TagCmd, TemplateCmd, TokenCmd, TokenCreateArgs,
-    WidgetCmd,
+    PostListArgs, PostNewArgs, PrivacyCmd, RedirectCmd, RestoreArgs, SearchArgs, SearchCmd,
+    ServeArgs, SignalsArgs, SignalsCmd, SiteCmd, StatsArgs, TagCmd, TemplateCmd, TokenCmd,
+    TokenCreateArgs, WidgetCmd,
 };
 
 pub async fn run(g: &Global, command: Command) -> ExitCode {
@@ -55,6 +55,7 @@ pub async fn run(g: &Global, command: Command) -> ExitCode {
         Command::Category(cmd) => category_cmd(g, cmd).await,
         Command::Tag(cmd) => tag_cmd(g, cmd).await,
         Command::Page(cmd) => page(g, cmd).await,
+        Command::Redirect(cmd) => redirect(g, cmd).await,
         Command::Menu(cmd) => menu(g, cmd).await,
         Command::Widget(cmd) => widget_cmd(g, cmd).await,
         Command::Stats(args) => stats_cmd(g, args).await,
@@ -1162,6 +1163,7 @@ async fn page_inner(ctx: &Ctx, actor: &Actor, cmd: PageCmd) -> Out {
                 body_md,
                 layout: args.layout,
                 sort_order: args.sort_order,
+                parent: args.parent,
             };
             let (mut p, created) = if args.if_not_exists {
                 let res = pages::ensure(ctx, actor, input).await?;
@@ -1222,6 +1224,7 @@ async fn page_inner(ctx: &Ctx, actor: &Actor, cmd: PageCmd) -> Out {
                 body_md,
                 layout: args.layout,
                 sort_order: args.sort_order,
+                parent: args.parent,
             };
             let p = pages::update(ctx, actor, &args.slug, patch).await?;
             page_out(ctx, &p, "고쳤습니다")
@@ -1258,6 +1261,44 @@ fn page_out(ctx: &Ctx, p: &Page, verb: &str) -> Out {
         data,
         format!("페이지 {verb}: {} [{}]\n{url}", p.title, p.status.as_str()),
     ))
+}
+
+// ---- redirect ----
+
+async fn redirect(g: &Global, cmd: RedirectCmd) -> Out {
+    let (ctx, _config, db) = open(g).await?;
+    let actor = actor(&ctx).await?;
+    let res = redirect_run(&ctx, &actor, cmd).await;
+    db.close().await;
+    res
+}
+
+async fn redirect_run(ctx: &Ctx, actor: &Actor, cmd: RedirectCmd) -> Out {
+    use maru_core::services::redirects::{self, NewRedirect};
+    match cmd {
+        RedirectCmd::List => {
+            let list = redirects::list(ctx, actor).await?;
+            let human = if list.is_empty() {
+                "옮긴 주소가 없습니다.".to_owned()
+            } else {
+                list.iter()
+                    .map(|r| format!("{} -> {}", r.from_path, r.to_path))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            };
+            Ok((to_value(&list)?, human))
+        }
+        RedirectCmd::Add { from, to } => {
+            let r = redirects::add(ctx, actor, NewRedirect { from, to }).await?;
+            let human = format!("옮겼습니다: {} -> {}", r.from_path, r.to_path);
+            Ok((to_value(&r)?, human))
+        }
+        RedirectCmd::Remove { from } => {
+            let r = redirects::remove(ctx, actor, &from).await?;
+            let human = format!("지웠습니다: {}", r.from_path);
+            Ok((to_value(&r)?, human))
+        }
+    }
 }
 
 // ---- menu ----

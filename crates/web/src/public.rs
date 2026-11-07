@@ -1389,6 +1389,18 @@ async fn page_inner(state: &AppState, slug: &str) -> Result<Value> {
     let actor = anonymous_actor(&state.ctx).await?;
     let p = pages::public_page(&state.ctx, &actor, slug).await?;
     let target = Target::Page { page: &p.slug };
+    let all = pages::public_pages(&state.ctx, &actor).await?;
+    let nav = pages::navigation(&all, &p);
+    let mut view = page_json(
+        &p,
+        body_document(state, &p.body_md, &site.settings, None).await?,
+    );
+    let links = |list: &[pages::NavLink]| list.iter().map(nav_link).collect::<Vec<_>>();
+    view["trail"] = json!(links(&nav.trail));
+    view["children"] = json!(links(&nav.children));
+    view["tree"] = json!(nav.tree.iter().map(nav_node).collect::<Vec<_>>());
+    view["prev"] = nav.prev.as_ref().map_or(Value::Null, nav_link);
+    view["next"] = nav.next.as_ref().map_or(Value::Null, nav_link);
     Ok(json!({
         "meta": json!({
             "title": format!("{} · {}", p.title, site.settings.name),
@@ -1396,8 +1408,25 @@ async fn page_inner(state: &AppState, slug: &str) -> Result<Value> {
         }),
         "site": site.json,
         "canonical": urls::absolute(&state.ctx.site_url, &target),
-        "page": page_json(&p, body_document(state, &p.body_md, &site.settings, None).await?),
+        "page": view,
     }))
+}
+
+fn nav_link(l: &pages::NavLink) -> Value {
+    json!({
+        "slug": l.slug,
+        "title": l.title,
+        "url": urls::path(&Target::Page { page: &l.slug }),
+    })
+}
+
+fn nav_node(n: &pages::TreeNode) -> Value {
+    json!({
+        "slug": n.slug,
+        "title": n.title,
+        "url": urls::path(&Target::Page { page: &n.slug }),
+        "children": n.children.iter().map(nav_node).collect::<Vec<_>>(),
+    })
 }
 
 /// 디자인 토큰 CSS. 토큰은 검증된 값만 들어 있어 그대로 내보낸다.

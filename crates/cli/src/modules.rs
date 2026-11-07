@@ -23,6 +23,8 @@ pub(crate) fn registry(db: &Db) -> Result<Arc<Registry>> {
         Arc::new(maru_mod_report::ReportModule::new(db.clone())),
         Arc::new(maru_mod_ads::AdsModule::new()),
         Arc::new(maru_mod_consult::ConsultModule::new()),
+        Arc::new(maru_mod_map::MapModule::new()),
+        Arc::new(maru_mod_kakao::KakaoModule::new()),
         Arc::new(maru_mod_webhook::WebhookModule::new(db.clone())?),
         Arc::new(maru_mod_social::SocialModule::new(db.clone())),
         Arc::new(maru_mod_forms::FormsModule::new(db.clone())),
@@ -31,9 +33,9 @@ pub(crate) fn registry(db: &Db) -> Result<Arc<Registry>> {
 }
 
 /// 데이터 디렉터리를 열기 전에 모르는 명령을 가려내는 데 쓴다.
-const IDS: [&str; 12] = [
+const IDS: [&str; 14] = [
     "point", "reaction", "scrap", "notify", "message", "poll", "report", "ads", "consult",
-    "webhook", "social", "forms",
+    "webhook", "social", "forms", "map", "kakao",
 ];
 
 fn usage(detail: impl Into<String>) -> Error {

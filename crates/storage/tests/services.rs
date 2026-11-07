@@ -909,6 +909,7 @@ async fn pages_lifecycle_and_privacy() {
         body_md: "저는 개발자입니다.".into(),
         layout: "default".into(),
         sort_order: 0,
+        parent: None,
     };
     let p = pages::create(&e.ctx, &local, input.clone()).await.unwrap();
     assert_eq!(p.status, PageStatus::Draft);

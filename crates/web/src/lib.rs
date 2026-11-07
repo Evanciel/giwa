@@ -183,6 +183,7 @@ pub fn router(state: AppState) -> Router {
         .merge(mcp::routes(&state))
         .merge(preview::routes())
         .nest("/api/v1", api::routes())
+        .layer(middleware::from_fn_with_state(state.clone(), moved_pages))
         .layer(middleware::from_fn_with_state(state.clone(), rate_limit))
         .layer(middleware::from_fn_with_state(state.clone(), count_visit))
         .layer(middleware::from_fn_with_state(state.clone(), preview::mode))
@@ -395,6 +396,29 @@ pub async fn flush_views(state: &AppState) {
         Ok(0) => {}
         Ok(n) => tracing::debug!(days = n, "방문자 통계 반영"),
         Err(e) => tracing::warn!(error = ?e, "방문자 통계 반영 실패, 다음 주기에 다시 시도"),
+    }
+}
+
+/// 없는 주소를 받으면 옮긴 곳이 있는지 본다 (ADR-0128). 살아 있는 화면이 언제나 먼저다.
+async fn moved_pages(State(state): State<AppState>, req: Request, next: Next) -> Response {
+    let (method, path, query) = (
+        req.method().clone(),
+        req.uri().path().to_owned(),
+        req.uri().query().map(str::to_owned),
+    );
+    let res = next.run(req).await;
+    if res.status() != StatusCode::NOT_FOUND || !matches!(method, Method::GET | Method::HEAD) {
+        return res;
+    }
+    let Ok(Some(mut to)) = maru_core::services::redirects::resolve(&state.ctx, &path).await else {
+        return res;
+    };
+    if let Some(q) = query.filter(|_| !to.contains('?')) {
+        to = format!("{to}?{q}");
+    }
+    match HeaderValue::from_str(&to) {
+        Ok(v) => (StatusCode::MOVED_PERMANENTLY, [(header::LOCATION, v)]).into_response(),
+        Err(_) => res,
     }
 }
 

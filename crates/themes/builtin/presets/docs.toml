@@ -1,0 +1,129 @@
+# 제품 문서·위키 (유형 7, ADR-0128). 왼쪽 문서 목록, 위치 표시, 앞뒤 문서. 글자는 예시다.
+id = "docs"
+name = "제품 문서"
+description = "첫 화면, 계층이 있는 문서, 변경 기록"
+
+[[ops]]
+op = "tokens.ensure"
+tokens = { color = { bg = "#ffffff", fg = "#16191d", primary = "#1d5fb8", muted = "#56606b", surface = "#f7f8fa", border = "#e2e5ea" }, color_dark = { bg = "#101215", fg = "#e8eaee", primary = "#8ab8f5", muted = "#a0a8b3", surface = "#181b20", border = "#2a2e35" }, radius = { sm = 4, md = 8, lg = 12 }, layout = { max_width = 1240 } }
+
+[[ops]]
+op = "board.ensure"
+slug = "changelog"
+name = "변경 기록"
+kind = "blog"
+layout = "list"
+sort_order = 0
+policy = { write = "editor", comment = "none" }
+
+[[ops]]
+op = "page.ensure"
+slug = "home"
+title = "첫 화면"
+layout = "blocks"
+publish = true
+
+[[ops]]
+op = "page.ensure"
+slug = "start"
+title = "시작하기"
+layout = "docs"
+sort_order = 0
+publish = true
+body_md = """
+이 제품이 무엇이고 누구를 위한 것인지 두세 문장으로 씁니다.
+
+읽는 사람이 다음에 무엇을 해야 하는지 바로 알 수 있게, 아래 문서로 가는 길을 함께 적습니다.
+"""
+
+[[ops]]
+op = "page.ensure"
+slug = "install"
+title = "설치"
+layout = "docs"
+parent = "start"
+sort_order = 0
+publish = true
+body_md = """
+## 준비할 것
+
+필요한 환경과 버전을 적습니다.
+
+## 설치하기
+
+실제로 붙여 넣어 실행할 명령을 적습니다.
+
+```
+여기에 명령을 적습니다
+```
+
+## 확인하기
+
+제대로 설치되었는지 알아보는 방법을 적습니다.
+"""
+
+[[ops]]
+op = "page.ensure"
+slug = "first-steps"
+title = "처음 해 보기"
+layout = "docs"
+parent = "start"
+sort_order = 1
+publish = true
+body_md = "처음 쓰는 사람이 5분 안에 결과를 볼 수 있는 가장 짧은 길을 순서대로 적습니다."
+
+[[ops]]
+op = "page.ensure"
+slug = "guides"
+title = "길잡이"
+layout = "docs"
+sort_order = 1
+publish = true
+body_md = "자주 하는 일을 하나씩 나누어 설명합니다. 아래 페이지를 더해 갑니다."
+
+[[ops]]
+op = "page.ensure"
+slug = "guide-example"
+title = "자주 하는 일 하나"
+layout = "docs"
+parent = "guides"
+sort_order = 0
+publish = true
+body_md = "무엇을 이루는 글인지 첫 문장에 적고, 순서대로 따라 할 수 있게 씁니다."
+
+[[ops]]
+op = "page.ensure"
+slug = "faq"
+title = "자주 묻는 질문"
+layout = "docs"
+sort_order = 2
+publish = true
+body_md = """
+## 질문을 제목으로 적습니다
+
+답은 짧게 적고, 자세한 내용은 해당 문서로 보냅니다.
+"""
+
+[[ops]]
+op = "settings.ensure"
+values = { home_page = "home" }
+
+[[ops]]
+op = "menu.ensure"
+location = "header"
+items = [
+  { label = "문서", link = { kind = "page", slug = "start" } },
+  { label = "변경 기록", link = { kind = "board", slug = "changelog" } },
+]
+
+[[ops]]
+op = "widgets.ensure"
+items = [
+  { kind = "hero", region = "main", scope = "home", config = { eyebrow = "어떤 제품의 문서인지 한 줄로", button = { label = "시작하기", link = "/p/start" }, button2 = { label = "설치", link = "/p/install" } } },
+  { kind = "features", region = "main", scope = "home", title = "어디부터 볼까요", config = { style = "cards", items = [
+    { title = "시작하기", text = "제품이 무엇인지와 처음 할 일", link = "/p/start" },
+    { title = "길잡이", text = "자주 하는 일을 하나씩", link = "/p/guides" },
+    { title = "자주 묻는 질문", text = "막혔을 때 먼저 볼 곳", link = "/p/faq" },
+  ] } },
+  { kind = "latest_posts", region = "main", scope = "home", title = "최근 변경", config = { board = "changelog", limit = 5 } },
+]

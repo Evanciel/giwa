@@ -1,0 +1,1 @@
+{% if page.trail %}<nav class="crumbs" aria-label="현재 위치"><ol>{% for t in page.trail %}<li><a href="{{ t.url }}">{{ t.title }}</a></li>{% endfor %}<li aria-current="page">{{ page.title }}</li></ol></nav>{% endif %}

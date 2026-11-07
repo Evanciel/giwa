@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE redirects SET to_path = ?1 WHERE to_path = ?2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "106c06e5f2da4b1f836f0d9053170e4070fe6a23c8bda691cb472bc992ea659d"
+}
