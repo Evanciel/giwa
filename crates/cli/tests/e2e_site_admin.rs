@@ -136,7 +136,9 @@ fn form_values(html: &str) -> Vec<(String, String)> {
         rest = &rest[i..];
         let end = rest.find('>').unwrap_or(rest.len());
         let tag = &rest[..end];
-        if tag.starts_with("<input") && !tag.contains("type=\"checkbox\"") {
+        // 라디오는 고른 것만 보낸다 (브라우저와 같게).
+        let unchecked_radio = tag.contains("type=\"radio\"") && !tag.contains(" checked");
+        if tag.starts_with("<input") && !tag.contains("type=\"checkbox\"") && !unchecked_radio {
             if let (Some(n), Some(v)) = (attr(tag, "name"), attr(tag, "value")) {
                 out.push((n, v));
             }
@@ -398,8 +400,13 @@ fn site_structure_members_settings_and_design_from_admin_screens() {
     assert_eq!(res.status, 303);
     assert_eq!(maru(&data, &["member", "show", &id])["status"], "active");
 
-    // ---- 설정
-    let mut values = form_values(&get("/admin/settings").body);
+    // ---- 설정: 언어·시간대는 고르기 목록이다 (ADR-0137)
+    let page = get("/admin/settings").body;
+    assert!(
+        page.contains("한국·일본 (UTC+9)") && page.contains(">한국어</option>"),
+        "{page}"
+    );
+    let mut values = form_values(&page);
     let set_v = |values: &mut Vec<(String, String)>, k: &str, v: &str| {
         values.retain(|(n, _)| n != k);
         values.push((k.into(), v.into()));
@@ -467,7 +474,7 @@ fn site_structure_members_settings_and_design_from_admin_screens() {
     assert_eq!(res.status, 303, "{}", res.body);
     assert_eq!(maru(&data, &["design", "show"])["color"]["bg"], "#fbf8f2");
     let page = get("/admin/design").body;
-    assert!(page.contains("지금 테마") && page.contains("이 테마 입히기"));
+    assert!(page.contains("지금 스킨") && page.contains("이 스킨 입히기"));
     let res = post("/admin/design/theme", &[("theme", "community")]);
     assert_eq!(res.status, 303, "{}", res.body);
     let tokens = maru(&data, &["design", "show"]);
@@ -478,6 +485,81 @@ fn site_structure_members_settings_and_design_from_admin_screens() {
         404
     );
 
+    // ---- 테마 = 사이트 종류. 고르면 바로 바꾸지 않고 변경 묶음을 만든다 (ADR-0137)
+    let page = get("/admin/themes").body;
+    assert!(
+        page.contains("회사 소개") && page.contains("미리 보고 고르기"),
+        "{page}"
+    );
+    let res = post("/admin/themes", &[("preset", "company")]);
+    assert_eq!(res.status, 303, "{}", res.body);
+    let at = res.location();
+    assert!(at.starts_with("/admin/changesets/"), "{at}");
+    let cs = get(&at).body;
+    assert!(
+        cs.contains("아직 사이트는 그대로입니다") && cs.contains("게시판 갖추기"),
+        "{cs}"
+    );
+    assert_eq!(post("/admin/themes", &[("preset", "없는종류")]).status, 404);
+
+    // ---- 위젯: 놓고, 사람 말로 보이고, 제목·보일 곳·설정을 고친다
+    let res = post(
+        "/admin/widgets",
+        &[
+            ("kind", "latest_posts"),
+            ("region", "sidebar"),
+            ("scope", "all"),
+            ("title", "새 글"),
+            ("config", "{\"limit\": 3}"),
+        ],
+    );
+    assert_eq!(res.status, 303, "{}", res.body);
+    let list = maru(&data, &["widget", "list"]);
+    let items = list
+        .as_array()
+        .or(list["items"].as_array())
+        .unwrap()
+        .clone();
+    let w = items
+        .iter()
+        .find(|w| w["title"] == "새 글")
+        .expect("놓았다");
+    let id = w["id"].as_str().unwrap().to_owned();
+    let res = post(
+        &format!("/admin/widgets/{id}/edit"),
+        &[
+            ("title", "고친 새 글"),
+            ("scope", "home"),
+            ("config", "{\"limit\": 9, \"view\": \"card\"}"),
+        ],
+    );
+    assert_eq!(res.status, 303, "{}", res.body);
+    let list = maru(&data, &["widget", "list"]);
+    let items = list
+        .as_array()
+        .or(list["items"].as_array())
+        .unwrap()
+        .clone();
+    let w = items.iter().find(|w| w["id"] == id.as_str()).unwrap();
+    assert_eq!(w["title"], "고친 새 글");
+    assert_eq!(w["scope"], "home");
+    assert_eq!(w["config"]["limit"], 9, "{w}");
+    let page = get("/admin/widgets").body;
+    assert!(
+        page.contains("첫 화면에 보임") && page.contains(">9개<") && page.contains(">사진 카드<"),
+        "{page}"
+    );
+    let res = post(
+        &format!("/admin/widgets/{id}/edit"),
+        &[("title", "x"), ("scope", "home"), ("config", "{깨진")],
+    );
+    assert_eq!(res.status, 422, "깨진 설정은 거절하고 칸을 다시 보인다");
+    assert!(res.body.contains("{깨진"));
+
+    // ---- 활동 기록: 사람 말로
+    let page = get("/admin/audit").body;
+    assert!(page.contains("위젯을 고쳤습니다"), "{page}");
+
     // ---- 대시보드: 처음 할 일과 현황, 글 목록은 따로
     let home = get("/admin").body;
     assert!(
@@ -485,7 +567,7 @@ fn site_structure_members_settings_and_design_from_admin_screens() {
         "{home}"
     );
     assert!(
-        home.contains("지금 테마") && home.contains("커뮤니티"),
+        home.contains("지금 스킨") && home.contains("커뮤니티"),
         "{home}"
     );
     assert!(get("/admin/posts").body.contains("글 검색"));

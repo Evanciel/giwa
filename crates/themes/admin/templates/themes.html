@@ -1,0 +1,40 @@
+{% extends "_base.html" %}
+{% import "_icons.html" as ic %}
+{% import "_theme_art.html" as art %}
+{% block title %}테마{% endblock %}
+{% block content %}
+<div class="heading-row">
+  <h1>테마</h1>
+  <a class="button ghost" href="/admin/design">{{ ic.icon("design") }} 색·모양은 스킨에서</a>
+</div>
+<p class="lead">어떤 사이트를 만들지 고르세요. 그 종류에 맞는 게시판·페이지·첫 화면·메뉴를 갖춰 줍니다.</p>
+
+<ul class="site-type-grid">
+{% for t in types %}
+  <li class="site-type">
+    <form method="post" action="/admin/themes">
+      <input type="hidden" name="_csrf" value="{{ csrf }}">
+      <input type="hidden" name="preset" value="{{ t.id }}">
+      <button type="submit" class="site-type-button">
+        <span class="site-type-art">{{ art.site(t.id) }}</span>
+        <span class="site-type-meta">
+          <strong>{{ t.name }}</strong>
+          <span class="site-type-fit">{{ t.fit }}</span>
+          <span class="chips">{% for h in t.has %}<span class="chip">{{ h }}</span>{% endfor %}</span>
+        </span>
+        <span class="theme-cta" aria-hidden="true">{{ ic.icon("eye") }} 미리 보고 고르기</span>
+      </button>
+    </form>
+  </li>
+{% endfor %}
+</ul>
+
+<aside class="callout" aria-label="고르면 어떻게 되나요">
+  <h2>고르면 어떻게 되나요?</h2>
+  <ol class="steps-plain">
+    <li><strong>바로 바뀌지 않습니다.</strong> 할 일 목록이 먼저 만들어지고, 사이트에서 미리 볼 수 있습니다.</li>
+    <li><strong>이미 있는 것은 지우지 않습니다.</strong> 글·게시판은 그대로 두고, 없는 게시판·페이지만 더합니다. 메뉴와 첫 화면은 비어 있는 자리만 채우고, 색은 아직 기본 색일 때만 바꿉니다.</li>
+    <li><strong>되돌릴 수 있습니다.</strong> 적용한 뒤에도 「되돌리기」 한 번이면 앞 상태로 돌아갑니다.</li>
+  </ol>
+</aside>
+{% endblock %}

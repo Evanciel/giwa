@@ -65,13 +65,40 @@ fn op_view(op: &Value) -> Value {
         "widget.remove" => "위젯 빼기",
         "module.enable" => "모듈 켜기",
         "module.disable" => "모듈 끄기",
-        "preset.step" => "프리셋 단계",
+        "preset.step" => return step_view(op),
         _ => name,
     };
     let target = ["slug", "location", "id"]
         .iter()
         .find_map(|k| op[*k].as_str())
         .unwrap_or_default();
+    json!({
+        "label": label,
+        "target": target,
+        "json": serde_json::to_string_pretty(op).unwrap_or_default(),
+    })
+}
+
+/// 테마(프리셋)의 한 단계. 모두 「없으면 만든다」라서 이미 있는 것은 건드리지 않는다.
+fn step_view(op: &Value) -> Value {
+    let step = &op["step"];
+    let name = |k: &str| step[k].as_str().unwrap_or_default().to_owned();
+    let (label, target) = match step["op"].as_str().unwrap_or_default() {
+        "board.ensure" => ("게시판 갖추기", name("name")),
+        "page.ensure" => ("페이지 갖추기", name("title")),
+        "module.ensure" => ("기능 켜기", name("id")),
+        "menu.ensure" => ("메뉴가 비어 있으면 채우기", String::new()),
+        "tokens.ensure" => ("스킨(색·모양) 입히기, 기본 색일 때만", String::new()),
+        "settings.ensure" => ("기본값인 설정 채우기", String::new()),
+        "widgets.ensure" => (
+            "화면 조각 놓기, 그 자리가 비어 있을 때만",
+            step["items"]
+                .as_array()
+                .map(|a| format!("{}개", a.len()))
+                .unwrap_or_default(),
+        ),
+        other => (other, String::new()),
+    };
     json!({
         "label": label,
         "target": target,
@@ -114,6 +141,9 @@ fn notice(done: &str) -> Option<&'static str> {
         "apply" => Some("사이트에 적용했습니다. 문제가 있으면 되돌리기 한 번으로 돌아갑니다."),
         "discard" => Some("버렸습니다. 사이트는 그대로입니다."),
         "revert" => Some("되돌렸습니다."),
+        "theme" => Some(
+            "아직 사이트는 그대로입니다. 미리 보기로 확인하고 「사이트에 적용」을 누르세요. 적용한 뒤에도 되돌리기 한 번으로 돌아갑니다.",
+        ),
         _ => None,
     }
 }

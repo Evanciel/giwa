@@ -1,119 +1,136 @@
 {% extends "_base.html" %}
+{% import "_icons.html" as ic %}
 {% block title %}설정{% endblock %}
+{% macro toggle(name, on, label, hint="") -%}
+<label class="choice"><input type="checkbox" name="{{ name }}" value="1"{% if on %} checked{% endif %}><span class="choice-text">{{ label }}{% if hint %}<span class="choice-hint">{{ hint }}</span>{% endif %}</span></label>
+{%- endmacro %}
+{% macro number(id, name, value, label, unit, min, max, hint="") -%}
+<div class="stack">
+  <label for="{{ id }}">{{ label }}</label>
+  <span class="with-unit"><input id="{{ id }}" name="{{ name }}" type="number" value="{{ value }}" min="{{ min }}" max="{{ max }}" inputmode="numeric" autocomplete="off"{% if hint %} aria-describedby="{{ id }}-hint"{% endif %}><span class="unit">{{ unit }}</span></span>
+  {% if hint %}<p id="{{ id }}-hint" class="hint">{{ hint }}</p>{% endif %}
+</div>
+{%- endmacro %}
 {% block content %}
 <div class="heading-row">
   <h1>설정</h1>
 </div>
 
-<form method="post" action="/admin/settings" class="stack site-form">
+<nav class="section-tabs" aria-label="설정 구역">
+  <a href="#set-site">사이트</a><a href="#set-posts">글 화면</a><a href="#set-members">회원</a><a href="#set-guard">스팸 막기</a><a href="#set-search">검색 엔진</a><a href="#set-keep">기록 보관</a>
+</nav>
+
+<form method="post" action="/admin/settings" class="settings-form">
   <input type="hidden" name="_csrf" value="{{ csrf }}">
-  <fieldset>
-    <legend>사이트</legend>
+
+  <section id="set-site" class="card set-card" aria-labelledby="set-site-h">
+    <h2 id="set-site-h">{{ ic.icon("home") }} 사이트</h2>
     <div class="form-grid">
       <div class="stack">
-        <label for="s-name">이름</label>
+        <label for="s-name">사이트 이름</label>
         <input id="s-name" name="name" value="{{ form.name }}" maxlength="80" required autocomplete="off">
       </div>
       <div class="stack">
-        <label for="s-lang">언어 <span class="hint">예: <code>ko</code></span></label>
-        <input id="s-lang" name="lang" value="{{ form.lang }}" maxlength="20" autocomplete="off" spellcheck="false">
-      </div>
-      <div class="stack">
-        <label for="s-tz">시간대 <span class="hint">UTC 기준 분. 한국은 540</span></label>
-        <input id="s-tz" name="tz_offset_min" value="{{ form.tz_offset_min }}" inputmode="numeric" autocomplete="off">
-      </div>
-    </div>
-    <label for="s-desc">소개 <span class="hint">검색 결과·공유 미리보기에 쓰입니다(300자까지)</span></label>
-    <textarea id="s-desc" name="description" rows="3" maxlength="300">{{ form.description }}</textarea>
-  </fieldset>
-
-  <fieldset>
-    <legend>첫 화면</legend>
-    <label for="s-home-page">첫 화면 페이지 주소 <span class="hint">비우면 최신 글 목록. 공개한 페이지 주소를 적습니다.</span></label>
-    <input id="s-home-page" name="home_page" maxlength="80" value="{{ form.home_page }}">
-  </fieldset>
-  <fieldset>
-    <legend>글 화면</legend>
-    <div class="form-grid">
-      <div class="stack">
-        <label for="s-ppp">한 쪽에 보일 글 수</label>
-        <input id="s-ppp" name="posts_per_page" value="{{ form.posts_per_page }}" inputmode="numeric" autocomplete="off">
-      </div>
-      <div class="stack">
-        <label for="s-toc">목차를 보일 최소 제목 수 <span class="hint">0 이면 끔</span></label>
-        <input id="s-toc" name="toc_min_headings" value="{{ form.toc_min_headings }}" inputmode="numeric" autocomplete="off">
-    <label class="choice"><input type="checkbox" name="link_cards" value="1"{% if form.link_cards %} checked{% endif %}> 링크 카드(<code>::link[주소]</code>)의 제목·설명·그림을 서버가 가져오기 <span class="hint">공개 인터넷 주소만 읽고, 그림은 이 사이트에 다시 저장합니다. 끄면 주소와 도메인만 보입니다.</span></label>
-      </div>
-    </div>
-    <label class="choice"><input type="checkbox" name="show_views" value="1"{% if form.show_views %} checked{% endif %}> 조회수 보이기 <span class="choice-hint">꺼도 세기는 계속합니다</span></label>
-    <label class="choice"><input type="checkbox" name="show_search" value="1"{% if form.show_search %} checked{% endif %}> 머리글에 검색 칸 보이기</label>
-    <label class="choice"><input type="checkbox" name="list_under_post" value="1"{% if form.list_under_post %} checked{% endif %}> 글 아래에 게시판 목록 보이기 <span class="choice-hint">이전·다음 글 링크 대신</span></label>
-    <label class="choice"><input type="checkbox" name="list_votes" value="1"{% if form.list_votes %} checked{% endif %}> 목록 왼쪽 칸에 추천 수 보이기 <span class="choice-hint">글 번호 대신, 반응 모듈을 켰을 때</span></label>
-    <label class="choice"><input type="checkbox" name="stickers" value="1"{% if form.stickers %} checked{% endif %}> 댓글·공개 글쓰기에 스티커 쓰기 <span class="choice-hint">고양이 표정 63종</span></label>
-  </fieldset>
-
-  <fieldset>
-    <legend>회원</legend>
-    <p class="hint">이 칸들은 회원 관리 권한이 있어야 바꿀 수 있습니다.</p>
-    <div class="form-grid">
-      <div class="stack">
-        <label for="s-signup">회원 가입</label>
-        <select id="s-signup" name="signup">
-          {% for c in signup_modes %}<option value="{{ c.id }}"{% if form.signup == c.id %} selected{% endif %}>{{ c.label }}</option>{% endfor %}
+        <label for="s-lang">언어</label>
+        <select id="s-lang" name="lang">
+          {% for c in langs %}<option value="{{ c.id }}"{% if form.lang == c.id %} selected{% endif %}>{{ c.label }}</option>{% endfor %}
         </select>
       </div>
       <div class="stack">
-        <label for="s-captcha">사람 확인 질문</label>
-        <select id="s-captcha" name="captcha">
-          {% for c in captcha_modes %}<option value="{{ c.id }}"{% if form.captcha == c.id %} selected{% endif %}>{{ c.label }}</option>{% endfor %}
+        <label for="s-tz">시간대</label>
+        <select id="s-tz" name="tz_offset_min">
+          {% for c in timezones %}<option value="{{ c.id }}"{% if form.tz_offset_min == c.id %} selected{% endif %}>{{ c.label }}</option>{% endfor %}
         </select>
       </div>
     </div>
-    <label class="choice"><input type="checkbox" name="signup_verify" value="1"{% if form.signup_verify %} checked{% endif %}> 가입 뒤 메일 링크를 눌러야 로그인</label>
-  </fieldset>
+    <div class="stack">
+      <label for="s-desc">한 줄 소개 <span class="hint">검색 결과와 카카오톡·SNS 공유 미리보기에 나옵니다 (300자까지)</span></label>
+      <textarea id="s-desc" name="description" rows="2" maxlength="300">{{ form.description }}</textarea>
+    </div>
+    <div class="stack">
+      <label for="s-home-page">첫 화면에 보일 것</label>
+      <select id="s-home-page" name="home_page">
+        <option value=""{% if not form.home_page %} selected{% endif %}>최신 글 목록과 위젯 (기본)</option>
+        {% for p in home_pages %}<option value="{{ p.id }}"{% if form.home_page == p.id %} selected{% endif %}>페이지: {{ p.label }}</option>{% endfor %}
+      </select>
+      {% if not home_pages %}<p class="hint">공개한 페이지가 생기면 여기서 첫 화면으로 고를 수 있습니다. <a href="/admin/pages">페이지 만들기</a></p>{% endif %}
+    </div>
+  </section>
 
-  <fieldset>
-    <legend>검색 엔진 소유 확인</legend>
+  <section id="set-posts" class="card set-card" aria-labelledby="set-posts-h">
+    <h2 id="set-posts-h">{{ ic.icon("posts") }} 글 화면</h2>
+    <div class="form-grid">
+      {{ number("s-ppp", "posts_per_page", form.posts_per_page, "한 쪽에 보일 글", "개", 1, 100) }}
+      {{ number("s-toc", "toc_min_headings", form.toc_min_headings, "목차를 붙일 소제목 수", "개 이상", 0, 20, "0 이면 목차를 붙이지 않습니다.") }}
+    </div>
+    <div class="toggles">
+      {{ toggle("show_views", form.show_views, "조회수 보이기", "꺼도 세기는 계속합니다") }}
+      {{ toggle("show_search", form.show_search, "머리글에 검색 칸 보이기") }}
+      {{ toggle("list_under_post", form.list_under_post, "글 아래에 게시판 목록 보이기", "이전·다음 글 링크 대신") }}
+      {{ toggle("list_votes", form.list_votes, "목록 왼쪽에 추천 수 보이기", "글 번호 대신. 반응 모듈을 켰을 때") }}
+      {{ toggle("stickers", form.stickers, "댓글에 스티커 쓰기", "고양이 표정 63종") }}
+      {{ toggle("link_cards", form.link_cards, "링크를 카드로 보이기", "붙여 넣은 주소의 제목·설명·그림을 가져와 카드로 보입니다") }}
+    </div>
+  </section>
+
+  <section id="set-members" class="card set-card" aria-labelledby="set-members-h">
+    <h2 id="set-members-h">{{ ic.icon("members") }} 회원</h2>
+    <p class="hint">회원 관리 권한이 있어야 바꿀 수 있습니다.</p>
+    <fieldset class="segment">
+      <legend>회원 가입</legend>
+      {% for c in signup_modes %}<label><input type="radio" name="signup" value="{{ c.id }}"{% if form.signup == c.id %} checked{% endif %}><span>{{ c.label }}</span></label>{% endfor %}
+    </fieldset>
+    <fieldset class="segment">
+      <legend>로봇 막기 질문</legend>
+      {% for c in captcha_modes %}<label><input type="radio" name="captcha" value="{{ c.id }}"{% if form.captcha == c.id %} checked{% endif %}><span>{{ c.label }}</span></label>{% endfor %}
+    </fieldset>
+    <div class="toggles">
+      {{ toggle("signup_verify", form.signup_verify, "가입 뒤 메일 확인을 받기", "메일의 링크를 눌러야 로그인할 수 있습니다") }}
+    </div>
+  </section>
+
+  <section id="set-guard" class="card set-card" aria-labelledby="set-guard-h">
+    <h2 id="set-guard-h">{{ ic.icon("comments") }} 스팸·도배 막기</h2>
+    <div class="stack">
+      <label for="s-banned">금지어 <span class="hint">한 줄에 하나씩. 사이에 띄어쓰기나 기호를 넣어도 걸러 냅니다. 관리자 글은 거르지 않습니다.</span></label>
+      <textarea id="s-banned" name="banned_words" rows="4">{{ form.banned_words }}</textarea>
+    </div>
+    <div class="form-grid">
+      {{ number("s-flood", "flood_seconds", form.flood_seconds, "글·댓글 사이 최소 간격", "초", 0, 3600, "회원이 이 시간 안에 또 쓰면 막습니다. 0 이면 막지 않습니다.") }}
+      {{ number("s-burst", "signal_comment_burst", form.signal_comment_burst, "댓글이 몰리면 알리기", "개 / 1시간", 0, 1000, "한 글에 1시간 동안 이만큼 달리면 대시보드에 알립니다. 0 이면 끕니다.") }}
+    </div>
+    <div class="toggles">
+      {{ toggle("signal_mail", form.signal_mail, "알림을 관리자에게 메일로도 보내기") }}
+    </div>
+  </section>
+
+  <section id="set-search" class="card set-card" aria-labelledby="set-search-h">
+    <h2 id="set-search-h">{{ ic.icon("eye") }} 검색 엔진 등록</h2>
+    <p class="hint">네이버 서치어드바이저나 구글 서치 콘솔에서 「HTML 태그」 확인을 고르면 나오는 <strong>content 값</strong>만 붙여 넣으세요.</p>
     <div class="form-grid">
       <div class="stack">
-        <label for="s-naver">네이버 서치어드바이저 값</label>
+        <label for="s-naver">네이버 확인 값</label>
         <input id="s-naver" name="naver_verification" value="{{ form.naver_verification }}" maxlength="100" autocomplete="off" spellcheck="false">
       </div>
       <div class="stack">
-        <label for="s-google">구글 서치 콘솔 값</label>
+        <label for="s-google">구글 확인 값</label>
         <input id="s-google" name="google_verification" value="{{ form.google_verification }}" maxlength="100" autocomplete="off" spellcheck="false">
       </div>
     </div>
-  </fieldset>
+  </section>
 
-  <fieldset>
-    <legend>금지어·도배 방지</legend>
-    <label for="s-banned">금지어 <span class="hint">한 줄에 하나. 띄어쓰기나 기호를 끼워도 걸러냅니다. 관리자는 걸리지 않습니다.</span></label>
-    <textarea id="s-banned" name="banned_words" rows="4">{{ form.banned_words }}</textarea>
-    <label for="s-flood">회원이 글·댓글을 쓰는 최소 간격 <span class="hint">초, 0~3600. 0 이면 끕니다.</span></label>
-    <input id="s-flood" name="flood_seconds" value="{{ form.flood_seconds }}" inputmode="numeric" autocomplete="off" class="short">
-  </fieldset>
+  <section id="set-keep" class="card set-card" aria-labelledby="set-keep-h">
+    <h2 id="set-keep-h">{{ ic.icon("backups") }} 기록 보관</h2>
+    <div class="form-grid">
+      {{ number("s-stats", "stats_retention_days", form.stats_retention_days, "방문 통계 보관", "일", 30, 3650) }}
+      {{ number("s-mail-keep", "mail_retention_days", form.mail_retention_days, "보낸 메일 보관", "일", 7, 3650, "지난 메일은 하루 한 번 지웁니다.") }}
+      {{ number("s-dormant", "dormant_days", form.dormant_days, "오래 안 온 회원을 휴면으로", "일", 0, 3650, "0 이면 끕니다. 켜려면 180일 이상. 30일 전에 메일로 알리고, 다시 로그인하면 바로 돌아옵니다.") }}
+    </div>
+  </section>
 
-  <fieldset>
-    <legend>운영 신호</legend>
-    <label for="s-burst">댓글 급증으로 알릴 댓글 수 <span class="hint">한 글에 지난 1시간 동안 이만큼 달리면 관리 화면 첫 쪽에 보입니다. 0 이면 끕니다(3~1000). 신고 집중·묵은 신고 기준은 신고 모듈 설정에 있습니다.</span></label>
-    <input id="s-burst" name="signal_comment_burst" value="{{ form.signal_comment_burst }}" inputmode="numeric" autocomplete="off" class="short">
-    <label class="choice"><input type="checkbox" name="signal_mail" value="1"{% if form.signal_mail %} checked{% endif %}> 새 신호를 관리자·소유자에게 메일로 알리기</label>
-  </fieldset>
-
-  <fieldset>
-    <legend>방문자 통계</legend>
-    <label for="s-stats">며칠 남길지 <span class="hint">30~3650</span></label>
-    <input id="s-stats" name="stats_retention_days" value="{{ form.stats_retention_days }}" inputmode="numeric" autocomplete="off" class="short">
-  </fieldset>
-
-  <fieldset>
-    <legend>개인정보 보유기간</legend>
-    <label for="s-dormant">휴면으로 바꿀 미접속 날수 <span class="hint">0 이면 끕니다. 켜려면 180~3650. 30일 전에 메일로 알리고, 휴면이 되면 메일 주소를 따로 보관합니다. 다시 로그인하면 바로 돌아옵니다. 운영진은 빠집니다.</span></label>
-    <input id="s-dormant" name="dormant_days" value="{{ form.dormant_days }}" inputmode="numeric" autocomplete="off" class="short">
-    <label for="s-mail-keep">보낸 메일을 남길 날수 <span class="hint">7~3650. 지난 메일은 하루 한 번 지웁니다.</span></label>
-    <input id="s-mail-keep" name="mail_retention_days" value="{{ form.mail_retention_days }}" inputmode="numeric" autocomplete="off" class="short">
-  </fieldset>
-  <button type="submit">저장</button>
+  <div class="save-bar">
+    <span class="hint">바꾼 값은 저장을 눌러야 사이트에 반영됩니다.</span>
+    <button type="submit">{{ ic.icon("check") }} 저장</button>
+  </div>
 </form>
 {% endblock %}

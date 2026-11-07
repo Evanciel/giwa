@@ -1,35 +1,44 @@
 {% extends "_base.html" %}
-{% block title %}감사 로그{% endblock %}
+{% import "_icons.html" as ic %}
+{% block title %}활동 기록{% endblock %}
 {% block content %}
 <div class="heading-row">
-  <h1>감사 로그 <span class="count">{{ total }}</span></h1>
+  <h1>활동 기록 <span class="count">{{ total }}</span></h1>
 </div>
-<p class="hint">누가 언제 무엇을 바꿨는지 최신 순으로 봅니다. 비밀번호·토큰 같은 값은 기록할 때 지워집니다. <code>maru audit list --json</code> 으로도 봅니다.</p>
+<p class="lead">사이트에서 누가 언제 무엇을 했는지 최근 것부터 보여 줍니다. 무언가 이상하게 바뀌었을 때 어디서 바뀌었는지 찾는 곳입니다. 비밀번호 같은 값은 남기지 않습니다.</p>
 
-<form method="get" action="/admin/audit" class="audit-filter">
-  <label>동작 <input name="action" value="{{ q.action or '' }}" placeholder="post 또는 post.publish" maxlength="80"></label>
-  <label>행위자
-    <select name="actor_type">
-      <option value="">모두</option>
-      {% for t in actor_types %}<option value="{{ t[0] }}"{% if q.actor_type == t[0] %} selected{% endif %}>{{ t[1] }}</option>{% endfor %}
-    </select>
-  </label>
-  <label>대상 종류 <input name="target_type" value="{{ q.target_type or '' }}" placeholder="post, board, member…" maxlength="80"></label>
-  <label>대상 ID <input name="target_id" value="{{ q.target_id or '' }}" maxlength="80"></label>
-  <button type="submit" class="secondary">찾기</button>
-  {% if filtered %}<a href="/admin/audit">조건 지우기</a>{% endif %}
-</form>
+<nav class="filter-chips" aria-label="무엇을 볼까요">
+  {% for a in areas %}<a href="{{ a.href }}"{% if a.on %} aria-current="true"{% endif %}>{{ a.label }}</a>{% endfor %}
+</nav>
+<nav class="filter-chips small" aria-label="누가 했나요">
+  {% for a in actors %}<a href="{{ a.href }}"{% if a.on %} aria-current="true"{% endif %}>{{ a.label }}</a>{% endfor %}
+  {% if filtered %}<a class="clear" href="/admin/audit">조건 지우기</a>{% endif %}
+</nav>
 
-{% if items %}
-<ol class="audit-rows">
-{% for e in items %}
-  <li class="audit-row">
-    <p class="audit-head"><code>{{ e.action }}</code> <span class="badge">{{ e.target_type }}</span>{% if e.target_id %} <a href="/admin/audit?target_type={{ e.target_type }}&amp;target_id={{ e.target_id }}"><code>{{ e.target_id }}</code></a>{% endif %}</p>
-    <p class="audit-meta"><time datetime="{{ e.at }}">{{ e.at_display }}</time> · {{ e.actor_label }}{% if e.actor_name %} {{ e.actor_name }}{% endif %}</p>
-    {% if e.diff_text %}<details><summary>바뀐 내용</summary><pre class="audit-diff">{{ e.diff_text }}</pre></details>{% endif %}
-  </li>
+{% if days %}
+{% for d in days %}
+<section class="audit-day" aria-label="{{ d.day }}">
+  <h2 class="audit-date">{{ d.day }}</h2>
+  <ol class="timeline">
+  {% for e in d.rows %}
+    <li class="tl-item">
+      <span class="tl-icon" aria-hidden="true">{{ ic.icon(e.icon) }}</span>
+      <div class="tl-body">
+        <p class="tl-what"><strong>{{ e.what }}</strong>{% if e.object %} <span class="tl-object">「{{ e.object }}」</span>{% endif %}</p>
+        <p class="tl-meta"><span class="tl-who{% if e.agent %} is-agent{% endif %}">{{ e.who }}</span>{% if e.who != e.kind %} · {{ e.kind }}{% endif %} · <time datetime="{{ e.at }}">{{ e.time }}</time>
+          {% if e.target_id %} · <a href="/admin/audit?target_type={{ e.target_type }}&amp;target_id={{ e.target_id }}">이것의 기록만 보기</a>{% endif %}</p>
+        {% if e.changes %}
+        <ul class="tl-changes">
+          {% for c in e.changes %}<li><span class="field">{{ c.field }}</span> <del>{{ c.before }}</del> → <ins>{{ c.after }}</ins></li>{% endfor %}
+        </ul>
+        {% endif %}
+        {% if e.raw %}<details class="raw"><summary>원본 보기</summary><p class="hint"><code>{{ e.action }}</code></p><pre class="audit-diff">{{ e.raw }}</pre></details>{% endif %}
+      </div>
+    </li>
+  {% endfor %}
+  </ol>
+</section>
 {% endfor %}
-</ol>
 {% if pages > 1 %}
 <nav class="pager" aria-label="쪽">
   {% if page > 1 %}<a href="{{ base_query }}page={{ page - 1 }}">이전</a>{% endif %}
@@ -38,6 +47,18 @@
 </nav>
 {% endif %}
 {% else %}
-<p class="hint">맞는 기록이 없습니다.</p>
+<div class="empty-state"><p>맞는 기록이 없습니다.</p>{% if filtered %}<a href="/admin/audit">전체 기록 보기</a>{% endif %}</div>
 {% endif %}
+
+<details class="raw advanced-filter"{% if q.target_type or q.target_id %} open{% endif %}>
+  <summary>자세한 조건 (고급)</summary>
+  <form method="get" action="/admin/audit" class="audit-filter">
+    <label>동작 이름 <input name="action" value="{{ q.action or '' }}" placeholder="post 또는 post.update" maxlength="80"></label>
+    <input type="hidden" name="actor_type" value="{{ q.actor_type or '' }}">
+    <label>대상 종류 <input name="target_type" value="{{ q.target_type or '' }}" placeholder="post, board, member…" maxlength="80"></label>
+    <label>대상 ID <input name="target_id" value="{{ q.target_id or '' }}" maxlength="80"></label>
+    <button type="submit" class="secondary">찾기</button>
+  </form>
+  <p class="hint">에이전트나 명령줄에서는 <code>maru audit list --json</code> 으로 같은 기록을 봅니다.</p>
+</details>
 {% endblock %}

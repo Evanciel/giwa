@@ -185,17 +185,15 @@ fn audit_log_is_listed_by_cli_rest_and_admin_screen() {
         &[("Cookie", &cookie)],
     );
     assert_eq!(page.status, 200, "{}", page.body);
+    // 활동 기록은 동작 이름 대신 사람 말로 보이고, 원본 동작 이름은 접힌 칸에 남는다 (ADR-0137).
+    assert!(page.body.contains("글을 발행했습니다"), "{}", page.body);
     assert!(page.body.contains("<code>post.publish</code>"));
-    assert!(!page.body.contains("<code>board.create</code>"), "조건 밖");
-    assert!(page.body.contains("로컬 CLI"));
+    assert!(!page.body.contains("게시판을 만들었습니다"), "조건 밖");
+    assert!(page.body.contains("이 컴퓨터(CLI)"));
     assert!(page.body.contains("조건 지우기"));
     let all = get("/admin/audit", &[("Cookie", &cookie)]);
-    assert!(
-        all.body.contains("<code>board.create</code>"),
-        "{}",
-        all.body
-    );
-    assert!(all.body.contains("<details>"), "바뀐 내용 펼치기");
+    assert!(all.body.contains("게시판을 만들었습니다"), "{}", all.body);
+    assert!(all.body.contains("원본 보기"), "원본 펼치기");
     let humans = maru(&data, &["audit", "list", "--actor-type", "human"]);
     let login = &humans["items"][0];
     assert_eq!(
@@ -207,7 +205,7 @@ fn audit_log_is_listed_by_cli_rest_and_admin_screen() {
         !login["actor_name"].as_str().unwrap().is_empty(),
         "{humans}"
     );
-    assert!(all.body.contains("사람 "), "행위자 표시");
+    assert!(all.body.contains(" · 사람 · "), "행위자 표시");
     let bad = get("/admin/audit?actor_type=robot", &[("Cookie", &cookie)]);
     assert_eq!(bad.status, 400, "{}", bad.body);
 }

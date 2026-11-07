@@ -40,3 +40,50 @@
   </svg>
 </span>
 {%- endmacro %}
+
+{# 테마(사이트 종류) 그림. 색은 관리 화면 색을 따르고, 생김새만 종류마다 다르다. #}
+{% macro site(id) -%}
+<svg class="site-art" viewBox="0 0 160 100" aria-hidden="true" focusable="false">
+<rect width="160" height="100" rx="8" class="sa-bg"/>
+<rect x="8" y="7" width="144" height="9" rx="2" class="sa-bar"/>
+{%- if id == "community" %}
+<rect x="8" y="21" width="144" height="5" rx="1.5" class="sa-line"/>
+<rect x="8" y="31" width="44" height="28" rx="3" class="sa-box"/><rect x="56" y="31" width="44" height="28" rx="3" class="sa-box"/>
+<rect x="8" y="63" width="44" height="29" rx="3" class="sa-box"/><rect x="56" y="63" width="44" height="29" rx="3" class="sa-box"/>
+<rect x="104" y="31" width="48" height="61" rx="3" class="sa-side"/>
+{%- elif id == "blog" %}
+<rect x="36" y="24" width="88" height="7" rx="2" class="sa-line"/>
+<rect x="36" y="36" width="88" height="17" rx="3" class="sa-box"/><rect x="36" y="56" width="88" height="17" rx="3" class="sa-box"/><rect x="36" y="76" width="88" height="17" rx="3" class="sa-box"/>
+{%- elif id == "company" or id == "org" %}
+<rect x="8" y="21" width="144" height="30" rx="3" class="sa-hero"/>
+<rect x="8" y="56" width="45" height="22" rx="3" class="sa-box"/><rect x="57" y="56" width="46" height="22" rx="3" class="sa-box"/><rect x="107" y="56" width="45" height="22" rx="3" class="sa-box"/>
+<rect x="8" y="82" width="144" height="10" rx="2" class="sa-line"/>
+{%- elif id == "cafe" %}
+<rect x="8" y="21" width="144" height="34" rx="3" class="sa-hero"/>
+<rect x="8" y="60" width="70" height="32" rx="3" class="sa-box"/><rect x="82" y="60" width="70" height="14" rx="3" class="sa-side"/><rect x="82" y="78" width="70" height="14" rx="3" class="sa-side"/>
+{%- elif id == "landing" %}
+<rect x="8" y="21" width="144" height="26" rx="3" class="sa-hero"/>
+<rect x="30" y="52" width="100" height="6" rx="2" class="sa-line"/><rect x="8" y="62" width="45" height="16" rx="3" class="sa-box"/><rect x="57" y="62" width="46" height="16" rx="3" class="sa-box"/><rect x="107" y="62" width="45" height="16" rx="3" class="sa-box"/>
+<rect x="56" y="83" width="48" height="9" rx="4.5" class="sa-bar"/>
+{%- elif id == "portfolio" %}
+<rect x="8" y="21" width="90" height="9" rx="2" class="sa-line"/>
+<rect x="8" y="35" width="45" height="27" rx="2" class="sa-side"/><rect x="57" y="35" width="46" height="27" rx="2" class="sa-hero"/><rect x="107" y="35" width="45" height="27" rx="2" class="sa-side"/>
+<rect x="8" y="65" width="45" height="27" rx="2" class="sa-hero"/><rect x="57" y="65" width="46" height="27" rx="2" class="sa-side"/><rect x="107" y="65" width="45" height="27" rx="2" class="sa-side"/>
+{%- elif id == "magazine" %}
+<rect x="8" y="21" width="92" height="46" rx="3" class="sa-hero"/><rect x="8" y="71" width="92" height="21" rx="3" class="sa-box"/>
+<rect x="104" y="21" width="48" height="21" rx="3" class="sa-box"/><rect x="104" y="46" width="48" height="21" rx="3" class="sa-box"/><rect x="104" y="71" width="48" height="21" rx="3" class="sa-box"/>
+{%- elif id == "docs" %}
+<rect x="8" y="21" width="36" height="71" rx="3" class="sa-side"/>
+<rect x="50" y="21" width="80" height="7" rx="2" class="sa-line"/><rect x="50" y="33" width="102" height="4" rx="2" class="sa-line"/><rect x="50" y="41" width="96" height="4" rx="2" class="sa-line"/><rect x="50" y="49" width="100" height="4" rx="2" class="sa-line"/>
+<rect x="50" y="59" width="102" height="22" rx="3" class="sa-box"/>
+{%- elif id == "event" or id == "course" %}
+<rect x="8" y="21" width="144" height="24" rx="3" class="sa-hero"/>
+<rect x="8" y="50" width="45" height="42" rx="3" class="sa-box"/><rect x="57" y="50" width="46" height="42" rx="3" class="sa-box"/><rect x="107" y="50" width="45" height="42" rx="3" class="sa-box"/>
+<rect x="13" y="55" width="16" height="6" rx="3" class="sa-bar"/><rect x="62" y="55" width="16" height="6" rx="3" class="sa-bar"/><rect x="112" y="55" width="16" height="6" rx="3" class="sa-bar"/>
+{%- else %}
+<rect x="8" y="21" width="144" height="8" rx="2" class="sa-line"/>
+<rect x="8" y="34" width="144" height="13" rx="3" class="sa-box"/><rect x="8" y="51" width="144" height="13" rx="3" class="sa-box"/><rect x="8" y="68" width="144" height="13" rx="3" class="sa-box"/>
+<rect x="120" y="37" width="26" height="7" rx="3.5" class="sa-bar"/><rect x="120" y="54" width="26" height="7" rx="3.5" class="sa-bar"/><rect x="120" y="71" width="26" height="7" rx="3.5" class="sa-bar"/>
+{%- endif %}
+</svg>
+{%- endmacro %}

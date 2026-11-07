@@ -1,16 +1,16 @@
 {% extends "_base.html" %}
 {% import "_icons.html" as ic %}
 {% import "_theme_art.html" as art %}
-{% block title %}디자인{% endblock %}
+{% block title %}스킨·디자인{% endblock %}
 {% block content %}
 <div class="heading-row">
-  <h1>디자인·테마</h1>
+  <h1>스킨·디자인</h1>
   <a class="button ghost" href="/" target="_blank" rel="noopener">{{ ic.icon("eye") }} 사이트 보기</a>
 </div>
 
 <section id="themes" class="site-section first" aria-labelledby="themes-h">
-  <h2 id="themes-h">테마</h2>
-  <p class="hint">카드를 누르면 색·모서리·폭이 한 번에 바뀝니다. 글·게시판·메뉴는 그대로이고, 바꾼 기록은 감사 로그에 남습니다.</p>
+  <h2 id="themes-h">스킨</h2>
+  <p class="hint">카드를 누르면 색·모서리·폭이 한 번에 바뀝니다. 글·게시판·메뉴는 그대로입니다. 사이트 종류(커뮤니티·회사 소개 같은 것)는 <a href="/admin/themes">테마</a>에서 고릅니다.</p>
   <ul class="theme-grid">
   {% for t in themes %}
     <li class="theme-pick{% if t.current %} is-current{% endif %}">
@@ -20,11 +20,11 @@
         <button type="submit" class="theme-button"{% if t.current %} aria-current="true" disabled{% endif %}>
           {{ art.art(t) }}
           <span class="theme-meta">
-            <span class="theme-name"><strong>{{ t.name }}</strong>{% if t.current %}<span class="badge badge-published">지금 테마</span>{% endif %}</span>
+            <span class="theme-name"><strong>{{ t.name }}</strong>{% if t.current %}<span class="badge badge-published">지금 스킨</span>{% endif %}</span>
             {{ art.swatches(t) }}
             <small>{{ t.description }}</small>
           </span>
-          <span class="theme-cta" aria-hidden="true">{% if t.current %}{{ ic.icon("check") }} 쓰는 중{% else %}이 테마 입히기{% endif %}</span>
+          <span class="theme-cta" aria-hidden="true">{% if t.current %}{{ ic.icon("check") }} 쓰는 중{% else %}이 스킨 입히기{% endif %}</span>
         </button>
       </form>
     </li>
@@ -33,8 +33,8 @@
 </section>
 
 <section class="site-section" aria-labelledby="skins-h">
-  <h2 id="skins-h">스킨</h2>
-  <p class="hint">머리글·게시판 메뉴·두 단 배치를 바꿉니다. 색·서체는 테마를 그대로 씁니다.</p>
+  <h2 id="skins-h">배치</h2>
+  <p class="hint">머리글·게시판 메뉴·두 단 배치를 바꿉니다. 색·서체는 고른 스킨을 그대로 씁니다.</p>
   <form method="post" action="/admin/design/skin" class="skin-form">
     <input type="hidden" name="_csrf" value="{{ csrf }}">
     <div class="skin-grid">
@@ -51,7 +51,7 @@
       </label>
       {% endfor %}
     </div>
-    <button type="submit" class="secondary">스킨 저장</button>
+    <button type="submit" class="secondary">배치 저장</button>
   </form>
 </section>
 
@@ -66,7 +66,7 @@
       <tbody>
       {% for c in colors %}
         <tr>
-          <th scope="row">{{ c.label }} <code>{{ c.id }}</code></th>
+          <th scope="row">{{ c.label }}</th>
           <td><input type="color" name="color__{{ c.id }}" value="{{ form['color__' ~ c.id] }}" aria-label="밝은 화면 {{ c.label }}"></td>
           <td><input type="color" name="color_dark__{{ c.id }}" value="{{ form['color_dark__' ~ c.id] }}" aria-label="어두운 화면 {{ c.label }}"></td>
         </tr>

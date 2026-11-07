@@ -31,10 +31,12 @@ use crate::AppState;
 use crate::error::ApiError;
 use crate::field_form;
 
+mod audit;
 mod changesets;
 mod dashboard;
 mod modules;
 mod site;
+mod widgets;
 
 pub(crate) const SESSION_COOKIE: &str = "maru_session";
 const CSRF_COOKIE: &str = "maru_csrf";
@@ -72,14 +74,11 @@ pub fn routes() -> Router<AppState> {
         .route("/admin/fonts/{slug}/license", post(font_license))
         .route("/admin/fonts/{slug}/{action}", post(font_action))
         .route("/admin/templates", get(list_templates).post(save_template))
-        .route("/admin/audit", get(audit_page))
         .route("/admin/backups", get(backups_page).post(backup_create))
         .route("/admin/backups/{name}", get(backup_download))
         .route("/admin/backups/{name}/delete", post(backup_delete))
         .route("/admin/stats", get(stats_page))
         .route("/admin/stats.csv", get(stats_csv))
-        .route("/admin/widgets", get(widgets_page).post(widget_place))
-        .route("/admin/widgets/{id}/{action}", post(widget_action))
         .route("/admin/preview", post(preview))
         .route("/admin/slug-check", get(check_slug))
         .route("/admin/categories", post(create_category))
@@ -87,6 +86,8 @@ pub fn routes() -> Router<AppState> {
         .merge(site::routes())
         .merge(changesets::routes())
         .merge(modules::routes())
+        .merge(widgets::routes())
+        .merge(audit::routes())
         .layer(middleware::map_response(admin_headers))
 }
 
@@ -2257,120 +2258,6 @@ async fn backup_delete(
 }
 
 #[derive(Debug, Default, Deserialize)]
-struct AuditPageQuery {
-    #[serde(default)]
-    action: String,
-    #[serde(default)]
-    actor_type: String,
-    #[serde(default)]
-    target_type: String,
-    #[serde(default)]
-    target_id: String,
-    #[serde(default)]
-    page: Option<u32>,
-}
-
-fn actor_label(t: &str) -> &'static str {
-    match t {
-        "human" => "사람",
-        "agent" => "에이전트",
-        "local" => "로컬 CLI",
-        "anonymous" => "손님",
-        _ => "시스템",
-    }
-}
-
-/// 감사 로그 (ADR-0062). 운영자만.
-async fn audit_page(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    Query(q): Query<AuditPageQuery>,
-) -> Response {
-    use maru_core::services::audit_log::{self, ACTOR_TYPES, AuditQuery};
-    let who = match require(&state, &headers, "/admin/audit").await {
-        Ok(w) => w,
-        Err(r) => return *r,
-    };
-    let some = |v: &str| (!v.trim().is_empty()).then(|| v.trim().to_owned());
-    let query = AuditQuery {
-        action: some(&q.action),
-        actor_type: some(&q.actor_type),
-        target_type: some(&q.target_type),
-        target_id: some(&q.target_id),
-        page: q.page,
-        ..Default::default()
-    };
-    let list = match audit_log::list(&state.ctx, &who.actor, &query).await {
-        Ok(l) => l,
-        Err(e) => return fail(&state, Some(&who), &e).await,
-    };
-    let tz = settings::site(&state.ctx)
-        .await
-        .map(|s| s.tz_offset_min)
-        .unwrap_or(540);
-    let items = list
-        .items
-        .iter()
-        .map(|e| {
-            let diff = if e.diff.as_object().is_some_and(|o| o.is_empty()) || e.diff.is_null() {
-                String::new()
-            } else {
-                serde_json::to_string_pretty(&e.diff).unwrap_or_default()
-            };
-            json!({
-                "action": e.action,
-                "target_type": e.target_type,
-                "target_id": e.target_id,
-                "at": e.at,
-                "at_display": clock::display_datetime(&e.at, tz),
-                "actor_label": actor_label(&e.actor_type),
-                "actor_name": e.actor_name,
-                "diff_text": diff,
-            })
-        })
-        .collect::<Vec<_>>();
-    // 쪽 이동 링크에 조건을 그대로 붙인다.
-    let mut base_query = String::from("/admin/audit?");
-    for (k, v) in [
-        ("action", &q.action),
-        ("actor_type", &q.actor_type),
-        ("target_type", &q.target_type),
-        ("target_id", &q.target_id),
-    ] {
-        if !v.trim().is_empty() {
-            base_query.push_str(&format!("{k}={}&", urlencoding_min(v.trim())));
-        }
-    }
-    let filtered = base_query.len() > "/admin/audit?".len();
-    let ctx = merge(
-        base(&state, Some(&who), "audit").await,
-        json!({
-            "items": items,
-            "total": list.total,
-            "page": list.page,
-            "pages": list.total_pages(),
-            "q": { "action": q.action, "actor_type": q.actor_type, "target_type": q.target_type, "target_id": q.target_id },
-            "filtered": filtered,
-            "base_query": base_query,
-            "actor_types": ACTOR_TYPES.iter().map(|t| [*t, actor_label(t)]).collect::<Vec<_>>(),
-        }),
-    );
-    render(&state, StatusCode::OK, "audit.html", &ctx)
-}
-
-/// 쿼리 문자열 값 인코딩 (영숫자·`-._~` 외는 %XX).
-fn urlencoding_min(v: &str) -> String {
-    v.bytes()
-        .map(|b| match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' => {
-                (b as char).to_string()
-            }
-            _ => format!("%{b:02X}"),
-        })
-        .collect()
-}
-
-#[derive(Debug, Default, Deserialize)]
 struct StatsPageQuery {
     #[serde(default)]
     days: Option<u32>,
@@ -2422,269 +2309,4 @@ async fn stats_csv(
         Ok(s) => crate::api::csv_response(&s),
         Err(e) => fail(&state, Some(&who), &e).await,
     }
-}
-
-#[derive(Debug, Default, Deserialize)]
-struct WidgetsQuery {
-    #[serde(default)]
-    done: String,
-}
-
-/// 놓기 폼의 값. 실패하면 그대로 다시 채워 보인다.
-#[derive(Debug, Default, Deserialize, serde::Serialize)]
-struct WidgetPlaceForm {
-    #[serde(default, rename = "_csrf")]
-    #[serde(skip_serializing)]
-    csrf: String,
-    #[serde(default)]
-    kind: String,
-    #[serde(default)]
-    region: String,
-    #[serde(default)]
-    scope: String,
-    #[serde(default)]
-    title: String,
-    #[serde(default)]
-    config: String,
-}
-
-async fn widgets_page(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    Query(q): Query<WidgetsQuery>,
-) -> Response {
-    let who = match require(&state, &headers, "/admin/widgets").await {
-        Ok(w) => w,
-        Err(r) => return *r,
-    };
-    let notice = match q.done.as_str() {
-        "placed" => Some("위젯을 놓았습니다."),
-        "enable" => Some("위젯을 켰습니다."),
-        "disable" => Some("위젯을 껐습니다."),
-        "remove" => Some("위젯을 뺐습니다."),
-        "up" | "down" => Some("순서를 바꿨습니다."),
-        _ => None,
-    };
-    widgets_render(
-        &state,
-        &who,
-        StatusCode::OK,
-        notice,
-        None,
-        &WidgetPlaceForm::default(),
-    )
-    .await
-}
-
-async fn widgets_render(
-    state: &AppState,
-    who: &SignedIn,
-    status: StatusCode,
-    notice: Option<&str>,
-    error: Option<String>,
-    form: &WidgetPlaceForm,
-) -> Response {
-    use maru_core::model::WIDGET_REGIONS;
-    use maru_core::services::widgets;
-    let list = match widgets::list(&state.ctx, &who.actor).await {
-        Ok(l) => l,
-        Err(e) => return fail(state, Some(who), &e).await,
-    };
-    let all_types = widgets::all_types(&state.ctx).await;
-    let regions = WIDGET_REGIONS
-        .iter()
-        .map(|r| {
-            let items = list
-                .iter()
-                .filter(|w| w.region == *r)
-                .map(|w| {
-                    json!({
-                        "id": w.id,
-                        "kind": w.kind,
-                        "kind_name": all_types.iter().find(|t| t.id == w.kind).map_or(w.kind.as_str(), |t| t.name),
-                        // 모듈이 꺼졌거나 지워지면 공개 화면에서 조용히 빠진다 (SPEC §7.3).
-                        "orphan": !all_types.iter().any(|t| t.id == w.kind),
-                        "title": w.title,
-                        "scope": w.scope,
-                        "enabled": w.enabled,
-                        "config": serde_json::to_string(&w.config).unwrap_or_default(),
-                    })
-                })
-                .collect::<Vec<_>>();
-            json!({ "id": r, "label": region_label(r), "items": items })
-        })
-        .collect::<Vec<_>>();
-    let types = all_types
-        .iter()
-        .map(|t| json!({ "id": t.id, "name": t.name, "description": t.description }))
-        .collect::<Vec<_>>();
-    let ctx = merge(
-        base(state, Some(who), "widgets").await,
-        json!({
-            "notice": notice,
-            "error": error,
-            "regions": regions,
-            "total": list.len(),
-            "types": types,
-            "region_choices": WIDGET_REGIONS.iter().map(|r| json!({ "id": r, "label": region_label(r) })).collect::<Vec<_>>(),
-            "form": form,
-        }),
-    );
-    render(state, status, "widgets.html", &ctx)
-}
-
-fn region_label(region: &str) -> &'static str {
-    match region {
-        "header" => "머리글 아래 띠",
-        "hero" => "큰 배너 자리",
-        "main" => "본문 위",
-        "sidebar" => "곁가지",
-        "popup" => "팝업",
-        "masthead" => "머리글 이름 옆",
-        "sponsor" => "바닥글 위 후원 띠 (접기)",
-        "rail" => "넓은 화면 양옆",
-        "sticky" => "휴대폰 아래 고정",
-        _ => "바닥글",
-    }
-}
-
-async fn widget_place(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    Form(f): Form<WidgetPlaceForm>,
-) -> Response {
-    use maru_core::services::widgets;
-    let who = match require(&state, &headers, "/admin/widgets").await {
-        Ok(w) => w,
-        Err(r) => return *r,
-    };
-    if !session_csrf_ok(&who, &f.csrf) {
-        return fail(
-            &state,
-            Some(&who),
-            &Error::new(Code::Forbidden).with_message("error.csrf"),
-        )
-        .await;
-    }
-    let config = if f.config.trim().is_empty() {
-        Ok(Value::Null)
-    } else {
-        serde_json::from_str::<Value>(&f.config).map_err(|e| {
-            Error::new(Code::Validation)
-                .with_message("error.json_body")
-                .arg("detail", e.to_string())
-        })
-    };
-    let placed = match config {
-        Ok(config) => {
-            widgets::place(
-                &state.ctx,
-                &who.actor,
-                widgets::NewWidget {
-                    kind: f.kind.clone(),
-                    region: f.region.clone(),
-                    scope: if f.scope.trim().is_empty() {
-                        "all".into()
-                    } else {
-                        f.scope.clone()
-                    },
-                    title: f.title.clone(),
-                    config,
-                    position: None,
-                    enabled: true,
-                },
-            )
-            .await
-        }
-        Err(e) => Err(e),
-    };
-    match placed {
-        Ok(_) => Redirect::to("/admin/widgets?done=placed").into_response(),
-        Err(e) if e.code() == Code::Validation || e.code() == Code::NotFound => {
-            widgets_render(
-                &state,
-                &who,
-                StatusCode::UNPROCESSABLE_ENTITY,
-                None,
-                Some(e.message()),
-                &f,
-            )
-            .await
-        }
-        Err(e) => fail(&state, Some(&who), &e).await,
-    }
-}
-
-async fn widget_action(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    Path((id, action)): Path<(String, String)>,
-    Form(f): Form<CommentActionForm>,
-) -> Response {
-    use maru_core::services::widgets::{self, WidgetPatch};
-    let who = match require(&state, &headers, "/admin/widgets").await {
-        Ok(w) => w,
-        Err(r) => return *r,
-    };
-    if !session_csrf_ok(&who, &f.csrf) {
-        return fail(
-            &state,
-            Some(&who),
-            &Error::new(Code::Forbidden).with_message("error.csrf"),
-        )
-        .await;
-    }
-    let ctx = &state.ctx;
-    let done = match action.as_str() {
-        "enable" | "disable" => {
-            let patch = WidgetPatch {
-                enabled: Some(action == "enable"),
-                ..WidgetPatch::default()
-            };
-            widgets::configure(ctx, &who.actor, &id, patch)
-                .await
-                .map(|_| ())
-        }
-        "remove" => widgets::remove(ctx, &who.actor, &id).await.map(|_| ()),
-        "up" | "down" => swap_widget(&state, &who, &id, action == "up").await,
-        _ => return fail(&state, Some(&who), &Error::new(Code::NotFound)).await,
-    };
-    match done {
-        Ok(()) => {
-            Redirect::to(&urls::with_query("/admin/widgets", &[("done", &action)])).into_response()
-        }
-        Err(e) => fail(&state, Some(&who), &e).await,
-    }
-}
-
-/// 같은 영역의 바로 앞(뒤) 위젯과 자리를 바꾼다. 순서 값을 0, 1, 2… 로 다시 매긴다.
-async fn swap_widget(
-    state: &AppState,
-    who: &SignedIn,
-    id: &str,
-    up: bool,
-) -> maru_core::Result<()> {
-    use maru_core::services::widgets::{self, WidgetPatch};
-    let all = widgets::list(&state.ctx, &who.actor).await?;
-    let me = widgets::get(&state.ctx, &who.actor, id).await?;
-    let mut same: Vec<_> = all.into_iter().filter(|w| w.region == me.region).collect();
-    let Some(i) = same.iter().position(|w| w.id == me.id) else {
-        return Ok(());
-    };
-    let j = if up { i.checked_sub(1) } else { Some(i + 1) };
-    let Some(j) = j.filter(|j| *j < same.len()) else {
-        return Ok(());
-    };
-    same.swap(i, j);
-    for (n, w) in same.iter().enumerate() {
-        let n = i64::try_from(n).unwrap_or(i64::MAX);
-        if w.sort_order != n {
-            let patch = WidgetPatch {
-                position: Some(n),
-                ..WidgetPatch::default()
-            };
-            widgets::configure(&state.ctx, &who.actor, &w.id, patch).await?;
-        }
-    }
-    Ok(())
 }

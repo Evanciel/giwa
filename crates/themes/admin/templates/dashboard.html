@@ -101,14 +101,14 @@
 
   <section class="card theme-card" aria-labelledby="theme-h">
     <div class="card-head">
-      <h2 id="theme-h">지금 테마</h2>
+      <h2 id="theme-h">지금 스킨</h2>
       <a class="card-more" href="/admin/design#themes">바꾸기 {{ ic.icon("arrow") }}</a>
     </div>
     <a class="theme-now" href="/admin/design#themes">
       {{ art.art(theme) }}
       <span class="theme-now-text"><strong>{{ theme.name }}</strong>{{ art.swatches(theme) }}</span>
     </a>
-    <p class="hint">테마를 바꿔도 글·게시판·메뉴는 그대로입니다.</p>
+    <p class="hint">스킨을 바꿔도 글·게시판·메뉴는 그대로입니다.</p>
   </section>
 
   <section class="card" aria-labelledby="recent-h">
@@ -162,7 +162,8 @@
 <section class="card shortcuts" aria-labelledby="shortcuts-h">
   <div class="card-head"><h2 id="shortcuts-h">바로 가기</h2></div>
   <ul class="tiles">
-    <li><a href="/admin/design">{{ ic.icon("design") }}<strong>디자인·테마</strong><small>색과 모양 바꾸기</small></a></li>
+    <li><a href="/admin/themes">{{ ic.icon("themes") }}<strong>테마</strong><small>사이트 종류 고르기</small></a></li>
+    <li><a href="/admin/design">{{ ic.icon("design") }}<strong>스킨·디자인</strong><small>색과 모양 바꾸기</small></a></li>
     <li><a href="/admin/boards">{{ ic.icon("boards") }}<strong>게시판</strong><small>만들기·고치기</small></a></li>
     <li><a href="/admin/menus">{{ ic.icon("menus") }}<strong>메뉴</strong><small>머리글·바닥글 링크</small></a></li>
     <li><a href="/admin/widgets">{{ ic.icon("widgets") }}<strong>위젯</strong><small>첫 화면 구성</small></a></li>

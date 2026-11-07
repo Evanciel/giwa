@@ -35,18 +35,18 @@
 </div>
 
 <section class="site-section" aria-labelledby="cs-ops">
-  <h2 id="cs-ops">연산 {{ cs.op_count }}개</h2>
+  <h2 id="cs-ops">할 일 {{ cs.op_count }}가지</h2>
   {% if cs.ops %}
   <ol class="changeset-ops">
   {% for op in cs.ops %}
     <li>
-      <strong>{{ op.label }}</strong>{% if op.target %} <code>{{ op.target }}</code>{% endif %}
-      <details><summary>자세히</summary><pre class="audit-diff">{{ op.json }}</pre></details>
+      <strong>{{ op.label }}</strong>{% if op.target %} <span class="op-target">{{ op.target }}</span>{% endif %}
+      <details class="raw"><summary>원본 보기</summary><pre class="audit-diff">{{ op.json }}</pre></details>
     </li>
   {% endfor %}
   </ol>
   {% else %}
-  <p class="hint">담긴 연산이 없습니다.</p>
+  <p class="hint">담긴 할 일이 없습니다.</p>
   {% endif %}
 </section>
 {% endblock %}

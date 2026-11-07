@@ -49,6 +49,7 @@ pub(super) fn routes() -> Router<AppState> {
         .route("/admin/design/reset", post(design_reset))
         .route("/admin/design/skin", post(skin_save))
         .route("/admin/design/theme", post(theme_save))
+        .route("/admin/themes", get(site_types_page).post(site_type_start))
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -1435,6 +1436,14 @@ async fn settings_render(
             )
         })
         .collect();
+    // 첫 화면으로 고를 수 있는 페이지: 공개한 것만 (설정 서비스도 같은 조건을 본다).
+    let home_pages: Vec<Value> = pages::list(&state.ctx, &who.actor, None)
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|p| p.status == PageStatus::Published || p.slug == form.home_page)
+        .map(|p| json!({ "id": p.slug, "label": p.title }))
+        .collect();
     let ctx = merge(
         base(state, Some(who), "settings").await,
         json!({
@@ -1443,9 +1452,40 @@ async fn settings_render(
             "form": form,
             "signup_modes": choices(&signup),
             "captcha_modes": choices(&captcha),
+            "langs": keep_current(choices(LANGS), &form.lang),
+            "timezones": keep_current(choices(TIMEZONES), &form.tz_offset_min),
+            "home_pages": home_pages,
         }),
     );
     render(state, status, "settings.html", &ctx)
+}
+
+/// 설정 화면의 언어 고르기. 값은 사이트 `lang` 그대로 (html lang, 메시지 언어).
+const LANGS: &[(&str, &str)] = &[("ko", "한국어"), ("en", "English (영어)")];
+
+/// 설정 화면의 시간대 고르기. 값은 UTC 와의 차이(분)다.
+const TIMEZONES: &[(&str, &str)] = &[
+    ("540", "한국·일본 (UTC+9)"),
+    ("480", "중국·대만·싱가포르 (UTC+8)"),
+    ("420", "베트남·태국 (UTC+7)"),
+    ("330", "인도 (UTC+5:30)"),
+    ("60", "중부 유럽 (UTC+1)"),
+    ("0", "영국·세계 표준시 (UTC+0)"),
+    ("-300", "미국 동부 (UTC-5)"),
+    ("-480", "미국 서부 (UTC-8)"),
+    ("600", "호주 동부 (UTC+10)"),
+];
+
+/// 목록에 없는 값(에이전트가 따로 넣은 값)도 사라지지 않게 그대로 한 줄 더한다.
+fn keep_current(mut list: Value, current: &str) -> Value {
+    let current = current.trim();
+    if let Some(items) = list.as_array_mut()
+        && !current.is_empty()
+        && !items.iter().any(|c| c["id"] == current)
+    {
+        items.push(json!({ "id": current, "label": format!("지금 값 ({current})") }));
+    }
+    list
 }
 
 async fn settings_save(
@@ -1594,8 +1634,8 @@ async fn design_page(
     let notice = match q.done.as_str() {
         "saved" => Some("디자인을 저장했습니다. 사이트에 바로 반영됩니다."),
         "reset" => Some("기본값으로 되돌렸습니다."),
-        "skin" => Some("스킨을 바꿨습니다. 사이트에 바로 반영됩니다."),
-        "theme" => Some("테마를 입혔습니다. 글·게시판·메뉴는 그대로이고 사이트에 바로 반영됩니다."),
+        "skin" => Some("배치를 바꿨습니다. 사이트에 바로 반영됩니다."),
+        "theme" => Some("스킨을 입혔습니다. 글·게시판·메뉴는 그대로이고 사이트에 바로 반영됩니다."),
         _ => None,
     };
     design_render(
@@ -1766,6 +1806,121 @@ async fn theme_save(
     };
     match design::update(&state.ctx, &who.actor, theme.patch).await {
         Ok(_) => Redirect::to("/admin/design?done=theme").into_response(),
+        Err(e) => fail(&state, Some(&who), &e).await,
+    }
+}
+
+/// 관리 화면에서 부르는 「테마」는 사이트 종류다 (ADR-0137). 내장 프리셋 하나가 테마 하나이고,
+/// 누르면 바로 바꾸지 않고 변경 묶음을 만들어 미리 보기 → 적용 → 되돌리기를 거친다.
+/// 늘어놓는 차례와 「이런 사이트에」 문구는 화면용이다. 프리셋 파일의 설명은 들어 있는 것을 말한다.
+const SITE_TYPES: &[(&str, &str)] = &[
+    ("community", "회원끼리 글과 댓글을 나누는 모임·동호회"),
+    ("blog", "글을 꾸준히 쓰는 개인 블로그"),
+    ("company", "회사·사무소를 알리는 홈페이지"),
+    ("cafe", "카페·식당·공방 같은 가게"),
+    ("org", "기관·협회·학교·동아리"),
+    ("landing", "제품이나 서비스 하나를 알리는 한 장짜리"),
+    ("portfolio", "작업물을 사진으로 보여 주는 포트폴리오"),
+    ("magazine", "분야별 기사가 많은 매거진·뉴스"),
+    ("course", "강의 소개와 수강생 전용 노트"),
+    ("event", "행사 안내와 참가 신청 받기"),
+    ("jobs", "채용 공고와 지원서 받기"),
+    ("docs", "제품 설명서·위키"),
+];
+
+fn site_type_card(p: &presets::Preset, fit: &str) -> Value {
+    let count = |name: &str| p.ops.iter().filter(|o| op_name(o) == name).count();
+    let widgets: usize = p
+        .ops
+        .iter()
+        .filter_map(|o| match o {
+            presets::Op::WidgetsEnsure { items } => Some(items.len()),
+            _ => None,
+        })
+        .sum();
+    let mut has = Vec::new();
+    for (n, unit) in [
+        (count("board.ensure"), "게시판"),
+        (count("page.ensure"), "페이지"),
+    ] {
+        if n > 0 {
+            has.push(format!("{unit} {n}개"));
+        }
+    }
+    if widgets > 0 {
+        has.push(format!("화면 조각 {widgets}개"));
+    }
+    if count("menu.ensure") > 0 {
+        has.push("메뉴".into());
+    }
+    if presets::theme_tokens(p).is_some() {
+        has.push("어울리는 스킨".into());
+    }
+    json!({
+        "id": p.id,
+        "name": p.name,
+        "fit": fit,
+        "description": p.description,
+        "has": has,
+    })
+}
+
+fn op_name(op: &presets::Op) -> String {
+    serde_json::to_value(op)
+        .ok()
+        .and_then(|v| v["op"].as_str().map(str::to_owned))
+        .unwrap_or_default()
+}
+
+async fn site_types_page(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let who = match require(&state, &headers, "/admin/themes").await {
+        Ok(w) => w,
+        Err(r) => return *r,
+    };
+    let cards: Vec<Value> = SITE_TYPES
+        .iter()
+        .filter_map(|(id, fit)| {
+            maru_themes::preset(id)
+                .ok()
+                .map(|p| site_type_card(&p, fit))
+        })
+        .collect();
+    let ctx = merge(
+        base(&state, Some(&who), "themes").await,
+        json!({ "types": cards }),
+    );
+    render(&state, StatusCode::OK, "themes.html", &ctx)
+}
+
+#[derive(Deserialize)]
+struct SiteTypeForm {
+    #[serde(rename = "_csrf")]
+    csrf: String,
+    preset: String,
+}
+
+/// 테마(사이트 종류)를 고르면 변경 묶음을 만들고 그 화면으로 보낸다. 적용은 거기서 한다.
+async fn site_type_start(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Form(f): Form<SiteTypeForm>,
+) -> Response {
+    use maru_core::services::changesets;
+    let who = match require_post(&state, &headers, &f.csrf).await {
+        Ok(w) => w,
+        Err(r) => return *r,
+    };
+    if !SITE_TYPES.iter().any(|(id, _)| *id == f.preset) {
+        let e = Error::new(Code::NotFound).with_message("error.not_found");
+        return fail(&state, Some(&who), &e).await;
+    }
+    let made = match maru_themes::preset(&f.preset) {
+        Ok(p) => changesets::create_from_preset(&state.ctx, &who.actor, &p).await,
+        Err(e) => Err(e),
+    };
+    match made {
+        Ok(cs) => Redirect::to(&format!("/admin/changesets/{}?done=theme", encode(&cs.id)))
+            .into_response(),
         Err(e) => fail(&state, Some(&who), &e).await,
     }
 }

@@ -1,57 +1,146 @@
 {% extends "_base.html" %}
+{% import "_icons.html" as ic %}
 {% block title %}위젯{% endblock %}
+{% macro scope_select(id, current) -%}
+<select id="{{ id }}" name="scope">
+  {% set ns = namespace(found=false) %}
+  {% for s in scopes if not s.group %}<option value="{{ s.id }}"{% if current == s.id or (not current and s.id == "all") %}{% set ns.found = true %} selected{% endif %}>{{ s.label }}</option>{% endfor %}
+  {% set bs = scopes | selectattr("group", "equalto", "board") | list %}
+  {% if bs %}<optgroup label="게시판 하나에서만">{% for s in bs %}<option value="{{ s.id }}"{% if current == s.id %}{% set ns.found = true %} selected{% endif %}>{{ s.label }}</option>{% endfor %}</optgroup>{% endif %}
+  {% set ps = scopes | selectattr("group", "equalto", "page") | list %}
+  {% if ps %}<optgroup label="페이지 하나에서만">{% for s in ps %}<option value="{{ s.id }}"{% if current == s.id %}{% set ns.found = true %} selected{% endif %}>{{ s.label }}</option>{% endfor %}</optgroup>{% endif %}
+  {% if current and not ns.found %}<option value="{{ current }}" selected>지금 값: {{ current }}</option>{% endif %}
+</select>
+{%- endmacro %}
 {% block content %}
 <div class="heading-row">
   <h1>위젯 <span class="count">{{ total }}</span></h1>
+  <a class="button" href="#place">{{ ic.icon("plus") }} 위젯 놓기</a>
 </div>
-<p class="hint">최신 글·인기 글·글 상자 같은 조각을 화면의 영역에 놓습니다. 범위로 어느 화면에 붙일지 고릅니다: <code>all</code>(모든 공개 화면), <code>home</code>(첫 화면), <code>boards</code>(게시판·글 화면), <code>board:주소</code>, <code>page:주소</code>. 자세한 설정은 <code>maru widget types --json</code> 으로 봅니다.</p>
+<p class="lead">위젯은 사이트 화면에 붙이는 조각입니다. 최신 글·인기 글·배너·영업시간 같은 것을 원하는 자리에 놓으세요.</p>
 
+<div class="widget-layout">
+<aside class="page-map-wrap" aria-label="화면 자리 지도">
+  <p class="page-map-title">화면 자리</p>
+  <nav class="page-map">
+    {% for r in regions %}
+    <a class="pm pm-{{ r.id }}{% if r.count %} has{% endif %}" href="#region-{{ r.id }}" title="{{ r.hint }}"><span>{{ r.label }}</span>{% if r.count %}<b>{{ r.count }}</b>{% endif %}</a>
+    {% endfor %}
+  </nav>
+  <p class="hint">숫자는 놓인 위젯 수입니다. 누르면 그 자리로 갑니다.</p>
+</aside>
+
+<div class="widget-regions">
 {% for r in regions %}
-<section class="widget-region" aria-labelledby="region-{{ r.id }}">
-  <h2 id="region-{{ r.id }}">{{ r.label }} <code>{{ r.id }}</code></h2>
+<section class="widget-region{% if not r.items %} is-empty{% endif %}" id="region-{{ r.id }}" aria-labelledby="region-{{ r.id }}-h">
+  <div class="region-head">
+    <h2 id="region-{{ r.id }}-h">{{ r.label }}</h2>
+    <span class="hint">{{ r.hint }}</span>
+    <a class="region-add" href="/admin/widgets?region={{ r.id }}#place">{{ ic.icon("plus") }} 여기에 놓기</a>
+  </div>
   {% if r.items %}
-  <ol class="widget-rows">
+  <ol class="wcards">
   {% for w in r.items %}
-    <li class="widget-row{% if not w.enabled %} is-off{% endif %}">
-      <p class="widget-row-head"><strong>{{ w.kind_name }}</strong>{% if w.title %} 「{{ w.title }}」{% endif %} <span class="badge">{{ w.scope }}</span>{% if not w.enabled %} <span class="badge">꺼짐</span>{% endif %}{% if w.orphan %} <span class="badge">모듈이 꺼져 있어 보이지 않습니다</span>{% endif %}</p>
-      <p class="widget-row-config"><code>{{ w.config }}</code></p>
-      {% set first = loop.first %}{% set last = loop.last %}
-      <div class="actions">
-        {% for a in [["up", "위로"], ["down", "아래로"], ["disable" if w.enabled else "enable", "끄기" if w.enabled else "켜기"], ["remove", "빼기"]] %}
-        {% if not (a[0] == "up" and first) and not (a[0] == "down" and last) %}
-        <form method="post" action="/admin/widgets/{{ w.id }}/{{ a[0] }}" class="inline">
-          <input type="hidden" name="_csrf" value="{{ csrf }}">
-          <button type="submit" class="{% if a[0] == 'remove' %}warn{% else %}secondary{% endif %}" aria-label="{{ w.title or w.kind_name }} {{ a[1] }}">{{ a[1] }}</button>
-        </form>
-        {% endif %}
-        {% endfor %}
+    <li class="wcard{% if not w.enabled %} is-off{% endif %}" id="w-{{ w.id }}">
+      <div class="wcard-row">
+        <span class="wcard-icon" aria-hidden="true">{{ ic.icon(w.icon) }}</span>
+        <div class="wcard-body">
+          <p class="wcard-title"><strong>{{ w.title or w.kind_name }}</strong>{% if w.title %} <span class="muted">{{ w.kind_name }}</span>{% endif %}
+            {% if not w.enabled %}<span class="badge">꺼 둠</span>{% endif %}
+            {% if w.orphan %}<span class="badge badge-warn">기능이 꺼져 있어 안 보임</span>{% endif %}</p>
+          <p class="wcard-where">{{ w.where }}에 보임</p>
+          {% if w.summary %}<p class="chips">{% for s in w.summary %}<span class="chip">{{ s }}</span>{% endfor %}</p>{% endif %}
+        </div>
+        <div class="wcard-actions">
+          {% if not loop.first %}<form method="post" action="/admin/widgets/{{ w.id }}/up" class="inline"><input type="hidden" name="_csrf" value="{{ csrf }}"><button type="submit" class="icon-button" title="위로" aria-label="{{ w.title or w.kind_name }} 위로">{{ ic.icon("up") }}</button></form>{% endif %}
+          {% if not loop.last %}<form method="post" action="/admin/widgets/{{ w.id }}/down" class="inline"><input type="hidden" name="_csrf" value="{{ csrf }}"><button type="submit" class="icon-button" title="아래로" aria-label="{{ w.title or w.kind_name }} 아래로">{{ ic.icon("down") }}</button></form>{% endif %}
+          <form method="post" action="/admin/widgets/{{ w.id }}/{% if w.enabled %}disable{% else %}enable{% endif %}" class="inline">
+            <input type="hidden" name="_csrf" value="{{ csrf }}">
+            <button type="submit" class="switch-button{% if w.enabled %} on{% endif %}" aria-pressed="{% if w.enabled %}true{% else %}false{% endif %}" aria-label="{{ w.title or w.kind_name }} {% if w.enabled %}끄기{% else %}켜기{% endif %}"><span class="switch-track" aria-hidden="true"></span>{% if w.enabled %}켜짐{% else %}꺼짐{% endif %}</button>
+          </form>
+          <form method="post" action="/admin/widgets/{{ w.id }}/remove" class="inline">
+            <input type="hidden" name="_csrf" value="{{ csrf }}">
+            <button type="submit" class="icon-button warn" title="빼기" aria-label="{{ w.title or w.kind_name }} 빼기">{{ ic.icon("trash") }}</button>
+          </form>
+        </div>
       </div>
+      {% if not w.orphan %}
+      <details class="wcard-edit"{% if w.open %} open{% endif %}>
+        <summary>{{ ic.icon("edit") }} 설정 고치기</summary>
+        <form method="post" action="/admin/widgets/{{ w.id }}/edit" class="widget-form" data-kind="{{ w.kind }}">
+          <input type="hidden" name="_csrf" value="{{ csrf }}">
+          <div class="form-grid">
+            <div class="stack">
+              <label for="t-{{ w.id }}">제목 <span class="hint">비우면 제목 없이</span></label>
+              <input id="t-{{ w.id }}" name="title" value="{{ w.edit.title }}" maxlength="60" autocomplete="off">
+            </div>
+            <div class="stack">
+              <label for="s-{{ w.id }}">어느 화면에</label>
+              {{ scope_select("s-" ~ w.id, w.edit.scope) }}
+            </div>
+          </div>
+          <div class="schema-fields" data-schema-fields></div>
+          <details class="raw"><summary>설정 원문 (JSON, 고급)</summary>
+            <textarea name="config" rows="6" spellcheck="false" data-config aria-label="설정 원문">{{ w.edit.config }}</textarea>
+          </details>
+          <button type="submit">{{ ic.icon("check") }} 저장</button>
+        </form>
+      </details>
+      {% endif %}
     </li>
   {% endfor %}
   </ol>
-  {% else %}<p class="empty">놓인 위젯이 없습니다.</p>{% endif %}
+  {% endif %}
 </section>
 {% endfor %}
+</div>
+</div>
 
-<section class="widget-place" aria-labelledby="widget-place-title">
-  <h2 id="widget-place-title">위젯 놓기</h2>
-  <form method="post" action="/admin/widgets" class="stack">
+<section class="card widget-place" id="place" aria-labelledby="place-h">
+  <h2 id="place-h">{{ ic.icon("plus") }} 위젯 놓기</h2>
+  <form method="post" action="/admin/widgets" class="widget-form">
     <input type="hidden" name="_csrf" value="{{ csrf }}">
-    <label for="w-kind">종류</label>
-    <select id="w-kind" name="kind" required>
-      {% for t in types %}<option value="{{ t.id }}"{% if form.kind == t.id %} selected{% endif %}>{{ t.name }} — {{ t.description }}</option>{% endfor %}
-    </select>
-    <label for="w-region">영역</label>
-    <select id="w-region" name="region" required>
-      {% for r in region_choices %}<option value="{{ r.id }}"{% if form.region == r.id or (not form.region and r.id == "sidebar") %} selected{% endif %}>{{ r.label }} ({{ r.id }})</option>{% endfor %}
-    </select>
-    <label for="w-scope">범위</label>
-    <input id="w-scope" name="scope" value="{{ form.scope or 'all' }}" maxlength="80" autocomplete="off">
-    <label for="w-title">제목 <span class="hint">비우면 제목 없이</span></label>
-    <input id="w-title" name="title" value="{{ form.title }}" maxlength="60" autocomplete="off">
-    <label for="w-config">설정 JSON <span class="hint">비우면 기본값. 예: <code>{"board":"notice","limit":5}</code></span></label>
-    <textarea id="w-config" name="config" rows="4" spellcheck="false">{{ form.config }}</textarea>
-    <button type="submit">놓기</button>
+    <fieldset class="kind-picker">
+      <legend><span class="step-no">1</span> 무엇을 놓을까요?</legend>
+      <div class="kind-grid">
+      {% for t in types %}
+        <label class="kind-card"><input type="radio" name="kind" value="{{ t.id }}" required{% if form.kind == t.id %} checked{% endif %}>
+          <span class="kind-icon" aria-hidden="true">{{ ic.icon(t.icon) }}</span>
+          <span class="kind-text"><strong>{{ t.name }}</strong><small>{{ t.description }}</small></span>
+        </label>
+      {% endfor %}
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend><span class="step-no">2</span> 어디에 놓을까요?</legend>
+      <div class="form-grid">
+        <div class="stack">
+          <label for="w-region">화면 자리</label>
+          <select id="w-region" name="region" required>
+            {% for r in region_choices %}<option value="{{ r.id }}"{% if form.region == r.id or (not form.region and r.id == "sidebar") %} selected{% endif %}>{{ r.label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="stack">
+          <label for="w-scope">어느 화면에</label>
+          {{ scope_select("w-scope", form.scope) }}
+        </div>
+        <div class="stack">
+          <label for="w-title">제목 <span class="hint">비우면 제목 없이</span></label>
+          <input id="w-title" name="title" value="{{ form.title }}" maxlength="60" autocomplete="off">
+        </div>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend><span class="step-no">3</span> 설정</legend>
+      <div class="schema-fields" data-schema-fields><p class="hint">위에서 종류를 고르면 고를 수 있는 설정이 나옵니다.</p></div>
+      <details class="raw"{% if place_failed %} open{% endif %}><summary>설정 원문 (JSON, 고급)</summary>
+        <textarea name="config" rows="5" spellcheck="false" data-config aria-label="설정 원문">{{ form.config }}</textarea>
+        <p class="hint">비우면 기본값으로 놓습니다.</p>
+      </details>
+    </fieldset>
+    <button type="submit">{{ ic.icon("check") }} 놓기</button>
   </form>
 </section>
+<script type="application/json" id="widget-schemas">{{ schema_json | safe }}</script>
 {% endblock %}
+{% block scripts %}<script src="/admin/assets/admin-ui.js" defer></script>{% endblock %}

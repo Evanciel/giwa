@@ -1,38 +1,65 @@
 {% extends "_base.html" %}
+{% import "_icons.html" as ic %}
 {% block title %}메뉴{% endblock %}
 {% block content %}
 <div class="heading-row">
   <h1>메뉴</h1>
+  <a class="button ghost" href="/" target="_blank" rel="noopener">{{ ic.icon("eye") }} 사이트 보기</a>
 </div>
-<p class="hint">줄마다 이름·가리킬 곳을 고릅니다. 이름을 비우면 그 줄은 빠집니다. 「하위」를 켜면 바로 위 항목 아래에 붙습니다(2단까지). 순서 값이 작을수록 앞입니다.</p>
+<p class="lead">메뉴 이름을 쓰고, 눌렀을 때 갈 곳을 고르세요. 화살표로 순서를 바꿉니다. 이름을 비우면 그 줄은 빠집니다.</p>
 
 <datalist id="board-slugs">{% for b in boards %}<option value="{{ b.slug }}">{{ b.name }}</option>{% endfor %}</datalist>
 <datalist id="page-slugs">{% for p in pages %}<option value="{{ p.slug }}">{{ p.name }}</option>{% endfor %}</datalist>
 
 {% for loc in locations %}
-<section aria-labelledby="menu-{{ loc.id }}" class="site-section">
-  <h2 id="menu-{{ loc.id }}">{{ loc.label }} <code>{{ loc.id }}</code></h2>
-  <form method="post" action="/admin/menus/{{ loc.id }}" class="site-form">
+<section aria-labelledby="menu-{{ loc.id }}" class="card menu-card">
+  <h2 id="menu-{{ loc.id }}">{{ ic.icon("menus") }} {{ loc.label }}</h2>
+  <form method="post" action="/admin/menus/{{ loc.id }}" class="menu-form">
     <input type="hidden" name="_csrf" value="{{ csrf }}">
-    <table class="stat-table menu-table">
-      <thead><tr><th scope="col">순서</th><th scope="col">이름</th><th scope="col">종류</th><th scope="col">게시판·페이지 주소 또는 링크</th><th scope="col">하위</th></tr></thead>
+    <table class="menu-table">
+      <thead><tr>
+        <th scope="col"><span class="js-only">순서</span><span class="no-js">순서 값</span></th>
+        <th scope="col">메뉴 이름</th>
+        <th scope="col" class="js-only">누르면 갈 곳</th>
+        <th scope="col" class="no-js">종류</th>
+        <th scope="col" class="no-js">게시판·페이지 주소 또는 링크</th>
+        <th scope="col">하위</th>
+      </tr></thead>
       <tbody>
-      {% for r in loc.rows %}{% set i = loop.index0 %}
-        <tr>
-          <td><input name="r{{ i }}_order" value="{{ (i + 1) * 10 }}" inputmode="numeric" class="menu-order" aria-label="{{ i + 1 }}번째 줄 순서"></td>
-          <td><input name="r{{ i }}_label" value="{{ r.label }}" maxlength="40" aria-label="{{ i + 1 }}번째 줄 이름" autocomplete="off"></td>
-          <td><select name="r{{ i }}_kind" aria-label="{{ i + 1 }}번째 줄 종류">
+      {% for r in loc.rows %}{% set i = loop.index0 %}{% set n = i + 1 %}
+        {% if r.kind == "home" %}{% set dest = "home" %}{% elif r.kind == "board" or r.kind == "page" %}{% set dest = r.kind ~ ":" ~ r.target %}{% else %}{% set dest = "url" %}{% endif %}
+        <tr class="{% if not r.label %}is-blank{% endif %}">
+          <td class="menu-move">
+            <span class="js-only">
+              <button type="button" class="icon-button" data-move="up" aria-label="{{ n }}번째 줄 위로">{{ ic.icon("up") }}</button>
+              <button type="button" class="icon-button" data-move="down" aria-label="{{ n }}번째 줄 아래로">{{ ic.icon("down") }}</button>
+            </span>
+            <input name="r{{ i }}_order" value="{{ n * 10 }}" inputmode="numeric" class="menu-order no-js" data-order aria-label="{{ n }}번째 줄 순서 값">
+          </td>
+          <td><input name="r{{ i }}_label" value="{{ r.label }}" maxlength="40" aria-label="{{ n }}번째 줄 이름" autocomplete="off" placeholder="{% if not r.label %}새 메뉴 이름{% endif %}"></td>
+          <td class="js-only menu-dest">
+            <select data-dest aria-label="{{ n }}번째 줄 누르면 갈 곳">
+              <option value="home"{% if dest == "home" %} selected{% endif %}>첫 화면</option>
+              {% if boards %}<optgroup label="게시판">{% for b in boards %}<option value="board:{{ b.slug }}"{% if dest == "board:" ~ b.slug %} selected{% endif %}>{{ b.name }}</option>{% endfor %}</optgroup>{% endif %}
+              {% if pages %}<optgroup label="페이지">{% for p in pages %}<option value="page:{{ p.slug }}"{% if dest == "page:" ~ p.slug %} selected{% endif %}>{{ p.name }}</option>{% endfor %}</optgroup>{% endif %}
+              {% if (r.kind == "board" and r.target not in boards | map(attribute="slug")) or (r.kind == "page" and r.target not in pages | map(attribute="slug")) %}<option value="{{ dest }}" selected>지금 값: {{ r.target }}</option>{% endif %}
+              <option value="url"{% if dest == "url" %} selected{% endif %}>직접 링크 쓰기…</option>
+            </select>
+            <span data-url{% if dest != "url" %} hidden{% endif %}><input value="{% if dest == 'url' %}{{ r.target }}{% endif %}" maxlength="300" placeholder="https://… 또는 /recent" aria-label="{{ n }}번째 줄 링크 주소" autocomplete="off" spellcheck="false"></span>
+          </td>
+          <td class="no-js"><select name="r{{ i }}_kind" data-kind aria-label="{{ n }}번째 줄 종류">
             {% for k in kinds %}<option value="{{ k.id }}"{% if r.kind == k.id %} selected{% endif %}>{{ k.label }}</option>{% endfor %}
           </select></td>
-          <td><input name="r{{ i }}_target" value="{{ r.target }}" maxlength="300" list="{% if r.kind == 'page' %}page-slugs{% else %}board-slugs{% endif %}" aria-label="{{ i + 1 }}번째 줄 가리킬 곳" autocomplete="off" spellcheck="false"></td>
-          <td><label class="menu-child"><input type="checkbox" name="r{{ i }}_child" value="1"{% if r.child %} checked{% endif %} aria-label="{{ i + 1 }}번째 줄 하위 항목"><span>하위</span></label></td>
+          <td class="no-js"><input name="r{{ i }}_target" value="{{ r.target }}" maxlength="300" data-target list="{% if r.kind == 'page' %}page-slugs{% else %}board-slugs{% endif %}" aria-label="{{ n }}번째 줄 가리킬 곳" autocomplete="off" spellcheck="false"></td>
+          <td><label class="choice compact" title="바로 위 메뉴 아래에 붙입니다(2단까지)"><input type="checkbox" name="r{{ i }}_child" value="1"{% if r.child %} checked{% endif %} aria-label="{{ n }}번째 줄을 위 메뉴의 하위로"><span class="choice-text">하위로</span></label></td>
         </tr>
       {% endfor %}
       </tbody>
     </table>
-    <p class="hint">게시판 주소 예: {% for b in boards %}<code>{{ b.slug }}</code>{% if not loop.last %}, {% endif %}{% endfor %}{% if pages %} · 페이지 주소 예: {% for p in pages %}<code>{{ p.slug }}</code>{% if not loop.last %}, {% endif %}{% endfor %}{% endif %} · 링크는 <code>https://</code> 또는 <code>/</code> 로 시작</p>
-    <button type="submit">{{ loc.label }} 저장</button>
+    <p class="hint">「하위로」를 켜면 바로 위 메뉴를 눌렀을 때 펼쳐지는 아래 메뉴가 됩니다(2단까지).</p>
+    <button type="submit">{{ ic.icon("check") }} {{ loc.label }} 저장</button>
   </form>
 </section>
 {% endfor %}
 {% endblock %}
+{% block scripts %}<script src="/admin/assets/admin-ui.js" defer></script>{% endblock %}
