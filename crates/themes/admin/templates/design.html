@@ -10,7 +10,7 @@
 
 <section id="themes" class="site-section first" aria-labelledby="themes-h">
   <h2 id="themes-h">스킨</h2>
-  <p class="hint">카드를 누르면 색·모서리·폭이 한 번에 바뀝니다. 글·게시판·메뉴는 그대로입니다. 사이트 종류(커뮤니티·회사 소개 같은 것)는 <a href="/admin/themes">테마</a>에서 고릅니다.</p>
+  <p class="hint">카드 그림은 같은 예시 사이트에 그 스킨을 입힌 실제 화면입니다. 카드를 누르면 색·모서리·폭이 한 번에 바뀝니다. 글·게시판·메뉴는 그대로입니다. 사이트 종류(커뮤니티·회사 소개 같은 것)는 <a href="/admin/themes">테마</a>에서 고릅니다.</p>
   <ul class="theme-grid">
   {% for t in themes %}
     <li class="theme-pick{% if t.current %} is-current{% endif %}">
@@ -18,7 +18,8 @@
         <input type="hidden" name="_csrf" value="{{ csrf }}">
         <input type="hidden" name="theme" value="{{ t.id }}">
         <button type="submit" class="theme-button"{% if t.current %} aria-current="true" disabled{% endif %}>
-          {{ art.art(t) }}
+          {% if t.shot %}<span class="shot"><img src="/admin/assets/shots/skin-{{ t.id }}.webp" alt="" width="640" height="1200" loading="lazy" decoding="async"></span>
+          {% else %}{{ art.art(t) }}{% endif %}
           <span class="theme-meta">
             <span class="theme-name"><strong>{{ t.name }}</strong>{% if t.current %}<span class="badge badge-published">지금 스킨</span>{% endif %}</span>
             {{ art.swatches(t) }}

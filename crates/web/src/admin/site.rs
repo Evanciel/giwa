@@ -1751,6 +1751,7 @@ impl Theme {
             "name": self.name,
             "description": self.description,
             "current": self.is_current(tokens),
+            "shot": maru_themes::has_shot(&format!("skin-{}", self.id)),
             "c": self.patch["color"],
             "d": self.patch["color_dark"],
             "rs": radius("sm").min(8),
@@ -1872,6 +1873,7 @@ fn site_type_card(p: &presets::Preset, fit: &str) -> Value {
         "fit": fit,
         "description": p.description,
         "has": has,
+        "shot": maru_themes::has_shot(&format!("site-{}", p.id)),
     })
 }
 

@@ -94,7 +94,8 @@ fn http(bind: &str, method: &str, path: &str, headers: &[(&str, &str)], body: &s
     s.write_all(req.as_bytes()).unwrap();
     let mut raw = Vec::new();
     s.read_to_end(&mut raw).unwrap();
-    let text = String::from_utf8(raw).unwrap();
+    // 그림 응답(썸네일)도 받으므로 글자가 아닌 바이트는 바꿔 읽는다. 머리글만 보면 된다.
+    let text = String::from_utf8_lossy(&raw).into_owned();
     let (head, body) = text.split_once("\r\n\r\n").unwrap_or((&text, ""));
     Res {
         status: head[9..12].parse().unwrap(),
@@ -501,6 +502,27 @@ fn site_structure_members_settings_and_design_from_admin_screens() {
         "{cs}"
     );
     assert_eq!(post("/admin/themes", &[("preset", "없는종류")]).status, 404);
+
+    // ---- 카드 그림은 실제 화면 썸네일이다 (ADR-0141). 종류·스킨마다 하나씩 있고 그림으로 내려온다
+    let types = get("/admin/themes").body;
+    let skins = get("/admin/design").body;
+    for id in ["community", "shop", "clinic", "realty", "linkbio"] {
+        let src = format!("/admin/assets/shots/site-{id}.webp");
+        assert!(types.contains(&src), "{src}");
+        assert!(
+            get(&src).head.to_ascii_lowercase().contains("image/webp"),
+            "{src}"
+        );
+    }
+    for id in ["default", "cafe", "community"] {
+        let src = format!("/admin/assets/shots/skin-{id}.webp");
+        assert!(skins.contains(&src), "{src}");
+        assert!(
+            get(&src).head.to_ascii_lowercase().contains("image/webp"),
+            "{src}"
+        );
+    }
+    assert!(!types.contains("class=\"site-art\""), "견본 그림이 남았다");
 
     // ---- 위젯: 놓고, 사람 말로 보이고, 제목·보일 곳·설정을 고친다
     let res = post(

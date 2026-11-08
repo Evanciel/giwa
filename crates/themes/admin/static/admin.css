@@ -758,6 +758,13 @@ fieldset.segment legend { font-weight: 600; padding: 0; margin: .6rem 0 .4rem; w
 }
 .site-type-button:hover { background: var(--surface); border-color: color-mix(in srgb, var(--primary) 50%, var(--border)); transform: translateY(-3px); box-shadow: var(--shadow-up); }
 .site-type-art { display: block; padding: .9rem .9rem 0; background: var(--surface-2); }
+/* 실제 화면 썸네일 (ADR-0141): 640×1200 세로 그림의 위쪽을 4:3 창으로 보이고, 가리키면 아래로 훑는다.
+   그림 높이는 너비의 1.875배, 창은 0.75배라 끝까지 내리면 그림 높이의 60% 를 올린다. */
+.shot { display: block; aspect-ratio: 4 / 3; overflow: hidden; background: #fff; border-bottom: 1px solid var(--border); }
+.shot img { display: block; width: 100%; height: auto; transition: transform 2.8s ease-in-out; }
+.theme-button:hover .shot img, .theme-button:focus-visible .shot img,
+.site-type-button:hover .shot img, .site-type-button:focus-visible .shot img { transform: translateY(-60%); }
+@media (prefers-reduced-motion: reduce) { .shot img { transition: none; } }
 .site-art { display: block; width: 100%; height: auto; }
 .site-art .sa-bg { fill: var(--surface); }
 .site-art .sa-bar { fill: var(--primary); }

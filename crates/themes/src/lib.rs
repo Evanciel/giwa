@@ -218,6 +218,12 @@ pub fn compatible(dir: &Path) -> bool {
     }
 }
 
+/// 관리 화면 썸네일(`admin/static/shots/<name>.webp`)이 있는가 (ADR-0141).
+/// `scripts/theme_shots.py` 가 실제 화면을 찍어 만든다. 없으면 카드는 견본 그림을 쓴다.
+pub fn has_shot(name: &str) -> bool {
+    AdminFiles::get(&format!("static/shots/{name}.webp")).is_some()
+}
+
 /// 내장 프리셋 id 목록.
 pub fn preset_ids() -> Vec<String> {
     Builtin::iter()

@@ -16,7 +16,8 @@
       <input type="hidden" name="_csrf" value="{{ csrf }}">
       <input type="hidden" name="preset" value="{{ t.id }}">
       <button type="submit" class="site-type-button">
-        <span class="site-type-art">{{ art.site(t.id) }}</span>
+        {% if t.shot %}<span class="shot"><img src="/admin/assets/shots/site-{{ t.id }}.webp" alt="" width="640" height="1200" loading="lazy" decoding="async"></span>
+        {% else %}<span class="site-type-art">{{ art.site(t.id) }}</span>{% endif %}
         <span class="site-type-meta">
           <strong>{{ t.name }}</strong>
           <span class="site-type-fit">{{ t.fit }}</span>

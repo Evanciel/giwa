@@ -105,7 +105,7 @@
       <a class="card-more" href="/admin/design#themes">바꾸기 {{ ic.icon("arrow") }}</a>
     </div>
     <a class="theme-now" href="/admin/design#themes">
-      {{ art.art(theme) }}
+      {% if theme.shot %}<span class="shot"><img src="/admin/assets/shots/skin-{{ theme.id }}.webp" alt="" width="640" height="1200" loading="lazy" decoding="async"></span>{% else %}{{ art.art(theme) }}{% endif %}
       <span class="theme-now-text"><strong>{{ theme.name }}</strong>{{ art.swatches(theme) }}</span>
     </a>
     <p class="hint">스킨을 바꿔도 글·게시판·메뉴는 그대로입니다.</p>
