@@ -73,14 +73,24 @@ def serve(bin_, data, port):
 def shoot(browser, port, work, out):
     png = work / "shot.png"
     png.unlink(missing_ok=True)
-    subprocess.run(
-        [browser, "--headless=new", "--disable-gpu", "--hide-scrollbars",
-         "--force-color-profile=srgb", "--force-prefers-reduced-motion",
-         f"--user-data-dir={work / 'browser'}", f"--window-size={SHOT_W},{SHOT_H}",
-         "--virtual-time-budget=4000", f"--screenshot={png}", f"http://127.0.0.1:{port}/"],
-        capture_output=True,
-        timeout=120,
-    )
+    # 출력을 잡지 않는다: 남은 크롬 자식 프로세스가 파이프를 쥐면 끝난 뒤에도 기다린다.
+    # 바쁜 PC 에서는 가끔 멈추므로 세 번까지 다시 찍는다.
+    for _ in range(3):
+        try:
+            subprocess.run(
+                [browser, "--headless=new", "--disable-gpu", "--hide-scrollbars",
+                 "--force-color-profile=srgb", "--force-prefers-reduced-motion",
+                 f"--user-data-dir={work / 'browser'}", f"--window-size={SHOT_W},{SHOT_H}",
+                 "--virtual-time-budget=4000", f"--screenshot={png}",
+                 f"http://127.0.0.1:{port}/"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=120,
+            )
+        except subprocess.TimeoutExpired:
+            pass
+        if png.exists():
+            break
     if not png.exists():
         sys.exit("화면을 찍지 못했다")
     img = Image.open(png).convert("RGB").crop((0, 0, SHOT_W, SHOT_H))
