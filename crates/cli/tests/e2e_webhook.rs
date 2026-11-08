@@ -138,7 +138,7 @@ fn db<T>(data: &Path, f: impl AsyncFnOnce(&maru_storage::Db) -> T) -> T {
 fn webhooks_are_signed_filtered_and_retried_per_endpoint() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path();
-    maru(data, &["init", "--preset", "blog", "--yes"]);
+    maru(data, &["init", "--no-samples", "--preset", "blog", "--yes"]);
     maru(data, &["module", "enable", "webhook"]);
     let (port, got, fail_b) = receiver();
     let a = format!("http://127.0.0.1:{port}/a");

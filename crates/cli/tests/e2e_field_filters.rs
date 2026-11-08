@@ -117,7 +117,10 @@ fn listed(html: &str) -> Vec<String> {
 fn deal_board_lists_fields_and_filters_by_them() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     maru(&data, &["site", "set", "--posts-per-page", "2"]);
 
     // 거르기는 고르는 칸에만.
@@ -238,7 +241,10 @@ fn deal_board_lists_fields_and_filters_by_them() {
 fn event_deadline_roles_and_view_switch() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
 
     // 역할은 맞는 타입에 한 칸씩만.
     let bad = tmp.path().join("bad.json");

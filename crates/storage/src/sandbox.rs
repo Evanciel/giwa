@@ -1,7 +1,8 @@
 //! 사본 DB (ADR-0121). `VACUUM INTO` 로 한 시점을 복사해 같은 서비스를 돌린다.
 //! 적용 전 시험과 미리보기에 쓴다. 파일은 `<데이터>/previews/` 에 두고 백업에 넣지 않는다.
 //!
-//! 미디어 보관소는 원본을 함께 쓴다. changeset 연산은 미디어 파일을 건드리지 않는다.
+//! 미디어는 원본을 읽고, 사본에서 새로 쓰는 파일(예시 글 그림, ADR-0142)은 `previews/<key>-media/` 에
+//! 따로 둔다. 원본 파일은 사본에서 지우지 않고, 사본을 닫으면 따로 둔 파일도 지운다.
 
 use std::collections::HashMap;
 use std::fs;
@@ -9,9 +10,11 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
+use maru_core::blobs::Blobs;
 use maru_core::services::changesets::Sandbox;
 use maru_core::{Ctx, Error, Result};
 
+use crate::blobs::FsBlobs;
 use crate::data_dir::{DataDir, io_error};
 use crate::db::{Db, db_error};
 use crate::sqlite::SqliteStore;
@@ -40,7 +43,12 @@ impl FsSandbox {
         self.dir.join(format!("{key}.db"))
     }
 
+    fn media_dir(&self, key: &str) -> PathBuf {
+        self.dir.join(format!("{key}-media"))
+    }
+
     fn remove_files(&self, key: &str) {
+        let _ = fs::remove_dir_all(self.media_dir(key));
         let path = self.path(key);
         for suffix in ["", "-wal", "-shm"] {
             let mut name = path.clone().into_os_string();
@@ -68,6 +76,10 @@ impl Sandbox for FsSandbox {
             .insert(key.to_owned(), copy.clone());
         let mut out = ctx.clone();
         out.store = Arc::new(SqliteStore::new(copy));
+        out.blobs = Arc::new(Overlay {
+            top: FsBlobs::new(self.media_dir(key)),
+            base: ctx.blobs.clone(),
+        });
         Ok(out)
     }
 
@@ -77,5 +89,29 @@ impl Sandbox for FsSandbox {
             db.close().await;
         }
         self.remove_files(key);
+    }
+}
+
+/// 사본의 미디어: 쓰기·지우기는 위층에만, 읽기는 위층 다음 원본.
+struct Overlay {
+    top: FsBlobs,
+    base: Arc<dyn Blobs>,
+}
+
+#[async_trait]
+impl Blobs for Overlay {
+    async fn put(&self, path: &str, bytes: &[u8]) -> Result<()> {
+        self.top.put(path, bytes).await
+    }
+
+    async fn get(&self, path: &str) -> Result<Option<Vec<u8>>> {
+        match self.top.get(path).await? {
+            Some(b) => Ok(Some(b)),
+            None => self.base.get(path).await,
+        }
+    }
+
+    async fn delete(&self, path: &str) -> Result<()> {
+        self.top.delete(path).await
     }
 }

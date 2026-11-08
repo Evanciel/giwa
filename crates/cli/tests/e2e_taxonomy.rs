@@ -112,7 +112,10 @@ fn encode(segment: &str) -> String {
 fn taxonomy_cli_and_rest_agree_and_secret_body_stays_private() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("site");
-    let init = maru(&data, &["init", "--preset", "blog", "--yes"]);
+    let init = maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     let token = init["token"]["secret"].as_str().unwrap().to_owned();
 
     // 분류: 두 번 만들어도 하나 (멱등)

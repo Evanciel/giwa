@@ -201,7 +201,10 @@ fn new_post(data: &Path, title: &str, slug: &str, body: &str) -> String {
 fn cli_revisions_move_copy_and_bulk() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     maru(
         &data,
         &[
@@ -280,7 +283,10 @@ fn cli_revisions_move_copy_and_bulk() {
 fn admin_revision_screen_reverts_and_list_moves_in_bulk() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     maru(
         &data,
         &[

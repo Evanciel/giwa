@@ -221,7 +221,10 @@ fn window() -> u64 {
 fn comments_replies_and_answers_notify_the_right_members() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     maru(
         &data,
         &[

@@ -172,7 +172,10 @@ fn signup_and_login(bind: &str, email: &str) -> String {
 fn member_attaches_a_file_to_a_post_from_the_public_write_form() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     maru(
         &data,
         &[

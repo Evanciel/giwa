@@ -108,7 +108,10 @@ fn board_layout(data: &Path, slug: &str) -> String {
 fn board_layouts_follow_kind_then_cli_and_mark_new_posts() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     let free = maru(
         &data,
         &[

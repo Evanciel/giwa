@@ -32,9 +32,9 @@ layout = "docs"
 sort_order = 0
 publish = true
 body_md = """
-이 제품이 무엇이고 누구를 위한 것인지 두세 문장으로 씁니다.
+이 도구는 날마다 되풀이하는 작업을 대신 처리해 주는 작은 프로그램입니다. 설정 파일 하나로 시작할 수 있어서, 혼자 쓰는 분부터 여러 사람이 함께 쓰는 팀까지 두루 쓸 수 있습니다.
 
-읽는 사람이 다음에 무엇을 해야 하는지 바로 알 수 있게, 아래 문서로 가는 길을 함께 적습니다.
+처음이라면 [설치](/p/install)부터 보시고, 이어서 [처음 해 보기](/p/first-steps)를 따라 해 보세요. 막히는 곳이 있으면 [자주 묻는 질문](/p/faq)을 먼저 확인해 주세요.
 """
 
 [[ops]]
@@ -48,19 +48,23 @@ publish = true
 body_md = """
 ## 준비할 것
 
-필요한 환경과 버전을 적습니다.
+64비트 윈도우, 맥, 리눅스에서 동작합니다. 설치하는 동안에만 인터넷 연결이 필요합니다.
 
 ## 설치하기
 
-실제로 붙여 넣어 실행할 명령을 적습니다.
+터미널을 열고 아래 명령을 붙여 넣어 실행합니다.
 
 ```
-여기에 명령을 적습니다
+mytool install
 ```
 
 ## 확인하기
 
-제대로 설치되었는지 알아보는 방법을 적습니다.
+아래 명령을 실행했을 때 버전 번호가 나오면 설치가 끝난 것입니다.
+
+```
+mytool --version
+```
 """
 
 [[ops]]
@@ -71,7 +75,15 @@ layout = "docs"
 parent = "start"
 sort_order = 1
 publish = true
-body_md = "처음 쓰는 사람이 5분 안에 결과를 볼 수 있는 가장 짧은 길을 순서대로 적습니다."
+body_md = """
+설치를 마쳤다면 5분이면 첫 결과를 볼 수 있습니다.
+
+1. 빈 폴더를 하나 만들고 그 안에서 `mytool init` 을 실행합니다.
+2. 새로 생긴 설정 파일을 열어 작업 이름 한 줄만 바꿉니다.
+3. `mytool run` 을 실행하면 첫 결과가 화면에 나타납니다.
+
+여기까지 되었다면 [길잡이](/p/guides)에서 자주 하는 일을 하나씩 익혀 보세요.
+"""
 
 [[ops]]
 op = "page.ensure"
@@ -80,7 +92,7 @@ title = "길잡이"
 layout = "docs"
 sort_order = 1
 publish = true
-body_md = "자주 하는 일을 하나씩 나누어 설명합니다. 아래 페이지를 더해 갑니다."
+body_md = "자주 하는 일을 하나씩 나누어 설명합니다. 순서대로 읽지 않아도 되니, 지금 필요한 글부터 골라 보세요."
 
 [[ops]]
 op = "page.ensure"
@@ -90,7 +102,15 @@ layout = "docs"
 parent = "guides"
 sort_order = 0
 publish = true
-body_md = "무엇을 이루는 글인지 첫 문장에 적고, 순서대로 따라 할 수 있게 씁니다."
+body_md = """
+이 글을 따라 하면 매일 손으로 하던 작업을 정해진 시간에 저절로 돌게 만들 수 있습니다.
+
+1. 설정 파일에 작업 이름과 실행할 시간을 적습니다.
+2. `mytool check` 로 설정이 맞는지 확인합니다.
+3. `mytool start` 를 실행해 두면 정해진 시간마다 작업이 돕니다.
+
+작업이 돌지 않는다면 [자주 묻는 질문](/p/faq)을 확인해 주세요.
+"""
 
 [[ops]]
 op = "page.ensure"
@@ -100,9 +120,13 @@ layout = "docs"
 sort_order = 2
 publish = true
 body_md = """
-## 질문을 제목으로 적습니다
+## 설치했는데 명령을 찾을 수 없다고 나옵니다
 
-답은 짧게 적고, 자세한 내용은 해당 문서로 보냅니다.
+터미널을 닫았다가 다시 열어 보세요. 그래도 같다면 [설치](/p/install) 문서의 확인하기 단계를 다시 따라 해 주세요.
+
+## 설정 파일은 어디에 있나요?
+
+`mytool init` 을 실행한 폴더 안에 만들어집니다. 자세한 내용은 [처음 해 보기](/p/first-steps)에 있습니다.
 """
 
 [[ops]]
@@ -120,7 +144,7 @@ items = [
 [[ops]]
 op = "widgets.ensure"
 items = [
-  { kind = "hero", region = "main", scope = "home", config = { eyebrow = "어떤 제품의 문서인지 한 줄로", button = { label = "시작하기", link = "/p/start" }, button2 = { label = "설치", link = "/p/install" } } },
+  { kind = "hero", region = "main", scope = "home", config = { eyebrow = "되풀이하는 작업을 대신 처리하는 도구의 사용 설명서", button = { label = "시작하기", link = "/p/start" }, button2 = { label = "설치", link = "/p/install" } } },
   { kind = "features", region = "main", scope = "home", title = "어디부터 볼까요", config = { style = "cards", items = [
     { title = "시작하기", text = "제품이 무엇인지와 처음 할 일", link = "/p/start" },
     { title = "길잡이", text = "자주 하는 일을 하나씩", link = "/p/guides" },

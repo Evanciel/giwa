@@ -51,12 +51,12 @@ items = [
 [[ops]]
 op = "widgets.ensure"
 items = [
-  { kind = "hero", region = "main", scope = "home", config = { title = "무엇을 만드는 사람인지 한 문장으로" } },
+  { kind = "hero", region = "main", scope = "home", config = { title = "작은 브랜드와 책의 얼굴을 만드는 그래픽 디자이너입니다" } },
   { kind = "gallery_grid", region = "main", scope = "home", config = { board = "works", limit = 12, columns = 3 } },
-  { kind = "cta", region = "main", scope = "home", title = "함께 일하고 싶다면", config = { tone = "plain", text = "메일 주소나 연락 방법을 여기에 적습니다.", button = { label = "소개 보기", link = "/p/about" } } },
-  { kind = "hero", region = "main", scope = "page:about", config = { title = "소개", text = "어떤 일을 해 왔고 무엇을 좋아하는지 씁니다." } },
+  { kind = "cta", region = "main", scope = "home", title = "함께 일하고 싶다면", config = { tone = "plain", text = "브랜드, 인쇄물, 누리집 작업 의뢰를 받습니다. 소개 화면을 보시고 편하게 연락 주세요.", button = { label = "소개 보기", link = "/p/about" } } },
+  { kind = "hero", region = "main", scope = "page:about", config = { title = "소개", text = "브랜드와 책, 포스터를 디자인해 왔습니다. 쓰는 사람의 손에 오래 남는 단정한 디자인을 좋아합니다." } },
   { kind = "timeline", region = "main", scope = "page:about", title = "경력", config = { items = [
-    { date = "0000 ~", title = "지금 하는 일" },
-    { date = "0000 ~ 0000", title = "이전에 한 일" },
+    { date = "2023 ~", title = "지금 하는 일" },
+    { date = "2018 ~ 2023", title = "이전에 한 일" },
   ] } },
 ]

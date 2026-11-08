@@ -138,6 +138,9 @@ enum Command {
     Changeset(ChangesetCmd),
     /// 운영 신호: 댓글 급증·신고 집중·묵은 신고. `maru signals alert` 는 새 신호를 지금 메일로
     Signals(SignalsArgs),
+    /// 사이트 종류가 넣은 예시 글: 상태 보기·한 번에 지우기
+    #[command(subcommand)]
+    Sample(SampleCmd),
     /// 관리 화면 로그인 링크를 만든다 (10분, 1회용)
     LoginLink(LoginLinkArgs),
     /// 설치 상태를 점검한다 (데이터, DB, 포트, 운영자, 테마)
@@ -172,6 +175,17 @@ pub struct InitArgs {
     /// 운영자 표시 이름
     #[arg(long, default_value = "운영자")]
     pub owner_name: String,
+    /// 예시 글·그림을 넣지 않는다 (기본은 빈 게시판에 예시 글을 넣는다, ADR-0142)
+    #[arg(long)]
+    pub no_samples: bool,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum SampleCmd {
+    /// 남아 있는 예시 글 수와 그중 고치지 않은 글 수
+    Status,
+    /// 고치지 않은 예시 글과 그림을 아주 지운다 (`--yes` 필요). 고친 글은 남는다
+    Clear,
 }
 
 #[derive(Debug, Subcommand)]

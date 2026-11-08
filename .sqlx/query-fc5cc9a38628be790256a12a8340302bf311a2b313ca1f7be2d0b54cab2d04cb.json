@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM search_fts WHERE rowid IN (SELECT id FROM search_docs WHERE post_id = ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "fc5cc9a38628be790256a12a8340302bf311a2b313ca1f7be2d0b54cab2d04cb"
+}

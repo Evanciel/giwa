@@ -2514,6 +2514,15 @@ impl WriteTx for SqliteWriteTx {
         post_by_id(&mut *self.tx, id).await
     }
 
+    async fn purge_post(&mut self, id: &str) -> Result<()> {
+        crate::search::drop_post(&mut self.tx, id).await?;
+        sqlx::query!("DELETE FROM posts WHERE id = ?", id)
+            .execute(&mut *self.tx)
+            .await
+            .map_err(db_error)?;
+        Ok(())
+    }
+
     async fn touch_post(&mut self, id: &str, at: &str) -> Result<()> {
         sqlx::query!(
             "UPDATE posts SET last_activity_at = ?1

@@ -172,7 +172,10 @@ fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
 fn community_preset_skin_and_account_bar() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("커뮤니티");
-    maru(&data, &["init", "--preset", "community", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "community", "--yes"],
+    );
 
     // 프리셋: 스킨·도배 방지·게시판·메뉴·위젯
     let site = maru(&data, &["site", "show"]);
@@ -195,7 +198,10 @@ fn community_preset_skin_and_account_bar() {
 
     // 다시 적용해도 늘지 않는다. 사용자가 바꾼 설정은 덮어쓰지 않는다.
     maru(&data, &["site", "set", "--flood-seconds", "30"]);
-    maru(&data, &["init", "--preset", "community", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "community", "--yes"],
+    );
     assert_eq!(
         maru(&data, &["widget", "list"]).as_array().unwrap().len(),
         count

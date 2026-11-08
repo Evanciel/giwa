@@ -70,7 +70,10 @@ fn get(bind: &str, path: &str) -> (u16, String) {
 fn board_description_and_best_cards() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     maru(
         &data,
         &[

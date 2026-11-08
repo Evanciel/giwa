@@ -217,7 +217,10 @@ fn listed(html: &str) -> Vec<String> {
 fn list_sort_and_comment_author_search() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     maru(
         &data,
         &[

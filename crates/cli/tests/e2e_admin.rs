@@ -195,11 +195,17 @@ fn e2e2_link_password_post_logout_login() {
     let log = tmp.path().join("server.log");
 
     // init 이 운영자와 로그인 링크를 낸다. 다시 실행하면 새로 내지 않는다.
-    let init = maru(&data, &["init", "--preset", "blog", "--yes"]);
+    let init = maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     assert_eq!(init["owner"]["email"], "owner@localhost");
     assert_eq!(init["owner"]["created"], true);
     let first_link = init["login_link"]["url"].as_str().unwrap().to_owned();
-    let again = maru(&data, &["init", "--preset", "blog", "--yes"]);
+    let again = maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     assert!(again["login_link"].is_null(), "{again}");
     assert!(again["owner"].is_null(), "{again}");
 
@@ -516,7 +522,7 @@ fn e2e2_link_password_post_logout_login() {
 fn login_attempts_are_rate_limited_per_connection_address() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("site");
-    maru(&data, &["init", "--yes"]);
+    maru(&data, &["init", "--no-samples", "--yes"]);
     let (_server, bind) = start_server(&data, &tmp.path().join("server.log"));
     let page = http(&bind, "GET", "/admin/login", &[], "");
     let pre = page.cookie("maru_csrf").unwrap();
@@ -564,7 +570,7 @@ fn login_link_points_at_the_running_server() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("site");
     let log = tmp.path().join("server.log");
-    maru(&data, &["init", "--yes"]);
+    maru(&data, &["init", "--no-samples", "--yes"]);
 
     let off = maru(&data, &["login-link"]);
     assert!(
@@ -605,7 +611,7 @@ fn login_link_points_at_the_running_server() {
 fn agent_token_cannot_issue_login_link() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("site");
-    let init = maru(&data, &["init", "--yes"]);
+    let init = maru(&data, &["init", "--no-samples", "--yes"]);
     let secret = init["token"]["secret"].as_str().unwrap();
     let out = Command::new(BIN)
         .arg("--data")
@@ -625,7 +631,10 @@ fn agent_token_cannot_issue_login_link() {
 fn publish_drawer_fields_reach_the_db() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("site");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     maru(&data, &["category", "add", "--board", "blog", "여행"]);
     let (_server, bind) = start_server(&data, &tmp.path().join("serve.log"));
     let link = maru(&data, &["login-link"]);

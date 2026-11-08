@@ -1,17 +1,19 @@
 //! 관리 화면 첫 쪽(대시보드). 처음 온 운영자가 할 일과 사이트 현황을 한눈에 보여준다.
 //! 값은 모두 같은 서비스 레이어에서 읽고, 권한이 없는 칸은 비운다.
 
-use axum::extract::{Query, State};
+use axum::extract::{Form, Query, State};
 use axum::http::{HeaderMap, StatusCode};
-use axum::response::Response;
+use axum::response::{IntoResponse, Redirect, Response};
 use maru_core::actor::Permission;
 use maru_core::model::{CommentStatus, PageReq, PostStatus, SiteSettings};
 use maru_core::services::auth::SignedIn;
-use maru_core::services::{boards, comments, design, members, posts, settings, signals, stats};
+use maru_core::services::{
+    boards, comments, design, members, posts, samples, settings, signals, stats,
+};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-use super::{base, merge, notice, post_row, render, require};
+use super::{CsrfForm, base, fail, merge, notice, post_row, render, require, require_post};
 use crate::AppState;
 
 #[derive(Debug, Default, Deserialize)]
@@ -39,6 +41,8 @@ pub(super) async fn page(
     let published = post_count(&state, &who, Some(PostStatus::Published)).await;
     let drafts = post_count(&state, &who, Some(PostStatus::Draft)).await;
     let moderator = who.actor.has(Permission::PostModerate);
+    let sample = samples::status(&state.ctx, &who.actor).await.ok();
+    let untouched = sample.as_ref().map_or(0, |s| s.untouched) as i64;
 
     let steps = [
         step(
@@ -63,7 +67,7 @@ pub(super) async fn page(
             "소개 쓰기",
         ),
         step(
-            published > 0,
+            published > untouched,
             "첫 글 발행하기",
             "게시판을 고르고 글을 쓰면 첫 화면에 바로 올라갑니다.",
             "/admin/posts/new",
@@ -94,9 +98,26 @@ pub(super) async fn page(
             "recent_comments": if moderator { recent_comments(&state, &who).await } else { Vec::new() },
             "moderator": moderator,
             "theme": current_theme(&state).await,
+            "sample": sample,
         }),
     );
     render(&state, StatusCode::OK, "dashboard.html", &ctx)
+}
+
+/// 고치지 않은 예시 글을 한 번에 지운다 (ADR-0142). 폼의 확인 칸은 브라우저가 묻는다.
+pub(super) async fn clear_samples(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Form(f): Form<CsrfForm>,
+) -> Response {
+    let who = match require_post(&state, &headers, &f.csrf).await {
+        Ok(w) => w,
+        Err(r) => return *r,
+    };
+    match samples::clear(&state.ctx, &who.actor).await {
+        Ok(_) => Redirect::to("/admin?done=samples").into_response(),
+        Err(e) => fail(&state, Some(&who), &e).await,
+    }
 }
 
 fn step(done: bool, title: &str, hint: &str, href: &str, cta: &str) -> Value {

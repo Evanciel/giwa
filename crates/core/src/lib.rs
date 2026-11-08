@@ -14,6 +14,7 @@ pub mod markdown;
 pub mod messages;
 pub mod model;
 pub mod output;
+pub mod sample_art;
 pub mod search;
 pub mod services;
 pub mod slug;

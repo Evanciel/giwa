@@ -109,7 +109,7 @@ fn path_of(url: &str) -> String {
 }
 
 fn init(data: &Path) {
-    maru(data, &["init", "--preset", "blog", "--yes"]);
+    maru(data, &["init", "--no-samples", "--preset", "blog", "--yes"]);
 }
 
 /// 사이트 구조를 고칠 수 있는 토큰.

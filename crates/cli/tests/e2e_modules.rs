@@ -222,7 +222,10 @@ fn wait_until(what: &str, mut check: impl FnMut() -> bool) {
 fn point_module_lifecycle_through_cli_rest_and_screens() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     maru(
         &data,
         &[
@@ -475,7 +478,10 @@ fn point_module_lifecycle_through_cli_rest_and_screens() {
 fn admin_screen_drives_the_module_lifecycle() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     let link = maru(&data, &["login-link"]);
     let (_server, bind) = start_server(&data);
 
@@ -584,7 +590,10 @@ fn admin_screen_drives_the_module_lifecycle() {
 fn restore_moves_the_cursor_to_the_end() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     maru(&data, &["login-link"]);
     maru(&data, &["module", "enable", "point"]);
     maru(

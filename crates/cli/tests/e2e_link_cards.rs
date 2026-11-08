@@ -152,7 +152,7 @@ fn status_of(list: &Value, url: &str) -> Value {
 fn link_cards_fill_after_fetch() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path();
-    maru(data, &["init", "--preset", "blog", "--yes"]);
+    maru(data, &["init", "--no-samples", "--preset", "blog", "--yes"]);
     let (port, hits) = fake_site();
     let page = format!("http://127.0.0.1:{port}/page");
     let missing = format!("http://127.0.0.1:{port}/missing");

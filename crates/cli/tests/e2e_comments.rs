@@ -168,7 +168,7 @@ fn hidden(body: &str, name: &str) -> String {
 
 /// 게시판 `free`(비회원 댓글, 비회원 것은 승인 뒤)와 공개 글 하나.
 fn site(data: &Path) -> (String, String) {
-    maru(data, &["init", "--preset", "blog", "--yes"]);
+    maru(data, &["init", "--no-samples", "--preset", "blog", "--yes"]);
     maru(
         data,
         &[

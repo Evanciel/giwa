@@ -45,6 +45,7 @@ const CSRF_COOKIE: &str = "maru_csrf";
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/admin", get(dashboard::page))
+        .route("/admin/samples/clear", post(dashboard::clear_samples))
         .route("/admin/posts", get(posts_page))
         .route("/admin/login", get(login_form).post(login))
         .route("/admin/link/{token}", get(link_form).post(link_use))
@@ -782,6 +783,7 @@ fn notice(done: &str) -> Option<&'static str> {
         "replied" => "답변 초안을 만들었습니다. 다듬은 뒤 발행하세요.",
         "locked" => "글을 잠갔습니다. 관리자 말고는 댓글·답변·고치기를 못 합니다.",
         "unlocked" => "글 잠금을 풀었습니다.",
+        "samples" => "고치지 않은 예시 글과 그림을 지웠습니다. 고쳐 쓴 글은 남겼습니다.",
         _ => return None,
     })
 }

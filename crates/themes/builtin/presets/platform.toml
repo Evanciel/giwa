@@ -24,7 +24,7 @@ policy = { write = "member", comment = "member", write_approval = "all" }
 field_schema = [
   { key = "field", label = "분야", type = "select", list = true, filter = true, options = [{ value = "home", label = "집·생활" }, { value = "lesson", label = "레슨" }, { value = "design", label = "디자인" }, { value = "business", label = "사업 지원" }] },
   { key = "area", label = "지역", type = "select", list = true, filter = true, options = [{ value = "seoul", label = "서울" }, { value = "gyeonggi", label = "경기·인천" }, { value = "other", label = "그 밖의 지역" }, { value = "online", label = "온라인" }] },
-  { key = "price", label = "기본 비용", type = "text", list = true, help = "예: 시간당 00,000원부터" },
+  { key = "price", label = "기본 비용", type = "text", list = true, help = "예: 시간당 30,000원부터" },
   { key = "phone", label = "연락처", type = "phone" },
   { key = "site", label = "누리집", type = "url" },
 ]
@@ -89,7 +89,7 @@ items = [
 [[ops]]
 op = "widgets.ensure"
 items = [
-  { kind = "hero", region = "main", scope = "home", config = { eyebrow = "누가 누구를 찾는 곳인지 한 줄로", button = { label = "업체 찾기", link = "/b/listings" }, button2 = { label = "일 맡기기", link = "/b/requests" } } },
+  { kind = "hero", region = "main", scope = "home", config = { eyebrow = "동네에서 믿고 맡길 업체와 전문가를 찾는 곳", button = { label = "업체 찾기", link = "/b/listings" }, button2 = { label = "일 맡기기", link = "/b/requests" } } },
   { kind = "search", region = "main", scope = "home", config = { placeholder = "분야나 지역으로 찾아보세요" } },
   { kind = "features", region = "main", scope = "home", title = "분야", config = { style = "tiles", items = [
     { title = "전체", link = "/b/listings" },
@@ -113,19 +113,19 @@ items = [
   ] } },
   { kind = "stats", region = "main", scope = "home", config = { items = [
     { value = "000곳", label = "등록된 업체" },
-    { value = "0,000건", label = "올라온 요청" },
+    { value = "1,200건", label = "올라온 요청" },
     { value = "00개", label = "분야" },
   ] } },
   { kind = "cta", region = "main", scope = "home", title = "일을 받고 싶으신가요", config = { text = "업체 소개를 올리면 확인한 뒤 목록에 보입니다.", button = { label = "입점 신청", link = "/p/join" } } },
-  { kind = "hero", region = "main", scope = "page:guide", config = { title = "이용 안내", text = "이 사이트가 하는 일과 하지 않는 일을 적어 둡니다." } },
+  { kind = "hero", region = "main", scope = "page:guide", config = { title = "이용 안내", text = "업체를 찾고 일을 맡기는 방법, 사이트가 하는 일과 하지 않는 일을 안내합니다." } },
   { kind = "features", region = "main", scope = "page:guide", title = "찾는 분께", config = { style = "rows", items = [
     { title = "업체 찾기", text = "목록의 분야·지역 칸으로 거릅니다." },
     { title = "맡길 일 올리기", text = "회원 가입 뒤 맡길 일에 내용과 예산, 마감을 적습니다." },
     { title = "거래", text = "거래 조건과 비용은 업체와 직접 정합니다. 사이트는 거래 당사자가 아닙니다." },
   ] } },
   { kind = "faq", region = "main", scope = "page:guide", title = "자주 묻는 질문", config = { tone = "soft", items = [
-    { q = "이용료가 있나요?", a = "이용료 정책을 여기에 적어 주세요." },
-    { q = "업체 정보는 누가 확인하나요?", a = "입점 글은 운영자가 확인한 뒤 보입니다. 확인 기준을 여기에 적어 주세요." },
+    { q = "이용료가 있나요?", a = "업체를 찾고 맡길 일을 올리는 것은 무료입니다. 업체 입점 조건은 입점 신청 뒤 따로 안내해 드립니다." },
+    { q = "업체 정보는 누가 확인하나요?", a = "입점 글은 운영자가 확인한 뒤 보입니다. 업체 이름과 연락처, 하는 일이 소개와 맞는지 살펴봅니다." },
     { q = "문제가 생기면 어디에 알리나요?", a = "공지의 신고 안내나 입점 신청 화면의 연락처로 알려 주세요." },
   ] } },
   { kind = "hero", region = "main", scope = "page:join", config = { title = "입점 신청", text = "업체 소개를 남겨 주시면 확인한 뒤 연락드립니다." } },

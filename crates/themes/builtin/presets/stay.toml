@@ -24,7 +24,7 @@ policy = { write = "editor", comment = "none" }
 field_schema = [
   { key = "guests", label = "기준·최대 인원", type = "text", list = true, help = "예: 2명 / 최대 4명" },
   { key = "size", label = "크기", type = "text", list = true, help = "예: 00㎡" },
-  { key = "price", label = "요금", type = "text", list = true, help = "예: 비수기 주중 000,000원부터" },
+  { key = "price", label = "요금", type = "text", list = true, help = "예: 비수기 주중 150,000원부터" },
   { key = "features", label = "갖춘 것", type = "multiselect", list = true, filter = true, options = [{ value = "kitchen", label = "취사" }, { value = "bbq", label = "바비큐" }, { value = "spa", label = "스파" }, { value = "pet", label = "반려동물" }, { value = "pool", label = "수영장" }, { value = "view", label = "바다·산 전망" }] },
 ]
 
@@ -83,23 +83,23 @@ items = [
 [[ops]]
 op = "widgets.ensure"
 items = [
-  { kind = "hero", region = "main", scope = "home", config = { eyebrow = "어디에 있는 어떤 숙소인지 한 줄로", button = { label = "예약 문의", link = "/p/booking" }, button2 = { label = "객실 보기", link = "/b/rooms" } } },
-  { kind = "image_text", region = "main", scope = "home", title = "공간 이야기", config = { body = "이 집을 어떤 생각으로 짓고 꾸몄는지, 머무는 동안 무엇을 느끼면 좋겠는지 적습니다.\n\n사진은 이 숙소에서 직접 찍은 것을 올려 주세요." } },
+  { kind = "hero", region = "main", scope = "home", config = { eyebrow = "솔숲과 바다 사이, 조용히 쉬어 가는 작은 펜션", button = { label = "예약 문의", link = "/p/booking" }, button2 = { label = "객실 보기", link = "/b/rooms" } } },
+  { kind = "image_text", region = "main", scope = "home", title = "공간 이야기", config = { body = "오래 머물러도 편한 집을 생각하며 나무와 흰 벽으로 짓고 꾸몄습니다.\n\n창밖 솔숲과 멀리 보이는 바다를 바라보며, 아무것도 하지 않아도 좋은 하루를 보내시길 바랍니다." } },
   { kind = "gallery_grid", region = "main", scope = "home", title = "객실", config = { board = "rooms", limit = 6, columns = 3 } },
   { kind = "features", region = "main", scope = "home", title = "머무는 동안", config = { style = "bento", tone = "soft", items = [
-    { title = "가장 자랑할 시설", text = "무엇을 할 수 있는지 두세 문장으로 적습니다." },
-    { title = "바비큐", text = "이용 시간과 준비물을 적습니다." },
-    { title = "주변 즐길 거리", text = "가까운 곳을 적습니다." },
-    { title = "아침", text = "제공 여부를 적습니다." },
+    { title = "수영장과 스파", text = "여름에는 바깥 수영장에서, 사계절 내내 객실 스파에서 쉬실 수 있습니다. 수영장 운영 기간은 공지로 알려 드립니다." },
+    { title = "바비큐", text = "저녁마다 테라스에서 하실 수 있습니다. 숯과 그릴을 준비해 드리니 고기와 채소만 챙겨 오세요." },
+    { title = "주변 즐길 거리", text = "걸어서 닿는 바닷가 산책길과 차로 가까운 숲길이 있습니다." },
+    { title = "아침", text = "갓 구운 빵과 커피를 간단히 차려 드립니다. 전날 저녁까지 말씀해 주세요." },
   ] } },
   { kind = "price_list", region = "main", scope = "home", title = "요금", config = { note = "1박 기준이며 인원이 늘면 더 받습니다. 요금은 예시입니다.", groups = [
     { name = "비수기", items = [
-      { name = "주중", price = "000,000원" },
-      { name = "주말·공휴일 전날", price = "000,000원" },
+      { name = "주중", price = "150,000원" },
+      { name = "주말·공휴일 전날", price = "210,000원" },
     ] },
     { name = "성수기", items = [
-      { name = "주중", price = "000,000원" },
-      { name = "주말·공휴일 전날", price = "000,000원" },
+      { name = "주중", price = "190,000원" },
+      { name = "주말·공휴일 전날", price = "260,000원" },
     ] },
   ] } },
   { kind = "hours", region = "main", scope = "home", title = "입실·퇴실", config = { tone = "soft", rows = [
@@ -107,25 +107,25 @@ items = [
     { days = "퇴실", time = "11:00까지" },
   ] } },
   { kind = "latest_posts", region = "main", scope = "home", title = "여행 후기", config = { board = "reviews", limit = 3, view = "card" } },
-  { kind = "visit", region = "main", scope = "home", title = "오시는 길", config = { name = "숙소 이름", address = "주소를 적어 주세요", phone = "010-0000-0000", transit = "가까운 역이나 터미널에서 오는 길을 적어 주세요.", parking = "주차 안내를 적어 주세요." } },
-  { kind = "hero", region = "main", scope = "page:guide", config = { title = "이용 안내", text = "입실·퇴실, 예약과 환불, 지켜 주실 것을 적어 둡니다." } },
+  { kind = "visit", region = "main", scope = "home", title = "오시는 길", config = { name = "숙소 이름", address = "주소를 적어 주세요", phone = "010-0000-0000", transit = "시외버스터미널에서 차로 15분 걸립니다. 터미널 앞에서 택시를 타시면 편합니다.", parking = "숙소 앞마당에 객실마다 한 대씩 세우실 수 있습니다." } },
+  { kind = "hero", region = "main", scope = "page:guide", config = { title = "이용 안내", text = "입실과 퇴실, 예약과 환불, 머무는 동안 지켜 주실 것을 안내합니다." } },
   { kind = "hours", region = "main", scope = "page:guide", title = "입실·퇴실", config = { note = "이른 입실과 늦은 퇴실은 미리 물어 주세요.", rows = [
     { days = "입실", time = "15:00부터" },
     { days = "퇴실", time = "11:00까지" },
   ] } },
   { kind = "faq", region = "main", scope = "page:guide", title = "이용 규칙", config = { tone = "soft", items = [
     { q = "예약은 어떻게 하나요?", a = "예약 문의에 날짜와 인원을 남기면 빈 객실과 입금 방법을 알려 드립니다." },
-    { q = "취소하면 환불되나요?", a = "환불 기준을 날짜별로 여기에 적어 주세요." },
-    { q = "기준 인원보다 많이 묵을 수 있나요?", a = "최대 인원과 한 사람 더할 때의 요금, 침구 추가를 적어 주세요." },
-    { q = "반려동물과 함께 갈 수 있나요?", a = "가능한 객실과 조건을 적어 주세요." },
-    { q = "바비큐는 어떻게 하나요?", a = "이용 시간, 요금, 준비해 드리는 것을 적어 주세요." },
-    { q = "주차할 수 있나요?", a = "주차 대수와 위치를 적어 주세요." },
+    { q = "취소하면 환불되나요?", a = "입실 날짜에 가까울수록 돌려 드리는 금액이 줄어듭니다. 날짜별 환불 기준은 예약을 확정할 때 함께 안내해 드립니다." },
+    { q = "기준 인원보다 많이 묵을 수 있나요?", a = "객실마다 정한 최대 인원까지 묵으실 수 있습니다. 한 사람 더할 때의 요금과 침구 추가는 객실 안내를 확인해 주세요." },
+    { q = "반려동물과 함께 갈 수 있나요?", a = "반려견과 함께 머무는 객실에서만 가능합니다. 다른 객실에는 반려동물이 들어갈 수 없습니다." },
+    { q = "바비큐는 어떻게 하나요?", a = "저녁마다 테라스에서 하실 수 있습니다. 숯과 그릴은 준비해 드리고, 요금은 예약 문의 때 안내해 드립니다." },
+    { q = "주차할 수 있나요?", a = "숙소 앞마당에 객실마다 한 대씩 세우실 수 있습니다." },
     { q = "CCTV 가 있나요?", a = "설치한 곳(바깥 공용 공간 등)과 목적을 적어 주세요." },
   ] } },
   { kind = "features", region = "main", scope = "page:guide", title = "주변 여행", config = { style = "cards", items = [
-    { title = "가까운 곳 하나", text = "차로 몇 분인지, 무엇을 할 수 있는지 적습니다." },
-    { title = "가까운 곳 둘", text = "차로 몇 분인지, 무엇을 할 수 있는지 적습니다." },
-    { title = "장 보기", text = "가까운 마트나 시장을 적습니다." },
+    { title = "바닷가 산책길", text = "숙소에서 걸어서 10분이면 닿습니다. 해 질 녘에 걷기 좋습니다." },
+    { title = "숲길 전망대", text = "차로 15분 거리입니다. 맑은 날에는 바다까지 내려다보입니다." },
+    { title = "장 보기", text = "차로 10분 거리에 마트와 오일장이 있습니다. 들어오시는 길에 장을 보시면 편합니다." },
   ] } },
   { kind = "hero", region = "main", scope = "page:booking", config = { title = "예약 문의", text = "날짜와 인원을 남겨 주세요. 빈 객실을 확인해 연락드립니다." } },
   { kind = "contact_form", region = "main", scope = "page:booking", config = { form = "booking", purpose = "예약 확인 연락", submit = "문의하기", done = "문의를 받았습니다. 빈 객실을 확인해 연락드리겠습니다.", fields = [

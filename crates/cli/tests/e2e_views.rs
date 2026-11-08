@@ -153,7 +153,10 @@ fn db_views(data: &Path, slug: &str) -> i64 {
 fn views_count_people_once_and_reach_db_and_neighbors_agree() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    let init = maru(&data, &["init", "--preset", "blog", "--yes"]);
+    let init = maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     let token = init["token"]["secret"].as_str().unwrap().to_owned();
     let bearer = format!("Bearer {token}");
     let link = maru(&data, &["login-link"]);

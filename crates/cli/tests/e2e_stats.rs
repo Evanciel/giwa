@@ -132,7 +132,10 @@ fn header<'a>(res: &'a Res, name: &str) -> Option<&'a str> {
 fn stats_count_people_without_cookies_and_skip_bots_dnt_and_staff() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    let init = maru(&data, &["init", "--preset", "blog", "--yes"]);
+    let init = maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     // 기본 토큰(read, draft)은 통계를 못 본다. 운영 데이터라 publish 스코프가 필요하다(SPEC §9 운영).
     let reader = format!("Bearer {}", init["token"]["secret"].as_str().unwrap());
     let ops = maru(

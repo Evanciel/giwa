@@ -365,6 +365,9 @@ fn lookup_ko(key: &str) -> Option<&'static str> {
         "error.restore_confirm" => {
             "복원은 지금 데이터를 옮기고 백업으로 바꿉니다. 확인했으면 --yes 를 붙여 다시 실행하세요."
         }
+        "error.sample_clear_confirm" => {
+            "고치지 않은 예시 글과 그 그림을 아주 지웁니다. 고친 글은 남습니다. 확인했으면 --yes 를 붙여 다시 실행하세요."
+        }
         "error.backup_not_found" => "`{name}` 백업 파일이 없습니다.",
         "error.backup_invalid" => "Maru 백업 파일이 아니거나 깨졌습니다: {path} ({detail})",
         "error.backup_newer" => {

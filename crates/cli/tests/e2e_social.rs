@@ -426,7 +426,10 @@ fn set_oidc(data: &Path, idp: &Idp) -> Value {
 fn social_login_signup_link_unlink_withdraw() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     maru(
         &data,
         &[

@@ -167,7 +167,7 @@ fn ttf() -> Vec<u8> {
 fn uploaded_font_flows_from_cli_to_public_pages_and_back() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    let init = ok(&data, &["init", "--yes"]);
+    let init = ok(&data, &["init", "--no-samples", "--yes"]);
     let writer = format!("Bearer {}", init["token"]["secret"].as_str().unwrap());
     let design = ok(
         &data,
@@ -360,7 +360,7 @@ fn uploaded_font_flows_from_cli_to_public_pages_and_back() {
 fn admin_screen_uploads_lists_and_feeds_the_editor_menu() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    ok(&data, &["init", "--yes"]);
+    ok(&data, &["init", "--no-samples", "--yes"]);
     let (_server, bind) = start_server(&data);
     let (cookie, csrf) = admin_session(&data, &bind);
 

@@ -221,7 +221,10 @@ fn save_profile(bind: &str, cookie: &str, name: &str, bio: &str) -> Res {
 fn public_profile_and_author_card() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     maru(
         &data,
         &[

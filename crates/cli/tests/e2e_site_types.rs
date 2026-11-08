@@ -166,9 +166,9 @@ fn 유형_프리셋은_한_번에_첫_화면과_메뉴가_뜨고_두_번_실행�
     for id in TYPES {
         let tmp = tempfile::tempdir().unwrap();
         let data = tmp.path().join("사이트");
-        maru(&data, &["init", "--preset", id, "--yes"]);
+        maru(&data, &["init", "--no-samples", "--preset", id, "--yes"]);
         let widgets = maru(&data, &["widget", "list"]);
-        let again = maru(&data, &["init", "--preset", id, "--yes"]);
+        let again = maru(&data, &["init", "--no-samples", "--preset", id, "--yes"]);
         assert_eq!(again["created"], false, "{id}: {again}");
         assert_eq!(
             maru(&data, &["widget", "list"]).as_array().unwrap().len(),
@@ -204,7 +204,10 @@ fn 유형_프리셋은_한_번에_첫_화면과_메뉴가_뜨고_두_번_실행�
 fn 첫_화면_페이지는_바로가기와_사이트맵이_겹치지_않고_숨기면_목록으로_돌아간다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "company", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "company", "--yes"],
+    );
     let (_server, bind) = start_server(&data);
 
     let (status, head, _) = get(&bind, "/p/home");
@@ -231,7 +234,10 @@ fn 첫_화면_페이지는_바로가기와_사이트맵이_겹치지_않고_숨�
 fn 폼에_낸_내용은_db_와_툴까지_가고_막아야_할_제출은_남지_않는다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "company", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "company", "--yes"],
+    );
     let (_server, bind) = start_server(&data);
     let origin = format!("http://{bind}");
     let action = "/m/forms/submit/contact";
@@ -343,7 +349,10 @@ fn sign_in(bind: &str, url: &str) -> String {
 fn 회원_전용_게시판은_로그인하면_읽히고_손님_화면과_목록에_새지_않는다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "course", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "course", "--yes"],
+    );
     let posted = maru(
         &data,
         &[
@@ -400,7 +409,10 @@ fn 회원_전용_게시판은_로그인하면_읽히고_손님_화면과_목록�
 fn 문서_프리셋은_목록과_위치와_앞뒤로_이어진다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "docs", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "docs", "--yes"],
+    );
     let (_server, bind) = start_server(&data);
 
     let (status, _, body) = get(&bind, "/p/install");
@@ -433,7 +445,10 @@ fn 문서_프리셋은_목록과_위치와_앞뒤로_이어진다() {
 fn 주소를_바꾸면_옛_주소가_새_주소로_간다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "company", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "company", "--yes"],
+    );
     let (_server, bind) = start_server(&data);
     let location = |head: &str| {
         head.lines()
@@ -516,7 +531,10 @@ fn 주소를_바꾸면_옛_주소가_새_주소로_간다() {
 fn 옮긴_주소는_변경_묶음으로_담고_되돌린다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "docs", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "docs", "--yes"],
+    );
     let ops = tmp.path().join("ops.json");
     std::fs::write(
         &ops,
@@ -569,7 +587,7 @@ fn 새_종류의_메뉴_화면은_모두_뜨고_제목은_하나다() {
     for id in &TYPES[10..] {
         let tmp = tempfile::tempdir().unwrap();
         let data = tmp.path().join("사이트");
-        maru(&data, &["init", "--preset", id, "--yes"]);
+        maru(&data, &["init", "--no-samples", "--preset", id, "--yes"]);
         let (_server, bind) = start_server(&data);
         let (_, _, home) = get(&bind, "/");
         let pages: Vec<String> = links(&home)
@@ -594,7 +612,10 @@ fn 새_종류의_메뉴_화면은_모두_뜨고_제목은_하나다() {
 fn 부동산_매물은_거래_종류로_거르고_완료한_것을_뺀다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "realty", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "realty", "--yes"],
+    );
     let common = [
         "--field",
         "type=apt",
@@ -681,7 +702,10 @@ fn 부동산_매물은_거래_종류로_거르고_완료한_것을_뺀다() {
 fn 숙박_예약_문의는_db_에_남고_병원에는_후기가_없다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "stay", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "stay", "--yes"],
+    );
     // 손님 확인 질문은 기본으로 켜져 있다. 폼 저장만 보려고 끈다.
     maru(&data, &["site", "set", "--captcha", "off"]);
     let (server, bind) = start_server(&data);
@@ -706,7 +730,10 @@ fn 숙박_예약_문의는_db_에_남고_병원에는_후기가_없다() {
 
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "clinic", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "clinic", "--yes"],
+    );
     let widgets = maru(&data, &["widget", "list"]).to_string();
     assert!(!widgets.contains("testimonials"), "{widgets}");
     assert!(!widgets.contains("후기"), "{widgets}");
@@ -719,7 +746,10 @@ fn 사이트_관찰로_더한_구조가_첫_화면과_게시판에_있다() {
     let tmp = tempfile::tempdir().unwrap();
 
     let community = tmp.path().join("커뮤니티");
-    maru(&community, &["init", "--preset", "community", "--yes"]);
+    maru(
+        &community,
+        &["init", "--no-samples", "--preset", "community", "--yes"],
+    );
     for (title, status) in [("파는 시험 물건", "open"), ("끝난 시험 물건", "done")] {
         let status = format!("status={status}");
         maru(
@@ -759,7 +789,10 @@ fn 사이트_관찰로_더한_구조가_첫_화면과_게시판에_있다() {
     }
 
     let platform = tmp.path().join("플랫폼");
-    maru(&platform, &["init", "--preset", "platform", "--yes"]);
+    maru(
+        &platform,
+        &["init", "--no-samples", "--preset", "platform", "--yes"],
+    );
     {
         let (_server, bind) = start_server(&platform);
         let (_, _, home) = get(&bind, "/");
@@ -768,7 +801,10 @@ fn 사이트_관찰로_더한_구조가_첫_화면과_게시판에_있다() {
     }
 
     let shop = tmp.path().join("쇼핑몰");
-    maru(&shop, &["init", "--preset", "shop", "--yes"]);
+    maru(
+        &shop,
+        &["init", "--no-samples", "--preset", "shop", "--yes"],
+    );
     let (_server, bind) = start_server(&shop);
     let (_, _, home) = get(&bind, "/");
     assert!(home.contains("f-tiles"), "{home}");

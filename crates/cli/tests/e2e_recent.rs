@@ -93,7 +93,10 @@ fn post(data: &Path, board: &str, slug: &str, title: &str) {
 fn recent_collects_every_readable_board() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     maru(&data, &["site", "set", "--posts-per-page", "2"]);
     maru(
         &data,

@@ -14,8 +14,8 @@ use maru_core::services::posts::{self, NewPost};
 use maru_core::services::tokens::{self, NewToken};
 use maru_core::services::{
     anonymous_actor, audit_log, auth, backups, categories, comments, design, files, fonts, mail,
-    media, members, menus, pages, presets, retention, search, settings, signals, stats, tags,
-    templates, views, widgets, wiki,
+    media, members, menus, pages, presets, retention, samples, search, settings, signals, stats,
+    tags, templates, views, widgets, wiki,
 };
 use maru_core::urls::{self, Target};
 use maru_core::{Actor, Code, Ctx, Error, Result};
@@ -27,9 +27,9 @@ use crate::{
     AuditCmd, AuditListArgs, BackupArgs, BackupCmd, BoardCmd, CategoryCmd, ChangesetCmd, Command,
     CommentCmd, DesignCmd, ExportCmd, FileCmd, FontCmd, Global, InitArgs, LinkCmd, LoginLinkArgs,
     MailCmd, MailSetupArgs, McpCmd, MediaCmd, MemberCmd, MenuCmd, MenuSetArgs, PageCmd, PostCmd,
-    PostListArgs, PostNewArgs, PrivacyCmd, RedirectCmd, RestoreArgs, SearchArgs, SearchCmd,
-    ServeArgs, SignalsArgs, SignalsCmd, SiteCmd, StatsArgs, TagCmd, TemplateCmd, ThemeCmd,
-    ThemeTokensCmd, TokenCmd, TokenCreateArgs, WidgetCmd,
+    PostListArgs, PostNewArgs, PrivacyCmd, RedirectCmd, RestoreArgs, SampleCmd, SearchArgs,
+    SearchCmd, ServeArgs, SignalsArgs, SignalsCmd, SiteCmd, StatsArgs, TagCmd, TemplateCmd,
+    ThemeCmd, ThemeTokensCmd, TokenCmd, TokenCreateArgs, WidgetCmd,
 };
 
 pub async fn run(g: &Global, command: Command) -> ExitCode {
@@ -80,6 +80,7 @@ pub async fn run(g: &Global, command: Command) -> ExitCode {
         Command::Privacy(cmd) => privacy_cmd(g, cmd).await,
         Command::Signals(args) => signals_cmd(g, args).await,
         Command::Wiki { board } => wiki_cmd(g, &board).await,
+        Command::Sample(cmd) => sample_cmd(g, cmd).await,
         Command::LoginLink(args) => login_link(g, args).await,
     };
     match res {
@@ -133,8 +134,13 @@ fn to_value<T: serde::Serialize>(v: &T) -> Result<Value> {
 // ---- init ----
 
 async fn init(g: &Global, args: InitArgs) -> Out {
-    let preset =
+    let mut preset =
         maru_themes::preset(&args.preset).map_err(|e| e.next("maru init --preset blog --yes"))?;
+    if args.no_samples {
+        preset
+            .ops
+            .retain(|op| !matches!(op, presets::Op::PostsEnsure { .. }));
+    }
     let dir = DataDir::new(&g.data);
     dir.ensure_layout()?;
     let fresh = !dir.is_initialized();
@@ -2807,6 +2813,43 @@ async fn signals_cmd(g: &Global, args: SignalsArgs) -> Out {
                     }
                 }
                 Ok((to_value(&list)?, human))
+            }
+        }
+    }
+    .await;
+    db.close().await;
+    res
+}
+
+async fn sample_cmd(g: &Global, cmd: SampleCmd) -> Out {
+    if matches!(cmd, SampleCmd::Clear) && !g.yes {
+        return Err(Error::new(Code::Usage)
+            .with_message("error.sample_clear_confirm")
+            .next("maru sample clear --yes"));
+    }
+    let (ctx, _config, db) = open(g).await?;
+    let res = async {
+        let actor = actor(&ctx).await?;
+        match cmd {
+            SampleCmd::Status => {
+                let s = samples::status(&ctx, &actor).await?;
+                let human = if s.posts == 0 {
+                    "예시 글이 없습니다.".to_owned()
+                } else {
+                    format!(
+                        "예시 글 {}개 (고치지 않은 글 {}개). 지우기: maru sample clear --yes",
+                        s.posts, s.untouched
+                    )
+                };
+                Ok((to_value(&s)?, human))
+            }
+            SampleCmd::Clear => {
+                let r = samples::clear(&ctx, &actor).await?;
+                let human = format!(
+                    "예시 글 {}개와 그림 {}장을 지웠습니다. 고쳐 쓴 글 {}개는 남겼습니다.",
+                    r.removed, r.media_removed, r.kept
+                );
+                Ok((to_value(&r)?, human))
             }
         }
     }

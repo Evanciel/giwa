@@ -162,7 +162,10 @@ fn link_in_outbox(data: &Path, to: &str, path: &str) -> String {
 fn signup_verify_login_and_profile_reach_the_db() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    let init = maru(&data, &["init", "--preset", "blog", "--yes"]);
+    let init = maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     let writer = format!("Bearer {}", init["token"]["secret"].as_str().unwrap());
     let admin = maru(
         &data,

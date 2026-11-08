@@ -182,7 +182,10 @@ const FIELDS: &str = r#"[
 fn board_fields_flow_from_cli_to_db_and_public_screens() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     let file = tmp.path().join("fields.json");
     std::fs::write(&file, FIELDS).unwrap();
     let file = file.to_str().unwrap();

@@ -10,7 +10,7 @@ use crate::actor::Actor;
 use crate::error::Error;
 use crate::error::Result;
 use crate::model::{MenuItem, PageStatus, SiteSettings};
-use crate::services::{boards, design, menus, pages, settings, widgets};
+use crate::services::{boards, design, menus, pages, samples, settings, widgets};
 use crate::store::Ctx;
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -71,6 +71,12 @@ pub enum Op {
     /// 놓을 위젯들의 영역·범위가 모두 비어 있을 때만 한꺼번에 놓는다 (ADR-0081).
     #[serde(rename = "widgets.ensure")]
     WidgetsEnsure { items: Vec<widgets::NewWidget> },
+    /// 게시판이 비어 있고 예시를 넣은 적이 없으면 예시 글(과 그림)을 넣는다 (ADR-0142).
+    #[serde(rename = "posts.ensure")]
+    PostsEnsure {
+        board: String,
+        items: Vec<samples::SamplePost>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, JsonSchema)]
@@ -78,6 +84,10 @@ pub struct OpResult {
     pub op: String,
     pub target: String,
     pub changed: bool,
+    /// 새로 만든 글 ID (`posts.ensure`). 변경 묶음이 되돌릴 때 쓴다
+    #[serde(skip)]
+    #[schemars(skip)]
+    pub created: Vec<String>,
 }
 
 /// 프리셋의 색과 모양을 테마로 입힐 패치. 테마로 고를 때 이것만 쓴다 (`design::theme_patch`).
@@ -101,6 +111,7 @@ pub(crate) async fn apply_op(ctx: &Ctx, actor: &Actor, op: &Op) -> Result<OpResu
         op: op.to_owned(),
         target: target.to_owned(),
         changed,
+        created: Vec::new(),
     };
     Ok(match op {
         Op::BoardEnsure(input) => {
@@ -201,6 +212,13 @@ pub(crate) async fn apply_op(ctx: &Ctx, actor: &Actor, op: &Op) -> Result<OpResu
                 &format!("{}개", items.len()),
                 empty && !items.is_empty(),
             )
+        }
+        Op::PostsEnsure { board, items } => {
+            let ids = samples::seed(ctx, actor, board, items).await?;
+            OpResult {
+                created: ids.clone(),
+                ..result("posts.ensure", board, !ids.is_empty())
+            }
         }
     })
 }

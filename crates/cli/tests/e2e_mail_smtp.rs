@@ -100,7 +100,7 @@ fn serve_smtp(stream: TcpStream, log: &Mutex<String>) {
 fn smtp_setup_and_test_mail() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path();
-    maru(data, &["init", "--preset", "blog", "--yes"]);
+    maru(data, &["init", "--no-samples", "--preset", "blog", "--yes"]);
 
     // 암호화 없는 SMTP 는 이 컴퓨터 밖으로 못 보낸다
     let v = run(

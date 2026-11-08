@@ -83,7 +83,10 @@ fn http(bind: &str, path: &str, headers: &[(&str, &str)]) -> Res {
 fn wiki_board_links_backlinks_and_index() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     let b = maru(
         &data,
         &[

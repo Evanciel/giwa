@@ -63,20 +63,20 @@ items = [
 [[ops]]
 op = "widgets.ensure"
 items = [
-  { kind = "hero", region = "main", scope = "home", config = { tone = "soft", eyebrow = "기관이 하는 일을 한 줄로", button = { label = "기관 소개", link = "/p/about" }, button2 = { label = "자료실", link = "/b/library" } } },
+  { kind = "hero", region = "main", scope = "home", config = { tone = "soft", eyebrow = "이웃과 함께 배우고 나누는 지역 비영리 단체", button = { label = "기관 소개", link = "/p/about" }, button2 = { label = "자료실", link = "/b/library" } } },
   { kind = "latest_posts", region = "main", scope = "home", title = "공지사항", config = { board = "notice", limit = 6 } },
   { kind = "latest_posts", region = "main", scope = "home", title = "자료실", config = { board = "library", limit = 6 } },
   { kind = "features", region = "main", scope = "home", title = "주요 사업", config = { style = "cards", tone = "soft", items = [
-    { title = "첫 번째 사업", text = "누구를 위해 무엇을 하는지 씁니다." },
-    { title = "두 번째 사업", text = "누구를 위해 무엇을 하는지 씁니다." },
-    { title = "세 번째 사업", text = "누구를 위해 무엇을 하는지 씁니다." },
+    { title = "배움 프로그램", text = "어린이부터 어르신까지 누구나 들을 수 있는 강좌와 모임을 엽니다." },
+    { title = "돌봄과 나눔", text = "도움이 필요한 이웃을 찾아가 생활을 살피고 필요한 것을 나눕니다." },
+    { title = "자원봉사", text = "주민이 직접 참여하는 봉사 활동을 계절마다 마련합니다." },
   ] } },
-  { kind = "hero", region = "main", scope = "page:about", config = { title = "기관 소개", text = "설립 목적과 하는 일을 두 문장으로 씁니다." } },
-  { kind = "image_text", region = "main", scope = "page:about", title = "인사말", config = { body = "기관장의 인사말을 여기에 씁니다.\n\n왜 이 일을 하는지, 누구와 함께하는지 짧게 적으면 좋습니다." } },
+  { kind = "hero", region = "main", scope = "page:about", config = { title = "기관 소개", text = "이웃이 서로 배우고 기대는 마을을 만들고자 세운 단체입니다. 교육과 돌봄, 자원봉사로 지역과 함께합니다." } },
+  { kind = "image_text", region = "main", scope = "page:about", title = "인사말", config = { body = "누리집을 찾아 주셔서 고맙습니다.\n\n저희는 가까운 이웃이 서로 배우고 기댈 수 있는 자리를 만들고자 이 일을 시작했습니다. 앞으로도 주민 여러분의 이야기를 듣고 함께 움직이겠습니다." } },
   { kind = "timeline", region = "main", scope = "page:about", title = "연혁", config = { tone = "soft", items = [
-    { date = "0000년", title = "기관 설립" },
-    { date = "0000년", title = "주요 사업 시작" },
-    { date = "0000년", title = "지금의 건물로 이전" },
+    { date = "2009년", title = "기관 설립" },
+    { date = "2014년", title = "주요 사업 시작" },
+    { date = "2022년", title = "지금의 건물로 이전" },
   ] } },
   { kind = "org_chart", region = "main", scope = "page:about", title = "조직도", config = { nodes = [
     { name = "기관장", children = [
@@ -85,5 +85,5 @@ items = [
       { name = "홍보과" },
     ] },
   ] } },
-  { kind = "visit", region = "main", scope = "page:about", title = "오시는 길", config = { tone = "soft", address = "서울특별시 중구 세종대로 110", phone = "02-000-0000", transit = "지하철역에서 걸어서 5분입니다." } },
+  { kind = "visit", region = "main", scope = "page:about", title = "오시는 길", config = { tone = "soft", address = "주소를 적어 주세요", phone = "02-000-0000", transit = "지하철역에서 걸어서 5분입니다." } },
 ]

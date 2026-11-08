@@ -107,7 +107,7 @@ fn doctor_on_fresh_site_and_port_states() {
     let data = tmp.path().join("site");
     let port = free_port();
     let bind = format!("127.0.0.1:{port}");
-    ok(&data, &["init", "--bind", &bind, "--yes"]);
+    ok(&data, &["init", "--no-samples", "--bind", &bind, "--yes"]);
 
     let out = run(&data, &["doctor", "--json"]);
     assert_eq!(out.status.code(), Some(0));
@@ -185,7 +185,7 @@ fn http_status(bind: &str, path: &str, token: &str) -> u16 {
 fn token_list_and_revoke() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("site");
-    let init = ok(&data, &["init", "--yes"]);
+    let init = ok(&data, &["init", "--no-samples", "--yes"]);
     let init_secret = init["token"]["secret"].as_str().unwrap().to_owned();
     let made = ok(
         &data,
@@ -256,15 +256,27 @@ fn init_rerun_after_midway_failure_still_issues_token_and_owner() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("site");
     let long = "가".repeat(200);
-    let out = run(&data, &["init", "--name", &long, "--yes", "--json"]);
+    let out = run(
+        &data,
+        &["init", "--no-samples", "--name", &long, "--yes", "--json"],
+    );
     assert_ne!(out.status.code(), Some(0));
     assert_eq!(json(&out)["error"]["code"], "VALIDATION");
 
-    let v = ok(&data, &["init", "--name", "다시 만든 블로그", "--yes"]);
+    let v = ok(
+        &data,
+        &[
+            "init",
+            "--no-samples",
+            "--name",
+            "다시 만든 블로그",
+            "--yes",
+        ],
+    );
     assert!(v["token"]["secret"].is_string(), "{v}");
     assert!(v["login_link"]["url"].is_string(), "{v}");
     // 세 번째 실행은 아무것도 새로 내지 않는다.
-    let v = ok(&data, &["init", "--yes"]);
+    let v = ok(&data, &["init", "--no-samples", "--yes"]);
     assert!(v["token"].is_null(), "{v}");
     assert!(v["login_link"].is_null(), "{v}");
     assert_eq!(
@@ -280,7 +292,7 @@ fn init_rerun_after_midway_failure_still_issues_token_and_owner() {
 fn quiet_prints_only_one_time_secrets() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("site");
-    let out = run(&data, &["init", "--yes", "--quiet"]);
+    let out = run(&data, &["init", "--no-samples", "--yes", "--quiet"]);
     assert!(out.status.success());
     let lines: Vec<String> = String::from_utf8_lossy(&out.stdout)
         .lines()
@@ -352,7 +364,7 @@ fn every_command_speaks_json_with_yes() {
 fn serve_stops_on_sigterm() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("site");
-    ok(&data, &["init", "--yes"]);
+    ok(&data, &["init", "--no-samples", "--yes"]);
     let mut child = Command::new(BIN)
         .arg("--data")
         .arg(&data)

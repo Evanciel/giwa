@@ -24,6 +24,7 @@ pub mod posts;
 pub mod presets;
 pub mod redirects;
 pub mod retention;
+pub mod samples;
 pub mod search;
 pub mod sections;
 pub mod settings;

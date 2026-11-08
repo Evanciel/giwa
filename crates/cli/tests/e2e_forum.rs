@@ -253,7 +253,10 @@ fn comment(bind: &str, session: &str, post_url: &str, body: &str) -> Res {
 fn forum_orders_by_activity_accepts_answers_and_locks() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     let b = maru(
         &data,
         &[

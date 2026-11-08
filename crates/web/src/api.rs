@@ -14,8 +14,8 @@ use maru_core::output::Success;
 use maru_core::services::changesets;
 use maru_core::services::{
     anonymous_actor, audit_log, backups, boards, categories, comments, design, files, fonts, links,
-    media, members, menus, pages, posts, redirects, retention, search, settings, signals, stats,
-    tags, templates, tokens, views, widgets, wiki,
+    media, members, menus, pages, posts, redirects, retention, samples, search, settings, signals,
+    stats, tags, templates, tokens, views, widgets, wiki,
 };
 use maru_core::{Actor, Code, Error};
 use maru_modules::service as modules;
@@ -129,6 +129,7 @@ pub fn routes() -> Router<AppState> {
         .route("/search", get(site_search))
         .route("/search/reindex", post(reindex_search))
         .route("/privacy/run", post(run_privacy))
+        .route("/samples", get(sample_status).delete(clear_samples))
         .route("/signals", get(list_signals))
         .route("/changesets", get(list_changesets).post(create_changeset))
         .route("/changesets/{id}", get(get_changeset))
@@ -1134,6 +1135,28 @@ async fn refresh_link(
     Ok(ok(
         StatusCode::OK,
         links::refresh(&state.ctx, &actor, &body.url).await?,
+    ))
+}
+
+/// 사이트 종류가 넣은 예시 글 (ADR-0142).
+async fn sample_status(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+) -> Result<Response, ApiError> {
+    Ok(ok(
+        StatusCode::OK,
+        samples::status(&state.ctx, &actor).await?,
+    ))
+}
+
+/// 고치지 않은 예시 글과 그림을 아주 지운다. 고친 글은 남는다.
+async fn clear_samples(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+) -> Result<Response, ApiError> {
+    Ok(ok(
+        StatusCode::OK,
+        samples::clear(&state.ctx, &actor).await?,
     ))
 }
 

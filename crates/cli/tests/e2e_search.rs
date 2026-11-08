@@ -126,7 +126,10 @@ fn titles(v: &Value) -> Vec<String> {
 fn search_finds_hangul_and_every_path_agrees() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    let init = maru(&data, &["init", "--preset", "blog", "--yes"]);
+    let init = maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     let token = init["token"]["secret"].as_str().unwrap().to_owned();
     let bearer = format!("Bearer {token}");
 

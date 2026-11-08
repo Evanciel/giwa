@@ -150,7 +150,11 @@ fn exhaust(bind: &str, visitor: Option<&str>) {
 fn init(tmp: &Path, nothing: &Path) -> PathBuf {
     let data = tmp.join("사이트");
     std::fs::create_dir_all(nothing).unwrap();
-    ok(&data, nothing, &["init", "--preset", "blog", "--yes"]);
+    ok(
+        &data,
+        nothing,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     data
 }
 

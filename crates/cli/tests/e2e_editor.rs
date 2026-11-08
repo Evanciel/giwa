@@ -148,7 +148,10 @@ fn draft_of(list: &Value) -> Vec<Value> {
 fn edit_screen_draw_draft_publish_and_revert() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     let link = maru(&data, &["login-link"]);
     let (_server, bind) = start_server(&data);
 

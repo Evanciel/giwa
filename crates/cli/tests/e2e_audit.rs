@@ -116,7 +116,10 @@ fn sign_in(bind: &str, link_url: &str) -> String {
 fn audit_log_is_listed_by_cli_rest_and_admin_screen() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    let init = maru(&data, &["init", "--preset", "blog", "--yes"]);
+    let init = maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     let reader = format!("Bearer {}", init["token"]["secret"].as_str().unwrap());
     let link = maru(&data, &["login-link"]);
     let post = maru(

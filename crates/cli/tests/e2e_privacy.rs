@@ -194,7 +194,10 @@ fn sign_in(bind: &str, link_url: &str) -> String {
 fn dormant_notice_sleep_and_wake() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     let s = maru(
         &data,
         &[
@@ -375,7 +378,10 @@ fn dormant_notice_sleep_and_wake() {
 fn module_purge_removes_old_notifications() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     maru(&data, &["module", "enable", "notify"]);
     db_exec(
         &data,

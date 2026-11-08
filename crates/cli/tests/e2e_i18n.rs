@@ -92,7 +92,15 @@ fn 영어_사이트는_손님_화면과_오류가_영어다() {
     let data = tmp.path().join("site");
     maru(
         &data,
-        &["init", "--preset", "blog", "--name", "Demo", "--yes"],
+        &[
+            "init",
+            "--no-samples",
+            "--preset",
+            "blog",
+            "--name",
+            "Demo",
+            "--yes",
+        ],
     );
     maru(
         &data,

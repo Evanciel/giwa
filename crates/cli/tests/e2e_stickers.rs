@@ -172,7 +172,10 @@ fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
 fn stickers_in_comments_and_posts() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     maru(
         &data,
         &[

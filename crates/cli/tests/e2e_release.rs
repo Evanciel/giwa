@@ -212,7 +212,10 @@ fn 정적_내보내기는_손님이_보는_것만_내린다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
     let out = tmp.path().join("밖");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     let board = maru(&data, &["board", "list"])[0]["slug"]
         .as_str()
         .unwrap()
@@ -341,7 +344,10 @@ fn 정적_내보내기는_손님이_보는_것만_내린다() {
 fn 테마는_색과_모양만_입힌다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     let boards = maru(&data, &["board", "list"]).to_string();
 
     let list = maru(&data, &["theme", "list"]);

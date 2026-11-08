@@ -104,7 +104,7 @@ items = [
 [[ops]]
 op = "widgets.ensure"
 items = [
-  { kind = "hero", region = "main", scope = "home", config = { eyebrow = "무엇을 함께하는 모임인지 한 줄로", button = { label = "가입 신청", link = "/p/join" }, button2 = { label = "모임 일정", link = "/b/meetups?f.deadline=open" } } },
+  { kind = "hero", region = "main", scope = "home", config = { eyebrow = "주말마다 함께 걷고, 먹고, 이야기 나누는 모임", button = { label = "가입 신청", link = "/p/join" }, button2 = { label = "모임 일정", link = "/b/meetups?f.deadline=open" } } },
   { kind = "features", region = "main", scope = "home", config = { style = "tiles", items = [
     { title = "신청 받는 모임", link = "/b/meetups?f.deadline=open" },
     { title = "정기 모임", link = "/b/meetups?f.kind=regular" },
@@ -120,13 +120,13 @@ items = [
     { label = "가입 인사", board = "hello" },
   ] } },
   { kind = "cta", region = "main", scope = "home", title = "함께하실래요", config = { text = "가입 신청을 남기면 운영진이 확인하고 연락드립니다.", button = { label = "가입 신청", link = "/p/join" }, button2 = { label = "모임 안내", link = "/p/about" } } },
-  { kind = "hero", region = "main", scope = "page:about", config = { title = "모임 안내", text = "모임이 생긴 까닭과 함께 지킬 약속을 적어 둡니다." } },
+  { kind = "hero", region = "main", scope = "page:about", config = { title = "모임 안내", text = "같은 취미를 가진 이웃끼리 편하게 만나자고 시작한 모임입니다. 함께 지킬 약속도 아래에 적어 두었습니다." } },
   { kind = "features", region = "main", scope = "page:about", title = "이렇게 모입니다", config = { style = "rows", tone = "soft", items = [
-    { title = "정기 모임", text = "언제, 어디서 모이는지 적습니다." },
-    { title = "회비", text = "얼마를 어떻게 쓰는지 적습니다." },
-    { title = "운영진", text = "누가 무엇을 맡는지 적습니다." },
+    { title = "정기 모임", text = "매달 둘째, 넷째 토요일 오전에 모입니다. 장소는 모임 일정에 올립니다." },
+    { title = "회비", text = "한 달 1만 원을 모아 장소 대여와 간식에 쓰고, 쓴 내역은 공지에 올립니다." },
+    { title = "운영진", text = "모임장, 총무, 사진 담당이 나누어 맡고 해마다 새로 뽑습니다." },
   ] } },
-  { kind = "markdown_block", region = "main", scope = "page:about", title = "회칙", config = { body = "1. 서로 존중합니다.\n2. 모임 참석이 어려우면 미리 알립니다.\n3. 회비는 공지한 날까지 냅니다.\n\n모임에 맞게 고쳐 쓰세요." } },
+  { kind = "markdown_block", region = "main", scope = "page:about", title = "회칙", config = { body = "1. 서로 존중합니다.\n2. 모임 참석이 어려우면 미리 알립니다.\n3. 회비는 공지한 날까지 냅니다.\n4. 모임에서 알게 된 연락처는 모임 밖 일에 쓰지 않습니다." } },
   { kind = "hero", region = "main", scope = "page:join", config = { title = "가입 신청", text = "간단한 소개를 남겨 주세요. 운영진이 확인하고 연락드립니다." } },
   { kind = "contact_form", region = "main", scope = "page:join", config = { form = "join", purpose = "가입 확인 연락", submit = "가입 신청", done = "신청을 받았습니다. 운영진이 확인하고 연락드리겠습니다.", fields = [
     { key = "name", label = "이름 또는 별명", required = true },

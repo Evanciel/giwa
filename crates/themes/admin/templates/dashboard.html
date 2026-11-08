@@ -26,6 +26,26 @@
 </section>
 {% endif %}
 
+{% if sample and sample.posts > 0 %}
+<section class="card samples" aria-labelledby="samples-h">
+  <div class="card-head">
+    <h2 id="samples-h">{{ ic.icon("sparkle") }} 예시 글이 들어 있습니다</h2>
+    <span class="setup-count">{{ sample.posts }}개</span>
+  </div>
+  <p class="samples-text">사이트 종류를 고를 때 게시판마다 예시 글과 그림을 넣어 두었습니다. 글을 열어 내용을 바꾸면 그 글은 그대로 내 글이 됩니다.{% if sample.untouched %} 아직 고치지 않은 예시 {{ sample.untouched }}개는 한 번에 지울 수 있습니다.{% endif %}</p>
+  <div class="samples-actions">
+    <a class="button small ghost" href="/admin/posts">글 목록에서 고치기 {{ ic.icon("arrow") }}</a>
+    {% if sample.untouched %}
+    <form method="post" action="/admin/samples/clear" class="samples-clear">
+      <input type="hidden" name="_csrf" value="{{ csrf }}">
+      <label><input type="checkbox" name="sure" required> 고치지 않은 예시 글 {{ sample.untouched }}개와 그 그림을 지웁니다. 되돌릴 수 없습니다.</label>
+      <button class="button small ghost" type="submit">예시 글 지우기</button>
+    </form>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+
 {% if done_steps < steps | length %}
 <section class="card setup" aria-labelledby="setup-h">
   <div class="card-head">

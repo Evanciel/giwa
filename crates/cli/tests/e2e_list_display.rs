@@ -191,7 +191,10 @@ fn write_post(bind: &str, cookie: &str, title: &str) -> String {
 fn relative_time_short_counts_and_recent_boards_slot() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     maru(
         &data,
         &[

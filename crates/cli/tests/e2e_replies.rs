@@ -108,7 +108,10 @@ fn thread_path(data: &Path, id: &str) -> String {
 fn replies_thread_in_cli_and_public_screens() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     maru(
         &data,
         &["board", "create", "qna", "--name", "문의", "--kind", "qna"],

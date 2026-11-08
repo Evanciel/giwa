@@ -132,7 +132,10 @@ fn sign_in(bind: &str, link_url: &str) -> String {
 fn backup_while_running_then_restore_after_stop() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    let init = maru(&data, &["init", "--preset", "blog", "--yes"]);
+    let init = maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     let agent = format!("Bearer {}", init["token"]["secret"].as_str().unwrap());
     let link = maru(&data, &["login-link"]);
     let post = maru(

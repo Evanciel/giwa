@@ -244,7 +244,10 @@ fn secret(install: &Value) -> (PathBuf, String) {
 fn 토큰이_없으면_서버는_돌지_않고_다음_명령을_말한다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
 
     let e = maru_fail(&data, &["mcp", "serve"]);
     assert_eq!(e["ok"], false, "{e}");
@@ -270,7 +273,10 @@ fn 토큰이_없으면_서버는_돌지_않고_다음_명령을_말한다() {
 fn 설치는_다른_서버를_지키고_비밀을_적지_않으며_여러_번_해도_같다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
 
     let config = tmp.path().join("cfg").join("mcp.json");
     std::fs::create_dir_all(config.parent().unwrap()).unwrap();
@@ -371,7 +377,10 @@ fn 설치는_다른_서버를_지키고_비밀을_적지_않으며_여러_번_�
 fn 표준_입출력으로_스코프만큼_툴이_보이고_서비스의_권한이_막는다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     let board = maru(&data, &["board", "list"])[0]["slug"]
         .as_str()
         .unwrap()
@@ -504,7 +513,10 @@ fn 표준_입출력으로_스코프만큼_툴이_보이고_서비스의_권한�
 fn http_입구는_토큰으로만_열리고_터널의_host도_받는다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     let issued = maru(&data, &["token", "create", "--name", "http-시험"]);
     let token = issued["secret"].as_str().unwrap().to_owned();
     let (_server, bind) = start_server(&data);
@@ -568,7 +580,10 @@ fn http_입구는_토큰으로만_열리고_터널의_host도_받는다() {
 fn 변경_툴은_묶음에_담기만_하고_사람이_적용한다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     let config = tmp.path().join("mcp.json");
     let installed = install(
         &data,
@@ -672,7 +687,10 @@ fn 변경_툴은_묶음에_담기만_하고_사람이_적용한다() {
 fn 자동_적용_토큰은_표준_입출력과_http_모두에서_적용한다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     let issued = maru(
         &data,
         &[

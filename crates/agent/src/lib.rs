@@ -19,7 +19,7 @@ use maru_core::services::search::{self, SearchInput};
 use maru_core::services::settings::SettingsPatch;
 use maru_core::services::stats::{self, StatsQuery};
 use maru_core::services::widgets::{self, NewWidget, WidgetPatch};
-use maru_core::services::{boards, pages, presets, sections, settings, tokens};
+use maru_core::services::{boards, pages, presets, samples, sections, settings, tokens};
 use maru_core::{Actor, Code, Ctx, Error, Permission, Result};
 use maru_modules::{Registry, schema_of, service};
 use rmcp::model::{
@@ -549,6 +549,22 @@ const SPECS: &[Spec] = &[
         schema: schema_of::<NoInput>,
     },
     Spec {
+        name: "sample_status",
+        description: "사이트 종류가 넣은 예시 글 수와 그중 고치지 않은 글 수를 본다. Count sample posts a site type added, and how many are still unedited.",
+        permission: Permission::StructureEdit,
+        read_only: true,
+        untrusted: false,
+        schema: schema_of::<NoInput>,
+    },
+    Spec {
+        name: "clear_samples",
+        description: "고치지 않은 예시 글과 그 그림을 아주 지운다. 고친 글은 운영자의 글로 남는다. 운영자가 실제 글을 쓰기 시작할 때 쓴다. Permanently delete unedited sample posts and their pictures; edited ones stay.",
+        permission: Permission::StructureEdit,
+        read_only: false,
+        untrusted: false,
+        schema: schema_of::<NoInput>,
+    },
+    Spec {
         name: "list_stickers",
         description: "내장 스티커 목록을 본다. 글에는 ![이름](주소), 댓글에는 :id: 로 쓴다. List built-in stickers.",
         permission: Permission::SiteView,
@@ -964,6 +980,8 @@ impl Server {
                 to_value(maru_core::services::design::tokens(ctx).await?)
             }
             "list_stickers" => Ok(json!({ "items": maru_themes::stickers() })),
+            "sample_status" => to_value(samples::status(ctx, actor).await?),
+            "clear_samples" => to_value(samples::clear(ctx, actor).await?),
             "list_modules" => to_value(service::list(ctx, actor, &self.registry).await?),
             "list_posts" => {
                 let i: ListPostsInput = input(args)?;

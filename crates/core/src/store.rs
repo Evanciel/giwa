@@ -514,6 +514,8 @@ pub trait WriteTx: Send {
     async fn count_board_posts(&mut self, board_id: &str) -> Result<i64>;
 
     async fn post_by_id(&mut self, id: &str) -> Result<Option<Post>>;
+    /// 글을 아주 지운다(리비전·태그·댓글·색인 함께). 고치지 않은 예시 글만 쓴다 (ADR-0142).
+    async fn purge_post(&mut self, id: &str) -> Result<()>;
     /// 마지막 활동 시각을 올린다. 더 늦은 값이 이미 있으면 그대로 둔다 (ADR-0058).
     async fn touch_post(&mut self, id: &str, at: &str) -> Result<()>;
     /// 이 글에 바로 달린 답변글 수 (상태 무관, ADR-0056).

@@ -31,6 +31,18 @@ async fn put(conn: &mut SqliteConnection, id: i64, doc: &Document) -> Result<()>
     Ok(())
 }
 
+/// 글 한 편의 색인 글자를 지운다. `search_docs` 줄은 글을 지우면 따라 지워진다 (`purge_post`).
+pub(crate) async fn drop_post(conn: &mut SqliteConnection, post_id: &str) -> Result<()> {
+    sqlx::query!(
+        "DELETE FROM search_fts WHERE rowid IN (SELECT id FROM search_docs WHERE post_id = ?)",
+        post_id
+    )
+    .execute(&mut *conn)
+    .await
+    .map_err(db_error)?;
+    Ok(())
+}
+
 /// 글 한 편의 색인을 맞춘다 (`insert_post`·`update_post` 가 부른다).
 pub(crate) async fn put_post(conn: &mut SqliteConnection, p: &Post) -> Result<()> {
     let id = sqlx::query_scalar!(

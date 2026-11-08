@@ -102,8 +102,8 @@ items = [
 [[ops]]
 op = "widgets.ensure"
 items = [
-  { kind = "hero", region = "main", scope = "home", config = { eyebrow = "이번 철에 소개하는 상품을 한 줄로", button = { label = "상품 보기", link = "/b/products" }, button2 = { label = "주문·배송 안내", link = "/p/guide" } } },
-  { kind = "notice_bar", region = "header", scope = "all", config = { text = "0만 원 이상 주문하면 배송비가 없습니다", link = "/p/guide" } },
+  { kind = "hero", region = "main", scope = "home", config = { eyebrow = "이번 철에는 손에 익는 린넨과 도자기를 골랐습니다", button = { label = "상품 보기", link = "/b/products" }, button2 = { label = "주문·배송 안내", link = "/p/guide" } } },
+  { kind = "notice_bar", region = "header", scope = "all", config = { text = "5만 원 이상 주문하면 배송비가 없습니다", link = "/p/guide" } },
   { kind = "features", region = "main", scope = "home", config = { style = "tiles", items = [
     { title = "전체 상품", link = "/b/products" },
     { title = "새 상품", text = "이번에 들어온 상품", link = "/b/products?f.category=new" },
@@ -115,29 +115,29 @@ items = [
   { kind = "gallery_grid", region = "main", scope = "home", title = "상품", config = { board = "products", limit = 8, columns = 4 } },
   { kind = "latest_posts", region = "main", scope = "home", title = "룩북·이야기", config = { board = "stories", limit = 3, view = "card" } },
   { kind = "features", region = "main", scope = "home", title = "주문 전에 확인해 주세요", config = { style = "rows", items = [
-    { title = "배송", text = "평일 00시까지 주문하면 그날 보냅니다. 배송비는 0,000원입니다." },
-    { title = "교환·반품", text = "받은 날부터 0일 안에 문의로 알려 주세요." },
+    { title = "배송", text = "평일 오후 2시까지 주문하면 그날 보냅니다. 배송비는 3,000원입니다." },
+    { title = "교환·반품", text = "받은 날부터 7일 안에 문의로 알려 주세요." },
     { title = "주문 방법", text = "상품마다 있는 구매 링크나 문의로 주문을 받습니다." },
   ] } },
   { kind = "latest_posts", region = "main", scope = "home", title = "구매 후기", config = { board = "reviews", limit = 4, view = "card" } },
   { kind = "latest_posts", region = "main", scope = "home", title = "공지", config = { board = "notice", limit = 4 } },
-  { kind = "hero", region = "main", scope = "page:guide", config = { title = "주문·배송 안내", text = "주문부터 받기까지, 교환과 반품 방법을 적어 둡니다." } },
+  { kind = "hero", region = "main", scope = "page:guide", config = { title = "주문·배송 안내", text = "주문부터 받기까지, 교환과 반품 방법을 안내합니다." } },
   { kind = "features", region = "main", scope = "page:guide", title = "주문 순서", config = { style = "steps", items = [
     { title = "상품 고르기", text = "상품 글에서 가격과 품절을 확인합니다." },
     { title = "주문", text = "구매 링크로 주문하거나 문의를 남깁니다." },
     { title = "보내기", text = "주문을 확인하면 보내고 송장 번호를 알려 드립니다." },
   ] } },
   { kind = "faq", region = "main", scope = "page:guide", title = "자주 묻는 질문", config = { tone = "soft", items = [
-    { q = "배송은 며칠 걸리나요?", a = "보낸 날부터 보통 0~0일 걸립니다. 도서·산간 지역은 더 걸릴 수 있습니다." },
-    { q = "교환이나 반품은 어떻게 하나요?", a = "받은 날부터 0일 안에 문의로 주문한 이름과 까닭을 알려 주세요. 다시 보낼 주소를 안내합니다." },
+    { q = "배송은 며칠 걸리나요?", a = "보낸 날부터 보통 1~2일 걸립니다. 도서·산간 지역은 더 걸릴 수 있습니다." },
+    { q = "교환이나 반품은 어떻게 하나요?", a = "받은 날부터 7일 안에 문의로 주문한 이름과 까닭을 알려 주세요. 다시 보낼 주소를 안내합니다." },
     { q = "품절 상품은 다시 들어오나요?", a = "다시 들어오면 공지에 알립니다." },
   ] } },
-  { kind = "hero", region = "main", scope = "page:stores", config = { title = "매장 안내", text = "직접 보고 고를 수 있는 매장입니다. 매장이 없으면 이 화면을 메뉴에서 빼 주세요." } },
+  { kind = "hero", region = "main", scope = "page:stores", config = { title = "매장 안내", text = "상품을 직접 보고 만져 보며 고를 수 있는 매장입니다. 편하게 들러 주세요." } },
   { kind = "hours", region = "main", scope = "page:stores", title = "영업시간", config = { rows = [
-    { days = "월~금", time = "00:00~00:00" },
-    { days = "토·일", time = "00:00~00:00" },
+    { days = "월~금", time = "10:00~19:00" },
+    { days = "토·일", time = "11:00~18:00" },
   ], note = "공휴일 영업은 공지로 알립니다." } },
-  { kind = "visit", region = "main", scope = "page:stores", title = "오시는 길", config = { name = "매장 이름", address = "주소를 적어 주세요", phone = "000-0000-0000", parking = "주차 안내를 적어 주세요" } },
+  { kind = "visit", region = "main", scope = "page:stores", title = "오시는 길", config = { name = "매장 이름", address = "주소를 적어 주세요", phone = "000-0000-0000", parking = "매장 전용 주차장이 없어 가까운 공영주차장을 이용해 주세요." } },
   { kind = "hero", region = "main", scope = "page:contact", config = { title = "문의", text = "주문, 배송, 교환·반품 무엇이든 남겨 주세요." } },
   { kind = "contact_form", region = "main", scope = "page:contact", config = { form = "contact", purpose = "주문·문의 답변", fields = [
     { key = "name", label = "이름", required = true },

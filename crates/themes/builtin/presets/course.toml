@@ -58,7 +58,7 @@ items = [
 [[ops]]
 op = "widgets.ensure"
 items = [
-  { kind = "hero", region = "main", scope = "home", config = { eyebrow = "누구를 위한 강의인지 한 줄로", button = { label = "수강 문의", link = "/p/inquiry" }, button2 = { label = "강의 노트", link = "/b/notes" } } },
+  { kind = "hero", region = "main", scope = "home", config = { eyebrow = "처음 배우는 분을 위한 4주 실습 강의", button = { label = "수강 문의", link = "/p/inquiry" }, button2 = { label = "강의 노트", link = "/b/notes" } } },
   { kind = "features", region = "main", scope = "home", title = "무엇을 배우나요", config = { style = "steps", items = [
     { title = "1주차", text = "기초를 함께 다집니다." },
     { title = "2주차", text = "직접 만들어 봅니다." },

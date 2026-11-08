@@ -191,7 +191,7 @@ fn hidden(body: &str, name: &str) -> String {
 
 /// 게시판 `free`(자유게시판).
 fn site(data: &Path, write: &str) {
-    maru(data, &["init", "--preset", "blog", "--yes"]);
+    maru(data, &["init", "--no-samples", "--preset", "blog", "--yes"]);
     maru(
         data,
         &[

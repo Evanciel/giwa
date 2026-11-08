@@ -191,7 +191,10 @@ fn write_post(bind: &str, cookie: &str, title: &str) -> String {
 fn reactions_and_scraps_from_the_public_post_page() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     maru(
         &data,
         &[

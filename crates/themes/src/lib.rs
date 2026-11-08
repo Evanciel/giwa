@@ -8,11 +8,11 @@ use std::collections::HashMap;
 use std::path::{Component, Path, PathBuf};
 use std::sync::OnceLock;
 
-use maru_core::services::presets::Preset;
+use maru_core::services::presets::{Op, Preset};
 use maru_core::{Code, Error, Result};
 use minijinja::{AutoEscape, Environment, UndefinedBehavior};
 use rust_embed::RustEmbed;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// 내장 테마가 지키는 템플릿 계약 버전 (`theme.toml` 의 `template_api`).
 pub const TEMPLATE_API: u32 = 1;
@@ -235,7 +235,15 @@ pub fn preset_ids() -> Vec<String> {
         .collect()
 }
 
-/// 내장 프리셋을 읽는다.
+/// 프리셋의 예시 글 파일 (`builtin/samples/<id>.toml`, ADR-0142). 프리셋 연산 뒤에 붙는다.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SampleFile {
+    #[serde(default)]
+    ops: Vec<Op>,
+}
+
+/// 내장 프리셋을 읽는다. 예시 글 파일이 있으면 그 연산(`posts.ensure`)을 뒤에 붙인다.
 pub fn preset(id: &str) -> Result<Preset> {
     let unknown = || {
         Error::new(Code::Validation)
@@ -247,13 +255,20 @@ pub fn preset(id: &str) -> Result<Preset> {
         return Err(unknown());
     }
     let file = Builtin::get(&format!("presets/{id}.toml")).ok_or_else(unknown)?;
-    let text = std::str::from_utf8(&file.data).map_err(Error::internal)?;
-    toml::from_str(text).map_err(|e| {
+    let invalid = |e: toml::de::Error| {
         Error::new(Code::Internal)
             .with_message("error.preset_invalid")
             .arg("id", id.to_owned())
             .arg("detail", e.to_string())
-    })
+    };
+    let text = std::str::from_utf8(&file.data).map_err(Error::internal)?;
+    let mut preset: Preset = toml::from_str(text).map_err(invalid)?;
+    if let Some(file) = Builtin::get(&format!("samples/{id}.toml")) {
+        let text = std::str::from_utf8(&file.data).map_err(Error::internal)?;
+        let samples: SampleFile = toml::from_str(text).map_err(invalid)?;
+        preset.ops.extend(samples.ops);
+    }
+    Ok(preset)
 }
 
 /// HTML 이스케이프는 `& < > " '` 만 한다. 기본 포매터는 `/` 까지 `&#x2f;` 로 바꿔
@@ -859,6 +874,57 @@ mod tests {
         assert!(!blog.ops.is_empty());
         assert!(preset("../x").is_err());
         assert!(preset("nope").is_err());
+    }
+
+    /// 예시 글 파일은 같은 이름의 프리셋에 붙고, 그 프리셋이 만드는 게시판에만 글을 넣으며,
+    /// 여분 칸 값은 게시판 칸 정의를 통과한다. 그래서 `init` 이 예시 글 때문에 실패하지 않는다 (ADR-0142).
+    #[test]
+    fn sample_files_fit_their_presets() {
+        let files: Vec<_> = Builtin::iter()
+            .filter(|p| p.starts_with("samples/"))
+            .collect();
+        assert!(!files.is_empty());
+        for path in files {
+            let id = path
+                .trim_start_matches("samples/")
+                .trim_end_matches(".toml");
+            let p = preset(id).unwrap_or_else(|e| panic!("{id}: {e:?}"));
+            let boards: Vec<_> = p
+                .ops
+                .iter()
+                .filter_map(|o| match o {
+                    Op::BoardEnsure(b) => Some(b.as_ref()),
+                    _ => None,
+                })
+                .collect();
+            let mut seeded = Vec::new();
+            for op in &p.ops {
+                let Op::PostsEnsure { board, items } = op else {
+                    continue;
+                };
+                assert!(!seeded.contains(board), "{id}: {board} 두 번");
+                seeded.push(board.clone());
+                let b = boards
+                    .iter()
+                    .find(|b| &b.slug == board)
+                    .unwrap_or_else(|| panic!("{id}: 게시판 {board} 없음"));
+                assert!(!items.is_empty(), "{id}: {board}");
+                let schema = b.field_schema.clone().unwrap_or_default();
+                for it in items {
+                    let at = format!("{id}/{board}/{}", it.title);
+                    assert!(it.category.is_none(), "{at}: 프리셋은 분류를 만들지 않는다");
+                    if let Some(m) = &it.image {
+                        assert!(maru_core::sample_art::is_motif(m), "{at}: {m}");
+                    }
+                    for bad in ['—', '–'] {
+                        assert!(!it.title.contains(bad) && !it.body_md.contains(bad), "{at}");
+                    }
+                    if let Err(e) = maru_core::fields::validate(&schema, &it.meta, true) {
+                        panic!("{at}: {e:?}");
+                    }
+                }
+            }
+        }
     }
 
     /// 스킨은 `site.skin` 으로 고른다. 모르는 값이면 기본 (ADR-0081).

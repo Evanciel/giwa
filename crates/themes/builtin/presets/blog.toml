@@ -14,9 +14,9 @@ op = "page.ensure"
 slug = "about"
 title = "소개"
 body_md = """
-이 페이지는 아직 초안입니다.
+안녕하세요. 이 블로그에는 일상에서 배우고 느낀 것을 천천히 기록합니다.
 
-`maru page edit about --from about.md` 로 내용을 바꾸고 `maru page publish about` 으로 공개하세요.
+좋아하는 책과 음식, 다녀온 곳, 요즘 공부하는 것들을 주로 씁니다. 글을 읽고 떠오른 생각이 있으면 언제든 댓글로 나눠 주세요.
 """
 publish = false
 

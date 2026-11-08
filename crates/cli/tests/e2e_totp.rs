@@ -194,7 +194,10 @@ fn login_password(bind: &str, path: &str, next: &str) -> Res {
 fn totp_setup_login_recovery_and_reset() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     maru(
         &data,
         &[

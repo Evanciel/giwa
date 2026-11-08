@@ -88,7 +88,10 @@ fn widget_rows(data: &Path) -> i64 {
 fn widgets_render_by_scope_and_disappear_when_turned_off() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     // 프리셋의 소개 페이지는 초안으로 만들어진다.
     maru(&data, &["page", "publish", "about"]);
     for (title, body) in [("첫 소식", "하나"), ("둘째 소식", "둘")] {
@@ -234,7 +237,10 @@ fn widgets_render_by_scope_and_disappear_when_turned_off() {
 fn popups_render_hidden_with_script_only_in_period_and_scope() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     let bad = run(
         &data,
         &[
@@ -337,7 +343,10 @@ fn popups_render_hidden_with_script_only_in_period_and_scope() {
 fn home_panels_page_rotate_and_scroll() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     for n in 1..=5 {
         let title = format!("소식 {n}");
         maru(

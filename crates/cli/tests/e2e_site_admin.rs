@@ -181,7 +181,10 @@ fn sign_in(bind: &str, link_url: &str) -> String {
 fn site_structure_members_settings_and_design_from_admin_screens() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     maru(
         &data,
         &[

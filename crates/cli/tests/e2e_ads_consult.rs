@@ -101,7 +101,10 @@ fn place(data: &Path, kind: &str, region: &str, scope: &str, config: &str) -> Va
 fn ad_slots_scope_the_strict_csp_and_consult_button_tells_where_it_goes() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     maru(
         &data,
         &[
@@ -235,7 +238,10 @@ fn ad_slots_scope_the_strict_csp_and_consult_button_tells_where_it_goes() {
 fn 지도와_카카오는_키를_넣은_화면만_바깥을_부른다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "company", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "company", "--yes"],
+    );
     maru(&data, &["module", "enable", "map"]);
     maru(&data, &["module", "enable", "kakao"]);
     maru(

@@ -69,5 +69,5 @@ items = [
     { days = "주말", time = "10:00 ~ 20:00" },
     { days = "매주 월요일", time = "쉽니다" },
   ] } },
-  { kind = "visit", region = "main", scope = "home", title = "오시는 길", config = { name = "가게 이름", address = "서울특별시 중구 세종대로 110", phone = "02-000-0000", transit = "지하철역에서 걸어서 5분입니다.", parking = "건물 뒤편 공영 주차장을 이용해 주세요." } },
+  { kind = "visit", region = "main", scope = "home", title = "오시는 길", config = { name = "가게 이름", address = "주소를 적어 주세요", phone = "02-000-0000", transit = "지하철역에서 걸어서 5분입니다.", parking = "건물 뒤편 공영 주차장을 이용해 주세요." } },
 ]

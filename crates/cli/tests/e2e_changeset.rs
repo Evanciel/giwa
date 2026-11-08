@@ -41,7 +41,10 @@ fn maru(data: &Path, args: &[&str]) -> Value {
 
 fn init(tmp: &Path) -> PathBuf {
     let data = tmp.join("데이터");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     data
 }
 

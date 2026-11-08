@@ -121,7 +121,10 @@ fn new_post(data: &Path, board: &str, slug: &str, title: &str) -> String {
 fn hot_mark_and_hot_only_view() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     maru(
         &data,
         &[

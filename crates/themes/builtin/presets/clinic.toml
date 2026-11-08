@@ -74,7 +74,7 @@ items = [
 [[ops]]
 op = "widgets.ensure"
 items = [
-  { kind = "hero", region = "main", scope = "home", config = { eyebrow = "진료과목과 동네 이름을 한 줄로", text = "진료 예약과 문의는 전화로 받습니다. 02-000-0000", button = { label = "진료 안내", link = "/p/care" }, button2 = { label = "오시는 길", link = "/p/about" } } },
+  { kind = "hero", region = "main", scope = "home", config = { eyebrow = "가까이에서 편하게 찾는 동네 내과", text = "진료 예약과 문의는 전화로 받습니다. 02-000-0000", button = { label = "진료 안내", link = "/p/care" }, button2 = { label = "오시는 길", link = "/p/about" } } },
   { kind = "features", region = "main", scope = "home", config = { style = "tiles", items = [
     { title = "진료 안내", text = "진료과목과 준비할 것", link = "/p/care" },
     { title = "의료진", text = "진료하는 분들", link = "/p/about" },
@@ -89,26 +89,26 @@ items = [
     { days = "일요일·공휴일", time = "휴진" },
   ] } },
   { kind = "features", region = "main", scope = "home", title = "어디가 불편하세요", config = { style = "tiles", lead = "증상이나 부위를 고르면 맞는 진료과목 안내로 갑니다.", items = [
-    { title = "증상·부위 하나", text = "진료과목 이름", link = "/p/care" },
-    { title = "증상·부위 둘", text = "진료과목 이름", link = "/p/care" },
-    { title = "증상·부위 셋", text = "진료과목 이름", link = "/p/care" },
-    { title = "검사·검진", text = "할 수 있는 검사", link = "/p/care" },
+    { title = "감기·몸살", text = "일반 내과 진료", link = "/p/care" },
+    { title = "배가 불편할 때", text = "소화기 진료", link = "/p/care" },
+    { title = "혈압·혈당", text = "만성질환 관리", link = "/p/care" },
+    { title = "검사·검진", text = "건강검진과 기본 검사", link = "/p/care" },
   ] } },
   { kind = "latest_posts", region = "main", scope = "home", title = "공지", config = { board = "notice", limit = 4 } },
   { kind = "latest_posts", region = "main", scope = "home", title = "건강 정보", config = { board = "health", limit = 3, view = "card" } },
-  { kind = "visit", region = "main", scope = "home", title = "오시는 길", config = { name = "병원 이름", address = "주소를 적어 주세요", phone = "02-000-0000", transit = "가까운 역이나 정류장에서 오는 길을 적어 주세요.", parking = "주차 안내를 적어 주세요." } },
-  { kind = "hero", region = "main", scope = "page:about", config = { title = "병원 소개", text = "어떤 진료를 하는 곳인지 두 문장으로 적습니다." } },
+  { kind = "visit", region = "main", scope = "home", title = "오시는 길", config = { name = "병원 이름", address = "주소를 적어 주세요", phone = "02-000-0000", transit = "지하철역에서 걸어서 5분, 버스 정류장 바로 앞입니다.", parking = "건물 뒤 주차장을 1시간 무료로 쓰실 수 있습니다." } },
+  { kind = "hero", region = "main", scope = "page:about", config = { title = "병원 소개", text = "동네에서 가볍게 찾을 수 있는 내과 의원입니다. 증상을 충분히 듣고 진료 내용을 차분히 설명해 드립니다." } },
   { kind = "team", region = "main", scope = "page:about", title = "의료진", config = { items = [
     { name = "이름을 적어 주세요", role = "대표원장", bio = "전문 과목과 경력을 사실대로 적습니다." },
     { name = "이름을 적어 주세요", role = "원장", bio = "전문 과목과 경력을 사실대로 적습니다." },
   ] } },
-  { kind = "image_text", region = "main", scope = "page:about", title = "진료 공간", config = { tone = "soft", body = "대기실, 진료실, 검사실을 사진과 함께 소개합니다.\n\n갖춘 장비는 이름만 사실대로 적습니다." } },
-  { kind = "visit", region = "main", scope = "page:about", title = "오시는 길", config = { name = "병원 이름", address = "주소를 적어 주세요", phone = "02-000-0000", transit = "가까운 역이나 정류장에서 오는 길을 적어 주세요.", parking = "주차 안내를 적어 주세요." } },
-  { kind = "hero", region = "main", scope = "page:care", config = { title = "진료 안내", text = "진료과목, 진료시간, 처음 오시는 분이 챙길 것을 적어 둡니다." } },
+  { kind = "image_text", region = "main", scope = "page:about", title = "진료 공간", config = { tone = "soft", body = "밝은 대기실과 따로 떨어진 진료실, 검사실에서 편하게 진료받으실 수 있습니다.\n\n갖춘 장비는 이름만 사실대로 적습니다." } },
+  { kind = "visit", region = "main", scope = "page:about", title = "오시는 길", config = { name = "병원 이름", address = "주소를 적어 주세요", phone = "02-000-0000", transit = "지하철역에서 걸어서 5분, 버스 정류장 바로 앞입니다.", parking = "건물 뒤 주차장을 1시간 무료로 쓰실 수 있습니다." } },
+  { kind = "hero", region = "main", scope = "page:care", config = { title = "진료 안내", text = "진료과목과 진료시간, 처음 오시는 분이 챙기실 것을 안내합니다." } },
   { kind = "features", region = "main", scope = "page:care", title = "진료과목", config = { style = "rows", items = [
-    { title = "진료과목 하나", text = "보는 증상과 하는 진료를 적습니다." },
-    { title = "진료과목 둘", text = "보는 증상과 하는 진료를 적습니다." },
-    { title = "검사·검진", text = "할 수 있는 검사와 준비할 것을 적습니다." },
+    { title = "일반 내과", text = "감기, 두통, 소화불량처럼 흔한 증상을 진료하고 필요한 검사를 안내합니다." },
+    { title = "만성질환 관리", text = "고혈압, 당뇨, 이상지질혈증을 꾸준히 살피고 생활 관리를 함께 상의합니다." },
+    { title = "검사·검진", text = "혈액 검사와 소변 검사를 합니다. 공복이 필요한 검사는 예약할 때 알려 드립니다." },
   ] } },
   { kind = "features", region = "main", scope = "page:care", title = "처음 오시는 분", config = { style = "steps", tone = "soft", items = [
     { title = "접수", text = "신분증을 챙겨 주세요." },

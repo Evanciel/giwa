@@ -188,7 +188,7 @@ fn write_post(bind: &str, cookie: &str, title: &str) -> String {
 }
 
 fn setup(data: &Path) {
-    maru(data, &["init", "--preset", "blog", "--yes"]);
+    maru(data, &["init", "--no-samples", "--preset", "blog", "--yes"]);
     maru(
         data,
         &[

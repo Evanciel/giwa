@@ -87,7 +87,10 @@ fn post(data: &Path, board: &str, title: &str) {
 fn post_tabs_group_lists_and_skip_unreadable_boards() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     maru(
         &data,
         &[

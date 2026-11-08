@@ -165,7 +165,7 @@ fn admin_session(data: &Path, bind: &str) -> (String, String) {
 fn media_upload_serve_and_preview_through_all_paths() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    let init = maru(&data, &["init", "--yes"]);
+    let init = maru(&data, &["init", "--no-samples", "--yes"]);
     let token = init["data"]["token"]["secret"].as_str().unwrap().to_owned();
     let bearer = format!("Bearer {token}");
 
@@ -526,7 +526,7 @@ fn media_upload_serve_and_preview_through_all_paths() {
 fn attachments_are_download_only_through_all_paths() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("첨부");
-    let init = maru(&data, &["init", "--yes"]);
+    let init = maru(&data, &["init", "--no-samples", "--yes"]);
     let token = init["data"]["token"]["secret"].as_str().unwrap().to_owned();
     let bearer = format!("Bearer {token}");
     let (_server, bind) = start_server(&data);

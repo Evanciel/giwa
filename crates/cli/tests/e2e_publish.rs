@@ -103,12 +103,18 @@ fn e2e1_init_rest_draft_cli_publish_public_page() {
     let data = tmp.path().join("내 블로그");
 
     // 1. init
-    let init = maru(&data, &["init", "--preset", "blog", "--yes"]);
+    let init = maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     assert_eq!(init["created"], true);
     let token = init["token"]["secret"].as_str().unwrap().to_owned();
     assert!(token.starts_with("maru_"));
     // 다시 실행해도 안전하고 토큰이 늘지 않는다.
-    let again = maru(&data, &["init", "--preset", "blog", "--yes"]);
+    let again = maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     assert_eq!(again["created"], false);
     assert!(again["token"].is_null());
 
@@ -213,7 +219,7 @@ fn e2e1_init_rest_draft_cli_publish_public_page() {
 fn serve_reports_port_in_use() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("site");
-    maru(&data, &["init", "--yes"]);
+    maru(&data, &["init", "--no-samples", "--yes"]);
     let busy = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let port = busy.local_addr().unwrap().port();
     let out = Command::new(BIN)
@@ -252,7 +258,7 @@ fn uninitialized_dir_points_to_init() {
 fn cli_post_lifecycle_and_input_paths() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("site");
-    maru(&data, &["init", "--yes"]);
+    maru(&data, &["init", "--no-samples", "--yes"]);
 
     // UTF-8 BOM 이 붙은 파일
     let md = tmp.path().join("글.md");
@@ -355,7 +361,10 @@ fn cli_post_lifecycle_and_input_paths() {
 fn site_pages_and_menus_show_on_public_pages() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("site");
-    let init = maru(&data, &["init", "--yes", "--name", "테스트 블로그"]);
+    let init = maru(
+        &data,
+        &["init", "--no-samples", "--yes", "--name", "테스트 블로그"],
+    );
     let token = init["token"]["secret"].as_str().unwrap().to_owned();
     // init 이 기본 헤더 메뉴를 깐다.
     let menu = maru(&data, &["menu", "show", "header"]);
@@ -442,14 +451,14 @@ fn site_pages_and_menus_show_on_public_pages() {
 fn design_tokens_flow_to_css() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("site");
-    let init = maru(&data, &["init", "--yes"]);
+    let init = maru(&data, &["init", "--no-samples", "--yes"]);
     assert_eq!(init["preset"], "blog");
     // 블로그 프리셋은 소개 페이지를 초안으로 만든다.
     let pages = maru(&data, &["page", "list"]);
     assert_eq!(pages[0]["slug"], "about");
     assert_eq!(pages[0]["status"], "draft");
     // 다시 init 해도 아무것도 바뀌지 않는다.
-    let again = maru(&data, &["init", "--yes"]);
+    let again = maru(&data, &["init", "--no-samples", "--yes"]);
     assert!(
         again["applied"]
             .as_array()
@@ -526,6 +535,7 @@ fn seo_outputs_follow_public_state() {
         &data,
         &[
             "init",
+            "--no-samples",
             "--yes",
             "--name",
             "개발 노트",
@@ -613,7 +623,10 @@ fn seo_outputs_follow_public_state() {
 fn scheduled_post_goes_public_when_server_runs() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("예약");
-    let init = maru(&data, &["init", "--preset", "blog", "--yes"]);
+    let init = maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     let token = init["token"]["secret"].as_str().unwrap().to_owned();
 
     let tomorrow = (time::OffsetDateTime::now_utc() + time::Duration::days(1))
@@ -701,7 +714,10 @@ fn scheduled_post_goes_public_when_server_runs() {
 fn post_templates_through_cli_and_rest() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("틀");
-    let init = maru(&data, &["init", "--preset", "blog", "--yes"]);
+    let init = maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
     let token = init["token"]["secret"].as_str().unwrap().to_owned();
 
     let a = maru(

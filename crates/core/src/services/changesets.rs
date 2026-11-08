@@ -17,7 +17,7 @@ use crate::design::Tokens;
 use crate::error::{Code, Error, Result};
 use crate::model::{Board, Changeset, ChangesetStatus, MenuItem, PageStatus};
 use crate::services::presets::{self, Preset};
-use crate::services::{auth, boards, design, menus, pages, redirects, settings, widgets};
+use crate::services::{auth, boards, design, menus, pages, redirects, samples, settings, widgets};
 use crate::store::{Ctx, Tx};
 
 /// 한 changeset 에 담을 수 있는 연산 수.
@@ -86,6 +86,9 @@ pub enum ChangeOp {
     /// 프리셋의 `ensure` 연산 하나. 이미 사용자가 고친 것은 건드리지 않는다.
     #[serde(rename = "preset.step")]
     PresetStep { step: presets::Op },
+    /// 예시 글을 지운다. 고치지 않은 것만 지우고 그 게시판은 다시 예시를 받을 수 있게 된다 (ADR-0142).
+    #[serde(rename = "samples.remove")]
+    SamplesRemove { ids: Vec<String> },
 }
 
 impl ChangeOp {
@@ -105,7 +108,8 @@ impl ChangeOp {
             | Self::RedirectRemove { .. }
             | Self::MenuSet { .. }
             | Self::SettingsSet { .. }
-            | Self::PresetStep { .. } => Permission::StructureEdit,
+            | Self::PresetStep { .. }
+            | Self::SamplesRemove { .. } => Permission::StructureEdit,
             Self::TokensSet { .. }
             | Self::TokensReset
             | Self::WidgetPlace(_)
@@ -759,6 +763,10 @@ async fn run(ctx: &Ctx, actor: &Actor, op: &ChangeOp) -> Result<Vec<ChangeOp>> {
             }
         }
         ChangeOp::PresetStep { step } => run_preset_step(ctx, actor, step).await?,
+        ChangeOp::SamplesRemove { ids } => {
+            samples::remove(ctx, actor, ids, true).await?;
+            Vec::new()
+        }
     })
 }
 
@@ -800,6 +808,7 @@ async fn run_preset_step(ctx: &Ctx, actor: &Actor, step: &presets::Op) -> Result
             .filter(|w| !before_widgets.contains(&w.id))
             .map(|w| ChangeOp::WidgetRemove { id: w.id })
             .collect(),
+        presets::Op::PostsEnsure { .. } => vec![ChangeOp::SamplesRemove { ids: res.created }],
     })
 }
 

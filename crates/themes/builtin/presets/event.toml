@@ -56,7 +56,7 @@ items = [
 [[ops]]
 op = "widgets.ensure"
 items = [
-  { kind = "hero", region = "main", scope = "home", config = { eyebrow = "다음 행사 날짜와 장소", button = { label = "참가 신청", link = "/p/apply" }, button2 = { label = "행사 보기", link = "/b/events" } } },
+  { kind = "hero", region = "main", scope = "home", config = { eyebrow = "매달 함께 배우고 이야기 나누는 작은 모임", button = { label = "참가 신청", link = "/p/apply" }, button2 = { label = "행사 보기", link = "/b/events" } } },
   { kind = "latest_posts", region = "main", scope = "home", title = "다가오는 행사", config = { board = "events", limit = 6, view = "card" } },
   { kind = "features", region = "main", scope = "home", title = "신청 방법", config = { style = "steps", tone = "soft", items = [
     { title = "행사 고르기", text = "일정과 장소를 확인합니다." },

@@ -313,6 +313,9 @@ pub(crate) fn lookup(key: &str) -> Option<&'static str> {
         "error.restore_confirm" => {
             "Restoring moves the current data aside and replaces it with the backup. If you are sure, run it again with --yes."
         }
+        "error.sample_clear_confirm" => {
+            "This permanently deletes the sample posts you have not edited, with their pictures. Edited posts stay. If you are sure, run it again with --yes."
+        }
         "error.backup_not_found" => "There is no backup file `{name}`.",
         "error.backup_invalid" => {
             "This is not a Maru backup file, or it is broken: {path} ({detail})"

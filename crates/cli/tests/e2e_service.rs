@@ -34,7 +34,10 @@ fn 등록_내용을_미리_보고_없으면_지우기도_성공이다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
     assert_eq!(
-        run(&data, &["init", "--preset", "blog", "--yes"])["ok"],
+        run(
+            &data,
+            &["init", "--no-samples", "--preset", "blog", "--yes"]
+        )["ok"],
         true
     );
 

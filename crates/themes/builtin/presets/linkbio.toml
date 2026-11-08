@@ -43,11 +43,11 @@ items = [
 [[ops]]
 op = "widgets.ensure"
 items = [
-  { kind = "hero", region = "main", scope = "home", config = { eyebrow = "무엇을 하는 사람인지 한 줄로", text = "자기소개를 두 문장으로 적습니다." } },
+  { kind = "hero", region = "main", scope = "home", config = { eyebrow = "일상과 여행을 그림으로 남기는 일러스트레이터", text = "작은 순간을 따뜻한 색으로 그립니다. 새 그림과 소식은 아래 링크에서 가장 먼저 만나 보세요." } },
   { kind = "features", region = "main", scope = "home", config = { style = "rows", items = [
-    { title = "첫 번째 링크", text = "새 글, 새 영상, 판매 중인 상품처럼 가장 먼저 보일 것", link = "/b/news" },
-    { title = "두 번째 링크", text = "한 줄 설명", link = "/b/news" },
-    { title = "세 번째 링크", text = "한 줄 설명", link = "/b/news" },
+    { title = "이번 달 새 그림", text = "가장 최근에 그린 그림을 한곳에 모았습니다", link = "/b/news" },
+    { title = "그림 의뢰 안내", text = "의뢰 방법과 진행 순서를 알려 드립니다", link = "/b/news" },
+    { title = "엽서와 스티커", text = "그림으로 만든 작은 소품을 판매합니다", link = "/b/news" },
     { title = "새 소식", text = "최근에 올린 글", link = "/b/news" },
   ] } },
   { kind = "latest_posts", region = "main", scope = "home", title = "최근 소식", config = { board = "news", limit = 3 } },

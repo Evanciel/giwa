@@ -26,11 +26,11 @@ values = { home_page = "home", show_search = false }
 [[ops]]
 op = "widgets.ensure"
 items = [
-  { kind = "hero", region = "main", scope = "home", config = { title = "무엇이 좋아지는지 한 문장으로", text = "누구에게 어떻게 좋은지 스무 단어 안으로 씁니다.", button = { label = "신청하기", link = "/#form-apply" } } },
+  { kind = "hero", region = "main", scope = "home", config = { title = "흩어진 일정과 할 일을 한곳에서", text = "작은 팀이 일정과 할 일을 한 화면에서 나누는 가장 쉬운 방법입니다.", button = { label = "신청하기", link = "/#form-apply" } } },
   { kind = "features", region = "main", scope = "home", title = "달라지는 점", config = { style = "bento", tone = "soft", items = [
-    { title = "가장 큰 장점 하나", text = "이것 때문에 쓴다는 한 가지를 구체적으로 씁니다." },
-    { title = "시간을 아낍니다", text = "얼마나 줄어드는지 숫자로." },
-    { title = "실수가 줄어듭니다", text = "어떤 실수가 사라지는지." },
+    { title = "모든 일이 한 화면에", text = "메신저, 메일, 메모에 흩어진 할 일을 모아 누가 무엇을 하는지 바로 보여 줍니다." },
+    { title = "시간을 아낍니다", text = "매주 하던 일정 정리와 공유를 알아서 해 줍니다." },
+    { title = "실수가 줄어듭니다", text = "마감이 다가오면 미리 알려 드려 놓치는 일이 없습니다." },
   ] } },
   { kind = "features", region = "main", scope = "home", title = "쓰는 방법", config = { style = "steps", items = [
     { title = "가입", text = "1분이면 됩니다." },
