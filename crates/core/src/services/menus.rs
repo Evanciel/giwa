@@ -29,15 +29,10 @@ pub async fn set(
 ) -> Result<Vec<MenuItem>> {
     actor.require(Permission::StructureEdit)?;
     check_location(location)?;
-    let items = validate(items, 1)?;
+    let items = check(items)?;
     let mut rows = Vec::new();
     let now = clock::now();
     flatten(&items, None, &now, &mut rows);
-    if rows.len() > MAX_ITEMS {
-        return Err(Error::new(Code::Validation)
-            .with_message("error.menu_too_many")
-            .arg("max", MAX_ITEMS.to_string()));
-    }
 
     let mut tx = Tx::begin(ctx).await?;
     let before = build_tree(tx.menu_rows(location).await?);
@@ -56,7 +51,23 @@ pub async fn set(
     Ok(items)
 }
 
-fn check_location(location: &str) -> Result<()> {
+/// 메뉴 트리를 검사해 저장할 모양(앞뒤 공백 없는 이름, 정리한 주소)으로 돌려준다.
+/// 화면 편집기 초안(ADR-0145)도 저장 전에 같은 검사로 그린다.
+pub fn check(items: Vec<MenuItem>) -> Result<Vec<MenuItem>> {
+    let items = validate(items, 1)?;
+    if count(&items) > MAX_ITEMS {
+        return Err(Error::new(Code::Validation)
+            .with_message("error.menu_too_many")
+            .arg("max", MAX_ITEMS.to_string()));
+    }
+    Ok(items)
+}
+
+fn count(items: &[MenuItem]) -> usize {
+    items.iter().map(|i| 1 + count(&i.children)).sum()
+}
+
+pub fn check_location(location: &str) -> Result<()> {
     if MENU_LOCATIONS.contains(&location) {
         return Ok(());
     }

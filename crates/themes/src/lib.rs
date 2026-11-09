@@ -90,6 +90,8 @@ fn public_env(
     env.set_formatter(html_formatter);
     env.add_function("url_for", url_for);
     env.add_function("edit_field", edit_field);
+    env.add_function("edit_part", edit_part);
+    env.add_function("edit_site", edit_site);
     env.add_filter("ago", ago);
     env.add_filter("short_count", short_count);
     env.add_filter("stickers", stickers_filter);
@@ -376,14 +378,36 @@ fn edit_field(state: &minijinja::State, path: &str) -> minijinja::Value {
         .lookup("w")
         .and_then(|w| w.get_attr("edit_id").ok())
         .is_some_and(|v| v.is_true());
-    let plain = !path.is_empty()
-        && path
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '@'));
-    if !editing || !plain {
+    if !editing || !plain_path(path) {
         return minijinja::Value::from_safe_string(String::new());
     }
     minijinja::Value::from_safe_string(format!(" data-maru-f=\"{path}\""))
+}
+
+/// 사이트 공통 부분(이름·설명·메뉴) 표시 (ADR-0145). 편집기 캔버스(`editing`)에서만 붙는다.
+/// `edit_part("menu.header")` 는 고를 수 있는 부분(` data-maru-s`), `edit_site("menus.header.0.label")` 은
+/// 그 자리에서 고칠 글자 칸(` data-maru-f`)이다. 경로 규칙은 `edit_field` 와 같다.
+fn edit_part(state: &minijinja::State, key: &str) -> minijinja::Value {
+    site_mark(state, "data-maru-s", key)
+}
+
+fn edit_site(state: &minijinja::State, path: &str) -> minijinja::Value {
+    site_mark(state, "data-maru-f", path)
+}
+
+fn site_mark(state: &minijinja::State, attr: &str, path: &str) -> minijinja::Value {
+    let editing = state.lookup("editing").is_some_and(|v| v.is_true());
+    if !editing || !plain_path(path) {
+        return minijinja::Value::from_safe_string(String::new());
+    }
+    minijinja::Value::from_safe_string(format!(" {attr}=\"{path}\""))
+}
+
+fn plain_path(path: &str) -> bool {
+    !path.is_empty()
+        && path
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '@'))
 }
 
 /// 세 자리마다 쉼표.
@@ -874,6 +898,25 @@ mod tests {
             )
             .unwrap();
         assert_eq!(public, "<h2>|<p>");
+    }
+
+    #[test]
+    fn site_marks_only_editor_canvas() {
+        let mut env = Environment::new();
+        env.add_function("edit_part", edit_part);
+        env.add_function("edit_site", edit_site);
+        let tpl = "<nav{{ edit_part('menu.header') }}><a{{ edit_site('menus.header.0.label') }}>";
+        let editing = env
+            .render_str(tpl, minijinja::context! { editing => true })
+            .unwrap();
+        assert_eq!(
+            editing,
+            "<nav data-maru-s=\"menu.header\"><a data-maru-f=\"menus.header.0.label\">"
+        );
+        let public = env
+            .render_str(tpl, minijinja::context! { editing => false })
+            .unwrap();
+        assert_eq!(public, "<nav><a>");
     }
 
     #[test]

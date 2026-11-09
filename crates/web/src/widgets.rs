@@ -23,6 +23,17 @@ use crate::public::{menu_value, summaries_any_board};
 #[derive(Debug, Clone, Default)]
 pub(crate) struct Editing {
     pub draft: Option<std::sync::Arc<Vec<Widget>>>,
+    /// 사이트 이름·설명·메뉴 초안 (ADR-0145). 없으면 저장된 값을 그린다.
+    pub site: Option<std::sync::Arc<SiteDraft>>,
+}
+
+/// 편집기 초안의 사이트 공통 부분. 저장할 때와 같은 검사를 마친 값만 들어온다.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct SiteDraft {
+    pub name: String,
+    pub description: String,
+    /// 위치(`header`·`quick`·`footer`)마다 메뉴
+    pub menus: Vec<(String, Vec<maru_core::model::MenuItem>)>,
 }
 
 tokio::task_local! {

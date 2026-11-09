@@ -351,4 +351,78 @@ fn edit_screen_draw_draft_publish_and_revert() {
         v
     };
     assert_eq!(strip(maru(&data, &["widget", "list"])), strip(after));
+
+    // 사이트 공통 부분 (ADR-0145): 이름·메뉴 초안이 캔버스에만 보이고, 발행하면 같은 묶음에 들어간다.
+    let canvas = http(
+        &bind,
+        "GET",
+        "/admin/editor/frame?screen=home",
+        &[("Cookie", &cookie)],
+        "",
+    );
+    assert!(
+        canvas.body.contains("data-maru-s=\"name\""),
+        "사이트 이름 표시"
+    );
+    let widgets_now = draft_of(&maru(&data, &["widget", "list"]));
+    let site_body = |name: &str, label: &str| {
+        serde_json::json!({
+            "screen": "home",
+            "widgets": widgets_now,
+            "site": {
+                "name": name,
+                "description": "",
+                "menus": { "header": [{ "label": label, "link": { "kind": "url", "href": "/recent" }, "children": [] }] },
+            },
+        })
+        .to_string()
+    };
+    let drawn_site = http(
+        &bind,
+        "POST",
+        "/admin/editor/frame?screen=home",
+        &[json, ("Cookie", &cookie), ("x-csrf-token", &csrf)],
+        &site_body("편집기 이름", "새 메뉴 이름"),
+    );
+    assert_eq!(drawn_site.status, 200, "{}", drawn_site.body);
+    assert!(drawn_site.body.contains("편집기 이름"));
+    assert!(
+        drawn_site
+            .body
+            .contains("data-maru-f=\"menus.header.0.label\">새 메뉴 이름")
+    );
+    assert!(
+        !http(&bind, "GET", "/", &[], "")
+            .body
+            .contains("편집기 이름")
+    );
+    // 틀린 값은 저장된 값으로 그리고 알린다.
+    let bad_site = http(
+        &bind,
+        "POST",
+        "/admin/editor/frame?screen=home",
+        &[json, ("Cookie", &cookie), ("x-csrf-token", &csrf)],
+        &site_body(" ", ""),
+    );
+    assert_eq!(
+        header(&bad_site, "x-maru-invalid"),
+        "site:name,site:menu.header"
+    );
+    let published = http(
+        &bind,
+        "POST",
+        "/admin/editor/publish",
+        &[json, ("Cookie", &cookie), ("x-csrf-token", &csrf)],
+        &site_body("편집기 이름", "새 메뉴 이름"),
+    );
+    assert_eq!(published.status, 200, "{}", published.body);
+    let out: Value = serde_json::from_str(&published.body).unwrap();
+    assert_eq!(out["data"]["ops"], 2, "{out}");
+    let home = http(&bind, "GET", "/", &[], "").body;
+    assert!(home.contains("편집기 이름") && home.contains("새 메뉴 이름"));
+    assert!(!home.contains("data-maru"), "공개 화면에 편집 표시");
+    assert_eq!(maru(&data, &["site", "show"])["name"], "편집기 이름");
+    let cs3 = out["data"]["changeset"].as_str().unwrap().to_owned();
+    maru(&data, &["changeset", "revert", &cs3]);
+    assert_ne!(maru(&data, &["site", "show"])["name"], "편집기 이름");
 }

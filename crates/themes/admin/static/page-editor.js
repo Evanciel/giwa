@@ -23,6 +23,34 @@
 
   var widgets = data.widgets.slice();
   var saved = JSON.stringify(widgets);
+  // 사이트 공통 부분 초안 (ADR-0145): { name, description, menus: { header, quick, footer } }
+  var site = JSON.parse(JSON.stringify(data.site));
+  var savedSite = JSON.stringify(site);
+  var MENU_LOCS = ["header", "quick", "footer"];
+  var PARTS = [
+    ["name", "사이트 이름", "머리글과 바닥글에 보이는 이름입니다."],
+    ["description", "사이트 설명", "검색 결과와 공유 미리보기에 쓰이고, 테마에 따라 머리글에 보입니다."],
+    ["menu.header", "위 메뉴", "머리글의 주 메뉴입니다."],
+    ["menu.quick", "바로가기 단추", "검색 칸 옆 단추 줄입니다. 그리지 않는 테마도 있습니다."],
+    ["menu.footer", "아래 메뉴", "바닥글의 메뉴입니다."]
+  ];
+  function isSite(id) { return typeof id === "string" && id.indexOf("site:") === 0; }
+  function partOf(id) { var k = id.slice(5); return PARTS.filter(function (p) { return p[0] === k; })[0] || [k, k, ""]; }
+  // 저장된 것과 다른 메뉴 위치만 보낸다.
+  function siteBody() {
+    var before = JSON.parse(savedSite), menus = {};
+    MENU_LOCS.forEach(function (l) {
+      if (JSON.stringify(site.menus[l] || []) !== JSON.stringify(before.menus[l] || [])) menus[l] = site.menus[l] || [];
+    });
+    return { name: site.name, description: site.description, menus: menus };
+  }
+  function siteDirty() {
+    var before = JSON.parse(savedSite), n = 0;
+    if (site.name !== before.name) n += 1;
+    if (site.description !== before.description) n += 1;
+    MENU_LOCS.forEach(function (l) { if (JSON.stringify(site.menus[l] || []) !== JSON.stringify(before.menus[l] || [])) n += 1; });
+    return n;
+  }
   var selected = null;
   var invalid = {};
   var past = [], future = [];
@@ -75,7 +103,8 @@
   }
 
   // ---- 초안 기록 ----
-  function snapshot() { return JSON.stringify(widgets); }
+  function snapshot() { return JSON.stringify({ w: widgets, s: site }); }
+  function restoreSnap(snap) { var st = JSON.parse(snap); widgets = st.w; site = st.s; }
   // `mark` 가 같으면(같은 칸을 이어 치는 중) 기록을 하나로 합친다.
   // `quiet` 이면 캔버스와 오른쪽 판을 다시 그리지 않는다(화면 위 글자를 치는 중).
   function change(fn, mark, quiet) {
@@ -91,17 +120,19 @@
   function undo() {
     if (!past.length) return;
     future.push(snapshot());
-    widgets = JSON.parse(past.pop());
+    restoreSnap(past.pop());
     lastMark = null;
-    if (selected && !byId(selected)) selected = null;
+    if (selected && !isSite(selected) && !byId(selected)) selected = null;
+    form = null;
     changed(true, true);
   }
   function redo() {
     if (!future.length) return;
     past.push(snapshot());
-    widgets = JSON.parse(future.pop());
+    restoreSnap(future.pop());
     lastMark = null;
-    if (selected && !byId(selected)) selected = null;
+    if (selected && !isSite(selected) && !byId(selected)) selected = null;
+    form = null;
     changed(true, true);
   }
   function dirtyCount() {
@@ -114,8 +145,8 @@
       if (!b || b.slice(0, b.lastIndexOf("@")) !== JSON.stringify(w)) n += 1;
     });
     Object.keys(before).forEach(function (id) { if (!seen[id]) n += 1; });
-    if (!n && snapshot() !== saved) n = 1; // 순서만 바뀜
-    return n;
+    if (!n && JSON.stringify(widgets) !== saved) n = 1; // 순서만 바뀜
+    return n + siteDirty();
   }
 
   var renderTimer = null;
@@ -126,7 +157,7 @@
     undoBtn.disabled = !past.length;
     redoBtn.disabled = !future.length;
     try {
-      if (n) localStorage.setItem(STORE, JSON.stringify({ base: hash(saved), widgets: widgets }));
+      if (n) localStorage.setItem(STORE, JSON.stringify({ base: hash(saved + savedSite), widgets: widgets, site: site }));
       else localStorage.removeItem(STORE);
     } catch (e) { /* 저장소를 못 쓰면 이 창에서만 */ }
     drawLayers();
@@ -147,7 +178,7 @@
       method: "POST",
       credentials: "same-origin",
       headers: { "content-type": "application/json", "x-csrf-token": csrf },
-      body: JSON.stringify({ widgets: widgets })
+      body: JSON.stringify({ widgets: widgets, site: siteBody() })
     }).then(function (r) {
       var bad = r.headers.get("x-maru-invalid") || "";
       return r.text().then(function (t) { return { ok: r.ok, text: t, bad: bad }; });
@@ -172,6 +203,14 @@
   }
 
   function regionOf(node) { return node.closest("[data-maru-region]"); }
+  // 고를 수 있는 것: 블록(data-maru-w)과 사이트 공통 부분(data-maru-s, ADR-0145). 부분의 id 는 "site:<키>".
+  var HOST = "[data-maru-w], [data-maru-s]";
+  function hostId(n) { return n.hasAttribute("data-maru-w") ? n.getAttribute("data-maru-w") : "site:" + n.getAttribute("data-maru-s"); }
+  function nodeOf(id) {
+    var doc = fdoc();
+    if (!doc || !id) return null;
+    return doc.querySelector(isSite(id) ? '[data-maru-s="' + id.slice(5) + '"]' : '[data-maru-w="' + id + '"]');
+  }
 
   // 그려진 화면에 고르기 표시·빈 자리·못 그린 블록 자리를 얹는다.
   function decorate() {
@@ -219,9 +258,17 @@
     var bar = doc.querySelector(".maru-bar");
     if (bar) bar.remove();
     if (!selected) return;
-    var node = doc.querySelector('[data-maru-w="' + selected + '"]');
+    var node = nodeOf(selected);
     if (!node) return;
     node.classList.add("maru-selected");
+    if (isSite(selected)) {
+      var sb = el("div", { cls: "maru-bar", role: "toolbar", "aria-label": "고른 부분" }, [
+        el("span", { cls: "maru-bar-name", text: partOf(selected)[1] + " · 모든 화면" }, null, doc)
+      ], doc);
+      doc.body.appendChild(sb);
+      placeBar(node, sb);
+      return;
+    }
     var w = byId(selected);
     var b = el("div", { cls: "maru-bar", role: "toolbar", "aria-label": "고른 블록" }, [
       el("span", { cls: "maru-bar-name", text: nameOf(w) }, null, doc),
@@ -258,15 +305,15 @@
       if (e.target.closest(".maru-bar")) return;
       if (justDragged) { justDragged = false; return; }
       if (textEdit && textEdit.node.contains(e.target)) return;
-      var w = e.target.closest("[data-maru-w]");
-      var id = w ? w.getAttribute("data-maru-w") : null;
-      // 고른 블록의 글자 칸을 한 번 더 누르면 그 자리에서 고친다.
+      var w = e.target.closest(HOST);
+      var id = w ? hostId(w) : null;
+      // 고른 블록·부분의 글자 칸을 한 번 더 누르면 그 자리에서 고친다.
       var f = e.target.closest("[data-maru-f]");
-      if (f && id && id === selected && f.closest("[data-maru-w]") === w) { startText(f, e); return; }
+      if (f && id && id === selected && f.closest(HOST) === w) { startText(f, e); return; }
       select(id);
     }, true);
     doc.addEventListener("mouseover", function (e) {
-      var w = e.target.closest("[data-maru-w]");
+      var w = e.target.closest(HOST);
       doc.querySelectorAll(".maru-hover").forEach(function (n) { if (n !== w) n.classList.remove("maru-hover"); });
       if (w) w.classList.add("maru-hover");
     });
@@ -303,37 +350,47 @@
   // ---- 화면 위 글자 바로 고치기 (ADR-0144) ----
   // 템플릿이 편집 중에만 글자 칸에 data-maru-f="<경로>" 를 붙인다. `@title` 은 블록 제목, 나머지는 설정 안 점 경로.
   var textEdit = null;
-  function getPath(w, path) {
-    if (path === "@title") return w.title || "";
-    var cur = w.config;
+  function readPath(obj, path) {
+    var cur = obj;
     path.split(".").forEach(function (k) { cur = cur == null ? undefined : cur[k]; });
     return typeof cur === "string" ? cur : "";
   }
-  function setPath(w, path, value) {
-    if (path === "@title") { w.title = value; return; }
-    var keys = path.split("."), cur = w.config || (w.config = {});
+  function writePath(obj, path, value) {
+    var keys = path.split("."), cur = obj;
     for (var i = 0; i < keys.length - 1; i++) {
       if (cur[keys[i]] == null || typeof cur[keys[i]] !== "object") cur[keys[i]] = {};
       cur = cur[keys[i]];
     }
     cur[keys[keys.length - 1]] = value;
   }
+  // 고칠 곳: 블록이면 제목(@title)이나 설정, 사이트 공통 부분이면 사이트 초안.
+  function getPath(id, path) {
+    if (isSite(id)) return readPath(site, path);
+    var w = byId(id);
+    if (!w) return "";
+    return path === "@title" ? w.title || "" : readPath(w.config, path);
+  }
+  function setPath(id, path, value) {
+    if (isSite(id)) { writePath(site, path, value); return; }
+    var w = byId(id);
+    if (!w) return;
+    if (path === "@title") w.title = value;
+    else writePath(w.config || (w.config = {}), path, value);
+  }
   function textOf(node) { return node.textContent.replace(/[\r\n]+/g, " "); }
 
   function startText(node, ev) {
     if (textEdit) finishText(false);
-    var host = node.closest("[data-maru-w]");
-    var w = host && byId(host.getAttribute("data-maru-w"));
-    if (!w) return;
+    var host = node.closest(HOST);
+    var id = host && hostId(host);
+    if (!id || (!isSite(id) && !byId(id))) return;
     var doc = fdoc();
-    var t = { node: node, id: w.id, path: node.getAttribute("data-maru-f"), before: null, shown: node.textContent, typed: false };
-    t.before = getPath(w, t.path);
+    var t = { node: node, id: id, path: node.getAttribute("data-maru-f"), before: null, shown: node.textContent, typed: false };
+    t.before = getPath(id, t.path);
     t.onInput = function () {
-      var cur = byId(t.id);
-      if (!cur) return;
       t.typed = true;
       var v = textOf(node);
-      change(function () { setPath(cur, t.path, v); }, "text:" + t.id + ":" + t.path, true);
+      change(function () { setPath(t.id, t.path, v); }, "text:" + t.id + ":" + t.path, true);
     };
     t.onKey = function (e) {
       if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); finishText(false); }
@@ -367,11 +424,10 @@
     node.removeEventListener("blur", t.onBlur);
     node.removeAttribute("contenteditable");
     node.classList.remove("maru-text-editing");
-    var w = byId(t.id);
-    if (w && t.typed) {
+    if (t.typed && (isSite(t.id) || byId(t.id))) {
       var v = cancel ? t.before : textOf(node).trim();
       if (cancel) node.textContent = t.shown;
-      if (getPath(w, t.path) !== v) change(function () { setPath(w, t.path, v); }, "text:" + t.id + ":" + t.path, true);
+      if (getPath(t.id, t.path) !== v) change(function () { setPath(t.id, t.path, v); }, "text:" + t.id + ":" + t.path, true);
     }
     lastMark = null;
     form = null; // 오른쪽 판 칸을 고친 값으로 새로 만든다
@@ -643,6 +699,17 @@
   // ---- 왼쪽: 층 ----
   function drawLayers() {
     layersEl.textContent = "";
+    // 사이트 공통 부분: 모든 화면에 함께 보인다. 테마가 그리지 않는 부분도 여기서 고른다.
+    var common = el("ol", { cls: "ed-layer-list" });
+    PARTS.forEach(function (p) {
+      var id = "site:" + p[0];
+      common.appendChild(el("li", { cls: "ed-layer is-part" + (id === selected ? " is-selected" : "") + (invalid[id] ? " is-invalid" : ""), "data-id": id }, [
+        el("button", { type: "button", cls: "ed-layer-name", "data-pick": id, text: p[1] })
+      ]));
+    });
+    layersEl.appendChild(el("section", { cls: "ed-layer-region" }, [
+      el("h3", { cls: "ed-group", text: "사이트 공통", title: "모든 화면에 함께 보이는 이름·설명·메뉴" }), common
+    ]));
     data.regions.forEach(function (r) {
       var list = widgets.filter(function (w) { return w.region === r.id && onScreen(w.scope); });
       if (!list.length && CANVAS_REGIONS.indexOf(r.id) < 0) return;
@@ -690,7 +757,7 @@
   });
   function layerSpot(e) {
     var li = e.target.closest(".ed-layer"), sec = e.target.closest(".ed-layer-region");
-    if (!sec) return null;
+    if (!sec || !sec.getAttribute("data-region")) return null;
     if (!li) return { region: sec.getAttribute("data-region"), before: null, li: null };
     var b = li.getBoundingClientRect(), after = e.clientY > b.top + b.height / 2;
     var target = after ? li.nextElementSibling : li;
@@ -727,14 +794,17 @@
   });
 
   function scrollToSelected() {
-    var doc = fdoc();
-    var n = doc && selected && doc.querySelector('[data-maru-w="' + selected + '"]');
+    var n = nodeOf(selected);
     if (n) n.scrollIntoView({ block: "center", behavior: "smooth" });
   }
 
   // ---- 오른쪽: 고른 블록 ----
   var form = null;
   function drawInspector() {
+    if (isSite(selected)) {
+      if (form && form.__id === selected) syncInspector(null); else drawSiteInspector();
+      return;
+    }
     var w = selected && byId(selected);
     if (form && form.__id === (w && w.id)) { syncInspector(w); return; }
     inspector.textContent = "";
@@ -821,6 +891,18 @@
   }
   // 같은 블록을 고친 채로 다시 그릴 때는 칸을 새로 만들지 않는다(입력 중인 칸의 포커스를 지킨다).
   function syncInspector(w) {
+    if (form && isSite(form.__id)) {
+      var key = form.__id.slice(5), msgs = [];
+      if (invalid[form.__id]) {
+        msgs.push(key === "name" ? "사이트 이름은 1~80자로 적어야 저장됩니다."
+          : key === "description" ? "사이트 설명은 300자까지입니다."
+          : "이름이 빈 줄, 40자가 넘는 이름, 맞지 않는 링크(https:// 또는 / 로 시작)가 있으면 저장되지 않습니다.");
+      }
+      if (!nodeOf(form.__id)) msgs.push("지금 화면에는 이 부분이 보이지 않습니다. 고치면 이 부분을 그리는 화면·테마에 보입니다.");
+      form.note.textContent = msgs.join(" ");
+      form.note.hidden = !msgs.length;
+      return;
+    }
     if (!form || !w) return;
     var notes = [];
     if (!w.enabled) notes.push("숨긴 블록입니다. 손님에게 보이지 않습니다.");
@@ -830,6 +912,135 @@
     form.note.hidden = !notes.length;
     var hide = form.acts.querySelector("[data-act=hide], [data-act=show]");
     if (hide) { hide.setAttribute("data-act", w.enabled ? "hide" : "show"); hide.textContent = w.enabled ? "숨기기" : "다시 보이기"; }
+  }
+
+  // ---- 오른쪽: 사이트 공통 부분 (ADR-0145) ----
+  function drawSiteInspector() {
+    var id = selected, p = partOf(id), key = p[0];
+    inspector.textContent = "";
+    inspector.appendChild(el("div", { cls: "ed-insp-head" }, [
+      el("h2", { text: p[1] }),
+      el("p", { cls: "hint", text: p[2] + " 모든 화면에 함께 바뀝니다." })
+    ]));
+    var note = el("p", { cls: "ed-insp-note", "data-note": "" });
+    inspector.appendChild(note);
+    form = { __id: id, note: note };
+    if (key === "name" || key === "description") {
+      var input = key === "name"
+        ? el("input", { type: "text", maxlength: "80" })
+        : el("textarea", { rows: "3", maxlength: "300" });
+      input.value = site[key] || "";
+      input.addEventListener("input", function () { change(function () { site[key] = input.value; }, "site:" + key); });
+      inspector.appendChild(el("label", { cls: "ed-field" }, [el("span", { text: p[1] }), input]));
+      var n = nodeOf(id);
+      if (n && n.hasAttribute("data-maru-f")) inspector.appendChild(el("p", { cls: "hint", text: "화면의 글자를 한 번 더 누르면 그 자리에서 고칩니다." }));
+    } else {
+      drawMenuEditor(key.slice(5));
+    }
+    syncInspector(null);
+  }
+
+  function destOf(link) {
+    if (!link || link.kind === "home") return "home";
+    if (link.kind === "url") return "url";
+    return link.kind + ":" + link.slug;
+  }
+  function menuRows(loc) {
+    var rows = [];
+    var row = function (it, child) { return { label: it.label, link: it.link || { kind: "home" }, child: child }; };
+    (site.menus[loc] || []).forEach(function (it) {
+      rows.push(row(it, false));
+      (it.children || []).forEach(function (c) { rows.push(row(c, true)); });
+    });
+    return rows;
+  }
+  // 「하위」 줄은 바로 앞의 윗줄 아래로 들어간다(2단까지).
+  function treeOf(rows) {
+    var out = [];
+    rows.forEach(function (r) {
+      var item = { label: r.label, link: r.link, children: [] };
+      if (r.child && out.length) out[out.length - 1].children.push(item); else out.push(item);
+    });
+    return out;
+  }
+
+  function drawMenuEditor(loc) {
+    var rows = menuRows(loc);
+    var commit = function (mark) { change(function () { site.menus[loc] = treeOf(rows); }, mark); };
+    var rebuild = function () { form = null; drawInspector(); };
+    var list = el("ol", { cls: "ed-menu" });
+    if (!rows.length) list.appendChild(el("li", { cls: "ed-layer-empty", text: "메뉴가 없습니다." }));
+    rows.forEach(function (r, i) {
+      var n = i + 1;
+      var label = el("input", { type: "text", maxlength: "40", "aria-label": n + "번째 메뉴 이름" });
+      label.value = r.label;
+      label.addEventListener("input", function () { r.label = label.value; commit("menu:" + loc + ":label:" + i); });
+      var sel = el("select", { "aria-label": n + "번째 메뉴 누르면 갈 곳" }, [el("option", { value: "home", text: "첫 화면" })]);
+      var group = function (name, kind, items) {
+        if (!items.length) return;
+        var g = el("optgroup", { label: name });
+        items.forEach(function (x) { g.appendChild(el("option", { value: kind + ":" + x.id, text: x.label })); });
+        sel.appendChild(g);
+      };
+      group("게시판", "board", data.boards);
+      group("페이지", "page", data.pages || []);
+      var dest = destOf(r.link);
+      if (dest !== "home" && dest !== "url" && !sel.querySelector('option[value="' + dest.replace(/"/g, "") + '"]')) {
+        sel.appendChild(el("option", { value: dest, text: "지금 값: " + r.link.slug }));
+      }
+      sel.appendChild(el("option", { value: "url", text: "직접 링크 쓰기…" }));
+      sel.value = dest;
+      var url = el("input", { type: "text", maxlength: "300", placeholder: "https://… 또는 /recent", "aria-label": n + "번째 메뉴 링크 주소", spellcheck: "false" });
+      url.value = r.link.kind === "url" ? r.link.href || "" : "";
+      url.hidden = dest !== "url";
+      sel.addEventListener("change", function () {
+        var v = sel.value, at = v.indexOf(":");
+        if (v === "url") r.link = { kind: "url", href: url.value };
+        else if (v === "home") r.link = { kind: "home" };
+        else r.link = { kind: v.slice(0, at), slug: v.slice(at + 1) };
+        url.hidden = v !== "url";
+        commit();
+        if (v === "url") url.focus();
+      });
+      url.addEventListener("input", function () { r.link = { kind: "url", href: url.value }; commit("menu:" + loc + ":url:" + i); });
+      var child = el("input", { type: "checkbox" });
+      child.checked = r.child;
+      child.disabled = i === 0;
+      child.addEventListener("change", function () { r.child = child.checked; commit(); rebuild(); });
+      var move = function (to) {
+        return function () {
+          if (to < 0 || to >= rows.length) return;
+          var x = rows[i]; rows[i] = rows[to]; rows[to] = x;
+          if (rows[0]) rows[0].child = false;
+          commit(); rebuild();
+        };
+      };
+      var up = el("button", { type: "button", cls: "secondary", title: "위로", "aria-label": n + "번째 메뉴 위로", text: "↑" });
+      var down = el("button", { type: "button", cls: "secondary", title: "아래로", "aria-label": n + "번째 메뉴 아래로", text: "↓" });
+      var del = el("button", { type: "button", cls: "warn", title: "빼기", "aria-label": n + "번째 메뉴 빼기", text: "빼기" });
+      up.disabled = i === 0;
+      down.disabled = i === rows.length - 1;
+      up.addEventListener("click", move(i - 1));
+      down.addEventListener("click", move(i + 1));
+      del.addEventListener("click", function () {
+        rows.splice(i, 1);
+        if (rows[0]) rows[0].child = false;
+        commit(); rebuild();
+      });
+      list.appendChild(el("li", { cls: "ed-menu-row" + (r.child ? " is-child" : "") }, [
+        el("div", { cls: "ed-menu-line" }, [label, up, down, del]),
+        el("div", { cls: "ed-menu-line" }, [sel, el("label", { cls: "choice compact", title: "바로 위 메뉴 아래에 붙입니다(2단까지)" }, [child, el("span", { text: "하위" })])]),
+        url
+      ]));
+    });
+    inspector.appendChild(list);
+    var add = el("button", { type: "button", cls: "secondary", text: "+ 메뉴 더하기" });
+    add.addEventListener("click", function () {
+      rows.push({ label: "새 메뉴", link: { kind: "home" }, child: false });
+      commit(); rebuild();
+    });
+    inspector.appendChild(el("div", { cls: "ed-insp-acts" }, [add]));
+    inspector.appendChild(el("p", { cls: "hint", text: "「하위」를 켜면 바로 위 메뉴를 눌렀을 때 펼쳐지는 아래 메뉴가 됩니다(2단까지). 화면의 메뉴 글자를 한 번 더 누르면 이름을 그 자리에서 고칩니다." }));
   }
 
   // ---- 위 막대 ----
@@ -883,17 +1094,20 @@
     if (twin) { select(twin.id); statusEl.textContent = "똑같은 블록이 둘 있습니다. 하나를 고치거나 지운 뒤 발행하세요."; return; }
     var bad = widgets.filter(function (w) { return invalid[w.id]; })[0];
     if (bad) { select(bad.id); statusEl.textContent = "설정이 덜 된 블록이 있습니다. 채우거나 지운 뒤 발행하세요."; return; }
+    var badPart = Object.keys(invalid).filter(isSite)[0];
+    if (badPart) { select(badPart); statusEl.textContent = "저장할 수 없는 사이트 공통 값이 있습니다. 고친 뒤 발행하세요."; return; }
     publishBtn.disabled = true;
     statusEl.textContent = "발행하는 중…";
     fetch("/admin/editor/publish", {
       method: "POST",
       credentials: "same-origin",
       headers: { "content-type": "application/json", "x-csrf-token": csrf },
-      body: JSON.stringify({ screen: screen, widgets: widgets })
+      body: JSON.stringify({ screen: screen, widgets: widgets, site: siteBody() })
     }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); }).then(function (res) {
       if (!res.ok) throw new Error((res.j.error && res.j.error.message) || "발행하지 못했습니다.");
       try { localStorage.removeItem(STORE); } catch (e) { /* 무시 */ }
-      saved = snapshot();
+      saved = JSON.stringify(widgets);
+      savedSite = JSON.stringify(site);
       var id = res.j.data && res.j.data.changeset;
       location.href = "/admin/editor?screen=" + encodeURIComponent(screen) + (id ? "&done=" + encodeURIComponent(id) : "");
     }).catch(function (e) {
@@ -916,11 +1130,12 @@
   var restore = root.querySelector("[data-restore]");
   try {
     var kept = JSON.parse(localStorage.getItem(STORE) || "null");
-    if (kept && kept.base === hash(saved) && JSON.stringify(kept.widgets) !== saved) {
+    var keptSite = kept && kept.site ? JSON.stringify(kept.site) : savedSite;
+    if (kept && kept.base === hash(saved + savedSite) && (JSON.stringify(kept.widgets) !== saved || keptSite !== savedSite)) {
       restore.hidden = false;
       restore.querySelector("[data-restore-yes]").addEventListener("click", function () {
         restore.hidden = true;
-        change(function () { widgets = kept.widgets; });
+        change(function () { widgets = kept.widgets; site = JSON.parse(keptSite); });
       });
       restore.querySelector("[data-restore-no]").addEventListener("click", function () {
         restore.hidden = true;

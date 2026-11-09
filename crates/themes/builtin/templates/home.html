@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block main %}
-{% if site.description %}<p class="lead">{{ site.description }}</p>{% endif %}
+{% if site.description %}<p class="lead"{{ edit_part("description") }}{{ edit_site("description") }}>{{ site.description }}</p>{% endif %}
 <h1 class="visually-hidden">{{ site.name }} {{ "최신 글"|t }}</h1>
 {% include "_list.html" %}
 {% endblock %}

@@ -1,12 +1,12 @@
 {# 메뉴 한 단. 외부 링크는 새 창으로 열지 않고 rel 만 붙인다. #}
 <ul>
-  {% for item in items %}
+  {% for item in items %}{% set mi = loop.index0 %}
   <li>
-    <a href="{{ item.href }}"{% if item.external %} rel="noopener noreferrer"{% endif %}>{{ item.label }}</a>
+    <a href="{{ item.href }}"{% if item.external %} rel="noopener noreferrer"{% endif %}{% if menu_loc %}{{ edit_site("menus." ~ menu_loc ~ "." ~ mi ~ ".label") }}{% endif %}>{{ item.label }}</a>
     {% if item.children %}
     <ul>
       {% for child in item.children %}
-      <li><a href="{{ child.href }}"{% if child.external %} rel="noopener noreferrer"{% endif %}>{{ child.label }}</a></li>
+      <li><a href="{{ child.href }}"{% if child.external %} rel="noopener noreferrer"{% endif %}{% if menu_loc %}{{ edit_site("menus." ~ menu_loc ~ "." ~ mi ~ ".children." ~ loop.index0 ~ ".label") }}{% endif %}>{{ child.label }}</a></li>
       {% endfor %}
     </ul>
     {% endif %}

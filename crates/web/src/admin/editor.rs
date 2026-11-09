@@ -5,9 +5,12 @@
 //!   응답은 공개 화면 CSP(`frame-ancestors 'self'`) 그대로다.
 //! - `/admin/editor/publish`: 초안과 지금 위젯을 견주어 연산을 만들고 변경 묶음 하나로 적용한다(원칙 4).
 //!
+//! 초안에는 블록 말고 사이트 공통 부분(이름·설명·메뉴, ADR-0145)도 실을 수 있다. 발행하면 `settings.set`·`menu.set` 이
+//! 같은 변경 묶음에 들어간다.
+//!
 //! 서비스는 REST·CLI·MCP 와 같은 `widgets`·`changesets` 를 부른다.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -19,14 +22,14 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router, middleware};
 use maru_core::clock;
-use maru_core::model::{PageStatus, WIDGET_REGIONS, Widget};
+use maru_core::model::{MENU_LOCATIONS, MenuItem, PageStatus, WIDGET_REGIONS, Widget};
 use maru_core::output::Success;
 use maru_core::services::auth::SignedIn;
 use maru_core::services::changesets as change;
 use maru_core::services::stats::StatCounter;
 use maru_core::services::views::ViewCounter;
 use maru_core::services::widgets;
-use maru_core::services::{boards, pages, settings};
+use maru_core::services::{boards, menus, pages, settings};
 use maru_core::urls::{self, Target};
 use maru_core::{Code, Error};
 use serde::Deserialize;
@@ -37,7 +40,7 @@ use super::widgets::{kind_icon, region_text, script_json};
 use super::{base, json_session, merge, render, require};
 use crate::AppState;
 use crate::error::ApiError;
-use crate::widgets::{EDITING, Editing};
+use crate::widgets::{EDITING, Editing, SiteDraft};
 
 /// 초안 하나에 담을 수 있는 블록 수. 위젯 전체 한도보다 넉넉하지 않게.
 const MAX_DRAFT: usize = 300;
@@ -214,10 +217,11 @@ async fn editor_data(
             )
         }))
         .collect();
-    let tz = settings::site(ctx)
-        .await
-        .map(|s| s.tz_offset_min)
-        .unwrap_or(540);
+    let site = settings::site(ctx).await?;
+    let mut menu_map = Map::new();
+    for loc in MENU_LOCATIONS {
+        menu_map.insert(loc.into(), json!(menus::get(ctx, loc).await?));
+    }
     Ok(json!({
         "screen": screen.id(),
         "screens": screens,
@@ -236,7 +240,13 @@ async fn editor_data(
             let (label, hint) = region_text(r);
             json!({ "id": r, "label": label, "hint": hint })
         }).collect::<Vec<_>>(),
-        "tz": tz,
+        "tz": site.tz_offset_min,
+        "site": { "name": site.name, "description": site.description, "menus": menu_map },
+        "pages": page_list
+            .iter()
+            .filter(|p| p.status == PageStatus::Published)
+            .map(|p| json!({ "id": p.slug, "label": p.title }))
+            .collect::<Vec<_>>(),
     }))
 }
 
@@ -288,15 +298,89 @@ fn draft_of(w: &Widget) -> Value {
     })
 }
 
+/// 사이트 공통 부분 초안 (ADR-0145). 메뉴는 고친 위치만 실어도 된다.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SiteInput {
+    name: String,
+    #[serde(default)]
+    description: String,
+    #[serde(default)]
+    menus: BTreeMap<String, Vec<MenuItem>>,
+}
+
 #[derive(Debug, Deserialize)]
 struct DraftInput {
     widgets: Vec<DraftWidget>,
+    #[serde(default)]
+    site: Option<SiteInput>,
 }
 
 #[derive(Debug, Deserialize)]
 struct PublishInput {
     screen: String,
     widgets: Vec<DraftWidget>,
+    #[serde(default)]
+    site: Option<SiteInput>,
+}
+
+/// 사이트 공통 부분 초안을 그릴 값으로. 검사에 걸린 칸은 저장된 값으로 그리고 `site:<칸>` 으로 알린다.
+async fn to_site(
+    state: &AppState,
+    input: &SiteInput,
+) -> maru_core::Result<(SiteDraft, Vec<String>)> {
+    let saved = settings::site(&state.ctx).await?;
+    let mut invalid = Vec::new();
+    let name = settings::check_name(&input.name).unwrap_or_else(|_| {
+        invalid.push("site:name".to_owned());
+        saved.name.clone()
+    });
+    let description = settings::check_description(&input.description).unwrap_or_else(|_| {
+        invalid.push("site:description".to_owned());
+        saved.description.clone()
+    });
+    let mut out = Vec::new();
+    for (loc, items) in &input.menus {
+        match menus::check_location(loc).and_then(|()| menus::check(items.clone())) {
+            Ok(items) => out.push((loc.clone(), items)),
+            Err(_) => invalid.push(format!("site:menu.{loc}")),
+        }
+    }
+    Ok((
+        SiteDraft {
+            name,
+            description,
+            menus: out,
+        },
+        invalid,
+    ))
+}
+
+/// 사이트 공통 부분의 발행 연산. 저장된 값과 다른 것만 만든다. 틀린 값은 발행을 막는다.
+async fn site_ops(state: &AppState, input: &SiteInput) -> maru_core::Result<Vec<Value>> {
+    let ctx = &state.ctx;
+    let saved = settings::site(ctx).await?;
+    let mut ops = Vec::new();
+    let mut values = Map::new();
+    let name = settings::check_name(&input.name)?;
+    if name != saved.name {
+        values.insert("name".into(), json!(name));
+    }
+    let description = settings::check_description(&input.description)?;
+    if description != saved.description {
+        values.insert("description".into(), json!(description));
+    }
+    if !values.is_empty() {
+        ops.push(json!({ "op": "settings.set", "values": values }));
+    }
+    for (loc, items) in &input.menus {
+        menus::check_location(loc)?;
+        let items = menus::check(items.clone())?;
+        if items != menus::get(ctx, loc).await? {
+            ops.push(json!({ "op": "menu.set", "location": loc, "items": items }));
+        }
+    }
+    Ok(ops)
 }
 
 fn check_ids(list: &[DraftWidget]) -> maru_core::Result<()> {
@@ -371,7 +455,7 @@ async fn frame_get(
     let Some(screen) = EditScreen::parse(&q.screen) else {
         return super::fail(&state, Some(&who), &bad_screen(&q.screen)).await;
     };
-    draw(&state, &screen, None, &[]).await
+    draw(&state, &screen, None, None, &[]).await
 }
 
 async fn frame_post(
@@ -385,8 +469,16 @@ async fn frame_post(
     let screen = EditScreen::parse(&q.screen).ok_or_else(|| bad_screen(&q.screen))?;
     let Json(input) = body.map_err(rejected)?;
     check_ids(&input.widgets)?;
-    let (list, invalid) = to_widgets(&state, &input.widgets).await;
-    Ok(draw(&state, &screen, Some(list), &invalid).await)
+    let (list, mut invalid) = to_widgets(&state, &input.widgets).await;
+    let site = match &input.site {
+        Some(s) => {
+            let (draft, bad) = to_site(&state, s).await?;
+            invalid.extend(bad);
+            Some(draft)
+        }
+        None => None,
+    };
+    Ok(draw(&state, &screen, Some(list), site, &invalid).await)
 }
 
 fn rejected(e: JsonRejection) -> ApiError {
@@ -403,6 +495,7 @@ async fn draw(
     state: &AppState,
     screen: &EditScreen,
     draft: Option<Vec<Widget>>,
+    site: Option<SiteDraft>,
     invalid: &[String],
 ) -> Response {
     let mut inner = state.clone();
@@ -421,6 +514,7 @@ async fn draw(
         .insert(ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 0))));
     let editing = Editing {
         draft: draft.map(Arc::new),
+        site: site.map(Arc::new),
     };
     let mut res = match EDITING.scope(editing, app.call(req)).await {
         Ok(r) => r,
@@ -452,7 +546,11 @@ async fn publish(
     let screen = EditScreen::parse(&input.screen).ok_or_else(|| bad_screen(&input.screen))?;
     check_ids(&input.widgets)?;
     let current = widgets::list(ctx, actor).await?;
-    let ops = plan_ops(&current, &input.widgets);
+    let mut ops = match &input.site {
+        Some(s) => site_ops(&state, s).await?,
+        None => Vec::new(),
+    };
+    ops.extend(plan_ops(&current, &input.widgets));
     if ops.is_empty() {
         return Ok(Json(Success::new(json!({ "changeset": null, "ops": 0 }))).into_response());
     }

@@ -32,9 +32,9 @@
 <a class="skip" href="#main">{{ "본문 바로가기"|t }}</a>
 <header class="site-header">
   <div class="wrap">
-    <a class="brand" href="{{ site.home_url }}">{{ site.name }}</a>
+    <a class="brand" href="{{ site.home_url }}"{{ edit_part("name") }}{{ edit_site("name") }}>{{ site.name }}</a>
     {% if widgets.masthead %}<div class="region region-masthead"{% if editing %} data-maru-region="masthead"{% endif %}>{% for w in widgets.masthead %}{% include "_widget.html" %}{% endfor %}</div>{% endif %}
-    {% if site.menus and site.menus.header %}<nav class="site-nav" aria-label="{{ "주 메뉴"|t }}">{% with items = site.menus.header %}{% include "_menu.html" %}{% endwith %}</nav>{% endif %}
+    {% if site.menus and site.menus.header %}<nav class="site-nav" aria-label="{{ "주 메뉴"|t }}"{{ edit_part("menu.header") }}>{% with items = site.menus.header, menu_loc = "header" %}{% include "_menu.html" %}{% endwith %}</nav>{% endif %}
     {% if site.show_search %}<form class="site-search" role="search" action="{{ site.search_url }}" method="get">
       <label class="visually-hidden" for="site-q">{{ "사이트 검색"|t }}</label>
       <input id="site-q" type="search" name="q" maxlength="100" placeholder="{{ "검색"|t }}" autocomplete="off" enterkeyhint="search">
@@ -66,7 +66,7 @@
 <footer class="site-footer">
   {% if widgets.footer or editing %}<div class="region region-footer"{% if editing %} data-maru-region="footer"{% endif %}><div class="wrap">{% for w in widgets.footer %}{% include "_widget.html" %}{% endfor %}</div></div>{% endif %}
   <div class="wrap">
-    {% if site.menus and site.menus.footer %}<nav class="footer-nav" aria-label="{{ "하단 메뉴"|t }}">{% with items = site.menus.footer %}{% include "_menu.html" %}{% endwith %}</nav>{% endif %}
+    {% if site.menus and site.menus.footer %}<nav class="footer-nav" aria-label="{{ "하단 메뉴"|t }}"{{ edit_part("menu.footer") }}>{% with items = site.menus.footer, menu_loc = "footer" %}{% include "_menu.html" %}{% endwith %}</nav>{% endif %}
     <p id="page-end">{{ site.name }} · <a href="{{ site.rss_url }}">RSS</a></p>
   </div>
 </footer>

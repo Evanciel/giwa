@@ -131,21 +131,31 @@ fn from_pairs(pairs: Vec<(String, Value)>) -> SiteSettings {
     serde_json::from_value(Value::Object(map)).unwrap_or_default()
 }
 
+/// 사이트 이름: 비울 수 없고 80자까지. 화면 편집기 초안(ADR-0145)도 같은 검사를 쓴다.
+pub fn check_name(name: &str) -> Result<String> {
+    required_text("name", name, 80)
+}
+
+/// 사이트 설명: 비워도 되고 300자까지.
+pub fn check_description(description: &str) -> Result<String> {
+    let d = description.trim();
+    if d.chars().count() > 300 {
+        return Err(Error::new(Code::Validation)
+            .with_message("error.field_length")
+            .arg("field", "description")
+            .arg("max", "300"));
+    }
+    Ok(d.to_owned())
+}
+
 pub async fn update(ctx: &Ctx, actor: &Actor, patch: SettingsPatch) -> Result<SiteSettings> {
     actor.require(Permission::StructureEdit)?;
     let mut changes: Vec<(&'static str, Value)> = Vec::new();
     if let Some(n) = &patch.name {
-        changes.push(("name", json!(required_text("name", n, 80)?)));
+        changes.push(("name", json!(check_name(n)?)));
     }
     if let Some(d) = &patch.description {
-        let d = d.trim();
-        if d.chars().count() > 300 {
-            return Err(Error::new(Code::Validation)
-                .with_message("error.field_length")
-                .arg("field", "description")
-                .arg("max", "300"));
-        }
-        changes.push(("description", json!(d)));
+        changes.push(("description", json!(check_description(d)?)));
     }
     if let Some(l) = &patch.lang {
         let ok = !l.is_empty()

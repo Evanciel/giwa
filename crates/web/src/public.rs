@@ -183,7 +183,20 @@ pub(crate) async fn render(state: &AppState, name: &str, ctx: Result<Value>) -> 
                 _ => Screen::Other,
             };
             let regions = crate::widgets::regions(state, screen).await;
-            let editing = crate::widgets::editing().is_some();
+            let draft = crate::widgets::editing();
+            // 화면 편집기 초안의 사이트 이름·설명·메뉴 (ADR-0145)
+            if let Some(site) = draft.as_ref().and_then(|e| e.site.as_deref())
+                && let Some(s) = v.get_mut("site").and_then(Value::as_object_mut)
+            {
+                s.insert("name".into(), json!(site.name));
+                s.insert("description".into(), json!(site.description));
+                if let Some(m) = s.get_mut("menus").and_then(Value::as_object_mut) {
+                    for (loc, items) in &site.menus {
+                        m.insert(loc.clone(), menu_json(items));
+                    }
+                }
+            }
+            let editing = draft.is_some();
             // 광고 코드처럼 바뀌는 도메인을 쓰는 위젯은 이 화면에만 nonce 정책을 건다 (ADR-0079).
             // 화면 편집기 캔버스에서는 광고 코드를 돌리지 않는다(자리만 보인다).
             if !editing && wants_strict_csp(&regions) {
