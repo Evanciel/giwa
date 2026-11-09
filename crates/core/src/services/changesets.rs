@@ -728,6 +728,7 @@ async fn run(ctx: &Ctx, actor: &Actor, op: &ChangeOp) -> Result<Vec<ChangeOp>> {
                 config: patch.config.as_ref().map(|_| before.config.clone()),
                 position: patch.position.map(|_| before.sort_order),
                 enabled: patch.enabled.map(|_| before.enabled),
+                hide_on: patch.hide_on.as_ref().map(|_| before.hide_on.clone()),
             };
             vec![ChangeOp::WidgetConfigure {
                 id: id.clone(),
@@ -744,6 +745,7 @@ async fn run(ctx: &Ctx, actor: &Actor, op: &ChangeOp) -> Result<Vec<ChangeOp>> {
                 config: w.config,
                 position: Some(w.sort_order),
                 enabled: w.enabled,
+                hide_on: w.hide_on,
             }))]
         }
         ChangeOp::ModuleEnable { id } => {

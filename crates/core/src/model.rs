@@ -718,6 +718,9 @@ pub struct Widget {
     pub config: serde_json::Value,
     pub sort_order: i64,
     pub enabled: bool,
+    /// 이 기기 폭에서는 숨긴다: `desktop`(1001px~), `tablet`(751~1000px), `mobile`(~750px) (ADR-0146)
+    #[serde(default)]
+    pub hide_on: Vec<String>,
     pub created_at: String,
     pub updated_at: String,
 }

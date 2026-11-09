@@ -280,6 +280,9 @@ struct DraftWidget {
     config: Value,
     #[serde(default = "yes")]
     enabled: bool,
+    /// 이 기기에서만 숨김 (ADR-0146)
+    #[serde(default)]
+    hide_on: Vec<String>,
 }
 
 fn yes() -> bool {
@@ -295,6 +298,7 @@ fn draft_of(w: &Widget) -> Value {
         "title": w.title,
         "config": w.config,
         "enabled": w.enabled,
+        "hide_on": w.hide_on,
     })
 }
 
@@ -419,8 +423,9 @@ async fn to_widgets(state: &AppState, list: &[DraftWidget]) -> (Vec<Widget>, Vec
         *n += 1;
         let scope = widgets::check_scope(&d.scope);
         let config = widgets::check_draft(&state.ctx, &d.kind, &d.region, d.config.clone()).await;
-        match (scope, config) {
-            (Ok(scope), Ok(config)) => out.push(Widget {
+        let hide_on = widgets::check_hide_on(&d.hide_on);
+        match (scope, config, hide_on) {
+            (Ok(scope), Ok(config), Ok(hide_on)) => out.push(Widget {
                 id: d.id.clone(),
                 kind: d.kind.clone(),
                 region: d.region.clone(),
@@ -429,6 +434,7 @@ async fn to_widgets(state: &AppState, list: &[DraftWidget]) -> (Vec<Widget>, Vec
                 config,
                 sort_order,
                 enabled: d.enabled,
+                hide_on,
                 created_at: now.clone(),
                 updated_at: now.clone(),
             }),
@@ -664,6 +670,7 @@ fn plan_ops(current: &[Widget], draft: &[DraftWidget]) -> Vec<Value> {
                     "title": d.title,
                     "config": d.config,
                     "enabled": d.enabled,
+                    "hide_on": d.hide_on,
                 });
                 if let Some(p) = pos {
                     op["position"] = json!(p);
@@ -686,6 +693,9 @@ fn plan_ops(current: &[Widget], draft: &[DraftWidget]) -> Vec<Value> {
                 }
                 if w.enabled != d.enabled {
                     patch.insert("enabled".into(), json!(d.enabled));
+                }
+                if w.hide_on != d.hide_on {
+                    patch.insert("hide_on".into(), json!(d.hide_on));
                 }
                 if let Some(p) = pos {
                     patch.insert("position".into(), json!(p));
@@ -718,6 +728,7 @@ mod tests {
             config: json!({ "title": id }),
             sort_order: order,
             enabled: true,
+            hide_on: Vec::new(),
             created_at: String::new(),
             updated_at: String::new(),
         }
@@ -732,6 +743,7 @@ mod tests {
             title: w.title.clone(),
             config: w.config.clone(),
             enabled: w.enabled,
+            hide_on: w.hide_on.clone(),
         }
     }
 

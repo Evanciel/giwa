@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, kind, region, scope, title, config, sort_order, enabled, created_at, updated_at\n             FROM widgets ORDER BY region, sort_order, created_at, id",
+  "query": "SELECT id, kind, region, scope, title, config, sort_order, enabled, hide_on, created_at, updated_at\n         FROM widgets WHERE id = ?",
   "describe": {
     "columns": [
       {
@@ -92,8 +92,19 @@
         }
       },
       {
-        "name": "created_at",
+        "name": "hide_on",
         "ordinal": 8,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "widgets",
+            "name": "hide_on"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 9,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -104,7 +115,7 @@
       },
       {
         "name": "updated_at",
-        "ordinal": 9,
+        "ordinal": 10,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -115,9 +126,10 @@
       }
     ],
     "parameters": {
-      "Right": 0
+      "Right": 1
     },
     "nullable": [
+      false,
       false,
       false,
       false,
@@ -130,5 +142,5 @@
       false
     ]
   },
-  "hash": "6d0861ba693cce55e7eee0c55e022bdbee1c2751f1544543e963c40b88690ebe"
+  "hash": "819c97b5d11e1f363c5b82aa7cd59b344d2c77b23d8e715a439bd967f69e165b"
 }

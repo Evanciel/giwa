@@ -723,6 +723,7 @@
           el("span", { cls: "ed-grip", "aria-hidden": "true", text: "⋮⋮" }),
           el("button", { type: "button", cls: "ed-layer-name", "data-pick": w.id, text: nameOf(w) }),
           w.scope !== screen ? el("span", { cls: "ed-shared", title: scopeName(w.scope) + "에 보임", text: w.scope === "all" ? "모든 화면" : "여러 화면" }) : null,
+          hiddenOn(w).length ? el("span", { cls: "ed-devoff" + (offHere(w) ? " is-here" : ""), title: hiddenOn(w).map(deviceName).join("·") + "에서 숨김", text: hiddenOn(w).map(deviceName).join("·") + " 숨김" }) : null,
           el("button", { type: "button", cls: "ed-eye", "data-eye": w.id, "aria-pressed": String(!w.enabled), title: w.enabled ? "숨기기" : "다시 보이기", text: w.enabled ? "보임" : "숨김" })
         ]);
         ol.appendChild(li);
@@ -798,6 +799,14 @@
     if (n) n.scrollIntoView({ block: "center", behavior: "smooth" });
   }
 
+  // ---- 기기별 숨김 (ADR-0146) ----
+  // 이름은 서버의 widgets::DEVICES, 테마의 .hide-<기기>, 위 막대의 data-device 와 같다.
+  var DEVICES = [["desktop", "데스크톱"], ["tablet", "태블릿"], ["mobile", "휴대폰"]];
+  function deviceName(d) { var x = DEVICES.filter(function (p) { return p[0] === d; })[0]; return x ? x[1] : d; }
+  function hiddenOn(w) { return w.hide_on || []; }
+  function viewing() { return stage.getAttribute("data-device") || "desktop"; }
+  function offHere(w) { return hiddenOn(w).indexOf(viewing()) >= 0; }
+
   // ---- 오른쪽: 고른 블록 ----
   var form = null;
   function drawInspector() {
@@ -849,6 +858,29 @@
     });
     inspector.appendChild(fs);
 
+    // 기기에서 숨기기: 지우지 않고 그 폭에서만 감춘다
+    var dfs = el("fieldset", { cls: "ed-field ed-devices-hide" }, [el("legend", { text: "이 기기에서 숨기기" })]);
+    var devs = {};
+    DEVICES.forEach(function (d) {
+      var c = el("input", { type: "checkbox", value: d[0] });
+      c.checked = hiddenOn(w).indexOf(d[0]) >= 0;
+      c.addEventListener("change", function () {
+        var cur = byId(w.id);
+        if (!cur) return;
+        var next = DEVICES.map(function (x) { return x[0]; }).filter(function (x) { return devs[x].checked; });
+        if (next.length === DEVICES.length) {
+          c.checked = false;
+          statusEl.textContent = "세 기기 모두에서 감추려면 「숨기기」를 누르세요.";
+          return;
+        }
+        change(function () { cur.hide_on = next; });
+      });
+      devs[d[0]] = c;
+      dfs.appendChild(el("label", { cls: "choice" }, [c, el("span", { text: d[1] })]));
+    });
+    dfs.appendChild(el("p", { cls: "hint", text: "지우지 않고 고른 기기 폭에서만 감춥니다. 위의 기기 단추로 바꿔 보며 확인하세요." }));
+    inspector.appendChild(dfs);
+
     // 설정 칸: 위젯 화면과 같은 schema 폼
     var f = el("form", { cls: "widget-form ed-config", "data-kind": w.kind }, [
       el("input", { type: "hidden", name: "_csrf", value: csrf }),
@@ -886,7 +918,7 @@
       if (b) blockAction(b.getAttribute("data-act"), w.id);
     });
     inspector.appendChild(acts);
-    form = { __id: w.id, title: title, acts: acts, note: note };
+    form = { __id: w.id, title: title, acts: acts, note: note, devs: devs };
     syncInspector(w);
   }
   // 같은 블록을 고친 채로 다시 그릴 때는 칸을 새로 만들지 않는다(입력 중인 칸의 포커스를 지킨다).
@@ -908,6 +940,8 @@
     if (!w.enabled) notes.push("숨긴 블록입니다. 손님에게 보이지 않습니다.");
     if (invalid[w.id]) notes.push("설정이 덜 돼서 화면에 아직 안 보입니다. 빈 칸을 채우세요.");
     if (w.scope !== screen) notes.push(scopeName(w.scope) + "에 함께 보이는 블록입니다. 고치면 그 화면들도 바뀝니다.");
+    if (offHere(w)) notes.push("지금 보는 " + deviceName(viewing()) + " 화면에서는 숨긴 블록이라 캔버스에 보이지 않습니다.");
+    if (form.devs) Object.keys(form.devs).forEach(function (d) { form.devs[d].checked = hiddenOn(w).indexOf(d) >= 0; });
     form.note.textContent = notes.join(" ");
     form.note.hidden = !notes.length;
     var hide = form.acts.querySelector("[data-act=hide], [data-act=show]");
@@ -1048,6 +1082,8 @@
     b.addEventListener("click", function () {
       stage.setAttribute("data-device", b.getAttribute("data-device"));
       root.querySelectorAll("[data-device]").forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); });
+      drawLayers();
+      if (!isSite(selected)) syncInspector(selected && byId(selected));
       setTimeout(markSelection, 260);
     });
   });

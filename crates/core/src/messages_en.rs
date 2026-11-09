@@ -289,6 +289,10 @@ pub(crate) fn lookup(key: &str) -> Option<&'static str> {
             "The widget scope must be all, home, boards, board:<address> or page:<address>: {value}"
         }
         "error.widget_config" => "The `{kind}` widget settings are not valid: {reason}",
+        "error.widget_device" => "Devices to hide on are {allowed}: {value}",
+        "error.widget_hidden_everywhere" => {
+            "To hide a widget on every device, turn it off instead (`maru widget configure <id> --disable`)."
+        }
         "error.audit_actor_type" => "The actor type must be one of {allowed} (got {value}).",
         "error.audit_name" => {
             "{field} takes only lowercase letters, numbers, `.`, `_` and `-` (got {value})."

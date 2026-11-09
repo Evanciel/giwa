@@ -1224,6 +1224,9 @@ pub struct WidgetPlaceArgs {
     /// 꺼 둔 채로 놓는다
     #[arg(long)]
     pub disabled: bool,
+    /// 이 기기에서만 숨긴다. 쉼표로 여럿: desktop, tablet, mobile
+    #[arg(long, value_delimiter = ',')]
+    pub hide_on: Vec<String>,
 }
 
 #[derive(Debug, Args)]
@@ -1246,6 +1249,9 @@ pub struct WidgetConfigureArgs {
     pub enable: bool,
     #[arg(long)]
     pub disable: bool,
+    /// 숨길 기기 목록을 바꾼다(desktop, tablet, mobile). `--hide-on ""` 이면 모든 기기에 보인다
+    #[arg(long, value_delimiter = ',')]
+    pub hide_on: Option<Vec<String>>,
 }
 
 #[derive(Debug, Subcommand)]

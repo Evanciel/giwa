@@ -345,6 +345,7 @@ struct WidgetRow {
     config: String,
     sort_order: i64,
     enabled: i64,
+    hide_on: String,
     created_at: String,
     updated_at: String,
 }
@@ -361,6 +362,12 @@ impl TryFrom<WidgetRow> for Widget {
             title: r.title,
             sort_order: r.sort_order,
             enabled: r.enabled != 0,
+            hide_on: r
+                .hide_on
+                .split(',')
+                .filter(|d| !d.is_empty())
+                .map(str::to_owned)
+                .collect(),
             created_at: r.created_at,
             updated_at: r.updated_at,
         })
@@ -370,7 +377,7 @@ impl TryFrom<WidgetRow> for Widget {
 async fn widget_by_id<'e>(e: impl SqliteExecutor<'e>, id: &str) -> Result<Option<Widget>> {
     sqlx::query_as!(
         WidgetRow,
-        "SELECT id, kind, region, scope, title, config, sort_order, enabled, created_at, updated_at
+        "SELECT id, kind, region, scope, title, config, sort_order, enabled, hide_on, created_at, updated_at
          FROM widgets WHERE id = ?",
         id
     )
@@ -1159,7 +1166,7 @@ impl Store for SqliteStore {
     async fn list_widgets(&self) -> Result<Vec<Widget>> {
         let rows = sqlx::query_as!(
             WidgetRow,
-            "SELECT id, kind, region, scope, title, config, sort_order, enabled, created_at, updated_at
+            "SELECT id, kind, region, scope, title, config, sort_order, enabled, hide_on, created_at, updated_at
              FROM widgets ORDER BY region, sort_order, created_at, id"
         )
         .fetch_all(&self.db.read)
@@ -2842,10 +2849,11 @@ impl WriteTx for SqliteWriteTx {
 
     async fn insert_widget(&mut self, w: &Widget) -> Result<()> {
         let config = json(&w.config)?;
+        let hide_on = w.hide_on.join(",");
         sqlx::query!(
             "INSERT INTO widgets (id, kind, region, scope, title, config, sort_order, enabled,
-                                  created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                  hide_on, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             w.id,
             w.kind,
             w.region,
@@ -2854,6 +2862,7 @@ impl WriteTx for SqliteWriteTx {
             config,
             w.sort_order,
             w.enabled,
+            hide_on,
             w.created_at,
             w.updated_at
         )
@@ -2865,9 +2874,10 @@ impl WriteTx for SqliteWriteTx {
 
     async fn update_widget(&mut self, w: &Widget) -> Result<()> {
         let config = json(&w.config)?;
+        let hide_on = w.hide_on.join(",");
         sqlx::query!(
             "UPDATE widgets SET region = ?, scope = ?, title = ?, config = ?, sort_order = ?,
-                                enabled = ?, updated_at = ?
+                                enabled = ?, hide_on = ?, updated_at = ?
              WHERE id = ?",
             w.region,
             w.scope,
@@ -2875,6 +2885,7 @@ impl WriteTx for SqliteWriteTx {
             config,
             w.sort_order,
             w.enabled,
+            hide_on,
             w.updated_at,
             w.id
         )

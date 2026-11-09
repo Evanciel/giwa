@@ -1,5 +1,5 @@
 {# html 은 서버가 본문과 같은 규칙(ammonia)으로 정화한 값만 들어온다. #}
-<section class="popup popup-{{ w.data.position }}" role="dialog" aria-labelledby="pop-{{ w.id }}" data-popup="{{ w.data.key }}" data-dismiss-days="{{ w.data.dismiss_days }}" hidden>
+<section class="popup popup-{{ w.data.position }}{% if w.hide %} {{ w.hide }}{% endif %}" role="dialog" aria-labelledby="pop-{{ w.id }}" data-popup="{{ w.data.key }}" data-dismiss-days="{{ w.data.dismiss_days }}" hidden>
   <h2 class="popup-title{% if not w.title %} visually-hidden{% endif %}" id="pop-{{ w.id }}">{{ w.title or ("알림"|t) }}</h2>
   <div class="popup-body">
     {% if w.data.image %}{% if w.data.link %}<a href="{{ w.data.link.href }}"{% if w.data.link.external %} rel="noopener noreferrer"{% endif %}>{% endif %}<img src="{{ w.data.image.src }}" alt="" width="{{ w.data.image.width }}" height="{{ w.data.image.height }}" decoding="async">{% if w.data.link %}</a>{% endif %}{% endif %}

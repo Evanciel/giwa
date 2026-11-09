@@ -376,6 +376,9 @@ pub struct NewWidget {
     pub position: Option<i64>,
     #[serde(default = "yes")]
     pub enabled: bool,
+    /// 이 기기에서만 숨긴다: `desktop`, `tablet`, `mobile` (ADR-0146)
+    #[serde(default)]
+    pub hide_on: Vec<String>,
 }
 
 fn all_scope() -> String {
@@ -392,6 +395,8 @@ pub struct WidgetPatch {
     pub config: Option<Value>,
     pub position: Option<i64>,
     pub enabled: Option<bool>,
+    /// 숨길 기기 목록 전체를 바꾼다. 빈 목록이면 모든 기기에 보인다
+    pub hide_on: Option<Vec<String>>,
 }
 
 /// 위젯을 붙일 화면.
@@ -486,6 +491,7 @@ pub async fn place(ctx: &Ctx, actor: &Actor, input: NewWidget) -> Result<Widget>
     let scope = check_scope(&input.scope)?;
     let title = check_title(&input.title)?;
     let config = check_config(ctx, &kind, input.config).await?;
+    let hide_on = check_hide_on(&input.hide_on)?;
 
     let all = ctx.store.list_widgets().await?;
     // 같은 자리에 같은 설정이면 새로 놓지 않는다 (원칙 3: 여러 번 실행해도 안전).
@@ -495,6 +501,7 @@ pub async fn place(ctx: &Ctx, actor: &Actor, input: NewWidget) -> Result<Widget>
             && w.scope == scope
             && w.title == title
             && w.config == config
+            && w.hide_on == hide_on
     }) {
         return Ok(same.clone());
     }
@@ -520,6 +527,7 @@ pub async fn place(ctx: &Ctx, actor: &Actor, input: NewWidget) -> Result<Widget>
         config,
         sort_order,
         enabled: input.enabled,
+        hide_on,
         created_at: now.clone(),
         updated_at: now,
     };
@@ -559,6 +567,9 @@ pub async fn configure(ctx: &Ctx, actor: &Actor, id: &str, patch: WidgetPatch) -
     }
     if let Some(e) = patch.enabled {
         after.enabled = e;
+    }
+    if let Some(h) = &patch.hide_on {
+        after.hide_on = check_hide_on(h)?;
     }
     if after == before {
         return Ok(before);
@@ -631,6 +642,36 @@ fn check_region(region: &str) -> Result<String> {
 }
 
 /// 범위를 저장 형태로. 주소는 slug 규칙으로 맞춘다(게시판·페이지가 아직 없어도 된다).
+/// 기기 폭 이름. 편집기의 기기 보기와 테마의 `hide-<기기>` 클래스가 같은 이름을 쓴다.
+pub const DEVICES: [&str; 3] = ["desktop", "tablet", "mobile"];
+
+/// 숨길 기기를 정해진 순서로 다듬는다. 빈 값은 건너뛴다. 세 기기 모두는 받지 않는다(그건 숨기기다).
+pub fn check_hide_on(list: &[String]) -> Result<Vec<String>> {
+    let mut seen = [false; 3];
+    for d in list {
+        let d = d.trim();
+        if d.is_empty() {
+            continue;
+        }
+        let Some(i) = DEVICES.iter().position(|x| *x == d) else {
+            return Err(Error::new(Code::Validation)
+                .with_message("error.widget_device")
+                .arg("value", d)
+                .arg("allowed", DEVICES.join(", ")));
+        };
+        seen[i] = true;
+    }
+    if seen.iter().all(|s| *s) {
+        return Err(Error::new(Code::Validation).with_message("error.widget_hidden_everywhere"));
+    }
+    Ok(DEVICES
+        .iter()
+        .zip(seen)
+        .filter(|(_, s)| *s)
+        .map(|(d, _)| (*d).to_owned())
+        .collect())
+}
+
 pub fn check_scope(scope: &str) -> Result<String> {
     let s = scope.trim();
     if matches!(s, "all" | "home" | "boards") {

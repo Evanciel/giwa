@@ -377,6 +377,8 @@ async fn view(
         // 모듈 위젯도 `section: true` 를 주면 같은 띠에 그린다.
         "section": widgets::is_section(&w.kind) || data["section"] == true,
         "more_url": more_url,
+        // 기기별 숨김 (ADR-0146). 테마 CSS 의 `.hide-<기기>` 가 그 폭에서 감춘다
+        "hide": w.hide_on.iter().map(|d| format!("hide-{d}")).collect::<Vec<_>>().join(" "),
         "data": data,
     })))
 }

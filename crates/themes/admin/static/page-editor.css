@@ -135,3 +135,8 @@ fieldset.ed-field legend { font-weight: 600; margin-bottom: .3rem; padding: 0; }
 .ed-menu-line button { padding: .25rem .45rem; font-size: .8rem; }
 .ed-menu-line .choice { margin: 0; white-space: nowrap; font-size: .82rem; }
 .ed-menu-row > input[type=text] { padding: .3rem .45rem; }
+/* 기기별 숨김 (ADR-0146) */
+.ed-devoff { font-size: 0.75rem; color: var(--muted); border: 1px dashed var(--border); border-radius: var(--radius); padding: 0 0.35rem; white-space: nowrap; }
+.ed-devoff.is-here { color: var(--warn); border-color: currentColor; }
+.ed-devices-hide { display: flex; flex-wrap: wrap; gap: 0.25rem 0.75rem; }
+.ed-devices-hide .hint { flex-basis: 100%; margin: 0; }

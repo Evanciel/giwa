@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE widgets SET region = ?, scope = ?, title = ?, config = ?, sort_order = ?,\n                                enabled = ?, hide_on = ?, updated_at = ?\n             WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 9
+    },
+    "nullable": []
+  },
+  "hash": "9f18b75308f8c0f07798ea26460031ba1821fd7ee249002bb23381c12ce30466"
+}

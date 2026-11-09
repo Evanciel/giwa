@@ -341,6 +341,10 @@ fn lookup_ko(key: &str) -> Option<&'static str> {
             "위젯 범위는 all, home, boards, board:<주소>, page:<주소> 중 하나입니다: {value}"
         }
         "error.widget_config" => "`{kind}` 위젯 설정이 올바르지 않습니다: {reason}",
+        "error.widget_device" => "숨길 기기는 {allowed} 중에서 고릅니다: {value}",
+        "error.widget_hidden_everywhere" => {
+            "모든 기기에서 숨기려면 기기를 고르지 말고 위젯을 끄세요 (`maru widget configure <id> --disable`)."
+        }
         "error.audit_actor_type" => "행위자 종류는 {allowed} 중 하나입니다 (받은 값 {value}).",
         "error.audit_name" => {
             "{field} 에는 영문 소문자·숫자·`.`·`_`·`-` 만 씁니다 (받은 값 {value})."

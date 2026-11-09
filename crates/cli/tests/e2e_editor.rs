@@ -139,6 +139,7 @@ fn draft_of(list: &Value) -> Vec<Value> {
             serde_json::json!({
                 "id": w["id"], "kind": w["kind"], "region": w["region"], "scope": w["scope"],
                 "title": w["title"], "config": w["config"], "enabled": w["enabled"],
+                "hide_on": w["hide_on"],
             })
         })
         .collect()
@@ -425,4 +426,71 @@ fn edit_screen_draw_draft_publish_and_revert() {
     let cs3 = out["data"]["changeset"].as_str().unwrap().to_owned();
     maru(&data, &["changeset", "revert", &cs3]);
     assert_ne!(maru(&data, &["site", "show"])["name"], "편집기 이름");
+
+    // 기기별 숨김 (ADR-0146): 지우지 않고 그 기기 폭에서만 감추는 클래스가 붙는다.
+    let mut devices = draft_of(&maru(&data, &["widget", "list"]));
+    let set_hide = |list: &mut Vec<Value>, hide: Value| {
+        for w in list.iter_mut() {
+            if w["id"] == placed["id"] {
+                w["hide_on"] = hide.clone();
+            }
+        }
+    };
+    set_hide(&mut devices, serde_json::json!(["mobile"]));
+    let frame_body = |list: &[Value]| serde_json::json!({ "widgets": list }).to_string();
+    let drawn_dev = http(
+        &bind,
+        "POST",
+        "/admin/editor/frame?screen=home",
+        &[json, ("Cookie", &cookie), ("x-csrf-token", &csrf)],
+        &frame_body(&devices),
+    );
+    assert_eq!(drawn_dev.status, 200, "{}", drawn_dev.body);
+    assert!(
+        drawn_dev.body.contains(" hide-mobile\""),
+        "캔버스에 숨김 클래스"
+    );
+    assert!(
+        !http(&bind, "GET", "/", &[], "")
+            .body
+            .contains("hide-mobile")
+    );
+    // 세 기기 모두는 받지 않는다(그건 숨기기다).
+    let mut everywhere = devices.clone();
+    set_hide(
+        &mut everywhere,
+        serde_json::json!(["desktop", "tablet", "mobile"]),
+    );
+    let bad_dev = http(
+        &bind,
+        "POST",
+        "/admin/editor/frame?screen=home",
+        &[json, ("Cookie", &cookie), ("x-csrf-token", &csrf)],
+        &frame_body(&everywhere),
+    );
+    assert_eq!(
+        header(&bad_dev, "x-maru-invalid"),
+        placed["id"].as_str().unwrap()
+    );
+    let dev_pub = publish(&devices);
+    assert_eq!(dev_pub["ops"], 1, "{dev_pub}");
+    let home = http(&bind, "GET", "/", &[], "").body;
+    assert!(home.contains("편집기 새 블록") && home.contains(" hide-mobile\""));
+    let stored = maru(&data, &["widget", "list"]);
+    let stored = stored
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|w| w["id"] == placed["id"])
+        .unwrap();
+    assert_eq!(stored["hide_on"], serde_json::json!(["mobile"]));
+    // CLI 도 같은 서비스: 빈 값이면 모든 기기에 다시 보인다.
+    let id = placed["id"].as_str().unwrap();
+    let cleared = maru(&data, &["widget", "configure", id, "--hide-on", ""]);
+    assert_eq!(cleared["hide_on"], serde_json::json!([]));
+    let tablet = maru(
+        &data,
+        &["widget", "configure", id, "--hide-on", "tablet,desktop"],
+    );
+    assert_eq!(tablet["hide_on"], serde_json::json!(["desktop", "tablet"]));
 }

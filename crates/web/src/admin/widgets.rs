@@ -199,6 +199,7 @@ fn card(
         "scope": w.scope,
         "where": scope_text(&w.scope, names),
         "enabled": w.enabled,
+        "hide_on": w.hide_on,
         "summary": ty.map(|t| summary(&w.config, &t.config_schema, names)).unwrap_or_default(),
         "open": reopen,
         "edit": if reopen {
@@ -408,6 +409,7 @@ async fn place(
                     config,
                     position: None,
                     enabled: true,
+                    hide_on: Vec::new(),
                 },
             )
             .await

@@ -1675,6 +1675,7 @@ async fn widget_run(ctx: &Ctx, cmd: WidgetCmd) -> Out {
                     config: config.unwrap_or(Value::Null),
                     position: a.position,
                     enabled: !a.disabled,
+                    hide_on: a.hide_on,
                 },
             )
             .await?;
@@ -1699,6 +1700,7 @@ async fn widget_run(ctx: &Ctx, cmd: WidgetCmd) -> Out {
                     config,
                     position: a.position,
                     enabled,
+                    hide_on: a.hide_on,
                 },
             )
             .await?;

@@ -61,6 +61,7 @@ fn new(kind: &str, region: &str, scope: &str, config: Value) -> NewWidget {
         config,
         position: None,
         enabled: true,
+        hide_on: Vec::new(),
     }
 }
 
@@ -525,4 +526,65 @@ async fn popups_pair_with_their_region_and_follow_their_period() {
     .await
     .unwrap_err();
     assert_eq!(err.code(), Code::Validation);
+}
+
+#[tokio::test]
+async fn hide_on_keeps_device_order_and_rejects_every_device() {
+    let e = env().await;
+    let local = Actor::local();
+    let mut input = new(
+        "notice_bar",
+        "header",
+        "all",
+        json!({ "text": "기기 안내" }),
+    );
+    input.hide_on = vec![
+        "mobile".into(),
+        " tablet ".into(),
+        "mobile".into(),
+        String::new(),
+    ];
+    let w = widgets::place(&e.ctx, &local, input.clone()).await.unwrap();
+    assert_eq!(w.hide_on, vec!["tablet", "mobile"]);
+    let again = widgets::get(&e.ctx, &local, &w.id).await.unwrap();
+    assert_eq!(again.hide_on, vec!["tablet", "mobile"]);
+    // 같은 값으로 다시 놓으면 새로 놓지 않는다
+    let same = widgets::place(&e.ctx, &local, input).await.unwrap();
+    assert_eq!(same.id, w.id);
+    let bad = widgets::configure(
+        &e.ctx,
+        &local,
+        &w.id,
+        WidgetPatch {
+            hide_on: Some(vec!["desktop".into(), "tablet".into(), "mobile".into()]),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(bad.code(), Code::Validation);
+    let bad = widgets::configure(
+        &e.ctx,
+        &local,
+        &w.id,
+        WidgetPatch {
+            hide_on: Some(vec!["watch".into()]),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(bad.code(), Code::Validation);
+    let shown = widgets::configure(
+        &e.ctx,
+        &local,
+        &w.id,
+        WidgetPatch {
+            hide_on: Some(Vec::new()),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    assert!(shown.hide_on.is_empty());
 }

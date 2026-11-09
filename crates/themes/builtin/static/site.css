@@ -1364,3 +1364,8 @@ body:is(:has(main.page-blocks), :has(main.wide), :has(.with-sidebar), :has(.docs
   .page--docs { grid-column: 2; grid-row: 1; max-width: var(--measure); }
   .docs-jump { display: none; }
 }
+
+/* 기기별 숨김 (ADR-0146). 폭은 화면 편집기의 기기 보기와 같다: 휴대폰 ~750px, 태블릿 751~1000px, 데스크톱 1001px~ */
+@media (max-width: 750px) { .hide-mobile { display: none !important; } }
+@media (min-width: 751px) and (max-width: 1000px) { .hide-tablet { display: none !important; } }
+@media (min-width: 1001px) { .hide-desktop { display: none !important; } }

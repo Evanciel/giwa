@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO widgets (id, kind, region, scope, title, config, sort_order, enabled,\n                                  hide_on, created_at, updated_at)\n             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 11
+    },
+    "nullable": []
+  },
+  "hash": "9b23fd962131eb9125ff0b3f512745336b1c7da3f0a9f24c14f9d2ab206b502a"
+}
