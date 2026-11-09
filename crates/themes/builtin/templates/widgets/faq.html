@@ -1,6 +1,6 @@
 <div class="faq-list">
   {% for i in w.data.items %}<details>
-    <summary>{{ i.q }}</summary>
+    <summary>{% if w.edit_id %}<span{{ edit_field("items." ~ loop.index0 ~ ".q") }}>{{ i.q }}</span>{% else %}{{ i.q }}{% endif %}</summary>
     {# a_html 은 서버가 정화한 값이다. #}
     <div class="faq-a prose">{{ i.a_html | safe }}</div>
   </details>{% endfor %}

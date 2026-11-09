@@ -1,6 +1,6 @@
 <{{ "ol" if w.data.style == "steps" else "ul" }} class="f-list f-{{ w.data.style }}">
   {% for i in w.data.items %}<li>
-    <h3 class="f-title">{% if i.link %}<a href="{{ i.link.href }}"{% if i.link.external %} rel="noopener noreferrer"{% endif %}>{{ i.title }}</a>{% else %}{{ i.title }}{% endif %}</h3>
-    {% if i.text %}<p class="f-text">{{ i.text }}</p>{% endif %}
+    {% set p = "items." ~ loop.index0 %}<h3 class="f-title"{% if not i.link %}{{ edit_field(p ~ ".title") }}{% endif %}>{% if i.link %}<a href="{{ i.link.href }}"{% if i.link.external %} rel="noopener noreferrer"{% endif %}{{ edit_field(p ~ ".title") }}>{{ i.title }}</a>{% else %}{{ i.title }}{% endif %}</h3>
+    {% if i.text %}<p class="f-text"{{ edit_field(p ~ ".text") }}>{{ i.text }}</p>{% endif %}
   </li>{% endfor %}
 </{{ "ol" if w.data.style == "steps" else "ul" }}>

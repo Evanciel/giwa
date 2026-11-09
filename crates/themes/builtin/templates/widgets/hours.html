@@ -1,4 +1,4 @@
 <table class="hours-table">
-  <tbody>{% for r in w.data.rows %}<tr><th scope="row">{{ r.days }}</th><td>{{ r.time }}</td></tr>{% endfor %}</tbody>
+  <tbody>{% for r in w.data.rows %}<tr><th scope="row"{{ edit_field("rows." ~ loop.index0 ~ ".days") }}>{{ r.days }}</th><td{{ edit_field("rows." ~ loop.index0 ~ ".time") }}>{{ r.time }}</td></tr>{% endfor %}</tbody>
 </table>
-{% if w.data.note %}<p class="sec-note">{{ w.data.note }}</p>{% endif %}
+{% if w.data.note %}<p class="sec-note"{{ edit_field("note") }}>{{ w.data.note }}</p>{% endif %}

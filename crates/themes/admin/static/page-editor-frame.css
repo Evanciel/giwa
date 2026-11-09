@@ -25,3 +25,10 @@ html.maru-editing a, html.maru-editing button, html.maru-editing input, html.mar
 .maru-bar button { all: unset; color: #fff; padding: 6px 9px; border-radius: 6px; cursor: pointer; font: inherit; }
 .maru-bar button:hover, .maru-bar button:focus-visible { background: #3a4677; }
 .maru-bar button[data-act=remove]:hover { background: #a3312b; }
+/* 글자 바로 고치기 (ADR-0144): 고른 블록 안의 글자 칸은 한 번 더 누르면 그 자리에서 고친다. */
+html.maru-editing .maru-selected [data-maru-f]:hover, html.maru-editing .maru-selected[data-maru-f]:hover {
+  outline: 1px dashed #2f54eb; outline-offset: 2px; cursor: text;
+}
+html.maru-editing .maru-text-editing {
+  outline: 2px solid #2f54eb; outline-offset: 2px; cursor: text; background: rgb(47 84 235 / .07);
+}

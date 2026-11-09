@@ -89,6 +89,7 @@ fn public_env(
     env.set_undefined_behavior(UndefinedBehavior::Chainable);
     env.set_formatter(html_formatter);
     env.add_function("url_for", url_for);
+    env.add_function("edit_field", edit_field);
     env.add_filter("ago", ago);
     env.add_filter("short_count", short_count);
     env.add_filter("stickers", stickers_filter);
@@ -365,6 +366,24 @@ fn t(state: &minijinja::State, text: minijinja::Value) -> minijinja::Value {
         Some(_) => minijinja::Value::from_safe_string(s.to_owned()),
         None => text,
     }
+}
+
+/// `<h2{{ edit_field("title") }}>`. 화면 편집기 캔버스(`w.edit_id` 가 있을 때)에서만 글자 칸에
+/// `data-maru-f="<설정 경로>"` 를 붙여 그 자리에서 고치게 한다 (ADR-0144). 공개 화면에는 아무것도 붙지 않는다.
+/// `@title` 은 블록 제목이고, 나머지는 설정 안의 점 경로(`items.0.title`)다.
+fn edit_field(state: &minijinja::State, path: &str) -> minijinja::Value {
+    let editing = state
+        .lookup("w")
+        .and_then(|w| w.get_attr("edit_id").ok())
+        .is_some_and(|v| v.is_true());
+    let plain = !path.is_empty()
+        && path
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '@'));
+    if !editing || !plain {
+        return minijinja::Value::from_safe_string(String::new());
+    }
+    minijinja::Value::from_safe_string(format!(" data-maru-f=\"{path}\""))
 }
 
 /// 세 자리마다 쉼표.
@@ -833,6 +852,28 @@ mod tests {
         );
         assert_eq!(out, expected);
         assert!(env.render_str("{{ url_for('nope') }}", ()).is_err());
+    }
+
+    #[test]
+    fn edit_field_marks_only_editor_canvas() {
+        let mut env = Environment::new();
+        env.add_function("edit_field", edit_field);
+        let tpl =
+            "<h2{{ edit_field('items.' ~ 0 ~ '.title') }}>|<p{{ edit_field('x\" onclick=\"y') }}>";
+        let editing = env
+            .render_str(
+                tpl,
+                minijinja::context! { w => minijinja::context! { edit_id => "a1" } },
+            )
+            .unwrap();
+        assert_eq!(editing, "<h2 data-maru-f=\"items.0.title\">|<p>");
+        let public = env
+            .render_str(
+                tpl,
+                minijinja::context! { w => minijinja::context! { id => "a1" } },
+            )
+            .unwrap();
+        assert_eq!(public, "<h2>|<p>");
     }
 
     #[test]

@@ -1,6 +1,6 @@
 <ol class="tl-list">
   {% for i in w.data.items %}<li>
-    <span class="tl-date">{{ i.date }}</span>
-    <div><h3 class="tl-title">{{ i.title }}</h3>{% if i.text %}<p class="tl-text">{{ i.text }}</p>{% endif %}</div>
+    <span class="tl-date"{{ edit_field("items." ~ loop.index0 ~ ".date") }}>{{ i.date }}</span>
+    <div><h3 class="tl-title"{{ edit_field("items." ~ loop.index0 ~ ".title") }}>{{ i.title }}</h3>{% if i.text %}<p class="tl-text"{{ edit_field("items." ~ loop.index0 ~ ".text") }}>{{ i.text }}</p>{% endif %}</div>
   </li>{% endfor %}
 </ol>

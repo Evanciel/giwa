@@ -1,8 +1,8 @@
 <div class="hero hero--{{ w.data.style }}">
   <div class="hero-copy">
-    {% if w.data.eyebrow %}<p class="hero-eyebrow">{{ w.data.eyebrow }}</p>{% endif %}
-    {% if w.h1 %}<h1 class="hero-title">{{ w.data.title }}</h1>{% else %}<h2 class="hero-title">{{ w.data.title }}</h2>{% endif %}
-    {% if w.data.text %}<p class="hero-text">{{ w.data.text }}</p>{% endif %}
+    {% if w.data.eyebrow %}<p class="hero-eyebrow"{{ edit_field("eyebrow") }}>{{ w.data.eyebrow }}</p>{% endif %}
+    {% if w.h1 %}<h1 class="hero-title"{{ edit_field("title") }}>{{ w.data.title }}</h1>{% else %}<h2 class="hero-title"{{ edit_field("title") }}>{{ w.data.title }}</h2>{% endif %}
+    {% if w.data.text %}<p class="hero-text"{{ edit_field("text") }}>{{ w.data.text }}</p>{% endif %}
     {% with b1 = w.data.button, b2 = w.data.button2 %}{% include "widgets/_section_actions.html" %}{% endwith %}
   </div>
   {% if w.data.image and w.data.style == "split" %}<div class="hero-media"><img src="{{ w.data.image.src }}" srcset="{{ w.data.image.srcset }}" sizes="(min-width: 860px) 50vw, 100vw" width="{{ w.data.image.width }}" height="{{ w.data.image.height }}" alt="{{ w.data.image_alt }}" fetchpriority="high"></div>{% endif %}

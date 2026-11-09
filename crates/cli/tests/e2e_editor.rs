@@ -246,6 +246,36 @@ fn edit_screen_draw_draft_publish_and_revert() {
             .contains("편집기 새 블록")
     );
 
+    // 글자 바로 고치기 (ADR-0144): 캔버스의 글자 칸에만 설정 경로가 붙는다.
+    let mut texts = draft_of(&before);
+    texts.push(serde_json::json!({
+        "id": "new-3", "kind": "hero", "region": "hero", "scope": "home", "title": "",
+        "config": { "title": "바로 고칠 제목", "button": { "label": "보기", "link": "/" } }, "enabled": true,
+    }));
+    texts.push(serde_json::json!({
+        "id": "new-4", "kind": "features", "region": "main", "scope": "home", "title": "묶음 제목",
+        "config": { "items": [{ "title": "첫째", "text": "설명" }, { "title": "둘째", "link": "/" }] }, "enabled": true,
+    }));
+    let body = serde_json::json!({ "widgets": texts }).to_string();
+    let drawn_texts = http(
+        &bind,
+        "POST",
+        "/admin/editor/frame?screen=home",
+        &[json, ("Cookie", &cookie), ("x-csrf-token", &csrf)],
+        &body,
+    );
+    assert_eq!(drawn_texts.status, 200, "{}", drawn_texts.body);
+    for field in [
+        "data-maru-f=\"title\">바로 고칠 제목",
+        "data-maru-f=\"button.label\">보기",
+        "data-maru-f=\"@title\">묶음 제목",
+        "data-maru-f=\"items.0.title\">첫째",
+        "data-maru-f=\"items.0.text\">설명",
+        "data-maru-f=\"items.1.title\">둘째",
+    ] {
+        assert!(drawn_texts.body.contains(field), "{field}");
+    }
+
     // 발행: 변경 묶음 하나로 적용되어 공개 화면에 보인다.
     draft.pop();
     let publish = |widgets: &[Value]| {

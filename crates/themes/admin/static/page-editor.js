@@ -77,7 +77,8 @@
   // ---- 초안 기록 ----
   function snapshot() { return JSON.stringify(widgets); }
   // `mark` 가 같으면(같은 칸을 이어 치는 중) 기록을 하나로 합친다.
-  function change(fn, mark) {
+  // `quiet` 이면 캔버스와 오른쪽 판을 다시 그리지 않는다(화면 위 글자를 치는 중).
+  function change(fn, mark, quiet) {
     if (!mark || mark !== lastMark) {
       past.push(snapshot());
       if (past.length > 50) past.shift();
@@ -85,7 +86,7 @@
     }
     lastMark = mark || null;
     fn();
-    changed(true);
+    if (quiet) changed(false, false); else changed(true);
   }
   function undo() {
     if (!past.length) return;
@@ -152,6 +153,8 @@
       return r.text().then(function (t) { return { ok: r.ok, text: t, bad: bad }; });
     }).then(function (res) {
       if (seq !== renderSeq) return;
+      // 화면 위 글자를 치는 중이면 갈아 끼우지 않는다. 다 치면 다시 그린다.
+      if (textEdit) return;
       if (!res.ok) { statusEl.textContent = "화면을 다시 그리지 못했습니다. 새로 고침해 보세요."; return; }
       invalid = {};
       res.bad.split(",").filter(Boolean).forEach(function (id) { invalid[id] = true; });
@@ -254,8 +257,13 @@
       if (act) { blockAction(act.getAttribute("data-act"), selected); return; }
       if (e.target.closest(".maru-bar")) return;
       if (justDragged) { justDragged = false; return; }
+      if (textEdit && textEdit.node.contains(e.target)) return;
       var w = e.target.closest("[data-maru-w]");
-      select(w ? w.getAttribute("data-maru-w") : null);
+      var id = w ? w.getAttribute("data-maru-w") : null;
+      // 고른 블록의 글자 칸을 한 번 더 누르면 그 자리에서 고친다.
+      var f = e.target.closest("[data-maru-f]");
+      if (f && id && id === selected && f.closest("[data-maru-w]") === w) { startText(f, e); return; }
+      select(id);
     }, true);
     doc.addEventListener("mouseover", function (e) {
       var w = e.target.closest("[data-maru-w]");
@@ -266,7 +274,7 @@
     win.addEventListener("resize", function () { markSelection(); });
     // 화면 안 블록 끌기: 누른 채 6px 넘게 움직이면 끌기.
     doc.addEventListener("pointerdown", function (e) {
-      if (e.button !== 0 || e.target.closest(".maru-bar")) return;
+      if (e.button !== 0 || e.target.closest(".maru-bar, [contenteditable]")) return;
       var w = e.target.closest("[data-maru-w]");
       if (!w) return;
       var id = w.getAttribute("data-maru-w");
@@ -291,6 +299,84 @@
     });
   }
   var justDragged = false;
+
+  // ---- 화면 위 글자 바로 고치기 (ADR-0144) ----
+  // 템플릿이 편집 중에만 글자 칸에 data-maru-f="<경로>" 를 붙인다. `@title` 은 블록 제목, 나머지는 설정 안 점 경로.
+  var textEdit = null;
+  function getPath(w, path) {
+    if (path === "@title") return w.title || "";
+    var cur = w.config;
+    path.split(".").forEach(function (k) { cur = cur == null ? undefined : cur[k]; });
+    return typeof cur === "string" ? cur : "";
+  }
+  function setPath(w, path, value) {
+    if (path === "@title") { w.title = value; return; }
+    var keys = path.split("."), cur = w.config || (w.config = {});
+    for (var i = 0; i < keys.length - 1; i++) {
+      if (cur[keys[i]] == null || typeof cur[keys[i]] !== "object") cur[keys[i]] = {};
+      cur = cur[keys[i]];
+    }
+    cur[keys[keys.length - 1]] = value;
+  }
+  function textOf(node) { return node.textContent.replace(/[\r\n]+/g, " "); }
+
+  function startText(node, ev) {
+    if (textEdit) finishText(false);
+    var host = node.closest("[data-maru-w]");
+    var w = host && byId(host.getAttribute("data-maru-w"));
+    if (!w) return;
+    var doc = fdoc();
+    var t = { node: node, id: w.id, path: node.getAttribute("data-maru-f"), before: null, shown: node.textContent, typed: false };
+    t.before = getPath(w, t.path);
+    t.onInput = function () {
+      var cur = byId(t.id);
+      if (!cur) return;
+      t.typed = true;
+      var v = textOf(node);
+      change(function () { setPath(cur, t.path, v); }, "text:" + t.id + ":" + t.path, true);
+    };
+    t.onKey = function (e) {
+      if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); finishText(false); }
+      else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); finishText(true); }
+    };
+    t.onBlur = function () { finishText(false); };
+    textEdit = t;
+    try { node.contentEditable = "plaintext-only"; } catch (e) { /* 지원하지 않는 브라우저 */ }
+    if (node.contentEditable !== "plaintext-only") node.contentEditable = "true";
+    node.classList.add("maru-text-editing");
+    node.addEventListener("input", t.onInput);
+    node.addEventListener("keydown", t.onKey);
+    node.addEventListener("blur", t.onBlur);
+    node.focus();
+    // 누른 자리에 커서를 둔다. 못 찾으면 글 전체를 고른다.
+    var sel = doc.defaultView.getSelection();
+    var r = ev && doc.caretRangeFromPoint ? doc.caretRangeFromPoint(ev.clientX, ev.clientY) : null;
+    if (!r || !node.contains(r.startContainer)) { r = doc.createRange(); r.selectNodeContents(node); }
+    sel.removeAllRanges();
+    sel.addRange(r);
+    statusEl.textContent = "화면 위 글자를 고치는 중입니다. Enter 로 마치고 Esc 로 되돌립니다.";
+  }
+
+  function finishText(cancel) {
+    var t = textEdit;
+    if (!t) return;
+    textEdit = null;
+    var node = t.node;
+    node.removeEventListener("input", t.onInput);
+    node.removeEventListener("keydown", t.onKey);
+    node.removeEventListener("blur", t.onBlur);
+    node.removeAttribute("contenteditable");
+    node.classList.remove("maru-text-editing");
+    var w = byId(t.id);
+    if (w && t.typed) {
+      var v = cancel ? t.before : textOf(node).trim();
+      if (cancel) node.textContent = t.shown;
+      if (getPath(w, t.path) !== v) change(function () { setPath(w, t.path, v); }, "text:" + t.id + ":" + t.path, true);
+    }
+    lastMark = null;
+    form = null; // 오른쪽 판 칸을 고친 값으로 새로 만든다
+    changed(true);
+  }
 
   // ---- 놓을 곳 찾기 (캔버스 좌표) ----
   function dropTarget(x, y) {
@@ -471,6 +557,7 @@
   }
 
   function select(id) {
+    if (textEdit && textEdit.id !== id) finishText(false);
     selected = id;
     markSelection();
     drawLayers();
@@ -662,6 +749,11 @@
       k.description ? el("p", { cls: "hint", text: k.description }) : null
     ]);
     inspector.appendChild(head);
+    var doc = fdoc();
+    var q = '[data-maru-w="' + w.id + '"]';
+    if (doc && doc.querySelector(q + "[data-maru-f], " + q + " [data-maru-f]")) {
+      head.appendChild(el("p", { cls: "hint", text: "화면의 글자를 한 번 더 누르면 그 자리에서 고칩니다." }));
+    }
     var note = el("p", { cls: "ed-insp-note", "data-note": "" });
     inspector.appendChild(note);
 

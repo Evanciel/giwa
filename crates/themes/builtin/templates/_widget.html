@@ -5,14 +5,14 @@
 <section class="sec sec-{{ w.kind }} tone-{{ w.data.tone }}"{% if w.edit_id %} data-maru-w="{{ w.edit_id }}"{% endif %}{% if w.title %} aria-labelledby="w-{{ w.id }}"{% else %} aria-label="{{ w.label|t }}"{% endif %}>
   {% if w.data.image and w.data.style == "image" %}<img class="hero-bg" src="{{ w.data.image.src }}" srcset="{{ w.data.image.srcset }}" sizes="100vw" width="{{ w.data.image.width }}" height="{{ w.data.image.height }}" alt="{{ w.data.image_alt }}" fetchpriority="high">{% endif %}
   <div class="sec-inner">
-    {% if w.title %}<h2 class="sec-title" id="w-{{ w.id }}">{{ w.title }}</h2>{% endif %}
-    {% if w.data.lead %}<p class="sec-lead">{{ w.data.lead }}</p>{% endif %}
+    {% if w.title %}<h2 class="sec-title" id="w-{{ w.id }}"{{ edit_field("@title") }}>{{ w.title }}</h2>{% endif %}
+    {% if w.data.lead %}<p class="sec-lead"{{ edit_field("lead") }}>{{ w.data.lead }}</p>{% endif %}
     {% include w.template or "widgets/" ~ w.kind ~ ".html" %}
   </div>
 </section>
 {% else %}
 <section class="widget widget-{{ w.kind }}"{% if w.edit_id %} data-maru-w="{{ w.edit_id }}"{% endif %}{% if w.title %} aria-labelledby="w-{{ w.id }}"{% else %} aria-label="{{ w.label|t }}"{% endif %}>
-  {% if w.title %}<div class="widget-head"><h2 class="widget-title" id="w-{{ w.id }}">{{ w.title }}</h2>{% if w.more_url %}<a class="widget-more" href="{{ w.more_url }}">{{ "더 보기"|t }}<span class="visually-hidden"> — {{ w.title }}</span></a>{% endif %}</div>{% endif %}
+  {% if w.title %}<div class="widget-head"><h2 class="widget-title" id="w-{{ w.id }}"{{ edit_field("@title") }}>{{ w.title }}</h2>{% if w.more_url %}<a class="widget-more" href="{{ w.more_url }}">{{ "더 보기"|t }}<span class="visually-hidden"> — {{ w.title }}</span></a>{% endif %}</div>{% endif %}
   {% include w.template or "widgets/" ~ w.kind ~ ".html" %}
 </section>
 {% endif %}

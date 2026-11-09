@@ -1,6 +1,6 @@
 <ul class="t-list">
   {% for i in w.data.items %}<li>
-    <blockquote>{{ i.quote }}</blockquote>
-    {% if i.name or i.role %}<span class="t-who">{% if i.name %}<strong>{{ i.name }}</strong>{% endif %}{% if i.name and i.role %} · {% endif %}{{ i.role }}</span>{% endif %}
+    <blockquote{{ edit_field("items." ~ loop.index0 ~ ".quote") }}>{{ i.quote }}</blockquote>
+    {% if i.name or i.role %}<span class="t-who">{% if i.name %}<strong{{ edit_field("items." ~ loop.index0 ~ ".name") }}>{{ i.name }}</strong>{% endif %}{% if i.name and i.role %} · {% endif %}{% if i.role and w.edit_id %}<span{{ edit_field("items." ~ loop.index0 ~ ".role") }}>{{ i.role }}</span>{% else %}{{ i.role }}{% endif %}</span>{% endif %}
   </li>{% endfor %}
 </ul>

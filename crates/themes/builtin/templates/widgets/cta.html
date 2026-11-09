@@ -1,2 +1,2 @@
-{% if w.data.text %}<p class="cta-text">{{ w.data.text }}</p>{% endif %}
+{% if w.data.text %}<p class="cta-text"{{ edit_field("text") }}>{{ w.data.text }}</p>{% endif %}
 {% with b1 = w.data.button, b2 = w.data.button2 %}{% include "widgets/_section_actions.html" %}{% endwith %}

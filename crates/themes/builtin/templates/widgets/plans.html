@@ -1,9 +1,9 @@
 <ul class="plan-list">
-  {% for p in w.data.plans %}<li class="plan{% if p.featured %} is-featured{% endif %}">
-    <h3 class="plan-name">{{ p.name }}</h3>
-    <p class="plan-price">{{ p.price }}{% if p.period %} <small>/ {{ p.period }}</small>{% endif %}</p>
-    {% if p.note %}<p class="plan-note">{{ p.note }}</p>{% endif %}
-    {% if p.features %}<ul class="plan-features">{% for f in p.features %}<li>{{ f }}</li>{% endfor %}</ul>{% endif %}
-    {% if p.button %}<p class="sec-actions"><a class="sec-btn{% if p.featured %} sec-btn--main{% endif %}" href="{{ p.button.link.href }}"{% if p.button.link.external %} rel="noopener noreferrer"{% endif %}>{{ p.button.label }}</a></p>{% endif %}
+  {% for p in w.data.plans %}{% set pp = "plans." ~ loop.index0 %}<li class="plan{% if p.featured %} is-featured{% endif %}">
+    <h3 class="plan-name"{{ edit_field(pp ~ ".name") }}>{{ p.name }}</h3>
+    <p class="plan-price">{% if w.edit_id %}<span{{ edit_field(pp ~ ".price") }}>{{ p.price }}</span>{% else %}{{ p.price }}{% endif %}{% if p.period %} <small>/ {% if w.edit_id %}<span{{ edit_field(pp ~ ".period") }}>{{ p.period }}</span>{% else %}{{ p.period }}{% endif %}</small>{% endif %}</p>
+    {% if p.note %}<p class="plan-note"{{ edit_field(pp ~ ".note") }}>{{ p.note }}</p>{% endif %}
+    {% if p.features %}<ul class="plan-features">{% for f in p.features %}<li{{ edit_field(pp ~ ".features." ~ loop.index0) }}>{{ f }}</li>{% endfor %}</ul>{% endif %}
+    {% if p.button %}<p class="sec-actions"><a class="sec-btn{% if p.featured %} sec-btn--main{% endif %}" href="{{ p.button.link.href }}"{% if p.button.link.external %} rel="noopener noreferrer"{% endif %}{{ edit_field(pp ~ ".button.label") }}>{{ p.button.label }}</a></p>{% endif %}
   </li>{% endfor %}
 </ul>
