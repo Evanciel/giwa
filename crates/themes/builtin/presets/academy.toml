@@ -59,7 +59,7 @@ publish = true
 
 [[ops]]
 op = "settings.ensure"
-values = { home_page = "home", show_search = false }
+values = { description = "학년별 소규모 반으로 수업하는 학원입니다. 수업 안내와 상담 예약을 이곳에서 받습니다.", home_page = "home", show_search = false }
 
 [[ops]]
 op = "menu.ensure"

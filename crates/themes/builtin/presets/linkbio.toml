@@ -31,7 +31,7 @@ publish = true
 
 [[ops]]
 op = "settings.ensure"
-values = { home_page = "home", show_search = false }
+values = { description = "운영하는 채널과 새 소식을 한곳에 모았습니다.", home_page = "home", show_search = false }
 
 [[ops]]
 op = "menu.ensure"

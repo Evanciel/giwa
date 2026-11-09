@@ -45,6 +45,8 @@ pub fn routes() -> Router<AppState> {
         .route("/sitemap.xml", get(crate::feeds::sitemap))
         .route("/rss.xml", get(crate::feeds::rss))
         .route("/robots.txt", get(crate::feeds::robots))
+        .route(crate::seo::SHARE_PATH, get(crate::seo::share_picture))
+        .route("/{file}", get(crate::seo::root_file))
         .route("/assets/tokens.css", get(tokens_css))
         .route("/assets/fonts.css", get(fonts_css))
         .route("/assets/{*path}", get(asset))
@@ -114,6 +116,7 @@ async fn site_value(state: &AppState, s: &SiteSettings) -> Value {
         "show_account": s.signup != maru_core::model::SignupMode::Off,
         "account_url": "/me",
         "naver_verification": s.naver_verification,
+        "share_image": s.share_image,
         "google_verification": s.google_verification,
         "menus": {
             "header": menu_value(state, "header").await,
@@ -193,6 +196,7 @@ pub(crate) async fn render(state: &AppState, name: &str, ctx: Result<Value>) -> 
                 o.insert("csp_nonce".into(), json!(nonce));
                 o.insert("editing".into(), json!(editing));
             }
+            crate::seo::decorate(&state.ctx.site_url, name, &mut v);
             state.theme.render(name, &v)
         }
         Err(e) => Err(e),
@@ -486,7 +490,7 @@ async fn board_inner(
     let mut out = json!({
         "meta": json!({
             "title": title,
-            "description": site.settings.description,
+            "description": if board.description.trim().is_empty() { &site.settings.description } else { &board.description },
         }),
         "site": site.json,
         "canonical": urls::absolute(&state.ctx.site_url, &target),

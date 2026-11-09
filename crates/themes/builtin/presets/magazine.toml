@@ -10,7 +10,7 @@ tokens = { font = { heading = "serif" }, color = { bg = "#fffefb", fg = "#191714
 
 [[ops]]
 op = "settings.ensure"
-values = { posts_per_page = 18 }
+values = { description = "주제별 기사와 인터뷰, 칼럼을 싣는 매거진입니다.", posts_per_page = 18 }
 
 [[ops]]
 op = "board.ensure"

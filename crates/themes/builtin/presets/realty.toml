@@ -77,7 +77,7 @@ publish = true
 
 [[ops]]
 op = "settings.ensure"
-values = { home_page = "home", show_search = true }
+values = { description = "매매·전세·월세 매물과 동네 정보를 안내하는 부동산 중개사무소입니다.", home_page = "home", show_search = true }
 
 [[ops]]
 op = "menu.ensure"

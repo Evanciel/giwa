@@ -13,6 +13,7 @@ pub mod comments;
 pub mod design;
 pub mod files;
 pub mod fonts;
+pub mod indexnow;
 pub mod links;
 pub mod mail;
 pub mod media;

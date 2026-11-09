@@ -87,7 +87,7 @@ publish = true
 
 [[ops]]
 op = "settings.ensure"
-values = { home_page = "home", show_search = false }
+values = { description = "같은 취미를 가진 사람들이 모여 정기 모임과 소식을 나누는 동호회입니다.", home_page = "home", show_search = false }
 
 [[ops]]
 op = "menu.ensure"

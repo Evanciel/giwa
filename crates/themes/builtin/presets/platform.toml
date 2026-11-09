@@ -73,7 +73,7 @@ publish = true
 
 [[ops]]
 op = "settings.ensure"
-values = { home_page = "home", show_search = true }
+values = { description = "필요한 일을 올리고 알맞은 전문가를 찾는 중개 플랫폼입니다.", home_page = "home", show_search = true }
 
 [[ops]]
 op = "menu.ensure"

@@ -67,7 +67,7 @@ publish = true
 
 [[ops]]
 op = "settings.ensure"
-values = { home_page = "home", show_search = false }
+values = { description = "조용히 쉬어 가는 숙소입니다. 객실과 요금, 예약 방법을 안내합니다.", home_page = "home", show_search = false }
 
 [[ops]]
 op = "menu.ensure"

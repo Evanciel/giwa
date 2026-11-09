@@ -21,7 +21,7 @@ publish = true
 
 [[ops]]
 op = "settings.ensure"
-values = { home_page = "home", show_search = false }
+values = { description = "서비스를 한눈에 소개하고 신청을 받는 페이지입니다.", home_page = "home", show_search = false }
 
 [[ops]]
 op = "widgets.ensure"

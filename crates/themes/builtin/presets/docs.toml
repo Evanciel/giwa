@@ -131,7 +131,7 @@ body_md = """
 
 [[ops]]
 op = "settings.ensure"
-values = { home_page = "home" }
+values = { description = "제품 사용법과 시작 안내, 자주 묻는 질문을 모은 문서입니다.", home_page = "home" }
 
 [[ops]]
 op = "menu.ensure"

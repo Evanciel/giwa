@@ -13,9 +13,9 @@ use maru_core::services::boards::{self, NewBoard};
 use maru_core::services::posts::{self, NewPost};
 use maru_core::services::tokens::{self, NewToken};
 use maru_core::services::{
-    anonymous_actor, audit_log, auth, backups, categories, comments, design, files, fonts, mail,
-    media, members, menus, pages, presets, retention, samples, search, settings, signals, stats,
-    tags, templates, views, widgets, wiki,
+    anonymous_actor, audit_log, auth, backups, categories, comments, design, files, fonts,
+    indexnow, mail, media, members, menus, pages, presets, retention, samples, search, settings,
+    signals, stats, tags, templates, views, widgets, wiki,
 };
 use maru_core::urls::{self, Target};
 use maru_core::{Actor, Code, Ctx, Error, Result};
@@ -28,7 +28,7 @@ use crate::{
     CommentCmd, DesignCmd, ExportCmd, FileCmd, FontCmd, Global, InitArgs, LinkCmd, LoginLinkArgs,
     MailCmd, MailSetupArgs, McpCmd, MediaCmd, MemberCmd, MenuCmd, MenuSetArgs, PageCmd, PostCmd,
     PostListArgs, PostNewArgs, PrivacyCmd, RedirectCmd, RestoreArgs, SampleCmd, SearchArgs,
-    SearchCmd, ServeArgs, SignalsArgs, SignalsCmd, SiteCmd, StatsArgs, TagCmd, TemplateCmd,
+    SearchCmd, SeoCmd, ServeArgs, SignalsArgs, SignalsCmd, SiteCmd, StatsArgs, TagCmd, TemplateCmd,
     ThemeCmd, ThemeTokensCmd, TokenCmd, TokenCreateArgs, WidgetCmd,
 };
 
@@ -81,6 +81,7 @@ pub async fn run(g: &Global, command: Command) -> ExitCode {
         Command::Signals(args) => signals_cmd(g, args).await,
         Command::Wiki { board } => wiki_cmd(g, &board).await,
         Command::Sample(cmd) => sample_cmd(g, cmd).await,
+        Command::Seo(SeoCmd::Status) => seo_status(g).await,
         Command::LoginLink(args) => login_link(g, args).await,
     };
     match res {
@@ -380,6 +381,7 @@ async fn serve_inner(g: &Global, args: ServeArgs) -> Result<()> {
     let mail_info = mail_json(&dir, &config);
     let archiver = maru_storage::backup::FsArchiver::new(dir.clone(), db.clone());
     let fetcher = maru_storage::fetch::HttpFetcher::new().map_err(Error::internal)?;
+    let announcer = maru_storage::fetch::IndexNowClient::new().map_err(Error::internal)?;
     let sandbox = maru_storage::sandbox::FsSandbox::new(&dir, db.clone());
     sandbox.clear();
     let state = maru_web::AppState::new(ctx, theme)
@@ -388,6 +390,7 @@ async fn serve_inner(g: &Global, args: ServeArgs) -> Result<()> {
         ))))
         .with_mailer(mailer)
         .with_link_fetcher(Arc::new(fetcher))
+        .with_indexnow(Arc::new(announcer))
         .with_archiver(Arc::new(archiver))
         .with_modules(modules)
         .with_trust_tunnel(config.trust_tunnel);
@@ -1794,6 +1797,8 @@ async fn site(g: &Global, cmd: SiteCmd) -> Out {
                 signal_mail: args.signal_mail,
                 link_cards: args.link_cards,
                 skin: args.skin,
+                share_image: args.share_image,
+                indexnow: args.indexnow,
             };
             settings::update(&ctx, &actor, patch).await
         }
@@ -2815,6 +2820,42 @@ async fn signals_cmd(g: &Global, args: SignalsArgs) -> Out {
                 Ok((to_value(&list)?, human))
             }
         }
+    }
+    .await;
+    db.close().await;
+    res
+}
+
+async fn seo_status(g: &Global) -> Out {
+    let (ctx, _config, db) = open(g).await?;
+    let res = async {
+        let actor = actor(&ctx).await?;
+        let s = indexnow::status(&ctx, &actor).await?;
+        let human = if !s.enabled {
+            "검색엔진에 바로 알리기가 꺼져 있습니다. 켜기: maru site set --indexnow true".to_owned()
+        } else if !s.public_site {
+            format!(
+                "사이트 주소({})가 공개 https 도메인이 아니라 검색엔진에 알리지 않습니다.",
+                s.site_url
+            )
+        } else {
+            match (&s.last_at, &s.last_error) {
+                (None, _) => {
+                    "아직 보낸 주소가 없습니다. 글을 발행하면 서버가 1분 안에 보냅니다.".to_owned()
+                }
+                (Some(at), None) => format!(
+                    "{at}에 주소 {}개를 보냈습니다 (응답 {}). 지금까지 {}개.",
+                    s.last_count,
+                    s.last_status.map_or("-".to_owned(), |c| c.to_string()),
+                    s.sent_total
+                ),
+                (Some(at), Some(e)) => format!(
+                    "{at}에 보내지 못했습니다: {e}. {}에 다시 보냅니다.",
+                    s.retry_at.as_deref().unwrap_or("-")
+                ),
+            }
+        };
+        Ok((to_value(&s)?, human))
     }
     .await;
     db.close().await;

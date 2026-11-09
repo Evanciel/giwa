@@ -13,9 +13,9 @@ use maru_core::model::{ChangesetStatus, MenuItem, PageReq, PageStatus, PostStatu
 use maru_core::output::Success;
 use maru_core::services::changesets;
 use maru_core::services::{
-    anonymous_actor, audit_log, backups, boards, categories, comments, design, files, fonts, links,
-    media, members, menus, pages, posts, redirects, retention, samples, search, settings, signals,
-    stats, tags, templates, tokens, views, widgets, wiki,
+    anonymous_actor, audit_log, backups, boards, categories, comments, design, files, fonts,
+    indexnow, links, media, members, menus, pages, posts, redirects, retention, samples, search,
+    settings, signals, stats, tags, templates, tokens, views, widgets, wiki,
 };
 use maru_core::{Actor, Code, Error};
 use maru_modules::service as modules;
@@ -130,6 +130,7 @@ pub fn routes() -> Router<AppState> {
         .route("/search/reindex", post(reindex_search))
         .route("/privacy/run", post(run_privacy))
         .route("/samples", get(sample_status).delete(clear_samples))
+        .route("/seo", get(seo_status))
         .route("/signals", get(list_signals))
         .route("/changesets", get(list_changesets).post(create_changeset))
         .route("/changesets/{id}", get(get_changeset))
@@ -1139,6 +1140,17 @@ async fn refresh_link(
 }
 
 /// 사이트 종류가 넣은 예시 글 (ADR-0142).
+/// 검색엔진 알림(IndexNow) 상태 (ADR-0143).
+async fn seo_status(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+) -> Result<Response, ApiError> {
+    Ok(ok(
+        StatusCode::OK,
+        indexnow::status(&state.ctx, &actor).await?,
+    ))
+}
+
 async fn sample_status(
     State(state): State<AppState>,
     ApiActor(actor): ApiActor,

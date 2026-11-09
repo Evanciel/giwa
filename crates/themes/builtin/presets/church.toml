@@ -84,7 +84,7 @@ publish = true
 
 [[ops]]
 op = "settings.ensure"
-values = { home_page = "home", show_search = false }
+values = { description = "함께 예배하고 이웃과 나누는 교회입니다. 예배 안내와 교회 소식을 전합니다.", home_page = "home", show_search = false }
 
 [[ops]]
 op = "menu.ensure"

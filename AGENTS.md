@@ -186,6 +186,18 @@ maru expose --cloudflare --json
 
 `cloudflared` 가 있는지 보고 고를 길을 알려 준다. 계정 없이 임시 주소로 열려면 `--quick`, 자기 도메인은 `--hostname <도메인>`(사용자의 브라우저 로그인이 필요하다). 끄기: `maru expose stop`.
 
+### 검색 노출
+
+사이트맵(`/sitemap.xml`)·RSS(`/rss.xml`)·robots·대표 주소·공유 태그·구조화 데이터(JSON-LD)는 서버가 알아서 낸다. 사이트 설명(`maru site set --description`)은 검색 결과 요약이 되니 사용자에게 받아 채운다. 카카오톡 미리보기 그림은 `--share-image /media/…`, 비우면 사이트 색으로 그린 `/share.jpg`.
+
+자기 도메인으로 공개한 뒤 사용자에게 이 순서를 안내한다. 계정 주인만 할 수 있어 대신하지 않는다.
+
+1. 네이버 서치어드바이저·구글 서치 콘솔에서 사이트를 등록하고 확인 방식으로 「HTML 태그」를 고른다.
+2. 받은 content 값을 `maru site set --naver-verification <값>`·`--google-verification <값>` 으로 넣고 확인을 누르게 한다.
+3. 두 곳에 사이트맵과 RSS 주소를 제출하게 한다.
+
+새 글·페이지 주소는 서버가 1분 안에 IndexNow(네이버, 참여 검색엔진과 공유)로 알린다. 공개 https 도메인일 때만 보낸다. 상태: `maru seo status --json`(MCP `seo_status`). 끄기: `maru site set --indexnow false`.
+
 ## 7. 운영
 
 | 일 | 명령 |

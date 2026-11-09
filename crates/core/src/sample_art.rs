@@ -29,7 +29,20 @@ pub fn is_motif(name: &str) -> bool {
 
 /// JPEG 바이트. `primary` 는 `#rrggbb` (틀리면 녹색 계열로).
 pub fn render(motif: &str, seed: u32, primary: &str) -> Result<Vec<u8>> {
-    let mut c = Canvas::new(WIDTH, HEIGHT);
+    draw(motif, seed, primary, WIDTH, HEIGHT)
+}
+
+/// 공유 미리보기(`og:image`) 크기.
+pub const SHARE_WIDTH: u32 = 1200;
+pub const SHARE_HEIGHT: u32 = 630;
+
+/// 사이트 공유 그림 (ADR-0143): 사이트 주 색의 추상 장면, 1200×630 JPEG.
+pub fn share(seed: u32, primary: &str) -> Result<Vec<u8>> {
+    draw("abstract", seed, primary, SHARE_WIDTH, SHARE_HEIGHT)
+}
+
+fn draw(motif: &str, seed: u32, primary: &str, w: u32, h: u32) -> Result<Vec<u8>> {
+    let mut c = Canvas::new(w, h);
     let p = Palette::from_hex(primary);
     let mut r = Lcg(seed
         .wrapping_mul(2_654_435_761)
@@ -606,6 +619,14 @@ mod tests {
             let img = image::load_from_memory(&bytes).unwrap();
             assert_eq!((img.width(), img.height()), (WIDTH, HEIGHT));
         }
+    }
+
+    #[test]
+    fn share_picture_is_open_graph_size() {
+        let bytes = share(7, "#2754c5").unwrap();
+        let img = image::load_from_memory(&bytes).unwrap();
+        assert_eq!((img.width(), img.height()), (SHARE_WIDTH, SHARE_HEIGHT));
+        assert_eq!(bytes, share(7, "#2754c5").unwrap());
     }
 
     #[test]

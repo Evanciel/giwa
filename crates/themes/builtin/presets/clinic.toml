@@ -58,7 +58,7 @@ publish = true
 
 [[ops]]
 op = "settings.ensure"
-values = { home_page = "home", show_search = false }
+values = { description = "진료 안내와 진료시간, 오시는 길, 건강 정보를 알려 드립니다.", home_page = "home", show_search = false }
 
 [[ops]]
 op = "menu.ensure"

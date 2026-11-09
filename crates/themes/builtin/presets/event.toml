@@ -43,7 +43,7 @@ publish = true
 
 [[ops]]
 op = "settings.ensure"
-values = { home_page = "home", show_search = false }
+values = { description = "행사 일정과 프로그램, 참가 신청 방법을 안내합니다.", home_page = "home", show_search = false }
 
 [[ops]]
 op = "menu.ensure"

@@ -62,7 +62,7 @@ publish = true
 
 [[ops]]
 op = "settings.ensure"
-values = { home_page = "home", show_search = false }
+values = { description = "상담 분야와 진행 절차, 상담 예약 방법을 안내하는 사무소입니다.", home_page = "home", show_search = false }
 
 [[ops]]
 op = "menu.ensure"

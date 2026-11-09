@@ -84,6 +84,27 @@ pub struct SettingsPatch {
     /// 공개 화면 스킨: default · community (ADR-0081)
     #[serde(default)]
     pub skin: Option<String>,
+    /// 공유 미리보기 그림 주소: `/media/…` 또는 `https://…`. 빈 값이면 서버가 그린 그림 (ADR-0143)
+    #[serde(default)]
+    pub share_image: Option<String>,
+    /// 공개한 사이트의 새 글 주소를 IndexNow 로 검색엔진에 바로 알릴지 (ADR-0143)
+    #[serde(default)]
+    pub indexnow: Option<bool>,
+}
+
+/// 공유 그림 주소로 쓸 수 있는가. 사이트 미디어 경로나 https 주소, 공백·따옴표·꺾쇠 없이 500자까지.
+pub fn share_image_ok(u: &str) -> bool {
+    let clean = u.len() <= 500
+        && !u.contains("..")
+        && !u
+            .chars()
+            .any(|c| c.is_whitespace() || matches!(c, '"' | '\'' | '<' | '>' | '\\'));
+    let shaped = u
+        .strip_prefix("/media/")
+        .is_some_and(|rest| !rest.is_empty())
+        || u.strip_prefix("https://")
+            .is_some_and(|rest| rest.split('/').next().is_some_and(|h| h.contains('.')));
+    clean && shaped
 }
 
 /// 저장된 값 위에 기본값을 채운다. 모르는 키나 잘못된 값은 기본값으로 둔다.
@@ -228,6 +249,18 @@ pub async fn update(ctx: &Ctx, actor: &Actor, patch: SettingsPatch) -> Result<Si
     }
     if let Some(b) = patch.link_cards {
         changes.push(("link_cards", json!(b)));
+    }
+    if let Some(u) = &patch.share_image {
+        let u = u.trim();
+        if !u.is_empty() && !share_image_ok(u) {
+            return Err(Error::new(Code::Validation)
+                .with_message("error.share_image")
+                .arg("value", u.chars().take(80).collect::<String>()));
+        }
+        changes.push(("share_image", json!(u)));
+    }
+    if let Some(b) = patch.indexnow {
+        changes.push(("indexnow", json!(b)));
     }
     if let Some(m) = &patch.signup {
         actor.require(Permission::MemberManage)?;

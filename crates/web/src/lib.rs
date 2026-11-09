@@ -18,6 +18,7 @@ pub mod preview;
 mod public;
 mod ratelimit;
 mod sections;
+mod seo;
 mod widgets;
 
 use std::future::Future;
@@ -35,6 +36,7 @@ use maru_core::actor::Permission;
 use maru_core::model::Media;
 use maru_core::services::backups::Archiver;
 use maru_core::services::changesets::Sandbox;
+use maru_core::services::indexnow::{self, IndexNowSender};
 use maru_core::services::links::{self, LinkFetcher};
 use maru_core::services::mail::{self, Mailer};
 use maru_core::services::stats::{self, StatCounter};
@@ -67,12 +69,17 @@ const MAIL_EVERY: Duration = Duration::from_secs(5);
 const LINKS_EVERY: Duration = Duration::from_secs(10);
 /// 모은 조회수를 DB 에 더하는 주기 (ADR-0049). 조회마다 쓰지 않는다.
 const VIEWS_EVERY: Duration = Duration::from_secs(20);
+/// 바뀐 주소를 IndexNow 로 알리는 주기 (ADR-0143). 그사이 바뀐 것을 한 번에 보낸다.
+const INDEXNOW_EVERY: Duration = Duration::from_secs(60);
 /// 모듈 이벤트를 넘기는 주기.
 const MODULES_EVERY: Duration = Duration::from_secs(2);
 /// argon2 를 동시에 계산하는 최대 수.
 const LOGIN_CONCURRENCY: usize = 2;
 /// 이미지 디코딩·인코딩을 동시에 하는 최대 수.
 const UPLOAD_CONCURRENCY: usize = 2;
+
+/// 서버가 그린 공유 그림 칸. `(테마 기본색, JPEG 바이트)` (ADR-0143).
+pub type SharePicture = std::sync::Mutex<Option<(String, Arc<Vec<u8>>)>>;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -90,6 +97,10 @@ pub struct AppState {
     pub mailer: Option<Arc<dyn Mailer>>,
     /// 링크 카드용 외부 페이지 읽기 (ADR-0084). 없으면 카드는 주소와 도메인만 보인다.
     pub link_fetcher: Option<Arc<dyn LinkFetcher>>,
+    /// IndexNow 로 보내는 곳 (ADR-0143). 없으면 알리지 않는다.
+    pub indexnow: Option<Arc<dyn IndexNowSender>>,
+    /// 서버가 그린 공유 그림 `(색, JPEG)`. 색이 바뀌면 다시 그린다 (ADR-0143).
+    pub share_picture: Arc<SharePicture>,
     /// 백업 파일 보관소 (ADR-0063). 없으면 백업 경로가 「쓸 수 없음」으로 답한다.
     pub archiver: Option<Arc<dyn Archiver>>,
     /// 이 바이너리에 든 모듈 (ADR-0066). 켜짐은 DB 에 있다.
@@ -113,6 +124,8 @@ impl AppState {
             stats: Arc::new(StatCounter::new()),
             mailer: None,
             link_fetcher: None,
+            indexnow: None,
+            share_picture: Arc::default(),
             archiver: None,
             modules: Arc::new(Registry::default()),
             trust_tunnel: false,
@@ -137,6 +150,11 @@ impl AppState {
 
     pub fn with_link_fetcher(mut self, fetcher: Arc<dyn LinkFetcher>) -> Self {
         self.link_fetcher = Some(fetcher);
+        self
+    }
+
+    pub fn with_indexnow(mut self, sender: Arc<dyn IndexNowSender>) -> Self {
+        self.indexnow = Some(sender);
         self
     }
 
@@ -296,6 +314,7 @@ pub async fn serve(
     let counted = tokio::spawn(views_loop(state.clone()));
     let mailed = tokio::spawn(mail_loop(state.clone()));
     let fetched = tokio::spawn(links_loop(state.clone()));
+    let announced = tokio::spawn(indexnow_loop(state.clone()));
     let delivered = tokio::spawn(modules_loop(state.clone()));
     let res = axum::serve(
         listener,
@@ -309,6 +328,7 @@ pub async fn serve(
     counted.abort();
     mailed.abort();
     fetched.abort();
+    announced.abort();
     delivered.abort();
     flush_views(&state).await;
     if let Some(previews) = &state.previews {
@@ -372,6 +392,35 @@ async fn links_loop(state: AppState) {
                 "링크 카드 가져오기"
             ),
             Err(e) => tracing::warn!(error = ?e, "링크 카드 가져오기 확인 실패"),
+        }
+    }
+}
+
+/// 바뀐 글·페이지 주소를 주기마다 IndexNow 로 알린다 (ADR-0143). 보내는 곳이 없으면 아무것도 하지 않는다.
+async fn indexnow_loop(state: AppState) {
+    let Some(sender) = state.indexnow.clone() else {
+        return;
+    };
+    let mut scanned = 0;
+    let mut tick = tokio::time::interval(INDEXNOW_EVERY);
+    loop {
+        tick.tick().await;
+        match indexnow::send_pending(
+            &state.ctx,
+            sender.as_ref(),
+            indexnow::ENDPOINT,
+            &mut scanned,
+        )
+        .await
+        {
+            Ok(r @ indexnow::SendReport::Sent { .. }) => {
+                tracing::info!(report = ?r, "IndexNow 알림")
+            }
+            Ok(r @ indexnow::SendReport::Failed { .. }) => {
+                tracing::warn!(report = ?r, "IndexNow 알림 실패, 나중에 다시 보냄");
+            }
+            Ok(_) => {}
+            Err(e) => tracing::warn!(error = ?e, "IndexNow 확인 실패"),
         }
     }
 }

@@ -6,7 +6,7 @@ theme_note = "또렷한 파랑 강조, 밝은 기본 바탕"
 
 [[ops]]
 op = "settings.ensure"
-values = { skin = "community", flood_seconds = 15, posts_per_page = 20, list_under_post = true, list_votes = true, stickers = true }
+values = { description = "누구나 글을 쓰고 묻고 답하며 정보를 나누는 커뮤니티입니다.", skin = "community", flood_seconds = 15, posts_per_page = 20, list_under_post = true, list_votes = true, stickers = true }
 
 [[ops]]
 op = "tokens.ensure"

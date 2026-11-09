@@ -1272,6 +1272,10 @@ struct SettingsForm {
     signal_mail: Option<String>,
     #[serde(default)]
     link_cards: Option<String>,
+    #[serde(default)]
+    share_image: String,
+    #[serde(default)]
+    indexnow: Option<String>,
 }
 
 fn on(b: bool) -> Option<String> {
@@ -1307,6 +1311,8 @@ impl SettingsForm {
             signal_comment_burst: s.signal_comment_burst.to_string(),
             signal_mail: on(s.signal_mail),
             link_cards: on(s.link_cards),
+            share_image: s.share_image.clone(),
+            indexnow: on(s.indexnow),
         }
     }
 
@@ -1375,6 +1381,8 @@ impl SettingsForm {
             ),
             signal_mail: changed(self.signal_mail.is_some(), now.signal_mail),
             link_cards: changed(self.link_cards.is_some(), now.link_cards),
+            share_image: changed(self.share_image.trim().to_owned(), now.share_image.clone()),
+            indexnow: changed(self.indexnow.is_some(), now.indexnow),
         })
     }
 }
@@ -1455,9 +1463,32 @@ async fn settings_render(
             "langs": keep_current(choices(LANGS), &form.lang),
             "timezones": keep_current(choices(TIMEZONES), &form.tz_offset_min),
             "home_pages": home_pages,
+            "seo": seo_card(state, who).await,
         }),
     );
     render(state, status, "settings.html", &ctx)
+}
+
+/// 검색 엔진 카드의 제출 주소와 IndexNow 상태 (ADR-0143).
+async fn seo_card(state: &AppState, who: &SignedIn) -> Value {
+    use maru_core::urls::{self, Target};
+    let site = &state.ctx.site_url;
+    let status = maru_core::services::indexnow::status(&state.ctx, &who.actor)
+        .await
+        .ok();
+    let tz = settings::site(&state.ctx)
+        .await
+        .map(|s| s.tz_offset_min)
+        .unwrap_or(540);
+    json!({
+        "sitemap_url": urls::absolute(site, &Target::Sitemap),
+        "rss_url": urls::absolute(site, &Target::Rss),
+        "public_site": status.as_ref().is_some_and(|s| s.public_site),
+        "last_at": status.as_ref().and_then(|s| s.last_at.as_deref()).map(|t| maru_core::clock::display_datetime(t, tz)),
+        "last_count": status.as_ref().map_or(0, |s| s.last_count),
+        "last_error": status.as_ref().and_then(|s| s.last_error.clone()),
+        "sent_total": status.as_ref().map_or(0, |s| s.sent_total),
+    })
 }
 
 /// 설정 화면의 언어 고르기. 값은 사이트 `lang` 그대로 (html lang, 메시지 언어).

@@ -48,7 +48,7 @@ publish = true
 
 [[ops]]
 op = "settings.ensure"
-values = { home_page = "home" }
+values = { description = "단체가 하는 일과 사업, 소식, 참여 방법을 알립니다.", home_page = "home" }
 
 [[ops]]
 op = "menu.ensure"

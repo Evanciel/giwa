@@ -42,7 +42,7 @@ publish = true
 
 [[ops]]
 op = "settings.ensure"
-values = { home_page = "home", show_search = false }
+values = { description = "채용 공고와 지원 방법, 일하는 방식을 소개합니다.", home_page = "home", show_search = false }
 
 [[ops]]
 op = "menu.ensure"

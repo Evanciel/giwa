@@ -84,7 +84,7 @@ publish = true
 
 [[ops]]
 op = "settings.ensure"
-values = { home_page = "home", show_search = true }
+values = { description = "매일 쓰는 생활용품을 골라 소개하고 판매합니다.", home_page = "home", show_search = true }
 
 [[ops]]
 op = "menu.ensure"

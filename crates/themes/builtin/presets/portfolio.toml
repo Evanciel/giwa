@@ -38,7 +38,7 @@ publish = true
 
 [[ops]]
 op = "settings.ensure"
-values = { home_page = "home", show_search = false }
+values = { description = "작업물과 작업 과정, 의뢰 방법을 소개합니다.", home_page = "home", show_search = false }
 
 [[ops]]
 op = "menu.ensure"

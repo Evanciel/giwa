@@ -141,6 +141,9 @@ enum Command {
     /// 사이트 종류가 넣은 예시 글: 상태 보기·한 번에 지우기
     #[command(subcommand)]
     Sample(SampleCmd),
+    /// 검색 노출: 검색엔진에 바로 알리기(IndexNow) 상태
+    #[command(subcommand)]
+    Seo(SeoCmd),
     /// 관리 화면 로그인 링크를 만든다 (10분, 1회용)
     LoginLink(LoginLinkArgs),
     /// 설치 상태를 점검한다 (데이터, DB, 포트, 운영자, 테마)
@@ -178,6 +181,12 @@ pub struct InitArgs {
     /// 예시 글·그림을 넣지 않는다 (기본은 빈 게시판에 예시 글을 넣는다, ADR-0142)
     #[arg(long)]
     pub no_samples: bool,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum SeoCmd {
+    /// 키 파일 주소, 마지막으로 보낸 시각·응답·개수, 공개 사이트인지
+    Status,
 }
 
 #[derive(Debug, Subcommand)]
@@ -1308,6 +1317,12 @@ pub struct SiteSetArgs {
     /// 링크 카드(`::link[주소]`)의 제목·그림을 서버가 가져온다 (true/false)
     #[arg(long)]
     pub link_cards: Option<bool>,
+    /// 공유 미리보기 그림: `/media/…` 또는 `https://…`. 빈 값이면 사이트 색으로 그린 그림
+    #[arg(long)]
+    pub share_image: Option<String>,
+    /// 공개한 사이트의 새 글 주소를 IndexNow 로 검색엔진에 바로 알린다 (true/false)
+    #[arg(long)]
+    pub indexnow: Option<bool>,
     /// 회원 가입: off(받지 않음), open(누구나)
     #[arg(long)]
     pub signup: Option<String>,

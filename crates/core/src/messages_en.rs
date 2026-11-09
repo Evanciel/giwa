@@ -333,6 +333,9 @@ pub(crate) fn lookup(key: &str) -> Option<&'static str> {
         "error.signal_burst" => {
             "The comment burst threshold is 0 (off) or 3 to 1000 (got {value})."
         }
+        "error.share_image" => {
+            "The share image is a site image path starting with /media/ or an https:// address (got {value}). Leave it empty to use the picture drawn in the site color."
+        }
         "signal.comment_burst" => {
             "Comments are piling up: {count} comments on \"{title}\" in the last hour"
         }

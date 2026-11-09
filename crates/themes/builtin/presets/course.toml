@@ -44,7 +44,7 @@ publish = true
 
 [[ops]]
 op = "settings.ensure"
-values = { signup = "open", home_page = "home", show_search = false }
+values = { description = "강의를 듣고 질문하며 함께 배우는 곳입니다.", signup = "open", home_page = "home", show_search = false }
 
 [[ops]]
 op = "menu.ensure"

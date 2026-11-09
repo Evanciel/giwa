@@ -26,3 +26,7 @@ location = "header"
 items = [
   { label = "글", link = { kind = "board", slug = "blog" } },
 ]
+
+[[ops]]
+op = "settings.ensure"
+values = { description = "일상과 공부한 것을 기록하는 개인 블로그입니다." }

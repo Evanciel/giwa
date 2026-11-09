@@ -19,7 +19,7 @@ use maru_core::services::search::{self, SearchInput};
 use maru_core::services::settings::SettingsPatch;
 use maru_core::services::stats::{self, StatsQuery};
 use maru_core::services::widgets::{self, NewWidget, WidgetPatch};
-use maru_core::services::{boards, pages, presets, samples, sections, settings, tokens};
+use maru_core::services::{boards, indexnow, pages, presets, samples, sections, settings, tokens};
 use maru_core::{Actor, Code, Ctx, Error, Permission, Result};
 use maru_modules::{Registry, schema_of, service};
 use rmcp::model::{
@@ -549,6 +549,14 @@ const SPECS: &[Spec] = &[
         schema: schema_of::<NoInput>,
     },
     Spec {
+        name: "seo_status",
+        description: "검색엔진에 바로 알리기(IndexNow) 상태: 켜짐, 공개 사이트인지, 키 파일 주소, 마지막으로 보낸 시각·응답·개수·오류. Show IndexNow status: enabled, public site, key file URL, last submission.",
+        permission: Permission::PostPublish,
+        read_only: true,
+        untrusted: false,
+        schema: schema_of::<NoInput>,
+    },
+    Spec {
         name: "sample_status",
         description: "사이트 종류가 넣은 예시 글 수와 그중 고치지 않은 글 수를 본다. Count sample posts a site type added, and how many are still unedited.",
         permission: Permission::StructureEdit,
@@ -980,6 +988,7 @@ impl Server {
                 to_value(maru_core::services::design::tokens(ctx).await?)
             }
             "list_stickers" => Ok(json!({ "items": maru_themes::stickers() })),
+            "seo_status" => to_value(indexnow::status(ctx, actor).await?),
             "sample_status" => to_value(samples::status(ctx, actor).await?),
             "clear_samples" => to_value(samples::clear(ctx, actor).await?),
             "list_modules" => to_value(service::list(ctx, actor, &self.registry).await?),

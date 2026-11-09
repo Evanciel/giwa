@@ -42,7 +42,7 @@ publish = true
 
 [[ops]]
 op = "settings.ensure"
-values = { home_page = "home", show_search = false }
+values = { description = "회사가 하는 일과 소식, 문의 방법을 안내합니다.", home_page = "home", show_search = false }
 
 [[ops]]
 op = "menu.ensure"

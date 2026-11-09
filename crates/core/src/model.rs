@@ -795,6 +795,12 @@ pub struct SiteSettings {
     /// 공개 화면 스킨. `SKINS` 중 하나 (ADR-0081)
     #[serde(default = "default_skin")]
     pub skin: String,
+    /// 공유 미리보기(`og:image`) 그림 주소. `/media/…` 또는 `https://`. 비우면 서버가 그린 `/share.jpg` (ADR-0143)
+    #[serde(default)]
+    pub share_image: String,
+    /// 공개한 사이트의 새 글·페이지 주소를 IndexNow 로 검색엔진에 바로 알린다 (ADR-0143)
+    #[serde(default = "default_true")]
+    pub indexnow: bool,
 }
 
 /// 내장 스킨 `(id, 이름)`. 스킨은 머리글·메뉴·몸통 배치만 바꾸고 안의 화면은 기본 테마를 같이 쓴다.
@@ -903,6 +909,8 @@ impl Default for SiteSettings {
             signal_mail: true,
             link_cards: true,
             skin: default_skin(),
+            share_image: String::new(),
+            indexnow: true,
         }
     }
 }

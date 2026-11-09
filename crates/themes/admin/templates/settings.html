@@ -117,6 +117,16 @@
         <input id="s-google" name="google_verification" value="{{ form.google_verification }}" maxlength="100" autocomplete="off" spellcheck="false">
       </div>
     </div>
+    <p class="hint">확인을 마친 뒤 두 곳 모두에 사이트맵 <code>{{ seo.sitemap_url }}</code> 과 RSS <code>{{ seo.rss_url }}</code> 를 제출하세요.</p>
+    <div class="stack">
+      <label for="s-share">공유 그림 주소</label>
+      <input id="s-share" name="share_image" value="{{ form.share_image }}" maxlength="500" autocomplete="off" spellcheck="false" placeholder="/media/… 또는 https://…" aria-describedby="s-share-hint">
+      <p id="s-share-hint" class="hint">카카오톡·SNS 에 주소를 붙였을 때 보이는 그림입니다. 미디어에 올린 그림 주소를 넣으세요. 비우면 사이트 색으로 그린 그림(<a href="/share.jpg" target="_blank" rel="noopener">보기</a>)을 씁니다. 대표 그림이 있는 글은 그 그림을 씁니다.</p>
+    </div>
+    <div class="toggles">
+      {{ toggle("indexnow", form.indexnow, "새 글을 검색엔진에 바로 알리기 (IndexNow)", "글·페이지를 발행·수정·삭제하면 그 주소를 네이버 IndexNow 로 보냅니다. 참여 검색엔진(빙 등)과 나눕니다. 공개 도메인(https)으로 연 사이트만 보냅니다.") }}
+    </div>
+    <p class="hint">{% if not seo.public_site %}지금 사이트 주소는 내 컴퓨터용이라 검색엔진에 알리지 않습니다. 공개 주소로 열면 그때부터 보냅니다.{% elif seo.last_at %}마지막으로 {{ seo.last_at }}에 주소 {{ seo.last_count }}개를 보냈습니다{% if seo.last_error %}. 실패: {{ seo.last_error }} (30분 뒤 다시 보냅니다){% endif %}. 지금까지 {{ seo.sent_total }}개.{% else %}아직 보낸 주소가 없습니다. 글을 발행하면 1분 안에 보냅니다.{% endif %}</p>
   </section>
 
   <section id="set-keep" class="card set-card" aria-labelledby="set-keep-h">
