@@ -1240,3 +1240,133 @@ fn editor_offers_start_bundles_and_help() {
         );
     }
 }
+
+/// ADR-0154: 편집기는 발행에 「연 때 본 것」을 싣는다. 그 사이 다른 화면·다른 창에서 놓은 블록은 지우지 않고,
+/// 손대지 않은 블록이 그 사이 바뀌었으면 되돌리지 않는다. 싣지 않은 예전 요청은 초안이 사이트 전부라고 본다.
+#[test]
+fn stale_editor_keeps_what_others_published() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("사이트");
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
+    maru(
+        &data,
+        &["page", "new", "메뉴", "--title", "메뉴", "--publish"],
+    );
+    maru(
+        &data,
+        &[
+            "widget",
+            "place",
+            "markdown_block",
+            "--region",
+            "main",
+            "--scope",
+            "home",
+            "--config",
+            r#"{"body":"첫 화면 인사"}"#,
+        ],
+    );
+    let (_server, bind) = start_server(&data);
+    let cookie = format!(
+        "maru_session={}",
+        sign_in(&bind, maru(&data, &["login-link"])["url"].as_str().unwrap())
+    );
+    let page = http(
+        &bind,
+        "GET",
+        "/admin/editor?screen=home",
+        &[("Cookie", &cookie)],
+        "",
+    );
+    let csrf = {
+        let at = page.body.find("data-csrf=\"").unwrap() + 11;
+        page.body[at..at + page.body[at..].find('"').unwrap()].to_owned()
+    };
+    let auth = [
+        ("Content-Type", "application/json"),
+        ("Cookie", cookie.as_str()),
+        ("x-csrf-token", csrf.as_str()),
+    ];
+    // 첫 화면 편집기를 연 때 본 블록들.
+    let opened = draft_of(&maru(&data, &["widget", "list"]));
+    let first = opened[0]["id"].as_str().unwrap().to_owned();
+    let ids: Vec<&str> = opened.iter().map(|w| w["id"].as_str().unwrap()).collect();
+
+    // 그 사이 다른 창: 메뉴 페이지에 블록을 놓고, 첫 화면 첫 블록의 제목을 바꿔 발행했다.
+    let placed = maru(
+        &data,
+        &[
+            "widget",
+            "place",
+            "markdown_block",
+            "--region",
+            "main",
+            "--scope",
+            "page:메뉴",
+            "--title",
+            "다른 창의 블록",
+            "--config",
+            r#"{"body":"메뉴판"}"#,
+        ],
+    );
+    let placed_id = placed["id"].as_str().unwrap().to_owned();
+    maru(
+        &data,
+        &["widget", "configure", &first, "--title", "다른 창에서 고침"],
+    );
+
+    // 이 편집기는 연 때 본 것에 새 블록 하나를 더해 발행한다.
+    let mut draft = opened.clone();
+    draft.push(serde_json::json!({
+        "id": "new-1", "kind": "markdown_block", "region": "main", "scope": "home",
+        "title": "", "config": { "body": "첫 화면 새 블록" }, "enabled": true,
+    }));
+    let body = serde_json::json!({
+        "screen": "home",
+        "widgets": draft,
+        "opened": { "widgets": ids, "untouched": ids, "site_untouched": ["name", "description"] },
+    })
+    .to_string();
+    let r = http(&bind, "POST", "/admin/editor/publish", &auth, &body);
+    assert_eq!(r.status, 200, "{}", r.body);
+    let after = maru(&data, &["widget", "list"]);
+    let after = after.as_array().unwrap();
+    assert!(
+        after.iter().any(|w| w["id"] == placed_id.as_str()),
+        "다른 화면에 놓인 블록이 남는다"
+    );
+    let kept = after.iter().find(|w| w["id"] == first.as_str()).unwrap();
+    assert_eq!(
+        kept["title"], "다른 창에서 고침",
+        "손대지 않은 블록은 되돌리지 않는다"
+    );
+    assert!(
+        after
+            .iter()
+            .any(|w| w["config"]["body"] == "첫 화면 새 블록"),
+        "내 새 블록은 들어간다"
+    );
+    let public = http(&bind, "GET", "/p/%EB%A9%94%EB%89%B4", &[], "");
+    assert!(public.body.contains("메뉴판"), "공개 화면에도 남는다");
+
+    // 「연 때 본 것」이 없는 예전 요청은 초안이 전부라 그 사이 놓인 블록을 지운다(호환).
+    let now = draft_of(&maru(&data, &["widget", "list"]));
+    let without: Vec<Value> = now
+        .into_iter()
+        .filter(|w| w["id"] != placed_id.as_str())
+        .collect();
+    let body = serde_json::json!({ "screen": "home", "widgets": without }).to_string();
+    let r = http(&bind, "POST", "/admin/editor/publish", &auth, &body);
+    assert_eq!(r.status, 200, "{}", r.body);
+    let gone = maru(&data, &["widget", "list"]);
+    assert!(
+        !gone
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|w| w["id"] == placed_id.as_str())
+    );
+}

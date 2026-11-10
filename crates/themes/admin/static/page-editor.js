@@ -85,6 +85,40 @@
   function hash(s) { var h = 5381; for (var i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return String(h); }
   // 편집기를 연 때의 사이트 값 지문. 초안과 함께 둔다. 다르면 그 사이 누가 발행했다.
   function baseHash() { return hash(saved + savedSite + savedDesign); }
+  // 초안이 무엇에서 갈라졌는지 (ADR-0154). 그 사이 발행이 있으면 이것과 견주어 내가 고친 곳만 얹는다.
+  function openedFrom() { return { widgets: JSON.parse(saved), site: JSON.parse(savedSite), design: JSON.parse(savedDesign) }; }
+  // 발행에 싣는 「연 때 본 것」: 서버는 연 때 없던 블록을 지우지 않고, 그대로인 블록·사이트 칸을 되돌리지 않는다.
+  function openedIds() {
+    var was = {}, before = JSON.parse(savedSite);
+    JSON.parse(saved).forEach(function (w) { was[w.id] = JSON.stringify(w); });
+    return {
+      widgets: Object.keys(was),
+      untouched: widgets.filter(function (w) { return was[w.id] === JSON.stringify(w); }).map(function (w) { return w.id; }),
+      site_untouched: ["name", "description"].filter(function (k) { return site[k] === before[k]; })
+    };
+  }
+  function same(a, b) { return JSON.stringify(a === undefined ? null : a) === JSON.stringify(b === undefined ? null : b); }
+  // 세 갈래 합치기: 초안이 연 때(from)와 다른 부분만 초안 것, 나머지는 지금 사이트 것.
+  // 블록은 id 별로 본다. 초안에서 안 건드린 블록은 지금 값(그 사이 지워졌으면 뺀다), 그 사이 새로 생긴 블록은 뒤에 붙인다.
+  function mergeDraft(kept) {
+    var from = kept.from;
+    var nowSite = JSON.parse(savedSite), nowDesign = JSON.parse(savedDesign), nowWidgets = JSON.parse(saved);
+    ["name", "description"].forEach(function (k) { if (!same(kept.site[k], from.site[k])) nowSite[k] = kept.site[k]; });
+    nowSite.menus = nowSite.menus || {};
+    MENU_LOCS.forEach(function (l) {
+      if (!same(kept.site.menus && kept.site.menus[l], from.site.menus && from.site.menus[l])) nowSite.menus[l] = (kept.site.menus || {})[l] || [];
+    });
+    Object.keys(kept.design || {}).forEach(function (k) { if (!same(kept.design[k], from.design[k])) nowDesign[k] = kept.design[k]; });
+    var was = {}, now = {}, out = [], placed = {};
+    from.widgets.forEach(function (w) { was[w.id] = w; });
+    nowWidgets.forEach(function (w) { now[w.id] = w; });
+    kept.widgets.forEach(function (w) {
+      var pick = !was[w.id] || !same(w, was[w.id]) ? w : now[w.id];
+      if (pick) { out.push(pick); placed[pick.id] = true; }
+    });
+    nowWidgets.forEach(function (w) { if (!was[w.id] && !placed[w.id]) out.push(w); });
+    return { widgets: out, site: nowSite, design: nowDesign };
+  }
   function newId() { uid += 1; return "new-" + Date.now().toString(36) + "-" + uid; }
   function nameOf(w) {
     var k = kinds[w.kind];
@@ -194,10 +228,10 @@
     // 이어 고칠지 묻는 동안 아무것도 안 고쳤으면 지난 초안을 그대로 둔다.
     if (n || !restore || restore.hidden) {
       try {
-        if (n) localStorage.setItem(STORE, JSON.stringify({ base: baseHash(), at: new Date().toISOString(), widgets: widgets, site: site, design: design }));
+        if (n) localStorage.setItem(STORE, JSON.stringify({ base: baseHash(), at: new Date().toISOString(), widgets: widgets, site: site, design: design, from: openedFrom() }));
         else localStorage.removeItem(STORE);
       } catch (e) { /* 저장소를 못 쓰면 서버에만 */ }
-      syncDraft(n ? { widgets: widgets, site: site, design: design } : null);
+      syncDraft(n ? { widgets: widgets, site: site, design: design, from: openedFrom() } : null);
     }
     drawLayers();
     drawStart();
@@ -1461,7 +1495,7 @@
       method: "POST",
       credentials: "same-origin",
       headers: { "content-type": "application/json", "x-csrf-token": csrf },
-      body: JSON.stringify({ screen: screen, widgets: widgets, site: siteBody(), tokens: Object.keys(designPatch()).length ? designPatch() : null })
+      body: JSON.stringify({ screen: screen, widgets: widgets, site: siteBody(), tokens: Object.keys(designPatch()).length ? designPatch() : null, opened: openedIds() })
     }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); }).then(function (res) {
       if (!res.ok) throw new Error((res.j.error && res.j.error.message) || "발행하지 못했습니다.");
       try { localStorage.removeItem(STORE); } catch (e) { /* 무시 */ }
@@ -1501,18 +1535,25 @@
     var fromServer = false;
     if (data.draft && data.draft.body && (!kept || (Date.parse(data.draft.updated_at) || 0) >= (Date.parse(kept.at) || 0))) {
       var b = data.draft.body;
-      kept = { base: data.draft.base, at: data.draft.updated_at, widgets: b.widgets, site: b.site, design: b.design };
+      kept = { base: data.draft.base, at: data.draft.updated_at, widgets: b.widgets, site: b.site, design: b.design, from: b.from };
       fromServer = true;
     }
     if (!kept) return;
     if (!Array.isArray(kept.widgets)) { forgetDraft(); return; }
+    var moved = kept.base !== baseHash();
+    var merge = moved && kept.site && kept.design && kept.from && Array.isArray(kept.from.widgets) && kept.from.site && kept.from.design;
+    if (merge) {
+      var m = mergeDraft(kept);
+      kept.widgets = m.widgets; kept.site = m.site; kept.design = m.design;
+    }
     var keptSite = kept.site ? JSON.stringify(kept.site) : savedSite;
     var keptDesign = kept.design ? JSON.stringify(kept.design) : savedDesign;
     if (JSON.stringify(kept.widgets) === saved && keptSite === savedSite && keptDesign === savedDesign) { forgetDraft(); return; }
     var when = kept.at ? new Date(kept.at) : null;
     var text = (fromServer ? "저장해 둔 초안이 있습니다" : "이 브라우저에 지난번 고치던 초안이 있습니다")
       + (when && !isNaN(when) ? " (" + when.toLocaleString("ko-KR", { month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" }) + "에 고침)" : "") + ".";
-    if (kept.base !== baseHash()) text += " 그 사이 사이트에 발행된 고침이 있어, 이어서 고치면 그 고침을 덮어쓸 수 있습니다.";
+    if (merge) text += " 그 사이 사이트에 발행된 고침이 있습니다. 이어서 고치면 내가 고친 곳만 그 위에 얹습니다(같은 곳을 함께 고쳤으면 내 것이 남습니다).";
+    else if (moved) text += " 그 사이 사이트에 발행된 고침이 있어, 이어서 고치면 그 고침을 덮어쓸 수 있습니다.";
     restore.querySelector("[data-restore-text]").textContent = text;
     restore.hidden = false;
     restore.querySelector("[data-restore-yes]").addEventListener("click", function () {
@@ -1523,6 +1564,7 @@
     restore.querySelector("[data-restore-no]").addEventListener("click", function () {
       restore.hidden = true;
       forgetDraft();
+      drawStart();
     });
   })();
 
@@ -1570,7 +1612,8 @@
   }
   function drawStart() {
     if (!startEl) return;
-    startEl.hidden = startOff || !(data.bundles || []).length || !emptyScreen();
+    // 지난 초안을 이어 고칠지 묻는 동안은 띄우지 않는다(초안을 고르면 화면이 찰 수 있다).
+    startEl.hidden = startOff || !(data.bundles || []).length || !emptyScreen() || (restore && !restore.hidden);
   }
   if (startEl) {
     var picks = data.bundles || [];

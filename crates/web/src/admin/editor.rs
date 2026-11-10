@@ -560,6 +560,23 @@ struct PublishInput {
     /// 디자인 판의 토큰 초안 (ADR-0148). 지금 값과 다르면 `tokens.set` 연산이 된다.
     #[serde(default)]
     tokens: Option<Value>,
+    #[serde(default)]
+    opened: Option<Opened>,
+}
+
+/// 편집기를 연 때 본 것 (ADR-0154). 그 사이 다른 화면·다른 창에서 발행한 고침을 지우거나 되돌리지 않는다.
+/// 없으면(예전 편집기) 초안이 사이트 전체라고 본다.
+#[derive(Debug, Default, Deserialize)]
+struct Opened {
+    /// 연 때 있던 블록 id. 초안에 없는 블록은 이 안의 것만 지운다.
+    #[serde(default)]
+    widgets: Vec<String>,
+    /// 연 때와 그대로인 블록 id. 칸은 지금 값을 두고 자리만 맞춘다.
+    #[serde(default)]
+    untouched: Vec<String>,
+    /// 연 때와 그대로인 사이트 칸(`name`·`description`). 지금 값을 둔다.
+    #[serde(default)]
+    site_untouched: Vec<String>,
 }
 
 /// 사이트 공통 부분 초안을 그릴 값으로. 검사에 걸린 칸은 저장된 값으로 그리고 `site:<칸>` 으로 알린다.
@@ -595,17 +612,22 @@ async fn to_site(
 }
 
 /// 사이트 공통 부분의 발행 연산. 저장된 값과 다른 것만 만든다. 틀린 값은 발행을 막는다.
-async fn site_ops(state: &AppState, input: &SiteInput) -> maru_core::Result<Vec<Value>> {
+async fn site_ops(
+    state: &AppState,
+    input: &SiteInput,
+    untouched: &[String],
+) -> maru_core::Result<Vec<Value>> {
     let ctx = &state.ctx;
     let saved = settings::site(ctx).await?;
     let mut ops = Vec::new();
     let mut values = Map::new();
+    let keep = |k: &str| untouched.iter().any(|u| u == k);
     let name = settings::check_name(&input.name)?;
-    if name != saved.name {
+    if name != saved.name && !keep("name") {
         values.insert("name".into(), json!(name));
     }
     let description = settings::check_description(&input.description)?;
-    if description != saved.description {
+    if description != saved.description && !keep("description") {
         values.insert("description".into(), json!(description));
     }
     if !values.is_empty() {
@@ -951,8 +973,9 @@ async fn publish(
     let screen = EditScreen::parse(&input.screen).ok_or_else(|| bad_screen(&input.screen))?;
     check_ids(&input.widgets)?;
     let current = widgets::list(ctx, actor).await?;
+    let opened = input.opened.as_ref();
     let mut ops = match &input.site {
-        Some(s) => site_ops(&state, s).await?,
+        Some(s) => site_ops(&state, s, opened.map_or(&[], |o| &o.site_untouched)).await?,
         None => Vec::new(),
     };
     if let Some(patch) = input
@@ -962,7 +985,7 @@ async fn publish(
     {
         ops.push(json!({ "op": "tokens.set", "tokens": patch }));
     }
-    ops.extend(plan_ops(&current, &input.widgets));
+    ops.extend(plan_ops(&current, &input.widgets, opened));
     // 아직 공개하지 않은 페이지는 발행하면 공개된다. 묶음을 되돌리면 다시 숨는다 (ADR-0149).
     if let EditScreen::Page(slug) = &screen {
         let page = pages::editable_page(ctx, actor, slug).await?;
@@ -1010,9 +1033,16 @@ async fn screen_label(state: &AppState, who: &SignedIn, screen: &EditScreen) -> 
 ///
 /// 순서: 자리마다 원래 있던 블록의 앞뒤가 그대로이고 새로 온 블록이 모두 끝에 붙었으면 원래 번호를 두고
 /// 새 블록만 뒤에 잇는다. 아니면 그 자리 전체를 0, 10, 20… 으로 다시 매긴다.
-fn plan_ops(current: &[Widget], draft: &[DraftWidget]) -> Vec<Value> {
+///
+/// `opened` 가 있으면(ADR-0154) 연 때 없던 블록은 초안에 없어도 지우지 않고, 연 때와 그대로인 블록은 칸을 고치지 않는다.
+fn plan_ops(current: &[Widget], draft: &[DraftWidget], opened: Option<&Opened>) -> Vec<Value> {
     let by_id: HashMap<&str, &Widget> = current.iter().map(|w| (w.id.as_str(), w)).collect();
     let kept: HashSet<&str> = draft.iter().map(|d| d.id.as_str()).collect();
+    let seen: Option<HashSet<&str>> =
+        opened.map(|o| o.widgets.iter().map(String::as_str).collect());
+    let untouched: HashSet<&str> = opened
+        .map(|o| o.untouched.iter().map(String::as_str).collect())
+        .unwrap_or_default();
     let draft_region: HashMap<&str, &str> = draft
         .iter()
         .map(|d| (d.id.as_str(), d.region.as_str()))
@@ -1022,7 +1052,8 @@ fn plan_ops(current: &[Widget], draft: &[DraftWidget]) -> Vec<Value> {
     let mut places = Vec::new();
 
     for w in current {
-        if !kept.contains(w.id.as_str()) {
+        let known = seen.as_ref().is_none_or(|s| s.contains(w.id.as_str()));
+        if !kept.contains(w.id.as_str()) && known {
             removes.push(json!({ "op": "widget.remove", "id": w.id }));
         }
     }
@@ -1091,6 +1122,13 @@ fn plan_ops(current: &[Widget], draft: &[DraftWidget]) -> Vec<Value> {
                     op["position"] = json!(p);
                 }
                 places.push(op);
+            }
+            Some(w) if untouched.contains(d.id.as_str()) => {
+                if let Some(p) = pos {
+                    configures.push(
+                        json!({ "op": "widget.configure", "id": w.id, "patch": { "position": p } }),
+                    );
+                }
             }
             Some(w) => {
                 let mut patch = Map::new();
@@ -1166,7 +1204,7 @@ mod tests {
     fn same_draft_makes_no_ops() {
         let cur = vec![w("a", "main", 0), w("b", "main", 1), w("c", "hero", 5)];
         let draft: Vec<_> = cur.iter().map(d).collect();
-        assert!(plan_ops(&cur, &draft).is_empty());
+        assert!(plan_ops(&cur, &draft, None).is_empty());
     }
 
     #[test]
@@ -1176,7 +1214,7 @@ mod tests {
         let mut n = d(&w("new-1", "main", 0));
         n.config = json!({ "title": "새" });
         draft.push(n);
-        let ops = plan_ops(&cur, &draft);
+        let ops = plan_ops(&cur, &draft, None);
         assert_eq!(ops.len(), 1);
         assert_eq!(ops[0]["op"], "widget.place");
         assert_eq!(ops[0]["position"], 8);
@@ -1186,7 +1224,7 @@ mod tests {
     fn reorder_renumbers_the_region() {
         let cur = vec![w("a", "main", 0), w("b", "main", 1), w("x", "hero", 0)];
         let draft = vec![d(&cur[1]), d(&cur[0]), d(&cur[2])];
-        let ops = plan_ops(&cur, &draft);
+        let ops = plan_ops(&cur, &draft, None);
         // b → 0, a → 10. hero 는 그대로.
         assert_eq!(ops.len(), 2);
         assert_eq!(ops[0]["id"], "b");
@@ -1203,7 +1241,7 @@ mod tests {
         b.title = "제목".into();
         let mut c = d(&cur[2]);
         c.region = "hero".into();
-        let ops = plan_ops(&cur, &[b, c]);
+        let ops = plan_ops(&cur, &[b, c], None);
         assert_eq!(ops[0], json!({ "op": "widget.remove", "id": "a" }));
         assert_eq!(ops[1]["patch"]["enabled"], false);
         assert_eq!(ops[1]["patch"]["title"], "제목");
@@ -1211,6 +1249,30 @@ mod tests {
         assert!(ops[1]["patch"].get("position").is_none());
         assert_eq!(ops[2]["patch"]["region"], "hero");
         assert_eq!(ops[2]["patch"]["position"], 0);
+    }
+
+    #[test]
+    fn opened_keeps_what_others_published() {
+        // 연 때는 a·b 만 있었다. 그 사이 다른 화면에서 p 가 생기고, b 의 글이 바뀌었다.
+        let mut b_now = w("b", "main", 1);
+        b_now.config = json!({ "title": "다른 창에서 고침" });
+        let cur = vec![w("a", "main", 0), b_now, w("p", "main", 2)];
+        let opened = Opened {
+            widgets: vec!["a".into(), "b".into()],
+            untouched: vec!["b".into()],
+            site_untouched: Vec::new(),
+        };
+        // 이 편집기는 a 를 지웠고 b 는 손대지 않았다(초안에는 연 때의 b 가 있다).
+        let draft = vec![d(&w("b", "main", 1))];
+        let ops = plan_ops(&cur, &draft, Some(&opened));
+        assert_eq!(ops, vec![json!({ "op": "widget.remove", "id": "a" })]);
+        // 연 때 본 것이 없으면(예전 편집기) 초안이 전부라고 보아 p 를 지우고 b 를 되돌린다.
+        let old = plan_ops(&cur, &draft, None);
+        assert!(old.contains(&json!({ "op": "widget.remove", "id": "p" })));
+        assert!(
+            old.iter()
+                .any(|o| o["id"] == "b" && o["patch"]["config"].is_object())
+        );
     }
 
     #[test]
