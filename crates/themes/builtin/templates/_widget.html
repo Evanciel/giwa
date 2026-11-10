@@ -4,6 +4,8 @@
 {# 섹션 블록 (ADR-0125): 화면 폭 띠. 안쪽 폭은 .sec-inner 가 잡는다. #}
 <section class="sec sec-{{ w.kind }} tone-{{ w.data.tone }}{% if w.hide %} {{ w.hide }}{% endif %}"{% if w.edit_id %} data-maru-w="{{ w.edit_id }}"{% endif %}{% if w.title %} aria-labelledby="w-{{ w.id }}"{% else %} aria-label="{{ w.label|t }}"{% endif %}>
   {% if w.data.image and w.data.style == "image" %}<img class="hero-bg" src="{{ w.data.image.src }}" srcset="{{ w.data.image.srcset }}" sizes="100vw" width="{{ w.data.image.width }}" height="{{ w.data.image.height }}" alt="{{ w.data.image_alt }}" fetchpriority="high">{% endif %}
+  {# 배경 그림은 글자 뒤에 깔려 누르기 어려워 편집 중에만 고르기 단추를 띄운다 (ADR-0147). #}
+  {% if w.edit_id and w.kind == "hero" and w.data.style == "image" %}<div class="maru-img-empty maru-img-chip"{{ edit_image("image", "image_alt") }}>{% if w.data.image %}{{ "배경 그림 바꾸기"|t }}{% else %}{{ "배경 그림 넣기"|t }}{% endif %}</div>{% endif %}
   <div class="sec-inner">
     {% if w.title %}<h2 class="sec-title" id="w-{{ w.id }}"{{ edit_field("@title") }}>{{ w.title }}</h2>{% endif %}
     {% if w.data.lead %}<p class="sec-lead"{{ edit_field("lead") }}>{{ w.data.lead }}</p>{% endif %}

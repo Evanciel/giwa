@@ -5,5 +5,5 @@
     {% if w.data.text %}<p class="hero-text"{{ edit_field("text") }}>{{ w.data.text }}</p>{% endif %}
     {% with b1 = w.data.button, b2 = w.data.button2 %}{% include "widgets/_section_actions.html" %}{% endwith %}
   </div>
-  {% if w.data.image and w.data.style == "split" %}<div class="hero-media"><img src="{{ w.data.image.src }}" srcset="{{ w.data.image.srcset }}" sizes="(min-width: 860px) 50vw, 100vw" width="{{ w.data.image.width }}" height="{{ w.data.image.height }}" alt="{{ w.data.image_alt }}" fetchpriority="high"></div>{% endif %}
+  {% if w.data.style == "split" %}{% if w.data.image %}<div class="hero-media"><img src="{{ w.data.image.src }}" srcset="{{ w.data.image.srcset }}" sizes="(min-width: 860px) 50vw, 100vw" width="{{ w.data.image.width }}" height="{{ w.data.image.height }}" alt="{{ w.data.image_alt }}" fetchpriority="high"{{ edit_image("image", "image_alt") }}></div>{% elif w.edit_id %}<div class="hero-media"><div class="maru-img-empty"{{ edit_image("image", "image_alt") }}>{{ "그림 넣기"|t }}</div></div>{% endif %}{% endif %}
 </div>

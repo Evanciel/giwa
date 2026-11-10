@@ -1,5 +1,5 @@
-<div class="it{% if w.data.image %} has-image{% endif %}{% if w.data.flip %} is-flip{% endif %}">
-  {% if w.data.image %}<div class="it-media"><img src="{{ w.data.image.src }}" srcset="{{ w.data.image.srcset }}" sizes="(min-width: 760px) 50vw, 100vw" width="{{ w.data.image.width }}" height="{{ w.data.image.height }}" alt="{{ w.data.image_alt }}" loading="lazy"></div>{% endif %}
+<div class="it{% if w.data.image or w.edit_id %} has-image{% endif %}{% if w.data.flip %} is-flip{% endif %}">
+  {% if w.data.image %}<div class="it-media"><img src="{{ w.data.image.src }}" srcset="{{ w.data.image.srcset }}" sizes="(min-width: 760px) 50vw, 100vw" width="{{ w.data.image.width }}" height="{{ w.data.image.height }}" alt="{{ w.data.image_alt }}" loading="lazy"{{ edit_image("image", "image_alt") }}></div>{% elif w.edit_id %}<div class="it-media"><div class="maru-img-empty"{{ edit_image("image", "image_alt") }}>{{ "그림 넣기"|t }}</div></div>{% endif %}
   <div class="it-body">
     {# body_html 은 서버가 정화한 값이다. #}
     <div class="prose">{{ w.data.body_html | safe }}</div>

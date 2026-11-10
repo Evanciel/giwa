@@ -34,3 +34,25 @@ html.maru-editing .maru-text-editing {
 }
 /* 사이트 공통 부분(이름·설명·메뉴, ADR-0145)도 블록처럼 고른다. */
 html.maru-editing [data-maru-s] { cursor: pointer; }
+/* 그림 고르기 (ADR-0147): 고른 블록의 그림을 누르면 그림 판이 열린다. 빈 그림 자리는 바로 연다. */
+html.maru-editing .maru-selected [data-maru-img]:hover { outline: 2px dashed #2f54eb; outline-offset: -2px; cursor: pointer; }
+.maru-img-empty {
+  display: flex; align-items: center; justify-content: center; min-height: 12rem; height: 100%; box-sizing: border-box;
+  border: 2px dashed #a3b1d6; border-radius: 10px; background: rgb(91 124 250 / .06); color: #45507a;
+  font: 600 14px/1.4 system-ui, -apple-system, "Malgun Gothic", sans-serif; cursor: pointer;
+}
+.maru-img-empty:hover { border-color: #2f54eb; color: #2f54eb; }
+.maru-img-face { min-height: 0; aspect-ratio: 1; width: 100%; max-width: 240px; }
+.maru-img-chip {
+  display: none; position: absolute; top: .75rem; right: .75rem; z-index: 3; min-height: 0; height: auto;
+  padding: .45rem .8rem; border: 0; background: #1d2440; color: #fff;
+}
+.maru-selected > .maru-img-chip { display: flex; }
+.maru-img-chip:hover { background: #2f54eb; color: #fff; }
+/* 링크 바꾸기 (ADR-0147): 단추 글자를 고치는 동안 그 아래에 뜬다. */
+.maru-linkchip {
+  all: unset; position: absolute; z-index: 2147483647; padding: 5px 10px; border-radius: 7px; cursor: pointer;
+  background: #1d2440; color: #fff; font: 13px/1 system-ui, -apple-system, "Malgun Gothic", sans-serif;
+  box-shadow: 0 4px 14px rgb(0 0 0 / .2);
+}
+.maru-linkchip:hover, .maru-linkchip:focus-visible { background: #2f54eb; }

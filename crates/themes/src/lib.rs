@@ -90,6 +90,7 @@ fn public_env(
     env.set_formatter(html_formatter);
     env.add_function("url_for", url_for);
     env.add_function("edit_field", edit_field);
+    env.add_function("edit_image", edit_image);
     env.add_function("edit_part", edit_part);
     env.add_function("edit_site", edit_site);
     env.add_filter("ago", ago);
@@ -382,6 +383,32 @@ fn edit_field(state: &minijinja::State, path: &str) -> minijinja::Value {
         return minijinja::Value::from_safe_string(String::new());
     }
     minijinja::Value::from_safe_string(format!(" data-maru-f=\"{path}\""))
+}
+
+/// `<img{{ edit_image("image", "image_alt") }}>`. 편집기 캔버스에서만 그림 칸에 `data-maru-img="<경로>"` 를,
+/// 그림 설명 칸이 있으면 `data-maru-alt` 를, 그림이 꼭 있어야 하는 칸이면 `data-maru-required` 를 붙인다 (ADR-0147).
+/// 누르면 편집기가 그림 판을 연다. 경로 규칙은 `edit_field` 와 같다.
+fn edit_image(
+    state: &minijinja::State,
+    path: &str,
+    alt: Option<&str>,
+    required: Option<bool>,
+) -> minijinja::Value {
+    let editing = state
+        .lookup("w")
+        .and_then(|w| w.get_attr("edit_id").ok())
+        .is_some_and(|v| v.is_true());
+    if !editing || !plain_path(path) {
+        return minijinja::Value::from_safe_string(String::new());
+    }
+    let mut out = format!(" data-maru-img=\"{path}\"");
+    if let Some(a) = alt.filter(|a| plain_path(a)) {
+        out.push_str(&format!(" data-maru-alt=\"{a}\""));
+    }
+    if required == Some(true) {
+        out.push_str(" data-maru-required");
+    }
+    minijinja::Value::from_safe_string(out)
 }
 
 /// 사이트 공통 부분(이름·설명·메뉴) 표시 (ADR-0145). 편집기 캔버스(`editing`)에서만 붙는다.
@@ -898,6 +925,32 @@ mod tests {
             )
             .unwrap();
         assert_eq!(public, "<h2>|<p>");
+    }
+
+    #[test]
+    fn edit_image_marks_only_editor_canvas() {
+        let mut env = Environment::new();
+        env.add_function("edit_image", edit_image);
+        let tpl = "<img{{ edit_image('image', 'image_alt') }}>|<img{{ edit_image('slides.' ~ 1 ~ '.image', 'slides.1.alt', true) }}>|<img{{ edit_image('x\" y', 'a\" b') }}>|<img{{ edit_image('items.0.image') }}>";
+        let editing = env
+            .render_str(
+                tpl,
+                minijinja::context! { w => minijinja::context! { edit_id => "a1" } },
+            )
+            .unwrap();
+        assert_eq!(
+            editing,
+            "<img data-maru-img=\"image\" data-maru-alt=\"image_alt\">|\
+             <img data-maru-img=\"slides.1.image\" data-maru-alt=\"slides.1.alt\" data-maru-required>|\
+             <img>|<img data-maru-img=\"items.0.image\">"
+        );
+        let public = env
+            .render_str(
+                tpl,
+                minijinja::context! { w => minijinja::context! { id => "a1" } },
+            )
+            .unwrap();
+        assert_eq!(public, "<img>|<img>|<img>|<img>");
     }
 
     #[test]

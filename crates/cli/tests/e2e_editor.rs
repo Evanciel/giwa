@@ -494,3 +494,144 @@ fn edit_screen_draw_draft_publish_and_revert() {
     );
     assert_eq!(tablet["hide_on"], serde_json::json!(["desktop", "tablet"]));
 }
+
+/// 1×1 PNG
+const PNG: &[u8] = &[
+    137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0,
+    0, 0, 31, 21, 196, 137, 0, 0, 0, 13, 73, 68, 65, 84, 120, 218, 99, 100, 96, 248, 95, 15, 0, 2,
+    135, 1, 128, 235, 71, 186, 146, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130,
+];
+
+/// ADR-0147: 그림·링크 고르기. 그림 판 목록, 캔버스의 그림 칸 표시, 고른 그림·링크의 발행.
+#[test]
+fn editor_picks_images_and_links() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("사이트");
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
+    let file = tmp.path().join("가게.png");
+    std::fs::write(&file, PNG).unwrap();
+    let up = maru(
+        &data,
+        &[
+            "media",
+            "upload",
+            file.to_str().unwrap(),
+            "--alt",
+            "가게 앞",
+        ],
+    );
+    let url = up["url"].as_str().unwrap().to_owned();
+    let link = maru(&data, &["login-link"]);
+    let (_server, bind) = start_server(&data);
+    let session = sign_in(&bind, link["url"].as_str().unwrap());
+    let cookie = format!("maru_session={session}");
+    let page = http(
+        &bind,
+        "GET",
+        "/admin/editor?screen=home",
+        &[("Cookie", &cookie)],
+        "",
+    );
+    assert!(page.body.contains("/admin/assets/media-picker.js"));
+    let csrf = {
+        let at = page.body.find("data-csrf=\"").unwrap() + 11;
+        page.body[at..at + page.body[at..].find('"').unwrap()].to_owned()
+    };
+
+    // 그림 판 목록: 로그인과 CSRF 머리글이 있어야 하고, 최근 것부터 보관함 설명까지 준다.
+    assert_eq!(
+        http(&bind, "GET", "/admin/editor/media", &[], "").status,
+        401
+    );
+    assert_eq!(
+        http(
+            &bind,
+            "GET",
+            "/admin/editor/media",
+            &[("Cookie", &cookie)],
+            ""
+        )
+        .status,
+        403
+    );
+    let list = http(
+        &bind,
+        "GET",
+        "/admin/editor/media?page=1",
+        &[("Cookie", &cookie), ("x-csrf-token", &csrf)],
+        "",
+    );
+    assert_eq!(list.status, 200, "{}", list.body);
+    let v: Value = serde_json::from_str(&list.body).unwrap();
+    assert_eq!(v["data"]["items"][0]["url"], url.as_str(), "{v}");
+    assert_eq!(v["data"]["items"][0]["alt_text"], "가게 앞");
+    assert_eq!(v["data"]["more"], false);
+
+    // 캔버스: 그림 칸에 경로 표시가 붙고, 그림이 없으면 「그림 넣기」 자리가 생긴다.
+    let mut draft = draft_of(&maru(&data, &["widget", "list"]));
+    draft.push(serde_json::json!({
+        "id": "new-img", "kind": "image_text", "region": "main", "scope": "home", "title": "",
+        "config": { "body": "그림 옆 글", "image": url, "image_alt": "가게 앞" },
+        "enabled": true, "hide_on": [],
+    }));
+    draft.push(serde_json::json!({
+        "id": "new-empty", "kind": "image_text", "region": "main", "scope": "home", "title": "",
+        "config": { "body": "그림 없는 글" }, "enabled": true, "hide_on": [],
+    }));
+    draft.push(serde_json::json!({
+        "id": "new-btn", "kind": "cta", "region": "main", "scope": "home", "title": "문의",
+        "config": { "text": "연락 주세요", "button": { "label": "문의하기", "link": "/b/notice" } },
+        "enabled": true, "hide_on": [],
+    }));
+    let json = ("Content-Type", "application/json");
+    let body = serde_json::json!({ "widgets": draft }).to_string();
+    let drawn = http(
+        &bind,
+        "POST",
+        "/admin/editor/frame?screen=home",
+        &[json, ("Cookie", &cookie), ("x-csrf-token", &csrf)],
+        &body,
+    );
+    assert_eq!(drawn.status, 200, "{}", drawn.body);
+    assert_eq!(header(&drawn, "x-maru-invalid"), "", "{}", drawn.body);
+    assert!(
+        drawn
+            .body
+            .contains(" data-maru-img=\"image\" data-maru-alt=\"image_alt\">"),
+        "그림 칸 표시"
+    );
+    assert!(
+        drawn.body.contains(
+            "<div class=\"maru-img-empty\" data-maru-img=\"image\" data-maru-alt=\"image_alt\">"
+        ),
+        "빈 그림 자리"
+    );
+    assert!(drawn.body.contains("data-maru-f=\"button.label\""));
+
+    // 발행: 고른 그림·링크가 DB 에 남고, 공개 화면에는 편집 표시가 없다.
+    let published = http(
+        &bind,
+        "POST",
+        "/admin/editor/publish",
+        &[json, ("Cookie", &cookie), ("x-csrf-token", &csrf)],
+        &serde_json::json!({ "screen": "home", "widgets": draft }).to_string(),
+    );
+    assert_eq!(published.status, 200, "{}", published.body);
+    let home = http(&bind, "GET", "/", &[], "").body;
+    assert!(home.contains("그림 옆 글") && home.contains(&url));
+    assert!(home.contains("href=\"/b/notice\""));
+    assert!(!home.contains("data-maru"), "공개 화면에 편집 표시");
+    assert!(!home.contains("maru-img-empty"), "공개 화면에 빈 그림 자리");
+    let stored = maru(&data, &["widget", "list"]);
+    let it = stored
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|w| w["config"]["body"] == "그림 옆 글")
+        .unwrap();
+    assert_eq!(it["config"]["image"], url.as_str());
+    assert_eq!(it["config"]["image_alt"], "가게 앞");
+}

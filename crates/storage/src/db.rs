@@ -9,6 +9,7 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use maru_core::{Code, Error, Result};
+use sqlx::ConnectOptions;
 use sqlx::migrate::{MigrateError, Migrator};
 use sqlx::sqlite::{
     SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqlitePoolOptions, SqliteSynchronous,
@@ -36,7 +37,10 @@ impl Db {
             .journal_mode(SqliteJournalMode::Wal)
             .synchronous(SqliteSynchronous::Normal)
             .foreign_keys(true)
-            .busy_timeout(BUSY_TIMEOUT);
+            .busy_timeout(BUSY_TIMEOUT)
+            // sqlx 는 1초 넘는 문장을 warn 으로 남긴다. 바쁜 PC 에서는 그 줄이 stderr 로 새어
+            // `--json` 계약(성공하면 stderr 는 비어 있다)을 깨므로 문장 로그를 끈다.
+            .disable_statement_logging();
         let write = SqlitePoolOptions::new()
             .max_connections(1)
             .connect_with(opts.clone())

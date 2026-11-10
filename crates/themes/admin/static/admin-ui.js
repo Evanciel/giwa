@@ -218,6 +218,18 @@
     }
     wrap.appendChild(input);
     if (key === "image" && input.tagName === "INPUT") wrap.appendChild(this.upload(input, set));
+    // 링크 고르기 (ADR-0147): 게시판·페이지 목록에서 고른다. media-picker.js 가 있는 화면에서만.
+    if (key === "link" && input.tagName === "INPUT" && window.MaruLinks) {
+      var lb = el("button", { type: "button", cls: "secondary small", text: "고르기" });
+      lb.addEventListener("click", function () {
+        window.MaruLinks.open({
+          link: input.value,
+          targets: { pages: self.data.pages || [], boards: self.data.boards || [] },
+          onPick: function (v) { input.value = v; set(v); }
+        });
+      });
+      wrap.appendChild(lb);
+    }
     if (hint && !choices) wrap.appendChild(el("p", { cls: "hint", text: hint }));
     return wrap;
   };
@@ -246,7 +258,19 @@
     });
     input.addEventListener("input", show);
     show();
-    return el("div", { cls: "sf-upload" }, [btn, file, preview]);
+    var kids = [btn, file, preview];
+    // 올려 둔 그림에서 고르기 (ADR-0147). media-picker.js 가 있는 화면에서만.
+    if (window.MaruMedia) {
+      var pick = el("button", { type: "button", cls: "secondary small", text: "올린 그림에서 고르기" });
+      pick.addEventListener("click", function () {
+        window.MaruMedia.open({
+          url: input.value, alt: null, csrf: self.csrf, required: true,
+          onPick: function (url) { input.value = url; set(url); show(); }
+        });
+      });
+      kids.splice(1, 0, pick);
+    }
+    return el("div", { cls: "sf-upload" }, kids);
   };
 
   Form.prototype.list = function (key, s, obj, label) {

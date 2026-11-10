@@ -302,6 +302,7 @@
       e.preventDefault();
       e.stopPropagation();
       if (act) { blockAction(act.getAttribute("data-act"), selected); return; }
+      if (e.target.closest(".maru-linkchip")) { pickLink(); return; }
       if (e.target.closest(".maru-bar")) return;
       if (justDragged) { justDragged = false; return; }
       if (textEdit && textEdit.node.contains(e.target)) return;
@@ -310,6 +311,13 @@
       // 고른 블록·부분의 글자 칸을 한 번 더 누르면 그 자리에서 고친다.
       var f = e.target.closest("[data-maru-f]");
       if (f && id && id === selected && f.closest(HOST) === w) { startText(f, e); return; }
+      // 그림 칸(ADR-0147): 고른 블록의 그림을 누르거나 빈 그림 자리를 누르면 그림 판을 연다.
+      var im = e.target.closest("[data-maru-img]");
+      if (im && id && !isSite(id) && im.closest(HOST) === w && (id === selected || im.classList.contains("maru-img-empty"))) {
+        if (id !== selected) select(id);
+        pickImage(id, im);
+        return;
+      }
       select(id);
     }, true);
     doc.addEventListener("mouseover", function (e) {
@@ -405,6 +413,7 @@
     node.addEventListener("keydown", t.onKey);
     node.addEventListener("blur", t.onBlur);
     node.focus();
+    if (!isSite(id) && node.closest("a")) showLinkChip(t);
     // 누른 자리에 커서를 둔다. 못 찾으면 글 전체를 고른다.
     var sel = doc.defaultView.getSelection();
     var r = ev && doc.caretRangeFromPoint ? doc.caretRangeFromPoint(ev.clientX, ev.clientY) : null;
@@ -424,6 +433,7 @@
     node.removeEventListener("blur", t.onBlur);
     node.removeAttribute("contenteditable");
     node.classList.remove("maru-text-editing");
+    if (t.chip) t.chip.remove();
     if (t.typed && (isSite(t.id) || byId(t.id))) {
       var v = cancel ? t.before : textOf(node).trim();
       if (cancel) node.textContent = t.shown;
@@ -432,6 +442,50 @@
     lastMark = null;
     form = null; // 오른쪽 판 칸을 고친 값으로 새로 만든다
     changed(true);
+  }
+
+  // ---- 그림·링크 고르기 (ADR-0147) ----
+  // 템플릿이 편집 중에만 그림 칸에 data-maru-img="<경로>"(설명 칸이 있으면 data-maru-alt)를 붙인다.
+  // 대화 상자는 media-picker.js 다. 고르면 그 경로를 초안에 쓰고 캔버스를 다시 그린다.
+  function pickImage(id, node) {
+    if (!window.MaruMedia) return;
+    var path = node.getAttribute("data-maru-img"), altPath = node.getAttribute("data-maru-alt");
+    window.MaruMedia.open({
+      url: getPath(id, path), alt: altPath ? getPath(id, altPath) : null, csrf: csrf,
+      required: node.hasAttribute("data-maru-required"),
+      onPick: function (url, alt) {
+        if (!byId(id)) return;
+        form = null;
+        change(function () { setPath(id, path, url); if (altPath && alt !== null) setPath(id, altPath, alt); });
+      }
+    });
+  }
+  // 단추·링크 글자를 고치는 동안 「링크 바꾸기」를 띄운다. 링크 칸은 글자 칸 옆의 `link` (button.label → button.link).
+  function showLinkChip(t) {
+    var doc = fdoc(), win = doc.defaultView;
+    var chip = el("button", { type: "button", cls: "maru-linkchip", text: "링크 바꾸기" }, null, doc);
+    chip.addEventListener("pointerdown", function (e) { e.preventDefault(); }); // 글자 칸이 초점을 잃지 않게
+    doc.body.appendChild(chip);
+    var r = t.node.getBoundingClientRect();
+    chip.style.top = (r.bottom + win.scrollY + 6) + "px";
+    chip.style.left = Math.max(4, Math.min(r.left + win.scrollX, win.scrollX + doc.documentElement.clientWidth - chip.offsetWidth - 4)) + "px";
+    t.chip = chip;
+  }
+  function pickLink() {
+    var t = textEdit;
+    if (!t || !window.MaruLinks) return;
+    var id = t.id, path = t.path.replace(/\.[^.]+$/, ".link");
+    if (path === t.path || path.indexOf(".") < 0) return;
+    finishText(false);
+    window.MaruLinks.open({
+      link: getPath(id, path),
+      targets: { pages: data.pages || [], boards: data.boards || [] },
+      onPick: function (v) {
+        if (!byId(id)) return;
+        form = null;
+        change(function () { setPath(id, path, v); });
+      }
+    });
   }
 
   // ---- 놓을 곳 찾기 (캔버스 좌표) ----

@@ -1,5 +1,5 @@
 <ul class="widget-banner{% if w.data.slides | length > 1 %} is-carousel{% endif %}"{% if w.data.slides | length > 1 %} tabindex="0" aria-label="{{ w.label }} {{ "— 옆으로 넘겨 보세요"|t }}" data-scroller{% if w.data.auto %} data-auto{% endif %}{% endif %}>
   {% for s in w.data.slides %}
-  <li>{% if s.link %}<a href="{{ s.link.href }}"{% if s.link.external %} rel="noopener noreferrer"{% endif %}>{% endif %}<img src="{{ s.src }}" srcset="{{ s.srcset }}" sizes="(max-width: 1120px) 100vw, 1120px" alt="{{ s.alt }}" width="{{ s.width }}" height="{{ s.height }}"{% if not loop.first %} loading="lazy"{% endif %} decoding="async">{% if s.link %}</a>{% endif %}</li>
+  <li>{% if s.link %}<a href="{{ s.link.href }}"{% if s.link.external %} rel="noopener noreferrer"{% endif %}>{% endif %}<img src="{{ s.src }}" srcset="{{ s.srcset }}" sizes="(max-width: 1120px) 100vw, 1120px" alt="{{ s.alt }}" width="{{ s.width }}" height="{{ s.height }}"{% if not loop.first %} loading="lazy"{% endif %} decoding="async"{{ edit_image("slides." ~ loop.index0 ~ ".image", "slides." ~ loop.index0 ~ ".alt", true) }}>{% if s.link %}</a>{% endif %}</li>
   {% endfor %}
 </ul>

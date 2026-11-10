@@ -500,3 +500,9 @@
 "후원" = "Sponsors"
 "휴대폰을 잃었을 때 코드 대신 하나씩 넣습니다. 한 번 쓴 코드는 다시 쓸 수 없고," = "Use one in place of a code if you lose your phone. Each code works once, and"
 "휴대폰의 인증 앱(OTP 앱)으로 아래 QR 코드를 찍습니다. 찍을 수 없으면 「키 직접 입력」을 고르고 아래 키를 넣습니다. 종류는 「시간 기준」입니다." = "Scan the QR code below with your authenticator (OTP) app. If you cannot scan it, choose manual entry and type the key below. The type is time-based."
+
+# 화면 편집기 캔버스의 빈 그림 자리 (ADR-0147)
+"그림 넣기" = "Add image"
+"사진 넣기" = "Add photo"
+"배경 그림 넣기" = "Add background image"
+"배경 그림 바꾸기" = "Change background image"

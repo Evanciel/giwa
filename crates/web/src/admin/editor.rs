@@ -4,6 +4,7 @@
 //! - `/admin/editor/frame`: 캔버스. 공개 라우터로 그 화면을 그리되, 초안이 오면 DB 대신 초안 위젯을 그린다.
 //!   응답은 공개 화면 CSP(`frame-ancestors 'self'`) 그대로다.
 //! - `/admin/editor/publish`: 초안과 지금 위젯을 견주어 연산을 만들고 변경 묶음 하나로 적용한다(원칙 4).
+//! - `/admin/editor/media`: 그림 판(ADR-0147)이 보일 올린 그림 목록. 올리기는 `/admin/media` 그대로다.
 //!
 //! 초안에는 블록 말고 사이트 공통 부분(이름·설명·메뉴, ADR-0145)도 실을 수 있다. 발행하면 `settings.set`·`menu.set` 이
 //! 같은 변경 묶음에 들어간다.
@@ -22,14 +23,14 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router, middleware};
 use maru_core::clock;
-use maru_core::model::{MENU_LOCATIONS, MenuItem, PageStatus, WIDGET_REGIONS, Widget};
+use maru_core::model::{MENU_LOCATIONS, MenuItem, PageReq, PageStatus, WIDGET_REGIONS, Widget};
 use maru_core::output::Success;
 use maru_core::services::auth::SignedIn;
 use maru_core::services::changesets as change;
 use maru_core::services::stats::StatCounter;
 use maru_core::services::views::ViewCounter;
 use maru_core::services::widgets;
-use maru_core::services::{boards, menus, pages, settings};
+use maru_core::services::{boards, media, menus, pages, settings};
 use maru_core::urls::{self, Target};
 use maru_core::{Code, Error};
 use serde::Deserialize;
@@ -52,6 +53,7 @@ pub(super) fn routes() -> Router<AppState> {
             get(page).layer(middleware::map_response(editor_headers)),
         )
         .route("/admin/editor/frame", get(frame_get).post(frame_post))
+        .route("/admin/editor/media", get(media_list))
         .route(
             "/admin/editor/publish",
             post(publish).layer(middleware::map_response(editor_headers)),
@@ -485,6 +487,36 @@ async fn frame_post(
         None => None,
     };
     Ok(draw(&state, &screen, Some(list), site, &invalid).await)
+}
+
+#[derive(Deserialize)]
+struct MediaQuery {
+    #[serde(default = "first_page")]
+    page: u32,
+}
+
+fn first_page() -> u32 {
+    1
+}
+
+/// 그림 판 한 쪽의 그림 수.
+const MEDIA_PER_PAGE: u32 = 24;
+
+/// 그림 판(ADR-0147) 목록. 최근 것부터. 쿠키 세션과 CSRF 머리글을 받는다(캔버스 POST 와 같다).
+async fn media_list(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<MediaQuery>,
+) -> Result<Response, ApiError> {
+    let who = json_session(&state, &headers).await?;
+    let list = media::list(&state.ctx, &who.actor, PageReq::new(q.page, MEDIA_PER_PAGE)).await?;
+    let shown =
+        i64::from(list.page.saturating_sub(1)) * i64::from(list.per_page) + list.items.len() as i64;
+    Ok(Json(Success::new(json!({
+        "items": list.items,
+        "more": shown < list.total,
+    })))
+    .into_response())
 }
 
 fn rejected(e: JsonRejection) -> ApiError {

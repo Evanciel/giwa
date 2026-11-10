@@ -352,7 +352,8 @@ fn every_command_speaks_json_with_yes() {
         }
         assert!(
             out.stderr.is_empty() || v["ok"] == false,
-            "{args:?}: stderr 오염"
+            "{args:?}: stderr 오염: {}",
+            String::from_utf8_lossy(&out.stderr)
         );
     }
 }
