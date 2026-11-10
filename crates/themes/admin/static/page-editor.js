@@ -11,6 +11,8 @@
 
   var csrf = root.dataset.csrf || "";
   var screen = data.screen;
+  // 아직 공개하지 않은 페이지면 고친 곳이 없어도 발행할 수 있다 (ADR-0149).
+  var pageDraft = !!data.page_status && data.page_status !== "published";
   var frame = root.querySelector("[data-frame]");
   var stage = root.querySelector("[data-stage]");
   var statusEl = root.querySelector("[data-status]");
@@ -157,8 +159,8 @@
   var renderTimer = null;
   function changed(redraw, rebuildInspector) {
     var n = dirtyCount();
-    statusEl.textContent = n ? "발행하지 않은 고침 " + n + "곳" : "고친 곳 없음";
-    publishBtn.disabled = !n;
+    statusEl.textContent = n ? "발행하지 않은 고침 " + n + "곳" : pageDraft ? "공개 전 페이지입니다. 「발행」하면 공개됩니다." : "고친 곳 없음";
+    publishBtn.disabled = !n && !pageDraft;
     undoBtn.disabled = !past.length;
     redoBtn.disabled = !future.length;
     try {
@@ -1426,5 +1428,65 @@
       localStorage.removeItem(STORE);
     }
   } catch (e) { /* 저장소를 못 쓰면 묻지 않는다 */ }
+
+  // 새 페이지 틀 (ADR-0149): 처음 열 때 한 번만 틀의 블록과 위 메뉴를 초안에 넣는다.
+  if (data.starter && restore.hidden) {
+    change(function () {
+      data.starter.forEach(function (w) { w.id = newId(); widgets.push(w); });
+      if (data.add_menu) {
+        var slug = screen.slice(5);
+        var menu = site.menus.header || (site.menus.header = []);
+        var has = menu.some(function (m) { return m.link && m.link.kind === "page" && m.link.slug === slug; });
+        if (!has) menu.push({ label: data.page_title, link: { kind: "page", slug: slug }, children: [] });
+      }
+    });
+    try { history.replaceState(null, "", "/admin/editor?screen=" + encodeURIComponent(screen)); } catch (e) { /* 무시 */ }
+  } else if (pageDraft && !dirtyCount()) {
+    changed(false, false);
+  }
+
+  // ---- 새 페이지 (ADR-0149) ----
+  // 이름에서 주소를 제안한다(고칠 수 있다). 만들면 초안 페이지로 넘어가고, 틀의 블록이 초안으로 들어온다.
+  var npBtn = root.querySelector("[data-new-page]");
+  var npDlg = root.querySelector("[data-new-page-dialog]");
+  function slugOf(name) {
+    return name.trim().toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "").slice(0, 80);
+  }
+  if (npBtn && npDlg) {
+    var npForm = npDlg.querySelector("form");
+    var npErr = npDlg.querySelector("[data-np-error]");
+    var slugTouched = false;
+    npForm.elements.title.addEventListener("input", function () {
+      if (!slugTouched) npForm.elements.slug.value = slugOf(npForm.elements.title.value);
+    });
+    npForm.elements.slug.addEventListener("input", function () { slugTouched = true; });
+    npBtn.addEventListener("click", function () {
+      if (dirtyCount() && !confirm("발행하지 않은 고침은 이 브라우저에 남겨 두고 새 페이지로 갑니다.")) return;
+      npErr.textContent = "";
+      npDlg.showModal();
+      npForm.elements.title.focus();
+    });
+    npDlg.querySelector("[data-np-close]").addEventListener("click", function () { npDlg.close(); });
+    npForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var f = npForm.elements;
+      var starter = npForm.querySelector("input[name=starter]:checked");
+      var go = npForm.querySelector("[type=submit]");
+      go.disabled = true;
+      npErr.textContent = "만드는 중…";
+      fetch("/admin/editor/pages", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json", "x-csrf-token": csrf },
+        body: JSON.stringify({ title: f.title.value.trim(), slug: f.slug.value.trim(), starter: starter ? starter.value : "blank" })
+      }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); }).then(function (res) {
+        if (!res.ok) throw new Error((res.j.error && res.j.error.message) || "페이지를 만들지 못했습니다.");
+        location.href = res.j.data.url + (f.menu.checked ? "&menu=1" : "");
+      }).catch(function (err) {
+        npErr.textContent = err.message;
+        go.disabled = false;
+      });
+    });
+  }
   if (current) document.title = "화면 편집 · " + current.label;
 })();

@@ -1416,7 +1416,11 @@ async fn page(State(state): State<AppState>, Path(slug): Path<String>) -> Respon
 async fn page_inner(state: &AppState, slug: &str) -> Result<Value> {
     let site = load_site(state).await?;
     let actor = anonymous_actor(&state.ctx).await?;
-    let p = pages::public_page(&state.ctx, &actor, slug).await?;
+    let p = match crate::widgets::editing().and_then(|e| e.actor) {
+        // 편집 캔버스는 아직 공개하지 않은 페이지도 그린다 (ADR-0149).
+        Some(editor) => pages::editable_page(&state.ctx, &editor, slug).await?,
+        None => pages::public_page(&state.ctx, &actor, slug).await?,
+    };
     let target = Target::Page { page: &p.slug };
     let all = pages::public_pages(&state.ctx, &actor).await?;
     let nav = pages::navigation(&all, &p);

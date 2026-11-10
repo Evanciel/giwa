@@ -21,6 +21,24 @@
       </label>
       <noscript><button type="submit" class="secondary">열기</button></noscript>
     </form>
+    <button type="button" class="secondary small ed-newpage" data-new-page>+ 새 페이지</button>
+    <dialog class="mp np" data-new-page-dialog aria-labelledby="np-title">
+      <form method="dialog">
+        <div class="mp-head"><h2 id="np-title">새 페이지</h2><button type="button" class="mp-close" data-np-close aria-label="닫기">×</button></div>
+        <div class="mp-body np-body">
+          <label>이름 <input name="title" required maxlength="200" autocomplete="off" placeholder="예: 회사 소개"></label>
+          <label>주소 <span class="np-slug"><span aria-hidden="true">/p/</span><input name="slug" required maxlength="80" autocomplete="off" aria-describedby="np-slug-hint"></span></label>
+          <p class="hint" id="np-slug-hint">이름에서 만들어 둡니다. 글자·숫자·「-」만 쓸 수 있습니다.</p>
+          <fieldset class="np-starters"><legend>틀</legend>
+            {% for s in starters %}<label class="np-starter"><input type="radio" name="starter" value="{{ s.id }}"{% if loop.first %} checked{% endif %}><strong>{{ s.label }}</strong><small>{{ s.description }}</small></label>{% endfor %}
+          </fieldset>
+          <label class="np-menu"><input type="checkbox" name="menu" checked> 위 메뉴에 넣기</label>
+          <p class="hint">만들면 공개되지 않은 페이지가 생깁니다. 고친 뒤 「발행」하면 공개되고 메뉴에도 들어갑니다.</p>
+          <p class="np-error" role="alert" data-np-error></p>
+        </div>
+        <div class="mp-foot"><button type="submit" class="primary">만들기</button></div>
+      </form>
+    </dialog>
     <div class="ed-devices" role="group" aria-label="화면 폭">
       <button type="button" data-device="desktop" aria-pressed="true" title="데스크톱 (1280px)">데스크톱</button>
       <button type="button" data-device="tablet" aria-pressed="false" title="태블릿 (768px)">태블릿</button>

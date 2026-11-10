@@ -5,6 +5,7 @@
 //!   응답은 공개 화면 CSP(`frame-ancestors 'self'`) 그대로다.
 //! - `/admin/editor/publish`: 초안과 지금 위젯을 견주어 연산을 만들고 변경 묶음 하나로 적용한다(원칙 4).
 //! - `/admin/editor/media`: 그림 판(ADR-0147)이 보일 올린 그림 목록. 올리기는 `/admin/media` 그대로다.
+//! - `/admin/editor/pages`: 틀을 골라 공개 전 페이지를 만든다(ADR-0149). 발행하면 `page.publish` 가 같은 묶음에 든다.
 //! - `/admin/editor/tokens`: 디자인 판(ADR-0148)의 토큰 초안을 저장하지 않고 검사해 CSS 로 돌려준다.
 //!   발행하면 `tokens.set` 연산이 블록·사이트 연산과 같은 변경 묶음에 든다.
 //!
@@ -57,6 +58,10 @@ pub(super) fn routes() -> Router<AppState> {
         )
         .route("/admin/editor/frame", get(frame_get).post(frame_post))
         .route("/admin/editor/media", get(media_list))
+        .route(
+            "/admin/editor/pages",
+            post(new_page).layer(middleware::map_response(editor_headers)),
+        )
         .route("/admin/editor/tokens", post(tokens_css))
         .route(
             "/admin/editor/publish",
@@ -134,6 +139,12 @@ struct ScreenQuery {
     /// 발행하고 돌아왔을 때 그 변경 묶음 id
     #[serde(default)]
     done: String,
+    /// 새 페이지 틀 (ADR-0149). 공개 전이고 블록이 없는 페이지에서만 초안으로 싣는다.
+    #[serde(default)]
+    starter: String,
+    /// `1` 이면 새 페이지를 위 메뉴 초안에 넣는다.
+    #[serde(default)]
+    menu: String,
 }
 
 fn bad_screen(screen: &str) -> Error {
@@ -162,10 +173,16 @@ async fn page(
         Ok(l) => l,
         Err(e) => return super::fail(&state, Some(&who), &e).await,
     };
-    let data = match editor_data(&state, &who, &screen, &list).await {
+    let mut data = match editor_data(&state, &who, &screen, &list).await {
         Ok(d) => d,
         Err(e) => return super::fail(&state, Some(&who), &e).await,
     };
+    if let EditScreen::Page(slug) = &screen
+        && !q.starter.is_empty()
+        && let Err(e) = starter_draft(&state, &who, slug, &q, &list, &mut data).await
+    {
+        return super::fail(&state, Some(&who), &e).await;
+    }
     let label = data["screens"]
         .as_array()
         .and_then(|a| a.iter().find(|s| s["id"] == screen.id()))
@@ -179,6 +196,7 @@ async fn page(
             "screen_label": label,
             "done": (!q.done.is_empty() && q.done.len() <= 64 && q.done.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')).then_some(q.done.as_str()),
             "screens": data["screens"],
+            "starters": maru_themes::starters().unwrap_or_default(),
             "editor_json": script_json(&data),
         }),
     );
@@ -200,8 +218,15 @@ async fn editor_data(
     screens.extend(
         page_list
             .iter()
-            .filter(|p| p.status == PageStatus::Published)
-            .map(|p| json!({ "id": format!("page:{}", p.slug), "label": p.title, "group": "페이지" })),
+            .filter(|p| p.status != PageStatus::Deleted)
+            .map(|p| {
+                let label = match p.status {
+                    PageStatus::Published => p.title.clone(),
+                    PageStatus::Hidden => format!("{} (숨김)", p.title),
+                    _ => format!("{} (공개 전)", p.title),
+                };
+                json!({ "id": format!("page:{}", p.slug), "label": label, "group": "페이지" })
+            }),
     );
     screens.extend(
         board_list.iter().map(
@@ -237,8 +262,16 @@ async fn editor_data(
     for loc in MENU_LOCATIONS {
         menu_map.insert(loc.into(), json!(menus::get(ctx, loc).await?));
     }
+    let page_status = match screen {
+        EditScreen::Page(slug) => page_list
+            .iter()
+            .find(|p| &p.slug == slug)
+            .map(|p| p.status.as_str()),
+        _ => None,
+    };
     Ok(json!({
         "screen": screen.id(),
+        "page_status": page_status,
         "screens": screens,
         "scope_names": names,
         "widgets": list.iter().map(draft_of).collect::<Vec<_>>(),
@@ -271,6 +304,38 @@ async fn editor_data(
             .map(|p| json!({ "id": p.slug, "label": p.title }))
             .collect::<Vec<_>>(),
     }))
+}
+
+/// 새 페이지 틀 (ADR-0149). 아직 공개하지 않았고 블록이 하나도 없는 페이지에만 틀의 블록을 초안으로 싣는다.
+/// 다시 열어도 이미 블록이 있으면 싣지 않는다.
+async fn starter_draft(
+    state: &AppState,
+    who: &SignedIn,
+    slug: &str,
+    q: &ScreenQuery,
+    list: &[Widget],
+    data: &mut Value,
+) -> maru_core::Result<()> {
+    let page = pages::editable_page(&state.ctx, &who.actor, slug).await?;
+    let scope = format!("page:{}", page.slug);
+    if page.status == PageStatus::Published || list.iter().any(|w| w.scope == scope) {
+        return Ok(());
+    }
+    let starter = maru_themes::starter(&q.starter)?;
+    let drafts: Vec<Value> = starter
+        .widgets(&page.slug, &page.title)
+        .into_iter()
+        .map(|w| {
+            json!({
+                "id": "", "kind": w.kind, "region": w.region, "scope": w.scope,
+                "title": w.title, "config": w.config, "enabled": true, "hide_on": [],
+            })
+        })
+        .collect();
+    data["starter"] = json!(drafts);
+    data["add_menu"] = json!(q.menu == "1");
+    data["page_title"] = json!(page.title);
+    Ok(())
 }
 
 /// 왼쪽 「더하기」 판의 묶음.
@@ -487,7 +552,7 @@ async fn frame_get(
     let Some(screen) = EditScreen::parse(&q.screen) else {
         return super::fail(&state, Some(&who), &bad_screen(&q.screen)).await;
     };
-    draw(&state, &screen, None, None, &[]).await
+    draw(&state, &who, &screen, None, None, &[]).await
 }
 
 async fn frame_post(
@@ -510,7 +575,7 @@ async fn frame_post(
         }
         None => None,
     };
-    Ok(draw(&state, &screen, Some(list), site, &invalid).await)
+    Ok(draw(&state, &who, &screen, Some(list), site, &invalid).await)
 }
 
 #[derive(Deserialize)]
@@ -580,6 +645,7 @@ fn rejected(e: JsonRejection) -> ApiError {
 /// 공개 라우터로 그 화면을 손님 눈으로 그린다. 통계·조회수·편지는 사본으로 돌려 세지 않는다.
 async fn draw(
     state: &AppState,
+    who: &SignedIn,
     screen: &EditScreen,
     draft: Option<Vec<Widget>>,
     site: Option<SiteDraft>,
@@ -602,6 +668,7 @@ async fn draw(
     let editing = Editing {
         draft: draft.map(Arc::new),
         site: site.map(Arc::new),
+        actor: Some(who.actor.clone()),
     };
     let mut res = match EDITING.scope(editing, app.call(req)).await {
         Ok(r) => r,
@@ -618,6 +685,44 @@ async fn draw(
         h.insert("x-maru-invalid", v);
     }
     res
+}
+
+// ---- 새 페이지 (ADR-0149) ----
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NewPageInput {
+    title: String,
+    slug: String,
+    starter: String,
+}
+
+/// 틀을 골라 초안 페이지를 만든다. 공개되지 않고, 블록은 편집기 초안으로 들어간다(`?starter=`).
+/// 같은 주소가 있으면 만들지 않고 알린다. 발행하면 `page.publish` 가 블록과 같은 묶음에 든다.
+async fn new_page(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    body: Result<Json<NewPageInput>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let who = json_session(&state, &headers).await?;
+    let Json(input) = body.map_err(rejected)?;
+    let starter = maru_themes::starter(&input.starter)?;
+    let page = pages::create(
+        &state.ctx,
+        &who.actor,
+        pages::starter_page(&input.slug, &input.title),
+    )
+    .await?;
+    let screen = EditScreen::Page(page.slug.clone()).id();
+    Ok(Json(Success::new(json!({
+        "screen": screen,
+        "url": format!(
+            "/admin/editor?screen={}&starter={}",
+            super::encode(&screen),
+            super::encode(&starter.id)
+        ),
+    })))
+    .into_response())
 }
 
 // ---- 발행 ----
@@ -645,6 +750,13 @@ async fn publish(
         ops.push(json!({ "op": "tokens.set", "tokens": patch }));
     }
     ops.extend(plan_ops(&current, &input.widgets));
+    // 아직 공개하지 않은 페이지는 발행하면 공개된다. 묶음을 되돌리면 다시 숨는다 (ADR-0149).
+    if let EditScreen::Page(slug) = &screen {
+        let page = pages::editable_page(ctx, actor, slug).await?;
+        if page.status != PageStatus::Published {
+            ops.insert(0, json!({ "op": "page.publish", "slug": page.slug }));
+        }
+    }
     if ops.is_empty() {
         return Ok(Json(Success::new(json!({ "changeset": null, "ops": 0 }))).into_response());
     }

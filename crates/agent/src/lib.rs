@@ -475,6 +475,12 @@ const SPECS: &[Spec] = &[
         schema_of::<NoInput>,
     ),
     looked_up(
+        "list_page_starters",
+        "새 페이지 틀(섹션 블록 묶음)을 본다. 블록은 place_widget 에 scope `page:<주소>` 로 담는다. List page starters.",
+        Permission::StructureEdit,
+        schema_of::<NoInput>,
+    ),
+    looked_up(
         "list_widget_types",
         "놓을 수 있는 위젯 종류와 설정을 본다. List widget types and their settings.",
         Permission::DesignEdit,
@@ -971,6 +977,10 @@ impl Server {
                     alt_text: i.alt_text,
                 };
                 to_value(media::upload(ctx, actor, upload).await?)
+            }
+            "list_page_starters" => {
+                actor.require(Permission::StructureEdit)?;
+                to_value(maru_themes::starters()?)
             }
             "list_widget_types" => {
                 actor.require(Permission::DesignEdit)?;

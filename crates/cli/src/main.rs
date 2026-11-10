@@ -1055,6 +1055,10 @@ pub struct PageNewArgs {
     /// 같은 슬러그가 있으면 만들지 않고 그 페이지를 돌려준다
     #[arg(long)]
     pub if_not_exists: bool,
+    /// 새 페이지 틀: blank, about, service, contact. 섹션 블록 모양으로 만들고 틀의 블록도 놓는다
+    /// (새로 만들 때만, ADR-0149)
+    #[arg(long)]
+    pub starter: Option<String>,
 }
 
 #[derive(Debug, Args)]

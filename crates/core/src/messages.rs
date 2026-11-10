@@ -302,6 +302,10 @@ fn lookup_ko(key: &str) -> Option<&'static str> {
         "error.json_body" => "요청 본문 JSON 이 올바르지 않습니다: {detail}",
         "error.post_status" => "알 수 없는 글 상태입니다: {value}",
         "error.preset_unknown" => "알 수 없는 프리셋입니다: {value}",
+        "error.starter_unknown" => {
+            "알 수 없는 페이지 틀입니다: {value} (고를 수 있는 것: {allowed})"
+        }
+        "error.starter_invalid" => "페이지 틀 파일을 읽을 수 없습니다: {detail}",
         "error.board_not_empty" => "`{slug}` 게시판에 글이 {count}개 있어 지울 수 없습니다.",
         "error.page_exists" => "`{slug}` 페이지가 이미 있습니다.",
         "error.page_not_found" => "`{slug}` 페이지를 찾을 수 없습니다.",

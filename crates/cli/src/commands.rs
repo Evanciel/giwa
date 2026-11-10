@@ -1171,11 +1171,21 @@ async fn page_inner(ctx: &Ctx, actor: &Actor, cmd: PageCmd) -> Out {
                 (None, Some(path)) => read_body(path)?,
                 (None, None) => String::new(),
             };
+            let starter = args
+                .starter
+                .as_deref()
+                .map(maru_themes::starter)
+                .transpose()?;
+            let layout = if starter.is_some() && args.layout == "default" {
+                "blocks".to_owned()
+            } else {
+                args.layout
+            };
             let input = pages::NewPage {
                 slug: args.slug,
                 title: args.title,
                 body_md,
-                layout: args.layout,
+                layout,
                 sort_order: args.sort_order,
                 parent: args.parent,
             };
@@ -1185,6 +1195,13 @@ async fn page_inner(ctx: &Ctx, actor: &Actor, cmd: PageCmd) -> Out {
             } else {
                 (pages::create(ctx, actor, input).await?, true)
             };
+            let mut placed = 0;
+            if let (Some(s), true) = (&starter, created) {
+                for w in s.widgets(&p.slug, &p.title) {
+                    widgets::place(ctx, actor, w).await?;
+                    placed += 1;
+                }
+            }
             if args.publish {
                 p = pages::publish(ctx, actor, &p.slug).await?;
             }
@@ -1195,6 +1212,10 @@ async fn page_inner(ctx: &Ctx, actor: &Actor, cmd: PageCmd) -> Out {
             };
             let (mut data, mut human) = page_out(ctx, &p, verb)?;
             data["created"] = Value::Bool(created);
+            data["blocks"] = Value::from(placed);
+            if placed > 0 {
+                human.push_str(&format!("\n틀의 블록 {placed}개를 놓았습니다."));
+            }
             if p.status == PageStatus::Draft {
                 human.push_str(&format!("\n다음: maru page publish {}", p.slug));
             }

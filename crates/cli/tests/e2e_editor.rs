@@ -790,3 +790,175 @@ fn editor_styles_blocks_and_site_design() {
         before_primary
     );
 }
+
+/// ADR-0149: 편집기에서 틀을 골라 공개 전 페이지를 만들고, 발행하면 공개·메뉴, 되돌리면 다시 숨는다.
+/// CLI `page new --starter` 는 새로 만들 때만 틀의 블록을 놓는다(멱등).
+#[test]
+fn editor_creates_page_from_starter() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("사이트");
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
+    let link = maru(&data, &["login-link"]);
+    let (_server, bind) = start_server(&data);
+    let session = sign_in(&bind, link["url"].as_str().unwrap());
+    let cookie = format!("maru_session={session}");
+    let page = http(
+        &bind,
+        "GET",
+        "/admin/editor?screen=home",
+        &[("Cookie", &cookie)],
+        "",
+    );
+    assert!(page.body.contains("data-new-page"), "새 페이지 단추");
+    assert!(page.body.contains("value=\"about\""), "틀 목록");
+    let csrf = {
+        let at = page.body.find("data-csrf=\"").unwrap() + 11;
+        page.body[at..at + page.body[at..].find('"').unwrap()].to_owned()
+    };
+    let json = ("Content-Type", "application/json");
+    let auth = [
+        json,
+        ("Cookie", cookie.as_str()),
+        ("x-csrf-token", csrf.as_str()),
+    ];
+    let body = r#"{"title":"회사 소개","slug":"about-us","starter":"about"}"#;
+
+    // CSRF 없으면 403, 모르는 틀은 400.
+    let no_csrf = http(
+        &bind,
+        "POST",
+        "/admin/editor/pages",
+        &[json, ("Cookie", &cookie)],
+        body,
+    );
+    assert_eq!(no_csrf.status, 403);
+    let unknown = http(
+        &bind,
+        "POST",
+        "/admin/editor/pages",
+        &auth,
+        r#"{"title":"x","slug":"x","starter":"nope"}"#,
+    );
+    assert_eq!(unknown.status, 400, "{}", unknown.body);
+    assert!(!maru(&data, &["page", "list"]).to_string().contains("\"x\""));
+
+    // 만들기: 공개 전 페이지. 공개 주소는 404, 캔버스는 그린다.
+    let made = http(&bind, "POST", "/admin/editor/pages", &auth, body);
+    assert_eq!(made.status, 200, "{}", made.body);
+    let made: Value = serde_json::from_str(&made.body).unwrap();
+    assert_eq!(made["data"]["screen"], "page:about-us");
+    let url = made["data"]["url"].as_str().unwrap().to_owned();
+    assert!(url.contains("starter=about"), "{url}");
+    assert_eq!(http(&bind, "GET", "/p/about-us", &[], "").status, 404);
+    let canvas = http(
+        &bind,
+        "GET",
+        "/admin/editor/frame?screen=page:about-us",
+        &[("Cookie", &cookie)],
+        "",
+    );
+    assert_eq!(canvas.status, 200, "공개 전 페이지도 캔버스에 그린다");
+    assert_eq!(
+        http(&bind, "POST", "/admin/editor/pages", &auth, body).status,
+        409,
+        "같은 주소는 다시 만들지 않는다"
+    );
+
+    // 틀의 블록과 메뉴는 편집기 초안으로 온다.
+    let editor = http(
+        &bind,
+        "GET",
+        &format!("{url}&menu=1"),
+        &[("Cookie", &cookie)],
+        "",
+    );
+    assert_eq!(editor.status, 200);
+    assert!(editor.body.contains("\"page_status\":\"draft\""));
+    assert!(editor.body.contains("\"add_menu\":true"));
+    assert!(editor.body.contains("\"starter\":[{"));
+    assert!(
+        editor.body.contains("(공개 전)"),
+        "화면 고르기에 공개 전 페이지"
+    );
+
+    // 발행: page.publish + 블록 + 메뉴가 한 묶음. 공개되고 메뉴에 보인다.
+    let mut draft = draft_of(&maru(&data, &["widget", "list"]));
+    draft.push(serde_json::json!({
+        "id": "new-hero", "kind": "hero", "region": "main", "scope": "page:about-us", "title": "",
+        "config": { "title": "회사 소개" }, "enabled": true, "hide_on": [],
+    }));
+    let site = maru(&data, &["site", "show"]);
+    let published = http(
+        &bind,
+        "POST",
+        "/admin/editor/publish",
+        &auth,
+        &serde_json::json!({
+            "screen": "page:about-us", "widgets": draft,
+            "site": {
+                "name": site["name"], "description": site["description"],
+                "menus": { "header": [{ "label": "회사 소개", "link": { "kind": "page", "slug": "about-us" }, "children": [] }] },
+            },
+        })
+        .to_string(),
+    );
+    assert_eq!(published.status, 200, "{}", published.body);
+    let out: Value = serde_json::from_str(&published.body).unwrap();
+    assert_eq!(out["data"]["ops"], 3, "{out}");
+    let public = http(&bind, "GET", "/p/about-us", &[], "");
+    assert_eq!(public.status, 200);
+    assert!(public.body.contains("회사 소개"));
+    assert!(
+        http(&bind, "GET", "/", &[], "")
+            .body
+            .contains("href=\"/p/about-us\"")
+    );
+
+    // 되돌리면 다시 404.
+    let cs = out["data"]["changeset"].as_str().unwrap().to_owned();
+    maru(&data, &["changeset", "revert", &cs]);
+    assert_eq!(http(&bind, "GET", "/p/about-us", &[], "").status, 404);
+
+    // CLI: 틀의 블록은 새로 만들 때만 놓는다.
+    let first = maru(
+        &data,
+        &[
+            "page",
+            "new",
+            "contact",
+            "--title",
+            "연락처",
+            "--starter",
+            "contact",
+            "--if-not-exists",
+        ],
+    );
+    assert_eq!(first["created"], true);
+    assert_eq!(first["blocks"], 3);
+    assert_eq!(first["layout"], "blocks");
+    let again = maru(
+        &data,
+        &[
+            "page",
+            "new",
+            "contact",
+            "--title",
+            "연락처",
+            "--starter",
+            "contact",
+            "--if-not-exists",
+        ],
+    );
+    assert_eq!(again["created"], false);
+    assert_eq!(again["blocks"], 0);
+    let on_contact = maru(&data, &["widget", "list"])
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|w| w["scope"] == "page:contact")
+        .count();
+    assert_eq!(on_contact, 3);
+}

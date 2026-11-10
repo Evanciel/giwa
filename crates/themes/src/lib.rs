@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::path::{Component, Path, PathBuf};
 use std::sync::OnceLock;
 
+use maru_core::services::pages::Starter;
 use maru_core::services::presets::{Op, Preset};
 use maru_core::{Code, Error, Result};
 use minijinja::{AutoEscape, Environment, UndefinedBehavior};
@@ -273,6 +274,42 @@ pub fn preset(id: &str) -> Result<Preset> {
         preset.ops.extend(samples.ops);
     }
     Ok(preset)
+}
+
+/// 새 페이지 틀 파일 (`builtin/starters.toml`, ADR-0149).
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct StarterFile {
+    starters: Vec<Starter>,
+}
+
+/// 새 페이지 틀 목록. 화면 편집기·`maru page new --starter`·MCP 가 같은 목록을 쓴다 (ADR-0149).
+pub fn starters() -> Result<Vec<Starter>> {
+    let invalid = |detail: String| {
+        Error::new(Code::Internal)
+            .with_message("error.starter_invalid")
+            .arg("detail", detail)
+    };
+    let file = Builtin::get("starters.toml").ok_or_else(|| invalid("starters.toml".into()))?;
+    let text = std::str::from_utf8(&file.data).map_err(|e| invalid(e.to_string()))?;
+    let parsed: StarterFile = toml::from_str(text).map_err(|e| invalid(e.to_string()))?;
+    Ok(parsed.starters)
+}
+
+/// 이름으로 새 페이지 틀 하나.
+pub fn starter(id: &str) -> Result<Starter> {
+    let all = starters()?;
+    let allowed = all
+        .iter()
+        .map(|s| s.id.as_str())
+        .collect::<Vec<_>>()
+        .join(", ");
+    all.iter().find(|s| s.id == id).cloned().ok_or_else(|| {
+        Error::new(Code::Validation)
+            .with_message("error.starter_unknown")
+            .arg("value", id.to_owned())
+            .arg("allowed", allowed)
+    })
 }
 
 /// HTML 이스케이프는 `& < > " '` 만 한다. 기본 포매터는 `/` 까지 `&#x2f;` 로 바꿔
@@ -997,6 +1034,21 @@ mod tests {
                 assert!(!text.contains(bad), "{path} 에 경로 리터럴 {bad}");
             }
         }
+    }
+
+    /// 새 페이지 틀은 읽히고, 블록은 만들 페이지에 놓이며 첫 블록 제목이 페이지 이름이 된다 (ADR-0149).
+    #[test]
+    fn page_starters_parse_and_fill_title() {
+        let all = starters().unwrap();
+        assert!(all.iter().any(|s| s.id == "blank"));
+        for s in &all {
+            let ws = s.widgets("소개", "회사 소개");
+            assert!(!ws.is_empty(), "{}", s.id);
+            assert!(ws.iter().all(|w| w.scope == "page:소개"));
+            assert_eq!(ws[0].config["title"], "회사 소개", "{}", s.id);
+        }
+        assert!(starter("about").is_ok());
+        assert!(starter("nope").is_err());
     }
 
     #[test]

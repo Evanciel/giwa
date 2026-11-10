@@ -25,6 +25,8 @@ pub(crate) struct Editing {
     pub draft: Option<std::sync::Arc<Vec<Widget>>>,
     /// 사이트 이름·설명·메뉴 초안 (ADR-0145). 없으면 저장된 값을 그린다.
     pub site: Option<std::sync::Arc<SiteDraft>>,
+    /// 편집하는 사람. 캔버스는 이 사람 눈으로 아직 공개하지 않은 페이지도 그린다 (ADR-0149).
+    pub actor: Option<maru_core::Actor>,
 }
 
 /// 편집기 초안의 사이트 공통 부분. 저장할 때와 같은 검사를 마친 값만 들어온다.

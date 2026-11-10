@@ -252,6 +252,8 @@ pub(crate) fn lookup(key: &str) -> Option<&'static str> {
         "error.json_body" => "The request body JSON is not valid: {detail}",
         "error.post_status" => "Unknown post status: {value}",
         "error.preset_unknown" => "Unknown preset: {value}",
+        "error.starter_unknown" => "Unknown page starter: {value} (choose from: {allowed})",
+        "error.starter_invalid" => "Could not read page starters: {detail}",
         "error.board_not_empty" => "Board `{slug}` has {count} posts and cannot be deleted.",
         "error.page_exists" => "Page `{slug}` already exists.",
         "error.page_not_found" => "Page `{slug}` was not found.",

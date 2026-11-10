@@ -961,6 +961,24 @@ dialog.mp [hidden] { display: none !important; }
 .mp-alt .hint { margin: .3rem 0 0; }
 .mp-foot { display: flex; align-items: center; gap: .5rem; padding: .8rem 1rem; border-top: 1px solid var(--border); }
 .mp-foot button { margin: 0; }
+/* 새 페이지 창 (ADR-0149) */
+dialog.np { width: min(34rem, calc(100vw - 2rem)); }
+/* 머리·바닥은 그대로 두고 가운데만 굴러가도록 form 을 대화 상자 흐름에서 뺀다 */
+dialog.np > form { display: contents; }
+.np-body { display: grid; gap: .8rem; }
+.np-body > label { display: grid; gap: .3rem; font-weight: 600; }
+.np-slug { display: flex; align-items: center; gap: .3rem; font-weight: 400; }
+.np-slug input { flex: 1; }
+.np-starters { display: grid; gap: .5rem; border: 0; padding: 0; margin: 0; }
+.np-starters legend { font-weight: 600; margin-bottom: .3rem; padding: 0; }
+.np-starter { display: grid; grid-template-columns: auto 1fr; gap: .1rem .6rem; align-items: start; padding: .6rem .8rem; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; }
+.np-starter input { margin-top: .25rem; }
+.np-starter small { grid-column: 2; color: var(--muted); }
+.np-starter:has(input:checked) { border-color: var(--primary); background: var(--primary-soft); }
+.np-body > .np-menu { display: flex; align-items: center; gap: .5rem; font-weight: 400; }
+.np-menu input { width: auto; margin: 0; }
+.np-error { min-height: 1.3em; margin: 0; color: var(--danger, #b42318); }
+.np-body .hint { margin: 0; color: var(--muted); font-size: .9em; }
 .mp-gap { flex: 1; }
 .mp-remove { color: var(--warn); }
 .sf-upload { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }

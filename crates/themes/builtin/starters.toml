@@ -1,0 +1,56 @@
+# 새 페이지 틀 (ADR-0149). 화면 편집기 「+ 새 페이지」, `maru page new --starter`, MCP `list_page_starters` 가
+# 같은 목록을 쓴다. 블록의 `scope` 는 만들 페이지(`page:<주소>`)로 채워지고, 설정의 `title = "{title}"` 은
+# 페이지 이름으로 바뀐다. 내용은 고쳐 쓰라는 자리 글이다.
+
+[[starters]]
+id = "blank"
+label = "빈 페이지"
+description = "제목 띠 하나로 시작합니다. 블록은 편집기에서 더합니다."
+blocks = [
+  { kind = "hero", region = "main", config = { title = "{title}", text = "이 페이지를 한 줄로 소개해 주세요." } },
+]
+
+[[starters]]
+id = "about"
+label = "회사 소개"
+description = "소개 글, 걸어온 길, 오시는 길."
+blocks = [
+  { kind = "hero", region = "main", config = { title = "{title}", text = "우리가 누구이고 무엇을 하는지 한두 문장으로 적어 주세요." } },
+  { kind = "image_text", region = "main", title = "우리가 하는 일", config = { body = "처음 시작한 까닭과 지금 하는 일, 손님에게 약속하는 것을 적어 주세요." } },
+  { kind = "timeline", region = "main", title = "걸어온 길", config = { tone = "soft", items = [
+    { date = "2024", title = "시작", text = "처음 문을 연 해입니다." },
+    { date = "2025", title = "넓힘", text = "새로 더한 일을 적어 주세요." },
+  ] } },
+  { kind = "visit", region = "main", title = "오시는 길", config = { address = "주소를 적어 주세요", phone = "02-000-0000" } },
+]
+
+[[starters]]
+id = "service"
+label = "서비스 소개"
+description = "하는 일 세 가지, 자주 묻는 질문, 문의 단추."
+blocks = [
+  { kind = "hero", region = "main", config = { title = "{title}", text = "이 서비스가 누구의 어떤 일을 덜어 주는지 적어 주세요." } },
+  { kind = "features", region = "main", title = "이런 일을 합니다", config = { items = [
+    { title = "첫째 일", text = "무엇을 해 주는지 한두 문장." },
+    { title = "둘째 일", text = "무엇을 해 주는지 한두 문장." },
+    { title = "셋째 일", text = "무엇을 해 주는지 한두 문장." },
+  ] } },
+  { kind = "faq", region = "main", title = "자주 묻는 질문", config = { tone = "soft", items = [
+    { q = "비용은 어떻게 되나요?", a = "값을 정하는 방식을 적어 주세요." },
+    { q = "얼마나 걸리나요?", a = "보통 걸리는 기간을 적어 주세요." },
+  ] } },
+  { kind = "cta", region = "main", title = "궁금한 점이 있으면 물어보세요", config = { text = "연락 주시면 영업일 하루 안에 답합니다.", button = { label = "첫 화면으로", link = "/" } } },
+]
+
+[[starters]]
+id = "contact"
+label = "연락처"
+description = "찾아오는 길, 여는 시간, 자주 묻는 질문."
+blocks = [
+  { kind = "hero", region = "main", config = { title = "{title}", text = "전화·메일·방문 중 편한 방법으로 연락 주세요." } },
+  { kind = "visit", region = "main", title = "찾아오는 길", config = { address = "주소를 적어 주세요", phone = "02-000-0000", transit = "가까운 역과 버스를 적어 주세요" } },
+  { kind = "hours", region = "main", title = "여는 시간", config = { tone = "soft", rows = [
+    { days = "평일", time = "09:00 ~ 18:00" },
+    { days = "토요일", time = "10:00 ~ 14:00" },
+  ], note = "일요일과 공휴일은 쉽니다." } },
+]

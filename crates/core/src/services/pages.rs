@@ -2,6 +2,7 @@
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use crate::actor::{Actor, Permission};
 use crate::audit::{self, Target};
@@ -9,6 +10,7 @@ use crate::clock;
 use crate::error::{Code, Error, Result};
 use crate::model::{PAGE_LAYOUTS, Page, PageStatus, Revision};
 use crate::services::boards::Created;
+use crate::services::widgets::NewWidget;
 use crate::services::{redirects, required_text};
 use crate::slug;
 use crate::store::{Ctx, Tx};
@@ -501,6 +503,86 @@ fn check_layout(layout: &str) -> Result<()> {
 
 fn check_body(body: String) -> Result<String> {
     super::body_text(body, MAX_BODY_BYTES)
+}
+
+// ---- 새 페이지 틀 (ADR-0149) ----
+
+/// 새 페이지 틀. 목록은 테마가 준다(`maru_themes::starters`). 화면 편집기·CLI·MCP 가 같은 틀을 쓴다.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Starter {
+    pub id: String,
+    pub label: String,
+    #[serde(default)]
+    pub description: String,
+    pub blocks: Vec<StarterBlock>,
+}
+
+/// 틀의 블록 하나. 놓일 곳(`scope`)은 만들 페이지로 정해진다.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct StarterBlock {
+    pub kind: String,
+    pub region: String,
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub config: Value,
+}
+
+/// 틀의 설정에서 페이지 이름으로 바뀌는 자리.
+const TITLE_SLOT: &str = "{title}";
+
+impl Starter {
+    /// 이 틀의 블록을 `slug` 페이지에 놓을 위젯 입력으로 바꾼다. 설정의 `"{title}"` 은 페이지 이름이 된다.
+    pub fn widgets(&self, slug: &str, title: &str) -> Vec<NewWidget> {
+        self.blocks
+            .iter()
+            .map(|b| {
+                let mut config = b.config.clone();
+                if let Some(obj) = config.as_object_mut() {
+                    for v in obj.values_mut() {
+                        if v.as_str() == Some(TITLE_SLOT) {
+                            *v = Value::String(title.to_owned());
+                        }
+                    }
+                }
+                NewWidget {
+                    kind: b.kind.clone(),
+                    region: b.region.clone(),
+                    scope: format!("page:{slug}"),
+                    title: b.title.clone(),
+                    config,
+                    position: None,
+                    enabled: true,
+                    hide_on: Vec::new(),
+                }
+            })
+            .collect()
+    }
+}
+
+/// 틀로 만들 새 초안 페이지의 입력. 섹션 블록을 그리는 `blocks` 모양으로 만든다.
+pub fn starter_page(slug: &str, title: &str) -> NewPage {
+    NewPage {
+        slug: slug.to_owned(),
+        title: title.to_owned(),
+        body_md: String::new(),
+        layout: "blocks".into(),
+        sort_order: 0,
+        parent: None,
+    }
+}
+
+/// 편집 캔버스가 그릴 페이지. 초안·숨김도 돌려준다(지운 것은 없음). 화면을 고칠 권한이 있어야 한다.
+pub async fn editable_page(ctx: &Ctx, actor: &Actor, slug: &str) -> Result<Page> {
+    actor.require(Permission::DesignEdit)?;
+    let s = slug::normalize(slug).map_err(|_| not_found(slug))?;
+    ctx.store
+        .page_by_slug(&s)
+        .await?
+        .filter(|p| p.status != PageStatus::Deleted)
+        .ok_or_else(|| not_found(slug))
 }
 
 pub(crate) fn not_found(slug: &str) -> Error {
