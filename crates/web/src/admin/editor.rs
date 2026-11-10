@@ -7,6 +7,7 @@
 //! - `/admin/editor/media`: 그림 판(ADR-0147)이 보일 올린 그림 목록. 올리기는 `/admin/media` 그대로다.
 //! - `/admin/editor/pages`: 틀을 골라 공개 전 페이지를 만든다(ADR-0149). 발행하면 `page.publish` 가 같은 묶음에 든다.
 //! - `/admin/editor/apps/{id}`: 꺼진 앱을 그 자리에서 켜고 새 블록 종류를 돌려준다(ADR-0151).
+//! - `/admin/editor/draft`: 고치던 초안을 서버에 둔다(ADR-0152). 다른 기기에서 이어 고치고, 발행하면 지운다.
 //! - `/admin/editor/tokens`: 디자인 판(ADR-0148)의 토큰 초안을 저장하지 않고 검사해 CSS 로 돌려준다.
 //!   발행하면 `tokens.set` 연산이 블록·사이트 연산과 같은 변경 묶음에 든다.
 //!
@@ -24,7 +25,7 @@ use axum::extract::rejection::JsonRejection;
 use axum::extract::{ConnectInfo, Path, Query, Request, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, post};
+use axum::routing::{get, post, put};
 use axum::{Json, Router, middleware};
 use maru_core::clock;
 use maru_core::design::FONTS;
@@ -35,7 +36,7 @@ use maru_core::services::changesets as change;
 use maru_core::services::stats::StatCounter;
 use maru_core::services::views::ViewCounter;
 use maru_core::services::widgets;
-use maru_core::services::{boards, design, fonts, media, menus, pages, settings};
+use maru_core::services::{boards, design, editor_drafts, fonts, media, menus, pages, settings};
 use maru_core::urls::{self, Target};
 use maru_core::{Code, Error, Permission};
 use maru_modules::service as modules;
@@ -69,6 +70,12 @@ pub(super) fn routes() -> Router<AppState> {
             post(new_page).layer(middleware::map_response(editor_headers)),
         )
         .route("/admin/editor/tokens", post(tokens_css))
+        .route(
+            "/admin/editor/draft",
+            put(draft_put)
+                .delete(draft_delete)
+                .layer(middleware::map_response(editor_headers)),
+        )
         .route(
             "/admin/editor/publish",
             post(publish).layer(middleware::map_response(editor_headers)),
@@ -275,9 +282,13 @@ async fn editor_data(
             .map(|p| p.status.as_str()),
         _ => None,
     };
+    let draft = editor_drafts::get(ctx, &who.actor, &screen.id())
+        .await?
+        .map(|d| json!({ "body": d.body, "base": d.base, "updated_at": d.updated_at }));
     Ok(json!({
         "screen": screen.id(),
         "page_status": page_status,
+        "draft": draft,
         "screens": screens,
         "scope_names": names,
         "widgets": list.iter().map(draft_of).collect::<Vec<_>>(),
@@ -800,6 +811,55 @@ async fn enable_app(
     .into_response())
 }
 
+// ---- 초안 (ADR-0152) ----
+
+#[derive(Deserialize)]
+struct SavedDraftInput {
+    body: Value,
+    #[serde(default)]
+    base: String,
+}
+
+/// 고치던 초안을 덮어쓴다. 편집기가 고칠 때마다 2초 묶어 부른다.
+async fn draft_put(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<ScreenQuery>,
+    body: Result<Json<SavedDraftInput>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let who = json_session(&state, &headers).await?;
+    let Json(input) = body.map_err(rejected)?;
+    let screen = EditScreen::parse(&q.screen).ok_or_else(|| bad_screen(&q.screen))?;
+    let d = editor_drafts::save(
+        &state.ctx,
+        &who.actor,
+        &screen.id(),
+        input.body,
+        &input.base,
+    )
+    .await?;
+    Ok(Json(Success::new(json!({ "updated_at": d.updated_at }))).into_response())
+}
+
+/// 초안을 버린다. 없어도 같다(멱등).
+async fn draft_delete(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<ScreenQuery>,
+) -> Result<Response, ApiError> {
+    let who = json_session(&state, &headers).await?;
+    let screen = EditScreen::parse(&q.screen).ok_or_else(|| bad_screen(&q.screen))?;
+    let gone = editor_drafts::discard(&state.ctx, &who.actor, &screen.id()).await?;
+    Ok(Json(Success::new(json!({ "deleted": gone }))).into_response())
+}
+
+/// 발행한 화면의 초안은 지운다. 발행은 이미 됐으므로 실패해도 기록만 남긴다.
+async fn forget_draft(state: &AppState, who: &SignedIn, screen: &EditScreen) {
+    if let Err(e) = editor_drafts::discard(&state.ctx, &who.actor, &screen.id()).await {
+        tracing::warn!(error = ?e, "발행한 화면의 초안을 지우지 못했습니다");
+    }
+}
+
 // ---- 발행 ----
 
 async fn publish(
@@ -833,6 +893,7 @@ async fn publish(
         }
     }
     if ops.is_empty() {
+        forget_draft(&state, &who, &screen).await;
         return Ok(Json(Success::new(json!({ "changeset": null, "ops": 0 }))).into_response());
     }
     let label = screen_label(&state, &who, &screen).await;
@@ -842,6 +903,7 @@ async fn publish(
     let applied = change::apply(ctx, actor, sandbox.as_ref(), &cs.id).await;
     state.close_preview(&cs.id).await;
     let cs = applied?;
+    forget_draft(&state, &who, &screen).await;
     Ok(Json(Success::new(json!({
         "changeset": cs.id,
         "url": format!("/admin/changesets/{}", cs.id),

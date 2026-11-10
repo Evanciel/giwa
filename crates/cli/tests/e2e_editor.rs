@@ -1030,3 +1030,134 @@ fn editor_enables_app_blocks() {
         200
     );
 }
+
+/// ADR-0152: 고치던 초안은 서버에 남아 같은 사람의 다른 세션(다른 기기·브라우저)에서 이어 열린다.
+/// 에이전트는 REST 로 읽기만 하고, 발행하면 사라진다.
+#[test]
+fn editor_drafts_follow_the_person() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("사이트");
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
+    let secret = maru(
+        &data,
+        &[
+            "token",
+            "create",
+            "--name",
+            "거들기",
+            "--scope",
+            "read",
+            "--scope",
+            "design",
+        ],
+    )["secret"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let (_server, bind) = start_server(&data);
+    let first = format!(
+        "maru_session={}",
+        sign_in(&bind, maru(&data, &["login-link"])["url"].as_str().unwrap())
+    );
+    let second = format!(
+        "maru_session={}",
+        sign_in(&bind, maru(&data, &["login-link"])["url"].as_str().unwrap())
+    );
+    assert_ne!(first, second, "다른 세션");
+    let page = http(
+        &bind,
+        "GET",
+        "/admin/editor?screen=home",
+        &[("Cookie", &first)],
+        "",
+    );
+    assert!(page.body.contains("\"draft\":null"), "처음엔 초안이 없다");
+    let csrf = {
+        let at = page.body.find("data-csrf=\"").unwrap() + 11;
+        page.body[at..at + page.body[at..].find('"').unwrap()].to_owned()
+    };
+    let json = ("Content-Type", "application/json");
+    let body = serde_json::json!({
+        "body": { "widgets": [{ "id": "new-1", "kind": "html", "region": "home_main",
+            "scope": "home", "title": "다른 기기에서 이어 쓸 블록", "config": {}, "enabled": true }] },
+        "base": "12345",
+    })
+    .to_string();
+    let path = "/admin/editor/draft?screen=home";
+    assert_eq!(
+        http(&bind, "PUT", path, &[json, ("Cookie", &first)], &body).status,
+        403,
+        "CSRF 없이는 두지 않는다"
+    );
+    let auth = [
+        json,
+        ("Cookie", first.as_str()),
+        ("x-csrf-token", csrf.as_str()),
+    ];
+    let put = http(&bind, "PUT", path, &auth, &body);
+    assert_eq!(put.status, 200, "{}", put.body);
+    let big = serde_json::json!({ "body": { "x": "가".repeat(200_000) }, "base": "1" }).to_string();
+    assert_eq!(
+        http(&bind, "PUT", path, &auth, &big).status,
+        400,
+        "크기 한도"
+    );
+    assert_eq!(
+        http(
+            &bind,
+            "PUT",
+            "/admin/editor/draft?screen=post:x",
+            &auth,
+            &body
+        )
+        .status,
+        400
+    );
+
+    // 같은 사람의 다른 세션에서 이어 열린다.
+    let other = http(
+        &bind,
+        "GET",
+        "/admin/editor?screen=home",
+        &[("Cookie", &second)],
+        "",
+    );
+    assert!(
+        other.body.contains("다른 기기에서 이어 쓸 블록"),
+        "다른 세션의 초안"
+    );
+    assert!(other.body.contains("\"base\":\"12345\""));
+
+    // 에이전트는 REST 로 읽는다.
+    let bearer = format!("Bearer {secret}");
+    let rest = http(
+        &bind,
+        "GET",
+        "/api/v1/editor/drafts/home",
+        &[("Authorization", &bearer)],
+        "",
+    );
+    assert_eq!(rest.status, 200, "{}", rest.body);
+    let rest: Value = serde_json::from_str(&rest.body).unwrap();
+    assert_eq!(rest["data"].as_array().unwrap().len(), 1);
+    assert_eq!(rest["data"][0]["screen"], "home");
+
+    // 발행하면(고칠 것이 없어도) 그 화면의 초안을 지운다.
+    let now = draft_of(&maru(&data, &["widget", "list"]));
+    let body = serde_json::json!({ "screen": "home", "widgets": now }).to_string();
+    let r = http(&bind, "POST", "/admin/editor/publish", &auth, &body);
+    assert_eq!(r.status, 200, "{}", r.body);
+    let after = http(
+        &bind,
+        "GET",
+        "/admin/editor?screen=home",
+        &[("Cookie", &second)],
+        "",
+    );
+    assert!(after.body.contains("\"draft\":null"), "발행 뒤 초안이 없다");
+    let del = http(&bind, "DELETE", path, &auth, "");
+    assert_eq!(del.status, 200, "버리기는 여러 번 해도 같다");
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO editor_drafts (member_id, screen, body, base, updated_at)\n         VALUES (?, ?, ?, ?, ?)\n         ON CONFLICT (member_id, screen) DO UPDATE SET\n           body = excluded.body, base = excluded.base, updated_at = excluded.updated_at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "2c2401bf5a56cbb626378c366045016619cbec87ffc9ed34e20bb4e321a33dc5"
+}

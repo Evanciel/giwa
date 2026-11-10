@@ -53,7 +53,7 @@
     <button type="button" class="primary" data-publish disabled>발행</button>
   </header>
   {% if done %}<p class="ed-notice" role="note">사이트에 발행했습니다. 되돌리려면 <a href="/admin/changesets/{{ done }}">변경 묶음 화면</a>에서 「되돌리기」를 누르세요.</p>{% endif %}
-  <p class="ed-notice ed-restore" data-restore hidden>이 브라우저에 지난번 고치던 초안이 있습니다.
+  <p class="ed-notice ed-restore" data-restore hidden><span data-restore-text>지난번 고치던 초안이 있습니다.</span>
     <button type="button" class="secondary" data-restore-yes>이어서 고치기</button>
     <button type="button" class="link" data-restore-no>버리기</button></p>
   <div class="ed-body">

@@ -6,6 +6,7 @@ mod changesets;
 mod comments;
 pub mod data_dir;
 pub mod db;
+pub(crate) mod drafts;
 pub mod fetch;
 mod links;
 pub mod mail;

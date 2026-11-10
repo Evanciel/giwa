@@ -11,6 +11,7 @@ pub mod categories;
 pub mod changesets;
 pub mod comments;
 pub mod design;
+pub mod editor_drafts;
 pub mod files;
 pub mod fonts;
 pub mod indexnow;

@@ -254,6 +254,14 @@ pub(crate) fn lookup(key: &str) -> Option<&'static str> {
         "error.preset_unknown" => "Unknown preset: {value}",
         "error.starter_unknown" => "Unknown page starter: {value} (choose from: {allowed})",
         "error.starter_invalid" => "Could not read page starters: {detail}",
+        "error.draft_screen" => "Invalid screen name for a draft: {value}",
+        "error.draft_human_only" => {
+            "Only signed-in people save drafts. Agents can only read a screen's drafts."
+        }
+        "error.draft_body" => "A draft body must be a JSON object.",
+        "error.draft_too_large" => {
+            "The draft is too large (max {max}KB). Remove some blocks or publish first."
+        }
         "error.board_not_empty" => "Board `{slug}` has {count} posts and cannot be deleted.",
         "error.page_exists" => "Page `{slug}` already exists.",
         "error.page_not_found" => "Page `{slug}` was not found.",

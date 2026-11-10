@@ -21,7 +21,9 @@ use crate::model::{
     PostStatus, PostTemplate, Revision, Role, Session, StatBatch, StatDay, StatPage, StatReferrer,
     Tag, TicketPurpose, Token, TotpChallenge, Widget,
 };
-use crate::model::{LinkPreview, LinkStatus, MemberActivity, MemberTotp, Redirect, Signal};
+use crate::model::{
+    EditorDraft, LinkPreview, LinkStatus, MemberActivity, MemberTotp, Redirect, Signal,
+};
 
 /// 댓글 관리 목록 조건. 비어 있는 조건은 거르지 않는다.
 #[derive(Debug, Clone, Copy, Default)]
@@ -366,6 +368,14 @@ pub trait Store: Send + Sync {
     async fn update_link(&self, p: &LinkPreview) -> Result<()>;
     /// 새것부터. `status` 가 없으면 전부
     async fn links(&self, status: Option<LinkStatus>, limit: i64) -> Result<Vec<LinkPreview>>;
+    /// 화면 편집기 초안 (ADR-0152). 사람의 작업 중 사본이라 감사 대상이 아니다. 발행이 감사에 남는다.
+    async fn editor_draft(&self, member_id: &str, screen: &str) -> Result<Option<EditorDraft>>;
+    /// 이 화면의 모든 사람 초안, 최근 것부터.
+    async fn editor_drafts(&self, screen: &str) -> Result<Vec<EditorDraft>>;
+    /// 있으면 덮어쓴다.
+    async fn put_editor_draft(&self, d: &EditorDraft) -> Result<()>;
+    /// 지웠으면 `true`.
+    async fn delete_editor_draft(&self, member_id: &str, screen: &str) -> Result<bool>;
 
     async fn comment_by_id(&self, id: &str) -> Result<Option<Comment>>;
     /// 회원이 마지막으로 글이나 댓글을 쓴 때 (도배 방지, ADR-0071)

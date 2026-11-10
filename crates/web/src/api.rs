@@ -13,9 +13,9 @@ use maru_core::model::{ChangesetStatus, MenuItem, PageReq, PageStatus, PostStatu
 use maru_core::output::Success;
 use maru_core::services::changesets;
 use maru_core::services::{
-    anonymous_actor, audit_log, backups, boards, categories, comments, design, files, fonts,
-    indexnow, links, media, members, menus, pages, posts, redirects, retention, samples, search,
-    settings, signals, stats, tags, templates, tokens, views, widgets, wiki,
+    anonymous_actor, audit_log, backups, boards, categories, comments, design, editor_drafts,
+    files, fonts, indexnow, links, media, members, menus, pages, posts, redirects, retention,
+    samples, search, settings, signals, stats, tags, templates, tokens, views, widgets, wiki,
 };
 use maru_core::{Actor, Code, Error};
 use maru_modules::service as modules;
@@ -68,6 +68,7 @@ pub fn routes() -> Router<AppState> {
         )
         .route("/menus/{location}", get(get_menu).put(put_menu))
         .route("/widget-types", get(widget_types))
+        .route("/editor/drafts/{screen}", get(list_editor_drafts))
         .route("/widgets", get(list_widgets).post(place_widget))
         .route(
             "/widgets/{id}",
@@ -674,6 +675,18 @@ pub(crate) fn csv_response(s: &stats::StatsSummary) -> Response {
         stats::csv(s),
     )
         .into_response()
+}
+
+/// 화면 편집기에서 사람들이 고치던 초안 (ADR-0152). 에이전트는 읽기만 한다.
+async fn list_editor_drafts(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(screen): Path<String>,
+) -> Result<Response, ApiError> {
+    Ok(ok(
+        StatusCode::OK,
+        editor_drafts::for_screen(&state.ctx, &actor, &screen).await?,
+    ))
 }
 
 async fn widget_types(State(state): State<AppState>) -> Result<Response, ApiError> {

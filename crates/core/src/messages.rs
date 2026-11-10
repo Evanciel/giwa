@@ -306,6 +306,14 @@ fn lookup_ko(key: &str) -> Option<&'static str> {
             "알 수 없는 페이지 틀입니다: {value} (고를 수 있는 것: {allowed})"
         }
         "error.starter_invalid" => "페이지 틀 파일을 읽을 수 없습니다: {detail}",
+        "error.draft_screen" => "초안의 화면 이름이 올바르지 않습니다: {value}",
+        "error.draft_human_only" => {
+            "초안은 로그인한 사람만 저장합니다. 에이전트는 화면의 초안을 읽기만 합니다."
+        }
+        "error.draft_body" => "초안 본문은 JSON 객체여야 합니다.",
+        "error.draft_too_large" => {
+            "초안이 너무 큽니다(최대 {max}KB). 블록을 줄이거나 먼저 발행하세요."
+        }
         "error.board_not_empty" => "`{slug}` 게시판에 글이 {count}개 있어 지울 수 없습니다.",
         "error.page_exists" => "`{slug}` 페이지가 이미 있습니다.",
         "error.page_not_found" => "`{slug}` 페이지를 찾을 수 없습니다.",

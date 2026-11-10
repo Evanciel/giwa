@@ -1220,6 +1220,19 @@ pub struct LinkPreview {
     pub created_at: String,
 }
 
+/// 화면 편집기 초안 한 벌 (ADR-0152). 사람마다 화면마다 하나. `body` 는 편집기가 쓰는 모양
+/// (`widgets`·`site`·`design`) 그대로다.
+#[derive(Debug, Clone, PartialEq, Serialize, JsonSchema)]
+pub struct EditorDraft {
+    pub member_id: Id,
+    /// `home`·`page:<slug>`·`board:<slug>`
+    pub screen: String,
+    pub body: serde_json::Value,
+    /// 편집기를 연 때의 사이트 값 지문. 지금과 다르면 그 사이 누가 발행했다.
+    pub base: String,
+    pub updated_at: String,
+}
+
 /// 보낼 편지함의 편지 한 통 (`mail_outbox`). 본문에 1회용 링크가 들 수 있어 REST 로 내보내지 않는다.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
 pub struct MailOut {

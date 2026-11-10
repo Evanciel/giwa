@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM editor_drafts WHERE member_id = ? AND screen = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "09c18a31f5e10b6c749290b8b93af6a5ebffa912c8e6cb53c0486e5de36435b5"
+}

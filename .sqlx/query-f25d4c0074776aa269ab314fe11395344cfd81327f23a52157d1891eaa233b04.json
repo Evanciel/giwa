@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT member_id, screen, body, base, updated_at FROM editor_drafts\n         WHERE member_id = ? AND screen = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "member_id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "editor_drafts",
+            "name": "member_id"
+          }
+        }
+      },
+      {
+        "name": "screen",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "editor_drafts",
+            "name": "screen"
+          }
+        }
+      },
+      {
+        "name": "body",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "editor_drafts",
+            "name": "body"
+          }
+        }
+      },
+      {
+        "name": "base",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "editor_drafts",
+            "name": "base"
+          }
+        }
+      },
+      {
+        "name": "updated_at",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "editor_drafts",
+            "name": "updated_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "f25d4c0074776aa269ab314fe11395344cfd81327f23a52157d1891eaa233b04"
+}

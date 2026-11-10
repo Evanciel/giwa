@@ -83,6 +83,8 @@
   function byId(id) { for (var i = 0; i < widgets.length; i++) if (widgets[i].id === id) return widgets[i]; return null; }
   function indexOf(id) { for (var i = 0; i < widgets.length; i++) if (widgets[i].id === id) return i; return -1; }
   function hash(s) { var h = 5381; for (var i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return String(h); }
+  // 편집기를 연 때의 사이트 값 지문. 초안과 함께 둔다. 다르면 그 사이 누가 발행했다.
+  function baseHash() { return hash(saved + savedSite + savedDesign); }
   function newId() { uid += 1; return "new-" + Date.now().toString(36) + "-" + uid; }
   function nameOf(w) {
     var k = kinds[w.kind];
@@ -156,6 +158,32 @@
     return n + siteDirty() + (Object.keys(designPatch()).length ? 1 : 0);
   }
 
+  // ---- 초안을 서버에 (ADR-0152) ----
+  // 고칠 때마다 2초 묶어 서버에 둔다. 다른 기기·브라우저에서 이어 고친다. 서버에 못 두면 이 브라우저에만 남는다.
+  var syncTimer = null;
+  var syncBody;
+  var synced = data.draft ? JSON.stringify(data.draft.body) : "null";
+  function saveDraftNow(keepalive) {
+    clearTimeout(syncTimer);
+    syncTimer = null;
+    var text = JSON.stringify(syncBody === undefined ? null : syncBody);
+    if (text === synced) return;
+    var req = { method: syncBody ? "PUT" : "DELETE", credentials: "same-origin", keepalive: !!keepalive, headers: { "x-csrf-token": csrf } };
+    if (syncBody) {
+      req.headers["content-type"] = "application/json";
+      req.body = JSON.stringify({ body: syncBody, base: baseHash() });
+    }
+    fetch("/admin/editor/draft?screen=" + encodeURIComponent(screen), req).then(function (r) {
+      if (r.ok) synced = text;
+    }).catch(function () { /* 이 브라우저에는 남아 있다 */ });
+  }
+  function syncDraft(body) {
+    syncBody = body;
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(saveDraftNow, 2000);
+  }
+  window.addEventListener("pagehide", function () { if (syncTimer) saveDraftNow(true); });
+
   var renderTimer = null;
   function changed(redraw, rebuildInspector) {
     var n = dirtyCount();
@@ -163,10 +191,14 @@
     publishBtn.disabled = !n && !pageDraft;
     undoBtn.disabled = !past.length;
     redoBtn.disabled = !future.length;
-    try {
-      if (n) localStorage.setItem(STORE, JSON.stringify({ base: hash(saved + savedSite + savedDesign), widgets: widgets, site: site, design: design }));
-      else localStorage.removeItem(STORE);
-    } catch (e) { /* 저장소를 못 쓰면 이 창에서만 */ }
+    // 이어 고칠지 묻는 동안 아무것도 안 고쳤으면 지난 초안을 그대로 둔다.
+    if (n || !restore || restore.hidden) {
+      try {
+        if (n) localStorage.setItem(STORE, JSON.stringify({ base: baseHash(), at: new Date().toISOString(), widgets: widgets, site: site, design: design }));
+        else localStorage.removeItem(STORE);
+      } catch (e) { /* 저장소를 못 쓰면 서버에만 */ }
+      syncDraft(n ? { widgets: widgets, site: site, design: design } : null);
+    }
     drawLayers();
     if (rebuildInspector !== false) drawInspector();
     if (JSON.stringify(design) !== shownDesign) { shownDesign = JSON.stringify(design); previewDesign(); }
@@ -1399,7 +1431,7 @@
     var mod = e.ctrlKey || e.metaKey;
     if (mod && !typing(e) && (e.key === "z" || e.key === "Z")) { e.preventDefault(); if (e.shiftKey) redo(); else undo(); }
     else if (mod && !typing(e) && (e.key === "y" || e.key === "Y")) { e.preventDefault(); redo(); }
-    else if (mod && (e.key === "s" || e.key === "S")) { e.preventDefault(); statusEl.textContent = "고친 것은 이 브라우저에 저장돼 있습니다. 사이트에 내보내려면 「발행」을 누르세요."; }
+    else if (mod && (e.key === "s" || e.key === "S")) { e.preventDefault(); if (syncTimer) saveDraftNow(); statusEl.textContent = "고친 것을 초안으로 저장했습니다. 다른 기기에서도 이어 고칠 수 있습니다. 사이트에 내보내려면 「발행」을 누르세요."; }
     else if ((e.key === "Delete" || e.key === "Backspace") && selected && !typing(e)) { e.preventDefault(); blockAction("remove", selected); }
     else if (e.key === "Escape" && selected) select(null);
   }
@@ -1420,6 +1452,8 @@
     var badPart = Object.keys(invalid).filter(isSite)[0];
     if (badPart) { select(badPart); statusEl.textContent = "저장할 수 없는 사이트 공통 값이 있습니다. 고친 뒤 발행하세요."; return; }
     publishBtn.disabled = true;
+    clearTimeout(syncTimer);
+    syncTimer = null;
     statusEl.textContent = "발행하는 중…";
     fetch("/admin/editor/publish", {
       method: "POST",
@@ -1451,27 +1485,44 @@
   frame.addEventListener("load", function () { decorate(); });
   if (fdoc() && fdoc().readyState === "complete" && fdoc().querySelector("[data-maru-region]")) decorate();
 
-  // 지난번 초안이 있으면 이어서 고칠지 묻는다. 그 사이 사이트가 바뀌었으면 버린다.
+  // 지난번 초안이 있으면 이어서 고칠지 묻는다 (ADR-0152). 서버 초안과 이 브라우저 초안 중 나중에 고친 것.
+  // 그 사이 누가 발행했으면(지문이 다르면) 이어 고칠 때 그 고침을 덮어쓸 수 있다고 알린다.
   var restore = root.querySelector("[data-restore]");
-  try {
-    var kept = JSON.parse(localStorage.getItem(STORE) || "null");
-    var keptSite = kept && kept.site ? JSON.stringify(kept.site) : savedSite;
-    var keptDesign = kept && kept.design ? JSON.stringify(kept.design) : savedDesign;
-    if (kept && kept.base === hash(saved + savedSite + savedDesign) && (JSON.stringify(kept.widgets) !== saved || keptSite !== savedSite || keptDesign !== savedDesign)) {
-      restore.hidden = false;
-      restore.querySelector("[data-restore-yes]").addEventListener("click", function () {
-        restore.hidden = true;
-        change(function () { widgets = kept.widgets; site = JSON.parse(keptSite); design = JSON.parse(keptDesign); });
-        drawDesign();
-      });
-      restore.querySelector("[data-restore-no]").addEventListener("click", function () {
-        restore.hidden = true;
-        try { localStorage.removeItem(STORE); } catch (e) { /* 무시 */ }
-      });
-    } else if (kept) {
-      localStorage.removeItem(STORE);
+  function forgetDraft() {
+    try { localStorage.removeItem(STORE); } catch (e) { /* 무시 */ }
+    syncBody = null;
+    saveDraftNow();
+  }
+  (function () {
+    var kept = null;
+    try { kept = JSON.parse(localStorage.getItem(STORE) || "null"); } catch (e) { /* 저장소를 못 쓰면 서버 것만 */ }
+    var fromServer = false;
+    if (data.draft && data.draft.body && (!kept || (Date.parse(data.draft.updated_at) || 0) >= (Date.parse(kept.at) || 0))) {
+      var b = data.draft.body;
+      kept = { base: data.draft.base, at: data.draft.updated_at, widgets: b.widgets, site: b.site, design: b.design };
+      fromServer = true;
     }
-  } catch (e) { /* 저장소를 못 쓰면 묻지 않는다 */ }
+    if (!kept) return;
+    if (!Array.isArray(kept.widgets)) { forgetDraft(); return; }
+    var keptSite = kept.site ? JSON.stringify(kept.site) : savedSite;
+    var keptDesign = kept.design ? JSON.stringify(kept.design) : savedDesign;
+    if (JSON.stringify(kept.widgets) === saved && keptSite === savedSite && keptDesign === savedDesign) { forgetDraft(); return; }
+    var when = kept.at ? new Date(kept.at) : null;
+    var text = (fromServer ? "저장해 둔 초안이 있습니다" : "이 브라우저에 지난번 고치던 초안이 있습니다")
+      + (when && !isNaN(when) ? " (" + when.toLocaleString("ko-KR", { month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" }) + "에 고침)" : "") + ".";
+    if (kept.base !== baseHash()) text += " 그 사이 사이트에 발행된 고침이 있어, 이어서 고치면 그 고침을 덮어쓸 수 있습니다.";
+    restore.querySelector("[data-restore-text]").textContent = text;
+    restore.hidden = false;
+    restore.querySelector("[data-restore-yes]").addEventListener("click", function () {
+      restore.hidden = true;
+      change(function () { widgets = kept.widgets; site = JSON.parse(keptSite); design = JSON.parse(keptDesign); });
+      drawDesign();
+    });
+    restore.querySelector("[data-restore-no]").addEventListener("click", function () {
+      restore.hidden = true;
+      forgetDraft();
+    });
+  })();
 
   // 새 페이지 틀 (ADR-0149): 처음 열 때 한 번만 틀의 블록과 위 메뉴를 초안에 넣는다.
   if (data.starter && restore.hidden) {
@@ -1505,7 +1556,7 @@
     });
     npForm.elements.slug.addEventListener("input", function () { slugTouched = true; });
     npBtn.addEventListener("click", function () {
-      if (dirtyCount() && !confirm("발행하지 않은 고침은 이 브라우저에 남겨 두고 새 페이지로 갑니다.")) return;
+      if (dirtyCount() && !confirm("발행하지 않은 고침은 초안으로 남겨 두고 새 페이지로 갑니다.")) return;
       npErr.textContent = "";
       npDlg.showModal();
       npForm.elements.title.focus();

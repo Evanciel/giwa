@@ -10,7 +10,9 @@ use maru_core::model::{
     PostKind, PostStatus, PostTemplate, Revision, Role, Session, StatBatch, StatDay, StatPage,
     StatReferrer, Tag, TicketPurpose, Token, TotpChallenge, Widget,
 };
-use maru_core::model::{LinkPreview, LinkStatus, MemberActivity, MemberTotp, Redirect};
+use maru_core::model::{
+    EditorDraft, LinkPreview, LinkStatus, MemberActivity, MemberTotp, Redirect,
+};
 use maru_core::store::{
     AuditFilter, CommentQuery, LiteralSearchQuery, MenuRow, ModuleMigration, PopularQuery,
     PostFilter, PublishedQuery, SearchQuery, SearchRef, Store, WikiPage, WriteTx,
@@ -1457,6 +1459,22 @@ impl Store for SqliteStore {
 
     async fn links(&self, status: Option<LinkStatus>, limit: i64) -> Result<Vec<LinkPreview>> {
         crate::links::list(&self.db.read, status, limit).await
+    }
+
+    async fn editor_draft(&self, member_id: &str, screen: &str) -> Result<Option<EditorDraft>> {
+        crate::drafts::get(&self.db.read, member_id, screen).await
+    }
+
+    async fn editor_drafts(&self, screen: &str) -> Result<Vec<EditorDraft>> {
+        crate::drafts::for_screen(&self.db.read, screen).await
+    }
+
+    async fn put_editor_draft(&self, d: &EditorDraft) -> Result<()> {
+        crate::drafts::put(&self.db.write, d).await
+    }
+
+    async fn delete_editor_draft(&self, member_id: &str, screen: &str) -> Result<bool> {
+        crate::drafts::delete(&self.db.write, member_id, screen).await
     }
 
     async fn comment_by_id(&self, id: &str) -> Result<Option<Comment>> {
