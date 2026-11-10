@@ -1188,6 +1188,19 @@ fn editor_offers_start_bundles_and_help() {
         "",
     );
     assert_eq!(page.status, 200);
+    // 한글 주소 페이지도 편집기가 열린다(초안 화면 이름 검사가 막던 버그).
+    maru(
+        &data,
+        &["page", "new", "메뉴", "--title", "메뉴", "--publish"],
+    );
+    let korean = http(
+        &bind,
+        "GET",
+        "/admin/editor?screen=page:%EB%A9%94%EB%89%B4",
+        &[("Cookie", &cookie)],
+        "",
+    );
+    assert_eq!(korean.status, 200, "{}", korean.body);
     for marker in [
         "data-start hidden",
         "data-tour ",

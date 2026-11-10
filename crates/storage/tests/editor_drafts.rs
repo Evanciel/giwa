@@ -122,6 +122,16 @@ async fn drafts_check_size_and_shape() {
             "{bad}"
         );
     }
+    // 한글 주소의 페이지도 초안을 둔다 (편집기가 통째로 열리지 않던 버그).
+    editor_drafts::save(&ctx, &me, "page:메뉴", json!({}), "a")
+        .await
+        .unwrap();
+    assert!(
+        editor_drafts::get(&ctx, &me, "page:메뉴")
+            .await
+            .unwrap()
+            .is_some()
+    );
     assert_eq!(
         editor_drafts::save(&ctx, &me, "home", json!([1]), "a")
             .await

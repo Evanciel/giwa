@@ -16,12 +16,13 @@ use crate::store::Ctx;
 pub const MAX_BYTES: usize = 512 * 1024;
 
 /// 화면 키(`home`·`page:<slug>`·`board:<slug>`)의 모양만 본다. 어떤 화면인지는 편집기가 안다.
+/// 주소에는 한글이 올 수 있다(`page:메뉴`). 편집기의 화면 주소 규칙(글자·숫자·`-`·`_`, 120바이트)과 맞춘다.
 fn check_screen(screen: &str) -> Result<()> {
     let ok = !screen.is_empty()
         && screen.len() <= 128
         && screen
             .chars()
-            .all(|c| c.is_ascii_alphanumeric() || matches!(c, ':' | '-' | '_' | '/'));
+            .all(|c| c.is_alphanumeric() || matches!(c, ':' | '-' | '_'));
     if ok {
         Ok(())
     } else {
