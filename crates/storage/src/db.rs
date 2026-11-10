@@ -9,6 +9,7 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use maru_core::{Code, Error, Result};
+use sha2::{Digest, Sha384};
 use sqlx::ConnectOptions;
 use sqlx::migrate::{MigrateError, Migrator};
 use sqlx::sqlite::{
@@ -16,6 +17,39 @@ use sqlx::sqlite::{
 };
 
 pub static MIGRATOR: Migrator = sqlx::migrate!();
+
+/// 줄 끝만 CRLF 인 사본으로 빌드한 바이너리가 적용한 마이그레이션은 체크섬이 달라 `VersionMismatch` 가 난다
+/// (ADR-0150). 저장된 체크섬이 내장 SQL 의 줄 끝을 CRLF 로 바꾼 체크섬과 같은 행만 내장 체크섬으로 고친다.
+/// 내용은 줄 끝 말고 같으므로 다시 실행하지 않는다. 마이그레이션 표가 없으면(새 DB) 할 일이 없다.
+async fn repair_line_endings(pool: &SqlitePool) -> Result<()> {
+    let table: Option<String> = sqlx::query_scalar(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = '_sqlx_migrations'",
+    )
+    .fetch_optional(pool)
+    .await
+    .map_err(db_error)?;
+    if table.is_none() {
+        return Ok(());
+    }
+    for m in MIGRATOR
+        .iter()
+        .filter(|m| !m.migration_type.is_down_migration())
+    {
+        let sql = m.sql.as_str();
+        if sql.contains("\r\n") || !sql.contains('\n') {
+            continue;
+        }
+        let crlf = Sha384::digest(sql.replace('\n', "\r\n").as_bytes());
+        sqlx::query("UPDATE _sqlx_migrations SET checksum = ? WHERE version = ? AND checksum = ?")
+            .bind(m.checksum.as_ref())
+            .bind(m.version)
+            .bind(crlf.as_slice())
+            .execute(pool)
+            .await
+            .map_err(db_error)?;
+    }
+    Ok(())
+}
 
 /// 다른 프로세스(서버 실행 중 CLI)가 쓰기 잠금을 쥐고 있을 때 기다리는 시간.
 const BUSY_TIMEOUT: Duration = Duration::from_secs(10);
@@ -57,6 +91,7 @@ impl Db {
     /// 내장 마이그레이션을 적용한다. DB가 바이너리보다 새로우면 `SCHEMA_TOO_NEW`.
     /// 이어서 검색 색인 버전을 확인해 자르는 규칙이 바뀌었으면 다시 만든다 (ADR-0050).
     pub async fn migrate(&self) -> Result<()> {
+        repair_line_endings(&self.write).await?;
         MIGRATOR.run(&self.write).await.map_err(migrate_error)?;
         crate::search::ensure(&self.write).await
     }

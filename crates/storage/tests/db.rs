@@ -142,3 +142,41 @@ fn bad_config_is_validation_error() {
     std::fs::write(dir.config_path(), "bind = 1\n").unwrap();
     assert_eq!(dir.read_config().unwrap_err().code(), Code::Validation);
 }
+
+/// ADR-0150: 줄 끝만 CRLF 인 사본으로 빌드한 바이너리가 남긴 체크섬은 다음 migrate 가 고친다.
+/// 줄 끝 말고 다른 차이는 고치지 않고 그대로 거절한다.
+#[tokio::test]
+async fn migrate_repairs_crlf_checksums() {
+    use sha2::{Digest, Sha384};
+    let (_tmp, dir) = data_dir();
+    let db = open(&dir).await;
+    let m = maru_storage::db::MIGRATOR
+        .iter()
+        .find(|m| {
+            let sql = m.sql.as_str();
+            !m.migration_type.is_down_migration() && !sql.contains("\r\n") && sql.contains('\n')
+        })
+        .unwrap();
+    let crlf = Sha384::digest(m.sql.as_str().replace('\n', "\r\n").as_bytes()).to_vec();
+    sqlx::query("UPDATE _sqlx_migrations SET checksum = ? WHERE version = ?")
+        .bind(&crlf)
+        .bind(m.version)
+        .execute(db.write_pool())
+        .await
+        .unwrap();
+    db.migrate().await.unwrap();
+    let stored: Vec<u8> =
+        sqlx::query_scalar("SELECT checksum FROM _sqlx_migrations WHERE version = ?")
+            .bind(m.version)
+            .fetch_one(db.read_pool())
+            .await
+            .unwrap();
+    assert_eq!(stored, m.checksum.as_ref());
+
+    sqlx::query("UPDATE _sqlx_migrations SET checksum = x'00' WHERE version = ?")
+        .bind(m.version)
+        .execute(db.write_pool())
+        .await
+        .unwrap();
+    assert!(db.migrate().await.is_err());
+}
