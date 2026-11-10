@@ -29,12 +29,40 @@ fn from_pairs(pairs: Vec<(String, Value)>) -> Tokens {
 /// 현재 토큰 위에 `patch`(부분 JSON)를 겹쳐 저장한다. 같은 값이면 아무것도 쓰지 않는다.
 pub async fn update(ctx: &Ctx, actor: &Actor, patch: Value) -> Result<Tokens> {
     actor.require(Permission::DesignEdit)?;
+    let mut tx = Tx::begin(ctx).await?;
+    let (before, after) = merged(&mut tx, patch).await?;
+    if after == before {
+        return Ok(before);
+    }
+    let value = serde_json::to_value(&after).map_err(Error::internal)?;
+    tx.put_setting(KEY, &value, &clock::now()).await?;
+    tx.audit(
+        actor,
+        "design.tokens",
+        Target::site(),
+        json!({ "before": before, "after": after }),
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(after)
+}
+
+/// 저장하지 않고 `patch` 를 겹친 토큰을 돌려준다. 화면 편집기의 디자인 판(ADR-0148)이 캔버스에 미리 입힐 때 쓴다.
+/// 검사는 `update` 와 같다.
+pub async fn preview(ctx: &Ctx, actor: &Actor, patch: Value) -> Result<Tokens> {
+    actor.require(Permission::DesignEdit)?;
+    let mut tx = Tx::begin(ctx).await?;
+    let (_, after) = merged(&mut tx, patch).await?;
+    Ok(after)
+}
+
+/// 저장된 토큰과, 그 위에 `patch` 를 겹쳐 검사한 토큰. 서체는 값이 바뀔 때만 DB 에서 확인한다.
+async fn merged(tx: &mut Tx, patch: Value) -> Result<(Tokens, Tokens)> {
     if !patch.is_object() {
         return Err(Error::new(Code::Validation)
             .with_message("error.json_body")
             .arg("detail", "객체가 아닙니다"));
     }
-    let mut tx = Tx::begin(ctx).await?;
     let before = from_pairs(tx.settings().await?);
     let mut merged = serde_json::to_value(&before).map_err(Error::internal)?;
     merge(&mut merged, patch);
@@ -45,7 +73,7 @@ pub async fn update(ctx: &Ctx, actor: &Actor, patch: Value) -> Result<Tokens> {
     })?;
     after.validate()?;
     if after == before {
-        return Ok(before);
+        return Ok((before, after));
     }
     // 내장 이름이 아닌 서체 값은 올린 서체여야 한다 (ADR-0048).
     for (field, value) in [
@@ -61,17 +89,7 @@ pub async fn update(ctx: &Ctx, actor: &Actor, patch: Value) -> Result<Tokens> {
                 .next("maru font list"));
         }
     }
-    let value = serde_json::to_value(&after).map_err(Error::internal)?;
-    tx.put_setting(KEY, &value, &clock::now()).await?;
-    tx.audit(
-        actor,
-        "design.tokens",
-        Target::site(),
-        json!({ "before": before, "after": after }),
-    )
-    .await?;
-    tx.commit().await?;
-    Ok(after)
+    Ok((before, after))
 }
 
 /// 기본값으로 되돌린다.

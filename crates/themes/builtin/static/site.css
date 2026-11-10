@@ -1122,6 +1122,13 @@ body:is(:has(main.page-blocks), :has(main.wide), :has(.with-sidebar), :has(.docs
 .sec { padding-block: clamp(calc(var(--space) * 6), 8vw, var(--space-section)); }
 .sec-inner { width: min(var(--max-width), 100% - 2.5rem); margin-inline: auto; }
 .sec.tone-plain + .sec.tone-plain { padding-top: 0; }
+/* 띠 여백·정렬 (ADR-0148). 간격은 토큰 배수만 쓴다. */
+.sec.space-tight { padding-block: clamp(calc(var(--space) * 3), 4vw, calc(var(--space-section) * .5)); }
+.sec.space-roomy { padding-block: clamp(calc(var(--space) * 9), 12vw, calc(var(--space-section) * 1.5)); }
+.sec.tone-plain + .sec.tone-plain.space-roomy { padding-top: calc(var(--space) * 4); }
+.sec.align-center > .sec-inner { text-align: center; }
+.sec.align-center .sec-lead { margin-inline: auto; }
+.sec.align-center .sec-actions { justify-content: center; }
 .tone-soft { background: color-mix(in srgb, var(--primary) 7%, var(--bg)); }
 .tone-strong { --primary-band: var(--primary); background: var(--primary); }
 .tone-strong > .sec-inner {

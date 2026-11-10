@@ -635,3 +635,158 @@ fn editor_picks_images_and_links() {
     assert_eq!(it["config"]["image"], url.as_str());
     assert_eq!(it["config"]["image_alt"], "가게 앞");
 }
+
+/// ADR-0148: 블록 꾸미기(여백·정렬)와 사이트 디자인 판. 토큰 초안은 캔버스용 CSS 로만 돌아오고,
+/// 발행하면 블록과 같은 변경 묶음의 `tokens.set` 이 되며 되돌리면 원래 색이다.
+#[test]
+fn editor_styles_blocks_and_site_design() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("사이트");
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
+    let link = maru(&data, &["login-link"]);
+    let (_server, bind) = start_server(&data);
+    let session = sign_in(&bind, link["url"].as_str().unwrap());
+    let cookie = format!("maru_session={session}");
+    let page = http(
+        &bind,
+        "GET",
+        "/admin/editor?screen=home",
+        &[("Cookie", &cookie)],
+        "",
+    );
+    assert!(page.body.contains("\"fonts\":"), "편집기 재료에 서체 목록");
+    assert!(page.body.contains("data-tab=\"design\""));
+    let csrf = {
+        let at = page.body.find("data-csrf=\"").unwrap() + 11;
+        page.body[at..at + page.body[at..].find('"').unwrap()].to_owned()
+    };
+    let json = ("Content-Type", "application/json");
+    let auth = [
+        json,
+        ("Cookie", cookie.as_str()),
+        ("x-csrf-token", csrf.as_str()),
+    ];
+    let before_primary = maru(&data, &["design", "show"])["color"]["primary"].clone();
+
+    // 꾸미기: 여백·정렬이 띠 클래스가 되고, 모르는 값은 알린다.
+    let mut draft = draft_of(&maru(&data, &["widget", "list"]));
+    draft.push(serde_json::json!({
+        "id": "new-cta", "kind": "cta", "region": "main", "scope": "home", "title": "문의",
+        "config": { "text": "연락 주세요", "space": "roomy", "align": "center" },
+        "enabled": true, "hide_on": [],
+    }));
+    let drawn = http(
+        &bind,
+        "POST",
+        "/admin/editor/frame?screen=home",
+        &auth,
+        &serde_json::json!({ "widgets": draft }).to_string(),
+    );
+    assert_eq!(drawn.status, 200, "{}", drawn.body);
+    assert!(
+        drawn.body.contains("tone-strong space-roomy align-center"),
+        "띠 클래스"
+    );
+    let mut wrong = draft.clone();
+    wrong.last_mut().unwrap()["config"]["space"] = serde_json::json!("huge");
+    let bad = http(
+        &bind,
+        "POST",
+        "/admin/editor/frame?screen=home",
+        &auth,
+        &serde_json::json!({ "widgets": wrong }).to_string(),
+    );
+    assert_eq!(header(&bad, "x-maru-invalid"), "new-cta");
+
+    // 디자인 판: 저장하지 않고 검사한 CSS 를 돌려준다. 대비가 모자라면 거절한다.
+    let css = http(
+        &bind,
+        "POST",
+        "/admin/editor/tokens",
+        &auth,
+        r##"{"tokens":{"color":{"primary":"#1d4ed8"},"radius":{"sm":2,"md":4,"lg":6}}}"##,
+    );
+    assert_eq!(css.status, 200, "{}", css.body);
+    assert!(header(&css, "content-type").starts_with("text/css"));
+    assert!(css.body.contains("#1d4ed8") && css.body.contains("--radius-md: 4px;"));
+    let weak = http(
+        &bind,
+        "POST",
+        "/admin/editor/tokens",
+        &auth,
+        r##"{"tokens":{"color":{"primary":"#f4f4f4"}}}"##,
+    );
+    assert_eq!(weak.status, 400, "{}", weak.body);
+    assert!(weak.body.contains("\"ok\":false"));
+    assert_eq!(
+        http(
+            &bind,
+            "POST",
+            "/admin/editor/tokens",
+            &[json, ("Cookie", &cookie)],
+            r#"{"tokens":{}}"#
+        )
+        .status,
+        403
+    );
+    assert_eq!(
+        maru(&data, &["design", "show"])["color"]["primary"],
+        before_primary,
+        "미리보기는 저장하지 않는다"
+    );
+
+    // 발행: 블록과 디자인이 한 묶음. 되돌리면 원래 색.
+    let published = http(
+        &bind,
+        "POST",
+        "/admin/editor/publish",
+        &auth,
+        &serde_json::json!({
+            "screen": "home", "widgets": draft,
+            "tokens": { "color": { "primary": "#1d4ed8" } },
+        })
+        .to_string(),
+    );
+    assert_eq!(published.status, 200, "{}", published.body);
+    let out: Value = serde_json::from_str(&published.body).unwrap();
+    assert_eq!(out["data"]["ops"], 2, "{out}");
+    assert_eq!(
+        maru(&data, &["design", "show"])["color"]["primary"],
+        "#1d4ed8"
+    );
+    let home = http(&bind, "GET", "/", &[], "").body;
+    assert!(home.contains("space-roomy align-center"));
+    let stored = maru(&data, &["widget", "list"]);
+    let cta = stored
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|w| w["kind"] == "cta")
+        .unwrap();
+    assert_eq!(cta["config"]["space"], "roomy");
+    assert_eq!(cta["config"]["align"], "center");
+    // 같은 디자인을 다시 보내면 연산이 없다.
+    let again = http(
+        &bind,
+        "POST",
+        "/admin/editor/publish",
+        &auth,
+        &serde_json::json!({
+            "screen": "home",
+            "widgets": draft_of(&stored),
+            "tokens": { "color": { "primary": "#1d4ed8" } },
+        })
+        .to_string(),
+    );
+    let again: Value = serde_json::from_str(&again.body).unwrap();
+    assert_eq!(again["data"]["ops"], 0, "{again}");
+    let cs = out["data"]["changeset"].as_str().unwrap().to_owned();
+    maru(&data, &["changeset", "revert", &cs]);
+    assert_eq!(
+        maru(&data, &["design", "show"])["color"]["primary"],
+        before_primary
+    );
+}

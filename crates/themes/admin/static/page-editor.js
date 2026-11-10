@@ -26,6 +26,9 @@
   // 사이트 공통 부분 초안 (ADR-0145): { name, description, menus: { header, quick, footer } }
   var site = JSON.parse(JSON.stringify(data.site));
   var savedSite = JSON.stringify(site);
+  // 사이트 디자인 초안 (ADR-0148): { primary, font_body, font_heading, radius: { sm, md, lg }, density }
+  var design = JSON.parse(JSON.stringify(data.design));
+  var savedDesign = JSON.stringify(design);
   var MENU_LOCS = ["header", "quick", "footer"];
   var PARTS = [
     ["name", "사이트 이름", "머리글과 바닥글에 보이는 이름입니다."],
@@ -103,8 +106,8 @@
   }
 
   // ---- 초안 기록 ----
-  function snapshot() { return JSON.stringify({ w: widgets, s: site }); }
-  function restoreSnap(snap) { var st = JSON.parse(snap); widgets = st.w; site = st.s; }
+  function snapshot() { return JSON.stringify({ w: widgets, s: site, d: design }); }
+  function restoreSnap(snap) { var st = JSON.parse(snap); widgets = st.w; site = st.s; design = st.d; }
   // `mark` 가 같으면(같은 칸을 이어 치는 중) 기록을 하나로 합친다.
   // `quiet` 이면 캔버스와 오른쪽 판을 다시 그리지 않는다(화면 위 글자를 치는 중).
   function change(fn, mark, quiet) {
@@ -122,6 +125,7 @@
     future.push(snapshot());
     restoreSnap(past.pop());
     lastMark = null;
+    drawDesign();
     if (selected && !isSite(selected) && !byId(selected)) selected = null;
     form = null;
     changed(true, true);
@@ -131,6 +135,7 @@
     past.push(snapshot());
     restoreSnap(future.pop());
     lastMark = null;
+    drawDesign();
     if (selected && !isSite(selected) && !byId(selected)) selected = null;
     form = null;
     changed(true, true);
@@ -146,7 +151,7 @@
     });
     Object.keys(before).forEach(function (id) { if (!seen[id]) n += 1; });
     if (!n && JSON.stringify(widgets) !== saved) n = 1; // 순서만 바뀜
-    return n + siteDirty();
+    return n + siteDirty() + (Object.keys(designPatch()).length ? 1 : 0);
   }
 
   var renderTimer = null;
@@ -157,11 +162,12 @@
     undoBtn.disabled = !past.length;
     redoBtn.disabled = !future.length;
     try {
-      if (n) localStorage.setItem(STORE, JSON.stringify({ base: hash(saved + savedSite), widgets: widgets, site: site }));
+      if (n) localStorage.setItem(STORE, JSON.stringify({ base: hash(saved + savedSite + savedDesign), widgets: widgets, site: site, design: design }));
       else localStorage.removeItem(STORE);
     } catch (e) { /* 저장소를 못 쓰면 이 창에서만 */ }
     drawLayers();
     if (rebuildInspector !== false) drawInspector();
+    if (JSON.stringify(design) !== shownDesign) { shownDesign = JSON.stringify(design); previewDesign(); }
     if (redraw) {
       clearTimeout(renderTimer);
       renderTimer = setTimeout(renderFrame, 180);
@@ -224,6 +230,7 @@
       doc.head.appendChild(link);
     }
     doc.documentElement.classList.add("maru-editing");
+    applyDesign();
     doc.querySelectorAll("[data-maru-region]").forEach(function (reg) {
       var id = reg.getAttribute("data-maru-region");
       var box = reg.querySelector(".wrap, .cm-inner, .sponsor-items") || reg;
@@ -861,6 +868,166 @@
   function viewing() { return stage.getAttribute("data-device") || "desktop"; }
   function offHere(w) { return hiddenOn(w).indexOf(viewing()) >= 0; }
 
+  // ---- 꾸미기 (ADR-0148) ----
+  // 섹션 블록(설정에 tone 이 있는 것)의 띠 색·모양·여백·정렬을 칩으로 고른다. 값은 sections.rs 의 목록과 같다.
+  var LOOK = [
+    ["tone", "띠 색", [["plain", "바탕 그대로"], ["soft", "옅은 면"], ["strong", "주 색"]]],
+    ["space", "위아래 여백", [["tight", "좁게"], ["normal", "보통"], ["roomy", "넓게"]]],
+    ["align", "글 정렬", [["start", "왼쪽"], ["center", "가운데"]]]
+  ];
+  var STYLES = {
+    hero: [["type", "글자만"], ["image", "배경 그림"], ["split", "글과 그림 나란히"]],
+    features: [["cards", "카드"], ["rows", "줄"], ["bento", "벤토"], ["steps", "단계"], ["tiles", "작은 칸"]]
+  };
+  var inspTab = "content";
+  function propsOf(kind) { return ((data.types[kind] || {}).properties) || {}; }
+  function hasLook(kind) { return !!propsOf(kind).tone; }
+  function canvasColors() {
+    var doc = fdoc();
+    if (!doc || !doc.defaultView) return null;
+    var cs = doc.defaultView.getComputedStyle(doc.documentElement);
+    return { bg: cs.getPropertyValue("--bg").trim(), primary: cs.getPropertyValue("--primary").trim() };
+  }
+  function lookPanel(w) {
+    var box = el("div", { cls: "ed-look" });
+    var groups = [];
+    if (STYLES[w.kind]) groups.push(["style", "모양", STYLES[w.kind]]);
+    LOOK.forEach(function (g) { groups.push(g); });
+    var colors = canvasColors();
+    groups.forEach(function (g) {
+      var key = g[0], p = propsOf(w.kind)[key] || {};
+      var cur = (w.config || {})[key] || p.default || g[2][0][0];
+      var fs = el("fieldset", { cls: "ed-field ed-chips" }, [el("legend", { text: g[1] })]);
+      g[2].forEach(function (c) {
+        var sw = key === "tone" ? el("span", { cls: "ed-swatch", "aria-hidden": "true" }) : null;
+        if (sw && colors && colors.bg) {
+          sw.style.background = c[0] === "strong" ? colors.primary
+            : c[0] === "soft" ? "color-mix(in srgb, " + colors.primary + " 12%, " + colors.bg + ")" : colors.bg;
+        }
+        var b = el("button", { type: "button", cls: "ed-chip", "aria-pressed": String(cur === c[0]) }, [sw, el("span", { text: c[1] })]);
+        b.addEventListener("click", function () {
+          var cw = byId(w.id);
+          if (!cw || ((cw.config || {})[key] || p.default) === c[0]) return;
+          form = null; // 설정 칸이 옛 값을 다시 쓰지 않게 새로 만든다
+          change(function () { (cw.config || (cw.config = {}))[key] = c[0]; });
+        });
+        fs.appendChild(b);
+      });
+      box.appendChild(fs);
+    });
+    return box;
+  }
+  function showInspTab() {
+    inspector.querySelectorAll("[data-insp-tab]").forEach(function (b) {
+      b.setAttribute("aria-selected", String(b.getAttribute("data-insp-tab") === inspTab));
+    });
+    inspector.querySelectorAll("[data-in-tab]").forEach(function (n) { n.hidden = n.getAttribute("data-in-tab") !== inspTab; });
+  }
+
+  // ---- 사이트 디자인 (ADR-0148) ----
+  // 고른 값은 저장하지 않고 /admin/editor/tokens 가 검사해 돌려준 CSS 를 캔버스에 덧입힌다. 발행하면 tokens.set 연산.
+  var SWATCHES = ["#2f5d50", "#1d4ed8", "#6d28d9", "#b42318", "#b45309", "#0f766e", "#be185d", "#1f2937"];
+  var RADII = [["square", "각지게", { sm: 2, md: 4, lg: 6 }], ["normal", "보통", { sm: 6, md: 12, lg: 20 }], ["round", "둥글게", { sm: 12, md: 20, lg: 32 }]];
+  var DENSITY = [["compact", "촘촘하게"], ["normal", "보통"], ["spacious", "넉넉하게"]];
+  var shownDesign = JSON.stringify(design), designCss = null, designBad = "", designSeq = 0;
+  function designPatch() {
+    var b = JSON.parse(savedDesign), p = {};
+    if (design.primary !== b.primary) p.color = { primary: design.primary };
+    if (design.font_body !== b.font_body || design.font_heading !== b.font_heading) p.font = { body: design.font_body, heading: design.font_heading };
+    if (JSON.stringify(design.radius) !== JSON.stringify(b.radius)) p.radius = design.radius;
+    if (design.density !== b.density) p.layout = { density: design.density };
+    return p;
+  }
+  function applyDesign() {
+    var doc = fdoc();
+    if (!doc || !doc.defaultView || !("adoptedStyleSheets" in doc)) return;
+    var win = doc.defaultView;
+    var sheets = Array.prototype.filter.call(doc.adoptedStyleSheets, function (s) { return !s.__maru; });
+    if (designCss) {
+      try {
+        var sh = new win.CSSStyleSheet();
+        sh.replaceSync(designCss);
+        sh.__maru = true;
+        sheets.push(sh);
+      } catch (e) { /* 입히지 못하면 발행 뒤에 보인다 */ }
+    }
+    doc.adoptedStyleSheets = sheets;
+  }
+  function designMsg(t) {
+    var m = root.querySelector("[data-design-msg]");
+    if (m) { m.textContent = t; m.hidden = !t; }
+  }
+  function previewDesign() {
+    var p = designPatch(), seq = ++designSeq;
+    if (!Object.keys(p).length) { designCss = null; designBad = ""; designMsg(""); applyDesign(); return; }
+    fetch("/admin/editor/tokens", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "content-type": "application/json", "x-csrf-token": csrf },
+      body: JSON.stringify({ tokens: p })
+    }).then(function (r) {
+      return r.ok ? r.text().then(function (t) { return { ok: true, t: t }; })
+        : r.json().then(function (j) { return { ok: false, t: (j.error && j.error.message) || "이 값은 쓸 수 없습니다." }; });
+    }).then(function (res) {
+      if (seq !== designSeq) return;
+      designBad = res.ok ? "" : res.t;
+      if (res.ok) designCss = res.t;
+      designMsg(designBad);
+      applyDesign();
+      if (selected && !isSite(selected) && hasLook((byId(selected) || {}).kind)) { form = null; drawInspector(); }
+    }).catch(function () { /* 다음 고침에 다시 */ });
+  }
+  function chipRow(legend, items, isOn, pick) {
+    var fs = el("fieldset", { cls: "ed-field ed-chips" }, [el("legend", { text: legend })]);
+    items.forEach(function (c) {
+      var b = el("button", { type: "button", cls: "ed-chip", "aria-pressed": String(isOn(c)) }, [el("span", { text: c[1] })]);
+      b.addEventListener("click", function () { pick(c); drawDesign(); });
+      fs.appendChild(b);
+    });
+    return fs;
+  }
+  function fontSelect(label, key) {
+    var s = el("select", { "aria-label": label });
+    (data.fonts || []).forEach(function (f) { s.appendChild(el("option", { value: f.id, text: f.label })); });
+    if (!Array.prototype.some.call(s.options, function (o) { return o.value === design[key]; })) s.appendChild(el("option", { value: design[key], text: design[key] }));
+    s.value = design[key];
+    s.addEventListener("change", function () { change(function () { design[key] = s.value; }, null, true); });
+    return el("label", { cls: "ed-field" }, [el("span", { text: label }), s]);
+  }
+  function drawDesign() {
+    var box = root.querySelector("[data-design]");
+    if (!box) return;
+    box.textContent = "";
+    var fs = el("fieldset", { cls: "ed-field ed-chips ed-colors" }, [el("legend", { text: "주 색" })]);
+    SWATCHES.forEach(function (c) {
+      var b = el("button", { type: "button", cls: "ed-color", title: c, "aria-label": "주 색 " + c, "aria-pressed": String(design.primary.toLowerCase() === c) });
+      b.style.background = c;
+      b.addEventListener("click", function () { change(function () { design.primary = c; }, null, true); drawDesign(); });
+      fs.appendChild(b);
+    });
+    var own = el("input", { type: "color", value: design.primary, "aria-label": "주 색 직접 고르기" });
+    own.addEventListener("input", function () { change(function () { design.primary = own.value; }, "design:primary", true); });
+    own.addEventListener("change", function () { drawDesign(); });
+    fs.appendChild(el("label", { cls: "ed-color-own" }, [own, el("span", { text: "직접" })]));
+    fs.appendChild(el("p", { cls: "hint", text: "단추·링크·강조 띠의 색입니다. 바탕과 대비가 모자라면 쓸 수 없다고 알려 드립니다." }));
+    box.appendChild(fs);
+    box.appendChild(fontSelect("제목 글꼴", "font_heading"));
+    box.appendChild(fontSelect("본문 글꼴", "font_body"));
+    box.appendChild(chipRow("모서리", RADII, function (c) { return JSON.stringify(c[2]) === JSON.stringify(design.radius); },
+      function (c) { change(function () { design.radius = JSON.parse(JSON.stringify(c[2])); }, null, true); }));
+    box.appendChild(chipRow("간격", DENSITY, function (c) { return c[0] === design.density; },
+      function (c) { change(function () { design.density = c[0]; }, null, true); }));
+    var msg = el("p", { cls: "ed-design-msg", role: "alert", "data-design-msg": "" });
+    msg.textContent = designBad;
+    msg.hidden = !designBad;
+    box.appendChild(msg);
+    box.appendChild(el("p", { cls: "hint" }, [
+      el("span", { text: "어두운 화면 색, 글자 크기 같은 자세한 값은 " }),
+      el("a", { href: "/admin/design", text: "디자인 화면" }),
+      el("span", { text: "에서 고칩니다." })
+    ]));
+  }
+
   // ---- 오른쪽: 고른 블록 ----
   var form = null;
   function drawInspector() {
@@ -889,18 +1056,33 @@
     }
     var note = el("p", { cls: "ed-insp-note", "data-note": "" });
     inspector.appendChild(note);
+    var looks = hasLook(w.kind);
+    if (looks) {
+      var tabs = el("div", { cls: "ed-insp-tabs", role: "tablist", "aria-label": "고른 블록" }, [
+        el("button", { type: "button", role: "tab", "data-insp-tab": "content", text: "내용" }),
+        el("button", { type: "button", role: "tab", "data-insp-tab": "look", text: "꾸미기" })
+      ]);
+      tabs.addEventListener("click", function (e) {
+        var b = e.target.closest("[data-insp-tab]");
+        if (b) { inspTab = b.getAttribute("data-insp-tab"); showInspTab(); }
+      });
+      inspector.appendChild(tabs);
+      var lp = lookPanel(w);
+      lp.setAttribute("data-in-tab", "look");
+      inspector.appendChild(lp);
+    }
 
     var title = el("input", { type: "text", maxlength: "200", value: w.title, placeholder: "비우면 제목 없이" });
     title.addEventListener("input", function () {
       var cur = byId(w.id);
       if (cur) change(function () { cur.title = title.value; }, "title:" + w.id);
     });
-    inspector.appendChild(el("label", { cls: "ed-field" }, [el("span", { text: "제목" }), title]));
+    inspector.appendChild(el("label", { cls: "ed-field", "data-in-tab": "content" }, [el("span", { text: "제목" }), title]));
 
     // 보이는 곳
     var scopes = [[screen, "이 화면에서만"], ["all", "모든 화면"]];
     if (w.scope !== screen && w.scope !== "all") scopes.push([w.scope, scopeName(w.scope)]);
-    var fs = el("fieldset", { cls: "ed-field segment" }, [el("legend", { text: "보이는 곳" })]);
+    var fs = el("fieldset", { cls: "ed-field segment", "data-in-tab": "look" }, [el("legend", { text: "보이는 곳" })]);
     scopes.forEach(function (s) {
       var r = el("input", { type: "radio", name: "ed-scope", value: s[0] });
       if (w.scope === s[0]) r.checked = true;
@@ -913,7 +1095,7 @@
     inspector.appendChild(fs);
 
     // 기기에서 숨기기: 지우지 않고 그 폭에서만 감춘다
-    var dfs = el("fieldset", { cls: "ed-field ed-devices-hide" }, [el("legend", { text: "이 기기에서 숨기기" })]);
+    var dfs = el("fieldset", { cls: "ed-field ed-devices-hide", "data-in-tab": "look" }, [el("legend", { text: "이 기기에서 숨기기" })]);
     var devs = {};
     DEVICES.forEach(function (d) {
       var c = el("input", { type: "checkbox", value: d[0] });
@@ -943,10 +1125,12 @@
     ]);
     f.addEventListener("submit", function (e) { e.preventDefault(); });
     f.querySelector("[data-config]").value = JSON.stringify(w.config || {});
-    inspector.appendChild(el("h3", { cls: "ed-group", text: "설정" }));
+    inspector.appendChild(el("h3", { cls: "ed-group", "data-in-tab": "content", text: "설정" }));
+    f.setAttribute("data-in-tab", "content");
     inspector.appendChild(f);
     if (window.MaruForm && data.types[w.kind]) {
       var mf = new window.MaruForm(f, data);
+      if (looks) mf.skip = { tone: 1, space: 1, align: 1, style: STYLES[w.kind] ? 1 : 0 };
       var starting = true;
       mf.onsave = function (v) {
         if (starting) return;
@@ -973,6 +1157,8 @@
     });
     inspector.appendChild(acts);
     form = { __id: w.id, title: title, acts: acts, note: note, devs: devs };
+    if (looks) showInspTab();
+    else inspector.querySelectorAll("[data-in-tab]").forEach(function (n) { n.hidden = false; });
     syncInspector(w);
   }
   // 같은 블록을 고친 채로 다시 그릴 때는 칸을 새로 만들지 않는다(입력 중인 칸의 포커스를 지킨다).
@@ -1184,6 +1370,7 @@
     if (twin) { select(twin.id); statusEl.textContent = "똑같은 블록이 둘 있습니다. 하나를 고치거나 지운 뒤 발행하세요."; return; }
     var bad = widgets.filter(function (w) { return invalid[w.id]; })[0];
     if (bad) { select(bad.id); statusEl.textContent = "설정이 덜 된 블록이 있습니다. 채우거나 지운 뒤 발행하세요."; return; }
+    if (designBad) { root.querySelector("[data-tab=design]").click(); statusEl.textContent = "쓸 수 없는 디자인 값이 있습니다. 고친 뒤 발행하세요."; return; }
     var badPart = Object.keys(invalid).filter(isSite)[0];
     if (badPart) { select(badPart); statusEl.textContent = "저장할 수 없는 사이트 공통 값이 있습니다. 고친 뒤 발행하세요."; return; }
     publishBtn.disabled = true;
@@ -1192,12 +1379,13 @@
       method: "POST",
       credentials: "same-origin",
       headers: { "content-type": "application/json", "x-csrf-token": csrf },
-      body: JSON.stringify({ screen: screen, widgets: widgets, site: siteBody() })
+      body: JSON.stringify({ screen: screen, widgets: widgets, site: siteBody(), tokens: Object.keys(designPatch()).length ? designPatch() : null })
     }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); }).then(function (res) {
       if (!res.ok) throw new Error((res.j.error && res.j.error.message) || "발행하지 못했습니다.");
       try { localStorage.removeItem(STORE); } catch (e) { /* 무시 */ }
       saved = JSON.stringify(widgets);
       savedSite = JSON.stringify(site);
+      savedDesign = JSON.stringify(design);
       var id = res.j.data && res.j.data.changeset;
       location.href = "/admin/editor?screen=" + encodeURIComponent(screen) + (id ? "&done=" + encodeURIComponent(id) : "");
     }).catch(function (e) {
@@ -1213,6 +1401,7 @@
   // ---- 시작 ----
   drawPalette();
   drawLayers();
+  drawDesign();
   frame.addEventListener("load", function () { decorate(); });
   if (fdoc() && fdoc().readyState === "complete" && fdoc().querySelector("[data-maru-region]")) decorate();
 
@@ -1221,11 +1410,13 @@
   try {
     var kept = JSON.parse(localStorage.getItem(STORE) || "null");
     var keptSite = kept && kept.site ? JSON.stringify(kept.site) : savedSite;
-    if (kept && kept.base === hash(saved + savedSite) && (JSON.stringify(kept.widgets) !== saved || keptSite !== savedSite)) {
+    var keptDesign = kept && kept.design ? JSON.stringify(kept.design) : savedDesign;
+    if (kept && kept.base === hash(saved + savedSite + savedDesign) && (JSON.stringify(kept.widgets) !== saved || keptSite !== savedSite || keptDesign !== savedDesign)) {
       restore.hidden = false;
       restore.querySelector("[data-restore-yes]").addEventListener("click", function () {
         restore.hidden = true;
-        change(function () { widgets = kept.widgets; site = JSON.parse(keptSite); });
+        change(function () { widgets = kept.widgets; site = JSON.parse(keptSite); design = JSON.parse(keptDesign); });
+        drawDesign();
       });
       restore.querySelector("[data-restore-no]").addEventListener("click", function () {
         restore.hidden = true;

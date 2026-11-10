@@ -144,6 +144,8 @@
     var rank = function (k) { var i = FIRST.indexOf(k); return i < 0 ? (k === "tone" ? 999 : 100) : i; };
     Object.keys(s.properties || {}).sort(function (a, b) { return rank(a) - rank(b); }).forEach(function (key) {
       if (obj[key] === undefined) obj[key] = blank(s.properties[key], self.root);
+      // 화면 편집기 「꾸미기」 판이 따로 고르는 칸(ADR-0148)은 맨 위 칸에서 그리지 않는다.
+      if (box === self.box && self.skip && self.skip[key]) return;
       box.appendChild(self.field(key, s.properties[key], obj));
     });
   };

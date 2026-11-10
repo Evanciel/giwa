@@ -5,6 +5,8 @@
 //!   응답은 공개 화면 CSP(`frame-ancestors 'self'`) 그대로다.
 //! - `/admin/editor/publish`: 초안과 지금 위젯을 견주어 연산을 만들고 변경 묶음 하나로 적용한다(원칙 4).
 //! - `/admin/editor/media`: 그림 판(ADR-0147)이 보일 올린 그림 목록. 올리기는 `/admin/media` 그대로다.
+//! - `/admin/editor/tokens`: 디자인 판(ADR-0148)의 토큰 초안을 저장하지 않고 검사해 CSS 로 돌려준다.
+//!   발행하면 `tokens.set` 연산이 블록·사이트 연산과 같은 변경 묶음에 든다.
 //!
 //! 초안에는 블록 말고 사이트 공통 부분(이름·설명·메뉴, ADR-0145)도 실을 수 있다. 발행하면 `settings.set`·`menu.set` 이
 //! 같은 변경 묶음에 들어간다.
@@ -23,6 +25,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router, middleware};
 use maru_core::clock;
+use maru_core::design::FONTS;
 use maru_core::model::{MENU_LOCATIONS, MenuItem, PageReq, PageStatus, WIDGET_REGIONS, Widget};
 use maru_core::output::Success;
 use maru_core::services::auth::SignedIn;
@@ -30,7 +33,7 @@ use maru_core::services::changesets as change;
 use maru_core::services::stats::StatCounter;
 use maru_core::services::views::ViewCounter;
 use maru_core::services::widgets;
-use maru_core::services::{boards, media, menus, pages, settings};
+use maru_core::services::{boards, design, fonts, media, menus, pages, settings};
 use maru_core::urls::{self, Target};
 use maru_core::{Code, Error};
 use serde::Deserialize;
@@ -54,6 +57,7 @@ pub(super) fn routes() -> Router<AppState> {
         )
         .route("/admin/editor/frame", get(frame_get).post(frame_post))
         .route("/admin/editor/media", get(media_list))
+        .route("/admin/editor/tokens", post(tokens_css))
         .route(
             "/admin/editor/publish",
             post(publish).layer(middleware::map_response(editor_headers)),
@@ -220,6 +224,15 @@ async fn editor_data(
         }))
         .collect();
     let site = settings::site(ctx).await?;
+    let tokens = design::tokens(ctx).await?;
+    let mut font_list = vec![
+        json!({ "id": FONTS[0].0, "label": "프리텐다드 (고딕)" }),
+        json!({ "id": FONTS[1].0, "label": "기기 기본 고딕" }),
+        json!({ "id": FONTS[2].0, "label": "명조" }),
+    ];
+    for f in fonts::list(ctx).await? {
+        font_list.push(json!({ "id": f.slug, "label": format!("{} (올린 서체)", f.name) }));
+    }
     let mut menu_map = Map::new();
     for loc in MENU_LOCATIONS {
         menu_map.insert(loc.into(), json!(menus::get(ctx, loc).await?));
@@ -244,6 +257,14 @@ async fn editor_data(
         }).collect::<Vec<_>>(),
         "tz": site.tz_offset_min,
         "site": { "name": site.name, "description": site.description, "menus": menu_map },
+        "design": {
+            "primary": tokens.color.primary,
+            "font_body": tokens.font.body,
+            "font_heading": tokens.font.heading,
+            "radius": tokens.radius,
+            "density": tokens.layout.density,
+        },
+        "fonts": font_list,
         "pages": page_list
             .iter()
             .filter(|p| p.status == PageStatus::Published)
@@ -328,6 +349,9 @@ struct PublishInput {
     widgets: Vec<DraftWidget>,
     #[serde(default)]
     site: Option<SiteInput>,
+    /// 디자인 판의 토큰 초안 (ADR-0148). 지금 값과 다르면 `tokens.set` 연산이 된다.
+    #[serde(default)]
+    tokens: Option<Value>,
 }
 
 /// 사이트 공통 부분 초안을 그릴 값으로. 검사에 걸린 칸은 저장된 값으로 그리고 `site:<칸>` 으로 알린다.
@@ -519,6 +543,31 @@ async fn media_list(
     .into_response())
 }
 
+#[derive(Deserialize)]
+struct TokensInput {
+    tokens: Value,
+}
+
+/// 디자인 판(ADR-0148): 토큰 초안을 저장하지 않고 검사해, 캔버스에 덧입힐 CSS 를 돌려준다.
+async fn tokens_css(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    body: Result<Json<TokensInput>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let who = json_session(&state, &headers).await?;
+    let Json(input) = body.map_err(rejected)?;
+    let tokens = design::preview(&state.ctx, &who.actor, input.tokens).await?;
+    let uploaded = fonts::list(&state.ctx).await?;
+    Ok((
+        [
+            (header::CONTENT_TYPE, "text/css; charset=utf-8"),
+            (header::CACHE_CONTROL, "no-store"),
+        ],
+        tokens.to_css(&uploaded),
+    )
+        .into_response())
+}
+
 fn rejected(e: JsonRejection) -> ApiError {
     ApiError(
         Error::new(Code::Validation)
@@ -588,6 +637,13 @@ async fn publish(
         Some(s) => site_ops(&state, s).await?,
         None => Vec::new(),
     };
+    if let Some(patch) = input
+        .tokens
+        .filter(|p| p.as_object().is_some_and(|o| !o.is_empty()))
+        && design::preview(ctx, actor, patch.clone()).await? != design::tokens(ctx).await?
+    {
+        ops.push(json!({ "op": "tokens.set", "tokens": patch }));
+    }
     ops.extend(plan_ops(&current, &input.widgets));
     if ops.is_empty() {
         return Ok(Json(Success::new(json!({ "changeset": null, "ops": 0 }))).into_response());

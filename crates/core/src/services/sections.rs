@@ -43,6 +43,10 @@ pub const KINDS: [(&str, &str, &str); 14] = [
 
 /// 띠 색: 바탕 그대로, 옅은 면, 주 색
 pub const TONES: [&str; 3] = ["plain", "soft", "strong"];
+/// 띠 위아래 여백 (ADR-0148)
+pub const SPACES: [&str; 3] = ["tight", "normal", "roomy"];
+/// 띠 글 정렬 (ADR-0148)
+pub const ALIGNS: [&str; 2] = ["start", "center"];
 pub const HERO_STYLES: [&str; 3] = ["type", "image", "split"];
 pub const FEATURE_STYLES: [&str; 5] = ["cards", "rows", "bento", "steps", "tiles"];
 
@@ -97,6 +101,12 @@ pub struct HeroConfig {
     pub button2: Button,
     #[serde(default = "plain")]
     pub tone: String,
+    /// 위아래 여백: `tight`·`normal`(기본)·`roomy` (ADR-0148)
+    #[serde(default = "normal_space")]
+    pub space: String,
+    /// 글 정렬: `start`(기본)·`center` (ADR-0148)
+    #[serde(default = "start_align")]
+    pub align: String,
 }
 
 fn hero_style() -> String {
@@ -129,6 +139,12 @@ pub struct FeaturesConfig {
     pub items: Vec<FeatureItem>,
     #[serde(default = "plain")]
     pub tone: String,
+    /// 위아래 여백: `tight`·`normal`(기본)·`roomy` (ADR-0148)
+    #[serde(default = "normal_space")]
+    pub space: String,
+    /// 글 정렬: `start`(기본)·`center` (ADR-0148)
+    #[serde(default = "start_align")]
+    pub align: String,
 }
 
 fn feature_style() -> String {
@@ -151,6 +167,12 @@ pub struct StatsConfig {
     pub items: Vec<StatItem>,
     #[serde(default = "plain")]
     pub tone: String,
+    /// 위아래 여백: `tight`·`normal`(기본)·`roomy` (ADR-0148)
+    #[serde(default = "normal_space")]
+    pub space: String,
+    /// 글 정렬: `start`(기본)·`center` (ADR-0148)
+    #[serde(default = "start_align")]
+    pub align: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -173,6 +195,12 @@ pub struct TestimonialsConfig {
     pub items: Vec<TestimonialItem>,
     #[serde(default = "plain")]
     pub tone: String,
+    /// 위아래 여백: `tight`·`normal`(기본)·`roomy` (ADR-0148)
+    #[serde(default = "normal_space")]
+    pub space: String,
+    /// 글 정렬: `start`(기본)·`center` (ADR-0148)
+    #[serde(default = "start_align")]
+    pub align: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -187,6 +215,12 @@ pub struct CtaConfig {
     pub button2: Button,
     #[serde(default = "strong")]
     pub tone: String,
+    /// 위아래 여백: `tight`·`normal`(기본)·`roomy` (ADR-0148)
+    #[serde(default = "normal_space")]
+    pub space: String,
+    /// 글 정렬: `start`(기본)·`center` (ADR-0148)
+    #[serde(default = "start_align")]
+    pub align: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -205,6 +239,12 @@ pub struct FaqConfig {
     pub items: Vec<FaqItem>,
     #[serde(default = "plain")]
     pub tone: String,
+    /// 위아래 여백: `tight`·`normal`(기본)·`roomy` (ADR-0148)
+    #[serde(default = "normal_space")]
+    pub space: String,
+    /// 글 정렬: `start`(기본)·`center` (ADR-0148)
+    #[serde(default = "start_align")]
+    pub align: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -226,6 +266,12 @@ pub struct HoursConfig {
     pub note: String,
     #[serde(default = "plain")]
     pub tone: String,
+    /// 위아래 여백: `tight`·`normal`(기본)·`roomy` (ADR-0148)
+    #[serde(default = "normal_space")]
+    pub space: String,
+    /// 글 정렬: `start`(기본)·`center` (ADR-0148)
+    #[serde(default = "start_align")]
+    pub align: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -247,6 +293,12 @@ pub struct VisitConfig {
     pub parking: String,
     #[serde(default = "plain")]
     pub tone: String,
+    /// 위아래 여백: `tight`·`normal`(기본)·`roomy` (ADR-0148)
+    #[serde(default = "normal_space")]
+    pub space: String,
+    /// 글 정렬: `start`(기본)·`center` (ADR-0148)
+    #[serde(default = "start_align")]
+    pub align: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -282,6 +334,12 @@ pub struct PriceListConfig {
     pub note: String,
     #[serde(default = "plain")]
     pub tone: String,
+    /// 위아래 여백: `tight`·`normal`(기본)·`roomy` (ADR-0148)
+    #[serde(default = "normal_space")]
+    pub space: String,
+    /// 글 정렬: `start`(기본)·`center` (ADR-0148)
+    #[serde(default = "start_align")]
+    pub align: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -314,6 +372,12 @@ pub struct PlansConfig {
     pub plans: Vec<Plan>,
     #[serde(default = "plain")]
     pub tone: String,
+    /// 위아래 여백: `tight`·`normal`(기본)·`roomy` (ADR-0148)
+    #[serde(default = "normal_space")]
+    pub space: String,
+    /// 글 정렬: `start`(기본)·`center` (ADR-0148)
+    #[serde(default = "start_align")]
+    pub align: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -335,6 +399,12 @@ pub struct TimelineConfig {
     pub items: Vec<TimelineItem>,
     #[serde(default = "plain")]
     pub tone: String,
+    /// 위아래 여백: `tight`·`normal`(기본)·`roomy` (ADR-0148)
+    #[serde(default = "normal_space")]
+    pub space: String,
+    /// 글 정렬: `start`(기본)·`center` (ADR-0148)
+    #[serde(default = "start_align")]
+    pub align: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -357,6 +427,12 @@ pub struct OrgChartConfig {
     pub nodes: Vec<OrgNode>,
     #[serde(default = "plain")]
     pub tone: String,
+    /// 위아래 여백: `tight`·`normal`(기본)·`roomy` (ADR-0148)
+    #[serde(default = "normal_space")]
+    pub space: String,
+    /// 글 정렬: `start`(기본)·`center` (ADR-0148)
+    #[serde(default = "start_align")]
+    pub align: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -384,6 +460,12 @@ pub struct TeamConfig {
     pub items: Vec<TeamMember>,
     #[serde(default = "plain")]
     pub tone: String,
+    /// 위아래 여백: `tight`·`normal`(기본)·`roomy` (ADR-0148)
+    #[serde(default = "normal_space")]
+    pub space: String,
+    /// 글 정렬: `start`(기본)·`center` (ADR-0148)
+    #[serde(default = "start_align")]
+    pub align: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -403,6 +485,12 @@ pub struct ImageTextConfig {
     pub flip: bool,
     #[serde(default = "plain")]
     pub tone: String,
+    /// 위아래 여백: `tight`·`normal`(기본)·`roomy` (ADR-0148)
+    #[serde(default = "normal_space")]
+    pub space: String,
+    /// 글 정렬: `start`(기본)·`center` (ADR-0148)
+    #[serde(default = "start_align")]
+    pub align: String,
 }
 
 pub(super) fn schema(kind: &str) -> Option<Value> {
@@ -435,6 +523,33 @@ fn tone(kind: &str, t: &mut String) -> Result<()> {
         return Ok(());
     }
     Err(bad_config(kind, "tone 은 plain·soft·strong"))
+}
+
+fn normal_space() -> String {
+    "normal".into()
+}
+
+fn start_align() -> String {
+    "start".into()
+}
+
+/// 띠 여백·정렬 (ADR-0148). 비면 기본값이다.
+fn look(kind: &str, space: &mut String, align: &mut String) -> Result<()> {
+    *space = space.trim().to_owned();
+    *align = align.trim().to_owned();
+    if space.is_empty() {
+        *space = normal_space();
+    }
+    if align.is_empty() {
+        *align = start_align();
+    }
+    if !SPACES.contains(&space.as_str()) {
+        return Err(bad_config(kind, "space 는 tight·normal·roomy"));
+    }
+    if !ALIGNS.contains(&align.as_str()) {
+        return Err(bad_config(kind, "align 은 start·center"));
+    }
+    Ok(())
 }
 
 fn button(kind: &str, b: &mut Button) -> Result<()> {
@@ -516,6 +631,7 @@ fn check_inner(kind: &str, config: Value) -> Result<Value> {
             button(kind, &mut c.button)?;
             button(kind, &mut c.button2)?;
             tone(kind, &mut c.tone)?;
+            look(kind, &mut c.space, &mut c.align)?;
             json!(c)
         }
         "features" => {
@@ -532,6 +648,7 @@ fn check_inner(kind: &str, config: Value) -> Result<Value> {
                 i.link = check_link(kind, &i.link)?;
             }
             tone(kind, &mut c.tone)?;
+            look(kind, &mut c.space, &mut c.align)?;
             json!(c)
         }
         "stats" => {
@@ -542,6 +659,7 @@ fn check_inner(kind: &str, config: Value) -> Result<Value> {
                 required(kind, "label", &mut i.label, 40)?;
             }
             tone(kind, &mut c.tone)?;
+            look(kind, &mut c.space, &mut c.align)?;
             json!(c)
         }
         "testimonials" => {
@@ -553,6 +671,7 @@ fn check_inner(kind: &str, config: Value) -> Result<Value> {
                 text(kind, "role", &mut i.role, 60)?;
             }
             tone(kind, &mut c.tone)?;
+            look(kind, &mut c.space, &mut c.align)?;
             json!(c)
         }
         "cta" => {
@@ -561,6 +680,7 @@ fn check_inner(kind: &str, config: Value) -> Result<Value> {
             button(kind, &mut c.button)?;
             button(kind, &mut c.button2)?;
             tone(kind, &mut c.tone)?;
+            look(kind, &mut c.space, &mut c.align)?;
             json!(c)
         }
         "faq" => {
@@ -571,6 +691,7 @@ fn check_inner(kind: &str, config: Value) -> Result<Value> {
                 markdown(kind, "a", &mut i.a)?;
             }
             tone(kind, &mut c.tone)?;
+            look(kind, &mut c.space, &mut c.align)?;
             json!(c)
         }
         "hours" => {
@@ -582,6 +703,7 @@ fn check_inner(kind: &str, config: Value) -> Result<Value> {
             }
             text(kind, "note", &mut c.note, 200)?;
             tone(kind, &mut c.tone)?;
+            look(kind, &mut c.space, &mut c.align)?;
             json!(c)
         }
         "visit" => {
@@ -592,6 +714,7 @@ fn check_inner(kind: &str, config: Value) -> Result<Value> {
             text(kind, "transit", &mut c.transit, 400)?;
             text(kind, "parking", &mut c.parking, 200)?;
             tone(kind, &mut c.tone)?;
+            look(kind, &mut c.space, &mut c.align)?;
             json!(c)
         }
         "price_list" => {
@@ -608,6 +731,7 @@ fn check_inner(kind: &str, config: Value) -> Result<Value> {
             }
             text(kind, "note", &mut c.note, 200)?;
             tone(kind, &mut c.tone)?;
+            look(kind, &mut c.space, &mut c.align)?;
             json!(c)
         }
         "plans" => {
@@ -628,6 +752,7 @@ fn check_inner(kind: &str, config: Value) -> Result<Value> {
                 button(kind, &mut p.button)?;
             }
             tone(kind, &mut c.tone)?;
+            look(kind, &mut c.space, &mut c.align)?;
             json!(c)
         }
         "timeline" => {
@@ -639,6 +764,7 @@ fn check_inner(kind: &str, config: Value) -> Result<Value> {
                 text(kind, "text", &mut i.text, 300)?;
             }
             tone(kind, &mut c.tone)?;
+            look(kind, &mut c.space, &mut c.align)?;
             json!(c)
         }
         "org_chart" => {
@@ -647,6 +773,7 @@ fn check_inner(kind: &str, config: Value) -> Result<Value> {
             let mut total = 0;
             org_nodes(kind, &mut c.nodes, 1, &mut total)?;
             tone(kind, &mut c.tone)?;
+            look(kind, &mut c.space, &mut c.align)?;
             json!(c)
         }
         "team" => {
@@ -660,6 +787,7 @@ fn check_inner(kind: &str, config: Value) -> Result<Value> {
                 i.link = check_link(kind, &i.link)?;
             }
             tone(kind, &mut c.tone)?;
+            look(kind, &mut c.space, &mut c.align)?;
             json!(c)
         }
         _ => {
@@ -669,6 +797,7 @@ fn check_inner(kind: &str, config: Value) -> Result<Value> {
             markdown(kind, "body", &mut c.body)?;
             button(kind, &mut c.button)?;
             tone(kind, &mut c.tone)?;
+            look(kind, &mut c.space, &mut c.align)?;
             json!(c)
         }
     })

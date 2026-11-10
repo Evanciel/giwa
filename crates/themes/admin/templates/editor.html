@@ -43,6 +43,7 @@
       <div class="ed-tabs" role="tablist">
         <button type="button" role="tab" id="tab-add" aria-controls="panel-add" aria-selected="true" data-tab="add">{{ ic.icon("plus") }}<span>더하기</span></button>
         <button type="button" role="tab" id="tab-layers" aria-controls="panel-layers" aria-selected="false" data-tab="layers">{{ ic.icon("widgets") }}<span>층</span></button>
+        <button type="button" role="tab" id="tab-design" aria-controls="panel-design" aria-selected="false" data-tab="design">{{ ic.icon("design") }}<span>디자인</span></button>
       </div>
       <div class="ed-panel" role="tabpanel" id="panel-add" aria-labelledby="tab-add" data-panel="add">
         <p class="hint">블록을 화면으로 끌어다 놓거나, 누르면 고른 블록 아래에 들어갑니다.</p>
@@ -51,6 +52,10 @@
       <div class="ed-panel" role="tabpanel" id="panel-layers" aria-labelledby="tab-layers" data-panel="layers" hidden>
         <p class="hint">이 화면에 보이는 블록을 자리별로 보입니다. 끌어서 순서를 바꿉니다.</p>
         <div data-layers></div>
+      </div>
+      <div class="ed-panel" role="tabpanel" id="panel-design" aria-labelledby="tab-design" data-panel="design" hidden>
+        <p class="hint">사이트 전체의 색·글꼴·모양입니다. 고르면 화면에 바로 보이고, 발행할 때 함께 저장됩니다.</p>
+        <div data-design></div>
       </div>
     </aside>
     <main class="ed-canvas" id="main">
