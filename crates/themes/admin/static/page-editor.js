@@ -705,6 +705,50 @@
       });
       paletteEl.appendChild(box);
     });
+    drawApps();
+  }
+
+  // ---- 앱 더하기 (ADR-0151) ----
+  // 꺼진 앱이 주는 블록을 흐린 카드로 보인다. 누르면 앱을 켜고(바로, 감사 기록) 그 블록을 초안에 넣는다.
+  function drawApps() {
+    var apps = data.apps || [];
+    if (!apps.length) return;
+    paletteEl.appendChild(el("h3", { cls: "ed-group", text: "앱 더하기" }));
+    paletteEl.appendChild(el("p", { cls: "hint ed-apps-hint", text: data.can_enable
+      ? "앱을 켜면 쓸 수 있는 블록입니다. 켠 앱은 관리 → 앱에서 끌 수 있습니다."
+      : "앱을 켤 권한이 없습니다. 쓰려면 관리자에게 앱을 켜 달라고 하세요." }));
+    var box = el("div", { cls: "ed-kinds" });
+    apps.forEach(function (a) {
+      var card = el("button", { type: "button", cls: "ed-kind ed-app", "data-app": a.app, title: a.description }, [
+        el("span", { cls: "ed-kind-ico", "aria-hidden": "true", text: a.name.slice(0, 1) }),
+        el("span", { cls: "ed-kind-name", text: a.name }),
+        el("span", { cls: "ed-app-tag", text: a.app_name + " 앱" })
+      ]);
+      if (!data.can_enable) card.disabled = true;
+      card.addEventListener("click", function () { enableApp(a); });
+      box.appendChild(card);
+    });
+    paletteEl.appendChild(box);
+  }
+  function enableApp(a) {
+    if (!confirm("「" + a.app_name + "」 앱을 켜고 「" + a.name + "」 블록을 넣을까요?\n켠 앱은 관리 → 앱에서 끌 수 있습니다.")) return;
+    statusEl.textContent = "앱을 켜는 중…";
+    fetch("/admin/editor/apps/" + encodeURIComponent(a.app), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "x-csrf-token": csrf }
+    }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); }).then(function (res) {
+      if (!res.ok) throw new Error((res.j.error && res.j.error.message) || "앱을 켜지 못했습니다.");
+      data.kinds = res.j.data.kinds;
+      data.types = res.j.data.types;
+      data.apps = res.j.data.apps;
+      data.kinds.forEach(function (k) { kinds[k.id] = k; });
+      paletteEl.replaceChildren();
+      drawPalette();
+      addBlock(a.id);
+    }).catch(function (e) {
+      statusEl.textContent = e.message;
+    });
   }
 
   // 판의 카드를 화면으로 끌기. 끄는 동안 iframe 이 포인터를 먹지 않게 하고 좌표를 캔버스 좌표로 바꾼다.

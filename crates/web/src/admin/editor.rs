@@ -6,6 +6,7 @@
 //! - `/admin/editor/publish`: 초안과 지금 위젯을 견주어 연산을 만들고 변경 묶음 하나로 적용한다(원칙 4).
 //! - `/admin/editor/media`: 그림 판(ADR-0147)이 보일 올린 그림 목록. 올리기는 `/admin/media` 그대로다.
 //! - `/admin/editor/pages`: 틀을 골라 공개 전 페이지를 만든다(ADR-0149). 발행하면 `page.publish` 가 같은 묶음에 든다.
+//! - `/admin/editor/apps/{id}`: 꺼진 앱을 그 자리에서 켜고 새 블록 종류를 돌려준다(ADR-0151).
 //! - `/admin/editor/tokens`: 디자인 판(ADR-0148)의 토큰 초안을 저장하지 않고 검사해 CSS 로 돌려준다.
 //!   발행하면 `tokens.set` 연산이 블록·사이트 연산과 같은 변경 묶음에 든다.
 //!
@@ -20,7 +21,7 @@ use std::sync::Arc;
 
 use axum::body::Body;
 use axum::extract::rejection::JsonRejection;
-use axum::extract::{ConnectInfo, Query, Request, State};
+use axum::extract::{ConnectInfo, Path, Query, Request, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
@@ -36,7 +37,8 @@ use maru_core::services::views::ViewCounter;
 use maru_core::services::widgets;
 use maru_core::services::{boards, design, fonts, media, menus, pages, settings};
 use maru_core::urls::{self, Target};
-use maru_core::{Code, Error};
+use maru_core::{Code, Error, Permission};
+use maru_modules::service as modules;
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
 use tower::Service;
@@ -58,6 +60,10 @@ pub(super) fn routes() -> Router<AppState> {
         )
         .route("/admin/editor/frame", get(frame_get).post(frame_post))
         .route("/admin/editor/media", get(media_list))
+        .route(
+            "/admin/editor/apps/{id}",
+            post(enable_app).layer(middleware::map_response(editor_headers)),
+        )
         .route(
             "/admin/editor/pages",
             post(new_page).layer(middleware::map_response(editor_headers)),
@@ -275,14 +281,10 @@ async fn editor_data(
         "screens": screens,
         "scope_names": names,
         "widgets": list.iter().map(draft_of).collect::<Vec<_>>(),
-        "kinds": types.iter().map(|t| json!({
-            "id": t.id,
-            "name": t.name,
-            "description": t.description,
-            "icon": kind_icon(t.id),
-            "group": kind_group(t.id),
-        })).collect::<Vec<_>>(),
-        "types": types.iter().map(|t| (t.id.to_string(), t.config_schema.clone())).collect::<Map<_, _>>(),
+        "kinds": kinds_json(&types),
+        "types": types_json(&types),
+        "apps": off_apps(state).await,
+        "can_enable": who.actor.has(Permission::ModuleManage),
         "boards": board_list.iter().map(|b| json!({ "id": b.slug, "label": b.name })).collect::<Vec<_>>(),
         "regions": WIDGET_REGIONS.iter().map(|r| {
             let (label, hint) = region_text(r);
@@ -336,6 +338,58 @@ async fn starter_draft(
     data["add_menu"] = json!(q.menu == "1");
     data["page_title"] = json!(page.title);
     Ok(())
+}
+
+/// 더하기 판의 블록 카드.
+fn kinds_json(types: &[widgets::WidgetType]) -> Vec<Value> {
+    types
+        .iter()
+        .map(|t| {
+            json!({
+                "id": t.id,
+                "name": t.name,
+                "description": t.description,
+                "icon": kind_icon(t.id),
+                "group": kind_group(t.id),
+            })
+        })
+        .collect()
+}
+
+/// 블록 종류마다 설정 형식.
+fn types_json(types: &[widgets::WidgetType]) -> Map<String, Value> {
+    types
+        .iter()
+        .map(|t| (t.id.to_string(), t.config_schema.clone()))
+        .collect()
+}
+
+/// 꺼진 앱이 주는 블록 (ADR-0151). 「앱 더하기」 묶음에 흐린 카드로 보인다.
+async fn off_apps(state: &AppState) -> Vec<Value> {
+    let on: Vec<&str> = state
+        .modules
+        .enabled(&state.ctx)
+        .await
+        .iter()
+        .map(|m| m.manifest().id)
+        .collect();
+    state
+        .modules
+        .iter()
+        .filter(|m| !on.contains(&m.manifest().id))
+        .flat_map(|m| {
+            let man = m.manifest();
+            m.widget_types().into_iter().map(move |t| {
+                json!({
+                    "app": man.id,
+                    "app_name": man.name,
+                    "id": t.id,
+                    "name": t.name,
+                    "description": t.description,
+                })
+            })
+        })
+        .collect()
 }
 
 /// 왼쪽 「더하기」 판의 묶음.
@@ -721,6 +775,27 @@ async fn new_page(
             super::encode(&screen),
             super::encode(&starter.id)
         ),
+    })))
+    .into_response())
+}
+
+// ---- 앱 켜기 (ADR-0151) ----
+
+/// 꺼진 앱을 켠다. 발행 묶음에 넣지 않고 바로 켠다. 켜져야 앱의 표와 화면이 생겨 캔버스가 그 블록을 그린다.
+/// 모듈 관리 권한이 있어야 하고(서비스가 본다), 감사 기록에 남으며 관리 → 앱에서 끈다.
+/// 켠 뒤의 블록 종류와 설정 형식을 돌려준다. 편집기는 그 블록을 초안에 넣는다.
+async fn enable_app(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Response, ApiError> {
+    let who = json_session(&state, &headers).await?;
+    modules::enable(&state.ctx, &who.actor, state.modules.as_ref(), &id).await?;
+    let types = widgets::all_types(&state.ctx).await;
+    Ok(Json(Success::new(json!({
+        "kinds": kinds_json(&types),
+        "types": types_json(&types),
+        "apps": off_apps(&state).await,
     })))
     .into_response())
 }

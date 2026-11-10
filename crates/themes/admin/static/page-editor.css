@@ -57,6 +57,12 @@ body.editor-body { margin: 0; overflow: hidden; background: var(--bg); }
 }
 .ed-kind:hover { background: var(--primary-soft); border-color: color-mix(in srgb, var(--primary) 40%, var(--border)); }
 .ed-kind:active { cursor: grabbing; }
+/* 꺼진 앱의 블록 (ADR-0151) */
+.ed-app { border-style: dashed; background: transparent; cursor: pointer; }
+.ed-app:active { cursor: pointer; }
+.ed-app:disabled { opacity: .55; cursor: not-allowed; }
+.ed-app-tag { font-weight: 400; font-size: .75rem; color: var(--muted); }
+.ed-apps-hint { margin: 0 0 .5rem; }
 .ed-kind-ico {
   display: inline-grid; place-items: center; width: 1.7rem; height: 1.7rem; border-radius: 8px;
   background: var(--surface); border: 1px solid var(--border); color: var(--primary-strong); font-size: .85rem;

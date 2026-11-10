@@ -962,3 +962,71 @@ fn editor_creates_page_from_starter() {
         .count();
     assert_eq!(on_contact, 3);
 }
+
+/// ADR-0151: 꺼진 앱의 블록은 「앱 더하기」 재료로 오고, 편집기에서 켜면 그 자리에서 블록 종류가 된다.
+#[test]
+fn editor_enables_app_blocks() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("사이트");
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
+    assert_eq!(maru(&data, &["module", "show", "map"])["enabled"], false);
+    let link = maru(&data, &["login-link"]);
+    let (_server, bind) = start_server(&data);
+    let session = sign_in(&bind, link["url"].as_str().unwrap());
+    let cookie = format!("maru_session={session}");
+    let page = http(
+        &bind,
+        "GET",
+        "/admin/editor?screen=home",
+        &[("Cookie", &cookie)],
+        "",
+    );
+    assert!(page.body.contains("\"app\":\"map\""), "꺼진 지도 앱의 블록");
+    assert!(page.body.contains("\"can_enable\":true"));
+    let csrf = {
+        let at = page.body.find("data-csrf=\"").unwrap() + 11;
+        page.body[at..at + page.body[at..].find('"').unwrap()].to_owned()
+    };
+
+    assert_eq!(
+        http(
+            &bind,
+            "POST",
+            "/admin/editor/apps/map",
+            &[("Cookie", &cookie)],
+            ""
+        )
+        .status,
+        403,
+        "CSRF 없이는 켜지 않는다"
+    );
+    let auth = [("Cookie", cookie.as_str()), ("x-csrf-token", csrf.as_str())];
+    assert_eq!(
+        http(&bind, "POST", "/admin/editor/apps/nope", &auth, "").status,
+        404
+    );
+    assert_eq!(maru(&data, &["module", "show", "map"])["enabled"], false);
+
+    let on = http(&bind, "POST", "/admin/editor/apps/map", &auth, "");
+    assert_eq!(on.status, 200, "{}", on.body);
+    let on: Value = serde_json::from_str(&on.body).unwrap();
+    let kinds = on["data"]["kinds"].as_array().unwrap();
+    assert!(kinds.iter().any(|k| k["id"] == "map"), "켠 뒤 지도 블록");
+    assert!(on["data"]["types"]["map"].is_object(), "설정 형식");
+    assert!(
+        !on["data"]["apps"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|a| a["app"] == "map")
+    );
+    assert_eq!(maru(&data, &["module", "show", "map"])["enabled"], true);
+    // 다시 눌러도 같다(멱등).
+    assert_eq!(
+        http(&bind, "POST", "/admin/editor/apps/map", &auth, "").status,
+        200
+    );
+}
