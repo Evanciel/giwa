@@ -1161,3 +1161,69 @@ fn editor_drafts_follow_the_person() {
     let del = http(&bind, "DELETE", path, &auth, "");
     assert_eq!(del.status, 200, "버리기는 여러 번 해도 같다");
 }
+
+/// ADR-0153: 편집기는 빈 화면에 띄울 시작 묶음과 처음 안내·도움말을 싣는다. 묶음은 이 사이트에 있는
+/// 블록 종류와 게시판만 가리킨다(묶음 고르기·안내 흐름은 브라우저에서 확인).
+#[test]
+fn editor_offers_start_bundles_and_help() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("사이트");
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
+    maru(
+        &data,
+        &["page", "new", "empty", "--title", "빈 페이지", "--publish"],
+    );
+    let link = maru(&data, &["login-link"]);
+    let (_server, bind) = start_server(&data);
+    let session = sign_in(&bind, link["url"].as_str().unwrap());
+    let cookie = format!("maru_session={session}");
+    let page = http(
+        &bind,
+        "GET",
+        "/admin/editor?screen=page:empty",
+        &[("Cookie", &cookie)],
+        "",
+    );
+    assert_eq!(page.status, 200);
+    for marker in [
+        "data-start hidden",
+        "data-tour ",
+        "data-help-dialog",
+        "data-tour-again",
+    ] {
+        assert!(page.body.contains(marker), "{marker}");
+    }
+    let json_at = page.body.find("id=\"editor-data\">").unwrap() + 17;
+    let json_end = json_at + page.body[json_at..].find("</script>").unwrap();
+    let editor: Value = serde_json::from_str(&page.body[json_at..json_end]).unwrap();
+    let bundles = editor["bundles"].as_array().unwrap();
+    assert!(bundles.len() >= 3, "시작 묶음");
+    assert_eq!(bundles[0]["id"], "company");
+    let kinds: Vec<&str> = editor["kinds"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|k| k["id"].as_str().unwrap())
+        .collect();
+    for b in bundles {
+        for w in b["blocks"].as_array().unwrap() {
+            assert!(
+                kinds.contains(&w["kind"].as_str().unwrap()),
+                "{}",
+                w["kind"]
+            );
+            if let Some(board) = w["config"]["board"].as_str() {
+                assert_eq!(board, "blog", "있는 게시판만");
+            }
+        }
+        let text = b.to_string();
+        assert!(
+            !text.contains("/b/notice") && !text.contains("/b/listings"),
+            "{}",
+            b["id"]
+        );
+    }
+}

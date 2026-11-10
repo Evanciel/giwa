@@ -200,6 +200,7 @@
       syncDraft(n ? { widgets: widgets, site: site, design: design } : null);
     }
     drawLayers();
+    drawStart();
     if (rebuildInspector !== false) drawInspector();
     if (JSON.stringify(design) !== shownDesign) { shownDesign = JSON.stringify(design); previewDesign(); }
     if (redraw) {
@@ -1432,6 +1433,7 @@
     if (mod && !typing(e) && (e.key === "z" || e.key === "Z")) { e.preventDefault(); if (e.shiftKey) redo(); else undo(); }
     else if (mod && !typing(e) && (e.key === "y" || e.key === "Y")) { e.preventDefault(); redo(); }
     else if (mod && (e.key === "s" || e.key === "S")) { e.preventDefault(); if (syncTimer) saveDraftNow(); statusEl.textContent = "고친 것을 초안으로 저장했습니다. 다른 기기에서도 이어 고칠 수 있습니다. 사이트에 내보내려면 「발행」을 누르세요."; }
+    else if (mod && (e.key === "d" || e.key === "D") && selected && !typing(e)) { e.preventDefault(); blockAction("copy", selected); }
     else if ((e.key === "Delete" || e.key === "Backspace") && selected && !typing(e)) { e.preventDefault(); blockAction("remove", selected); }
     else if (e.key === "Escape" && selected) select(null);
   }
@@ -1538,6 +1540,135 @@
     try { history.replaceState(null, "", "/admin/editor?screen=" + encodeURIComponent(screen)); } catch (e) { /* 무시 */ }
   } else if (pageDraft && !dirtyCount()) {
     changed(false, false);
+  }
+
+  // ---- 빈 화면 시작 묶음 (ADR-0153) ----
+  // 본문에 이 화면만의 블록이 하나도 없으면 캔버스 위에 사이트 종류별 묶음 카드를 띄운다. 고르면 그 블록들이 초안에 든다.
+  var startEl = root.querySelector("[data-start]");
+  var startOff = false;
+  try { startOff = sessionStorage.getItem("maru-editor-start:" + screen) === "off"; } catch (e) { /* 무시 */ }
+  function emptyScreen() {
+    if (screen.indexOf("board:") === 0) return false;
+    return !widgets.some(function (w) { return w.region === "main" && w.scope === screen; });
+  }
+  function useBundle(b) {
+    var ids = [];
+    change(function () {
+      b.blocks.forEach(function (x) {
+        var w = { id: newId(), kind: x.kind, region: x.region, scope: screen, title: x.title || "", config: JSON.parse(JSON.stringify(x.config || {})), enabled: true };
+        ids.push(w.id);
+        widgets.push(w);
+      });
+    });
+    if (ids.length) select(ids[0]);
+    statusEl.textContent = "「" + b.name + "」 묶음을 넣었습니다. 글자를 눌러 바로 고치세요.";
+  }
+  function closeStart() {
+    startOff = true;
+    try { sessionStorage.setItem("maru-editor-start:" + screen, "off"); } catch (e) { /* 무시 */ }
+    drawStart();
+  }
+  function drawStart() {
+    if (!startEl) return;
+    startEl.hidden = startOff || !(data.bundles || []).length || !emptyScreen();
+  }
+  if (startEl) {
+    var picks = data.bundles || [];
+    var cardsEl = startEl.querySelector("[data-start-cards]");
+    var moreEl = startEl.querySelector("[data-start-more]");
+    picks.forEach(function (b, i) {
+      if (i < 3) {
+        var card = el("button", { type: "button", cls: "ed-start-card" }, [
+          el("strong", { text: b.name }),
+          el("small", { text: b.description }),
+          el("small", { text: "블록 " + b.blocks.length + "개" })
+        ]);
+        card.addEventListener("click", function () { closeStart(); useBundle(b); });
+        cardsEl.appendChild(card);
+      } else {
+        moreEl.appendChild(el("option", { value: b.id, text: b.name + " — " + b.description }));
+      }
+    });
+    if (picks.length <= 3) moreEl.closest("label").hidden = true;
+    moreEl.addEventListener("change", function () {
+      var b = picks.filter(function (x) { return x.id === moreEl.value; })[0];
+      if (b) { closeStart(); useBundle(b); }
+    });
+    startEl.querySelector("[data-start-close]").addEventListener("click", closeStart);
+    startEl.querySelector("[data-start-blank]").addEventListener("click", function () {
+      closeStart();
+      root.querySelector("[data-tab=add]").click();
+      var first = paletteEl.querySelector(".ed-kind");
+      if (first) first.focus();
+    });
+    drawStart();
+  }
+
+  // ---- 처음 안내·도움말 (ADR-0153) ----
+  // 처음 연 사람에게 네 걸음을 보인다. 본 것은 이 브라우저에 적는다. 「?」 에서 다시 본다.
+  var TOUR = [
+    ["[data-palette]", "블록 고르기", "왼쪽 판에 넣을 수 있는 블록이 있습니다. 제목·소개·사진·지도 같은 조각입니다."],
+    ["[data-stage]", "화면에 끌어 놓기", "블록을 이 화면으로 끌어 원하는 자리에 놓습니다. 누르기만 해도 고른 블록 아래에 들어갑니다."],
+    ["[data-inspector]", "고르고 고치기", "화면의 블록을 누르면 여기서 설정을 고칩니다. 글자는 화면에서 바로 눌러 고칠 수 있습니다."],
+    ["[data-publish]", "발행", "다 고쳤으면 「발행」을 누릅니다. 그때 사이트에 보이고, 한 번에 되돌릴 수 있습니다. 고치는 중에는 초안으로 저장됩니다."]
+  ];
+  var tourEl = document.querySelector("[data-tour]");
+  var tourAt = -1, tourTarget = null, tourBack = null;
+  function tourSeen() { try { localStorage.setItem("maru-editor-tour", "seen"); } catch (e) { /* 무시 */ } }
+  function tourShow(i) {
+    if (tourTarget) tourTarget.classList.remove("ed-tour-target");
+    if (i < 0 || i >= TOUR.length) { tourEnd(); return; }
+    tourAt = i;
+    var step = TOUR[i];
+    tourTarget = root.querySelector(step[0]);
+    tourEl.querySelector("[data-tour-step]").textContent = (i + 1) + " / " + TOUR.length;
+    tourEl.querySelector("[data-tour-title]").textContent = step[1];
+    tourEl.querySelector("[data-tour-text]").textContent = step[2];
+    tourEl.querySelector("[data-tour-prev]").hidden = i === 0;
+    tourEl.querySelector("[data-tour-next]").textContent = i === TOUR.length - 1 ? "시작하기" : "다음";
+    tourEl.hidden = false;
+    var r = tourTarget ? tourTarget.getBoundingClientRect() : { left: 16, right: 16, top: 16, bottom: 16, width: 0 };
+    if (tourTarget) tourTarget.classList.add("ed-tour-target");
+    var w = tourEl.offsetWidth, h = tourEl.offsetHeight, vw = window.innerWidth, vh = window.innerHeight;
+    var left = r.right + 12 + w <= vw ? r.right + 12 : r.left - 12 - w >= 0 ? r.left - 12 - w : Math.max(8, Math.min(vw - w - 8, r.left));
+    var top = left === r.right + 12 || left === r.left - 12 - w ? Math.max(8, Math.min(vh - h - 8, r.top + 24)) : Math.min(vh - h - 8, r.bottom + 12);
+    tourEl.style.left = left + "px";
+    tourEl.style.top = top + "px";
+    tourEl.querySelector("[data-tour-next]").focus();
+  }
+  function tourStart() {
+    tourBack = document.activeElement;
+    root.querySelector("[data-tab=add]").click();
+    tourShow(0);
+  }
+  function tourEnd() {
+    if (tourTarget) tourTarget.classList.remove("ed-tour-target");
+    tourTarget = null;
+    tourAt = -1;
+    tourEl.hidden = true;
+    tourSeen();
+    if (tourBack && tourBack.focus) tourBack.focus();
+  }
+  if (tourEl) {
+    tourEl.querySelector("[data-tour-next]").addEventListener("click", function () { tourShow(tourAt + 1); });
+    tourEl.querySelector("[data-tour-prev]").addEventListener("click", function () { tourShow(tourAt - 1); });
+    tourEl.querySelector("[data-tour-skip]").addEventListener("click", tourEnd);
+    tourEl.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); tourEnd(); }
+      else if (e.key === "ArrowRight") { e.preventDefault(); tourShow(tourAt + 1); }
+      else if (e.key === "ArrowLeft" && tourAt > 0) { e.preventDefault(); tourShow(tourAt - 1); }
+    });
+    window.addEventListener("resize", function () { if (tourAt >= 0) tourShow(tourAt); });
+    var seen = "seen";
+    try { seen = localStorage.getItem("maru-editor-tour"); } catch (e) { /* 저장소를 못 쓰면 보이지 않는다 */ }
+    if (!seen) setTimeout(tourStart, 400);
+  }
+  var helpBtn = root.querySelector("[data-help]");
+  var helpDlg = root.querySelector("[data-help-dialog]");
+  if (helpBtn && helpDlg) {
+    helpBtn.addEventListener("click", function () { helpDlg.showModal(); });
+    helpDlg.querySelector("[data-help-close]").addEventListener("click", function () { helpDlg.close(); });
+    helpDlg.querySelector("[data-tour-again]").addEventListener("click", function () { helpDlg.close(); tourStart(); });
   }
 
   // ---- 새 페이지 (ADR-0149) ----

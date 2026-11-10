@@ -49,6 +49,23 @@
       <button type="button" data-redo disabled title="다시 하기 (Ctrl+Y)">↷<span class="visually-hidden">다시 하기</span></button>
     </div>
     <p class="ed-status" role="status" aria-live="polite" data-status>{% if done %}발행했습니다.{% else %}고친 곳 없음{% endif %}</p>
+    <button type="button" class="ghost small ed-help-btn" data-help aria-haspopup="dialog" title="도움말·단축키">?<span class="visually-hidden">도움말</span></button>
+    <dialog class="mp ed-help" data-help-dialog aria-labelledby="help-title">
+      <div class="mp-head"><h2 id="help-title">도움말</h2><button type="button" class="mp-close" data-help-close aria-label="닫기">×</button></div>
+      <div class="mp-body">
+        <p>왼쪽 판에서 블록을 화면으로 끌어 놓고, 화면의 블록을 눌러 글자를 바로 고칩니다. 다 고치면 「발행」을 누릅니다. 발행은 한 번에 되돌릴 수 있습니다.</p>
+        <button type="button" class="secondary" data-tour-again>처음 안내 다시 보기</button>
+        <h3>단축키</h3>
+        <dl class="ed-keys">
+          <dt><kbd>Ctrl</kbd>+<kbd>Z</kbd></dt><dd>되돌리기</dd>
+          <dt><kbd>Ctrl</kbd>+<kbd>Y</kbd></dt><dd>다시 하기</dd>
+          <dt><kbd>Ctrl</kbd>+<kbd>D</kbd></dt><dd>고른 블록 복제</dd>
+          <dt><kbd>Delete</kbd></dt><dd>고른 블록 지우기</dd>
+          <dt><kbd>Ctrl</kbd>+<kbd>S</kbd></dt><dd>초안 저장</dd>
+          <dt><kbd>Esc</kbd></dt><dd>고르기 풀기</dd>
+        </dl>
+      </div>
+    </dialog>
     <a class="button ghost small ed-view" href="/" target="_blank" rel="noopener" data-view>사이트 보기</a>
     <button type="button" class="primary" data-publish disabled>발행</button>
   </header>
@@ -77,6 +94,18 @@
       </div>
     </aside>
     <main class="ed-canvas" id="main">
+      <section class="ed-start" data-start hidden aria-labelledby="start-title">
+        <div class="ed-start-head">
+          <h2 id="start-title">이 화면이 비어 있습니다</h2>
+          <button type="button" class="mp-close" data-start-close aria-label="닫기">×</button>
+        </div>
+        <p class="hint">어울리는 묶음으로 시작하면 블록이 한 번에 들어옵니다. 글자와 그림은 바로 고칠 수 있습니다.</p>
+        <div class="ed-start-cards" data-start-cards></div>
+        <div class="ed-start-foot">
+          <label>다른 종류 <select data-start-more><option value="">고르기</option></select></label>
+          <button type="button" class="link" data-start-blank>빈 블록부터</button>
+        </div>
+      </section>
       <div class="ed-stage" data-stage data-device="desktop">
         <iframe title="편집 중인 화면: {{ screen_label }}" src="/admin/editor/frame?screen={{ screen }}" data-frame></iframe>
       </div>
@@ -84,6 +113,16 @@
     <aside class="ed-right" aria-label="고른 블록 설정">
       <div data-inspector><p class="ed-empty-pick">화면에서 블록을 누르면<br>여기서 고칩니다.</p></div>
     </aside>
+  </div>
+</div>
+<div class="ed-tour" data-tour role="dialog" aria-labelledby="tour-title" aria-describedby="tour-text" hidden>
+  <p class="ed-tour-step" data-tour-step></p>
+  <h2 id="tour-title" data-tour-title></h2>
+  <p id="tour-text" data-tour-text></p>
+  <div class="ed-tour-foot">
+    <button type="button" class="link" data-tour-skip>건너뛰기</button>
+    <button type="button" class="secondary small" data-tour-prev>이전</button>
+    <button type="button" class="primary small" data-tour-next>다음</button>
   </div>
 </div>
 <noscript><p class="ed-nojs">화면 편집기는 자바스크립트가 있어야 움직입니다. <a href="/admin/widgets">위젯 화면</a>에서 같은 일을 할 수 있습니다.</p></noscript>

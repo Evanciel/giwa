@@ -33,6 +33,7 @@ use maru_core::model::{MENU_LOCATIONS, MenuItem, PageReq, PageStatus, WIDGET_REG
 use maru_core::output::Success;
 use maru_core::services::auth::SignedIn;
 use maru_core::services::changesets as change;
+use maru_core::services::presets::Op;
 use maru_core::services::stats::StatCounter;
 use maru_core::services::views::ViewCounter;
 use maru_core::services::widgets;
@@ -294,6 +295,10 @@ async fn editor_data(
         "widgets": list.iter().map(draft_of).collect::<Vec<_>>(),
         "kinds": kinds_json(&types),
         "types": types_json(&types),
+        "bundles": bundles(
+            &types.iter().map(|t| t.id).collect(),
+            &board_list.iter().map(|b| b.slug.clone()).collect::<Vec<_>>(),
+        ),
         "apps": off_apps(state).await,
         "can_enable": who.actor.has(Permission::ModuleManage),
         "boards": board_list.iter().map(|b| json!({ "id": b.slug, "label": b.name })).collect::<Vec<_>>(),
@@ -365,6 +370,79 @@ fn kinds_json(types: &[widgets::WidgetType]) -> Vec<Value> {
             })
         })
         .collect()
+}
+
+/// 빈 화면에서 고를 시작 묶음 (ADR-0153). 사이트 종류 프리셋의 첫 화면 본문 블록을 그대로 쓴다.
+/// 이 사이트에서 쓸 수 없는 블록은 빼고, 없는 게시판을 가리키는 곳은 [`fit_boards`] 로 고친다.
+/// 처음 보일 셋([`BUNDLE_PICKS`])을 앞에 둔다.
+fn bundles(kinds: &HashSet<&str>, boards: &[String]) -> Vec<Value> {
+    let mut out: Vec<Value> = maru_themes::preset_ids()
+        .iter()
+        .filter_map(|id| maru_themes::preset(id).ok())
+        .filter_map(|p| {
+            let blocks: Vec<Value> = p
+                .ops
+                .iter()
+                .filter_map(|op| match op {
+                    Op::WidgetsEnsure { items } => Some(items),
+                    _ => None,
+                })
+                .flatten()
+                .filter(|w| w.region == "main" && w.scope == "home" && kinds.contains(w.kind.as_str()))
+                .filter_map(|w| {
+                    let mut config = w.config.clone();
+                    fit_boards(&mut config, boards).then(|| {
+                        json!({ "kind": w.kind, "region": w.region, "title": w.title, "config": config })
+                    })
+                })
+                .collect();
+            (blocks.len() >= 2).then(|| {
+                json!({ "id": p.id, "name": p.name, "description": p.description, "blocks": blocks })
+            })
+        })
+        .collect();
+    out.sort_by_key(|b| {
+        BUNDLE_PICKS
+            .iter()
+            .position(|p| b["id"] == *p)
+            .unwrap_or(BUNDLE_PICKS.len())
+    });
+    out
+}
+
+/// 빈 화면에 먼저 보일 시작 묶음. 나머지는 「다른 종류」에서 고른다.
+const BUNDLE_PICKS: [&str; 3] = ["company", "cafe", "portfolio"];
+
+/// 이 사이트에 없는 게시판을 가리키는 곳을 고친다. `board` 칸은 첫 게시판으로, `/b/…` 링크는 첫 게시판
+/// (없으면 첫 화면)으로. 게시판이 하나도 없는데 `board` 칸이 있으면 `false` 다(그 블록은 뺀다).
+fn fit_boards(v: &mut Value, boards: &[String]) -> bool {
+    let known = |slug: &str| boards.iter().any(|b| b == slug);
+    match v {
+        Value::Object(map) => map.iter_mut().all(|(k, x)| {
+            let text = x.as_str().map(str::to_owned);
+            match (k.as_str(), text.as_deref()) {
+                ("board", Some(b)) if !known(b) => match boards.first() {
+                    Some(first) => {
+                        *x = json!(first);
+                        true
+                    }
+                    None => false,
+                },
+                ("link", Some(l)) => {
+                    let slug = l
+                        .strip_prefix("/b/")
+                        .map(|r| r.split(['/', '?', '#']).next().unwrap_or_default());
+                    if slug.is_some_and(|s| !known(s)) {
+                        *x = json!(boards.first().map_or("/".to_owned(), |f| format!("/b/{f}")));
+                    }
+                    true
+                }
+                _ => fit_boards(x, boards),
+            }
+        }),
+        Value::Array(a) => a.iter_mut().all(|x| fit_boards(x, boards)),
+        _ => true,
+    }
 }
 
 /// 블록 종류마다 설정 형식.
@@ -1147,6 +1225,37 @@ mod tests {
             EditScreen::parse("board:free").map(|s| s.path()),
             Some("/b/free".into())
         );
+    }
+
+    #[test]
+    fn bundles_fit_this_site() {
+        let boards = vec!["free".to_owned()];
+        let mut v = json!({ "board": "notice", "button": { "link": "/b/notice/1" },
+            "items": [{ "link": "/b/free" }, { "link": "/p/about" }] });
+        assert!(fit_boards(&mut v, &boards));
+        assert_eq!(v["board"], "free");
+        assert_eq!(v["button"]["link"], "/b/free");
+        assert_eq!(v["items"][1]["link"], "/p/about");
+        let mut v = json!({ "tabs": [{ "board": "notice" }] });
+        assert!(!fit_boards(&mut v, &[]), "게시판이 없으면 그 블록은 뺀다");
+        let mut v = json!({ "link": "/b/notice" });
+        assert!(fit_boards(&mut v, &[]));
+        assert_eq!(v["link"], "/");
+
+        let kinds: HashSet<&str> = ["hero", "features", "visit", "hours", "price_list"].into();
+        let list = bundles(&kinds, &boards);
+        assert_eq!(list[0]["id"], "company", "먼저 보일 묶음이 앞");
+        assert!(list.iter().any(|b| b["id"] == "cafe"));
+        for b in &list {
+            let blocks = b["blocks"].as_array().unwrap();
+            assert!(blocks.len() >= 2);
+            assert!(
+                blocks
+                    .iter()
+                    .all(|w| kinds.contains(w["kind"].as_str().unwrap()))
+            );
+            assert!(!b.to_string().contains("/b/notice"), "{}", b["id"]);
+        }
     }
 
     #[test]
