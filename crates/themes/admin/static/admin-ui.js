@@ -78,7 +78,14 @@
       case "array": return [];
       case "object":
         var o = {};
-        Object.keys(s.properties || {}).forEach(function (k) { o[k] = blank(s.properties[k], root); });
+        Object.keys(s.properties || {}).forEach(function (k) {
+          o[k] = blank(s.properties[k], root);
+          // 꼭 골라야 하는 고르기(SNS 종류 등)는 빈 값이면 블록이 틀린 값이 된다. 첫 고르기로 채운다.
+          if (o[k] === "" && (s.required || []).indexOf(k) >= 0) {
+            var c = choicesOf(k, resolve(s.properties[k], root));
+            if (c) o[k] = c[0][0];
+          }
+        });
         return o;
       default: return "";
     }

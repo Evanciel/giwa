@@ -342,7 +342,9 @@
     });
     markSelection();
     if (!doc.__maruBound) bindFrame(doc);
+    if (scrollPending && scrollPending === selected && nodeOf(selected)) { scrollPending = null; scrollToSelected(); }
   }
+  var scrollPending = null; // 새로 넣은 블록: 다시 그린 뒤 그 자리로 옮겨 보여 준다.
 
   function markSelection() {
     var doc = fdoc();
@@ -739,6 +741,9 @@
       }
       widgets.splice(at, 0, w);
     });
+    // 새 블록은 내용부터 채운다. 화면 밖에 넣었으면 그 자리로 옮겨 보여 준다.
+    inspTab = "content";
+    scrollPending = w.id;
     select(w.id);
     statusEl.textContent = "새 「" + nameOf(w) + "」 블록을 넣었습니다. 잘못 넣었으면 되돌리기(Ctrl+Z)를 누르세요.";
   }
@@ -1278,7 +1283,7 @@
       body: JSON.stringify({ tokens: p })
     }).then(function (r) {
       return r.ok ? r.text().then(function (t) { return { ok: true, t: t }; })
-        : r.json().then(function (j) { return { ok: false, t: (j.error && j.error.message) || "이 값은 쓸 수 없습니다." }; });
+        : r.json().then(function (j) { var e = j.error || {}; return { ok: false, t: e.hint || e.message || "이 값은 쓸 수 없습니다." }; });
     }).then(function (res) {
       if (seq !== designSeq) return;
       designBad = res.ok ? "" : res.t;
@@ -1396,6 +1401,11 @@
     own.addEventListener("change", function () { drawDesign(); });
     fs.appendChild(el("label", { cls: "ed-color-own" }, [own, el("span", { text: "직접" })]));
     fs.appendChild(el("p", { cls: "hint", text: "단추·링크·강조 띠의 색입니다. 바탕과 대비가 모자라면 쓸 수 없다고 알려 드립니다." }));
+    // 대비 경고는 고른 색 바로 아래에 둔다(W8 둘러보기: 맨 아래에 있어 못 봤다).
+    var msg = el("p", { cls: "ed-design-msg", role: "alert", "data-design-msg": "" });
+    msg.textContent = designBad;
+    msg.hidden = !designBad;
+    fs.appendChild(msg);
     box.appendChild(fs);
     box.appendChild(fontSelect("제목 글꼴", "font_heading"));
     box.appendChild(fontSelect("본문 글꼴", "font_body"));
@@ -1403,10 +1413,6 @@
       function (c) { change(function () { design.radius = JSON.parse(JSON.stringify(c[2])); }, null, true); }));
     box.appendChild(chipRow("간격", DENSITY, function (c) { return c[0] === design.density; },
       function (c) { change(function () { design.density = c[0]; }, null, true); }));
-    var msg = el("p", { cls: "ed-design-msg", role: "alert", "data-design-msg": "" });
-    msg.textContent = designBad;
-    msg.hidden = !designBad;
-    box.appendChild(msg);
     box.appendChild(el("p", { cls: "hint" }, [
       el("span", { text: "어두운 화면 색, 글자 크기 같은 자세한 값은 " }),
       el("a", { href: "/admin/design", text: "디자인 화면" }),
@@ -1789,8 +1795,16 @@
       };
       group("게시판", "board", data.boards);
       group("페이지", "page", data.pages || []);
+      // 이 화면의 구역(구역 이름을 붙인 블록)으로 가는 링크. 값은 직접 링크(url)로 저장된다.
+      var anchors = data.anchors;
+      if (anchors.length) {
+        var ag = el("optgroup", { label: "이 화면의 구역" });
+        anchors.forEach(function (a) { ag.appendChild(el("option", { value: "anchor:" + a.value, text: a.label })); });
+        sel.appendChild(ag);
+      }
       var dest = destOf(r.link);
-      if (dest !== "home" && dest !== "url" && !sel.querySelector('option[value="' + dest.replace(/"/g, "") + '"]')) {
+      if (dest === "url" && anchors.some(function (a) { return a.value === r.link.href; })) dest = "anchor:" + r.link.href;
+      if (dest !== "home" && dest !== "url" && dest.indexOf("anchor:") !== 0 && !sel.querySelector('option[value="' + dest.replace(/"/g, "") + '"]')) {
         sel.appendChild(el("option", { value: dest, text: "지금 값: " + r.link.slug }));
       }
       sel.appendChild(el("option", { value: "url", text: "직접 링크 쓰기…" }));
@@ -1802,6 +1816,7 @@
         var v = sel.value, at = v.indexOf(":");
         if (v === "url") r.link = { kind: "url", href: url.value };
         else if (v === "home") r.link = { kind: "home" };
+        else if (v.indexOf("anchor:") === 0) { r.link = { kind: "url", href: v.slice(7) }; url.value = r.link.href; }
         else r.link = { kind: v.slice(0, at), slug: v.slice(at + 1) };
         url.hidden = v !== "url";
         commit();

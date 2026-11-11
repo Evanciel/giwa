@@ -95,6 +95,15 @@ pub(crate) fn lookup(key: &str) -> Option<&'static str> {
         "error.post_secret" => "This post is private. Only the author and admins can read it.",
         "error.post_views" => "The view count must be an integer from 0 to {max}.",
         "hint.post_secret" => "If you are the author, log in and open it again.",
+        "hint.token_contrast_text" => {
+            "The text color is too close to the background to read (contrast {ratio}:1, needs {min}:1). Pick a darker or lighter color."
+        }
+        "hint.token_contrast_muted" => {
+            "The muted text color is too close to the background (contrast {ratio}:1, needs {min}:1). Pick a darker or lighter color."
+        }
+        "hint.token_contrast_primary" => {
+            "The main color is too close to the background, so buttons and links are hard to see (contrast {ratio}:1, needs {min}:1). Pick a darker or lighter color."
+        }
         "error.search_query" => {
             "The search is empty, has only exclusions (-), or exceeds {max} characters or 10 words: {query}"
         }

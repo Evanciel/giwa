@@ -149,6 +149,15 @@ fn lookup_ko(key: &str) -> Option<&'static str> {
         "error.post_secret" => "비밀글입니다. 작성자와 관리자만 읽을 수 있습니다.",
         "error.post_views" => "조회수는 0 이상 {max} 이하의 정수여야 합니다.",
         "hint.post_secret" => "작성자라면 로그인한 뒤 다시 여세요.",
+        "hint.token_contrast_text" => {
+            "글자 색과 바탕 색이 너무 비슷해 글이 잘 안 읽힙니다(대비 {ratio}:1, {min}:1 이상 필요). 더 진하거나 연한 색을 고르세요."
+        }
+        "hint.token_contrast_muted" => {
+            "흐린 글자 색이 바탕과 너무 비슷합니다(대비 {ratio}:1, {min}:1 이상 필요). 더 진하거나 연한 색을 고르세요."
+        }
+        "hint.token_contrast_primary" => {
+            "주 색이 바탕과 너무 비슷해 단추·링크가 잘 안 보입니다(대비 {ratio}:1, {min}:1 이상 필요). 더 진하거나 연한 색을 고르세요."
+        }
         "error.search_query" => {
             "검색어가 비었거나, 빼기(-)만 있거나, {max}자·낱말 10개를 넘습니다: {query}"
         }

@@ -1178,7 +1178,7 @@ async fn history_list(
                 "title": c.title,
                 "actor_type": c.actor_type,
                 "status": c.status,
-                "ops": c.ops.len(),
+                "ops": edits_of(&c.ops),
                 "applied_at": c.applied_at,
                 "reverted_at": c.reverted_at,
                 "url": format!("/admin/changesets/{}", c.id),
@@ -1186,6 +1186,19 @@ async fn history_list(
         })
         .collect::<Vec<_>>();
     Ok(Json(Success::new(json!({ "items": items }))).into_response())
+}
+
+/// 기록에 보일 「고친 곳」 수. 다른 블록을 넣거나 빼서 자리만 밀린 블록(`position` 만 바꾼 configure)은 세지 않는다.
+/// 자리 옮기기만 있는 묶음(끌어 옮기기)은 한 곳으로 센다.
+fn edits_of(ops: &[Value]) -> usize {
+    let moved_only = |op: &&Value| {
+        op["op"] == "widget.configure"
+            && op["patch"]
+                .as_object()
+                .is_some_and(|p| p.len() == 1 && p.contains_key("position"))
+    };
+    let moves = ops.iter().filter(moved_only).count();
+    (ops.len() - moves).max(usize::from(moves > 0))
 }
 
 /// 그 묶음만 한 번에 되돌린다. 이미 되돌렸으면 그대로다.
@@ -1422,6 +1435,20 @@ fn plan_ops(current: &[Widget], draft: &[DraftWidget], opened: Option<&Opened>) 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn history_counts_edits_not_blocks_pushed_aside() {
+        let mv = |id: &str, p: i64| json!({ "op": "widget.configure", "id": id, "patch": { "position": p } });
+        let text = json!({ "op": "widget.configure", "id": "a", "patch": { "config": { "title": "새 제목" } } });
+        let add = json!({ "op": "widget.create", "kind": "hero", "position": 1 });
+        // 넣기 하나 + 글 고침 하나에 밀린 블록 열넷 → 두 곳.
+        let mut ops = vec![add, text];
+        ops.extend((0..14).map(|i| mv(&format!("w{i}"), i + 2)));
+        assert_eq!(edits_of(&ops), 2);
+        // 끌어 옮기기만 → 한 곳.
+        assert_eq!(edits_of(&[mv("a", 3), mv("b", 0)]), 1);
+        assert_eq!(edits_of(&[]), 0);
+    }
 
     fn w(id: &str, region: &str, order: i64) -> Widget {
         Widget {

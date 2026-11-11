@@ -218,16 +218,18 @@ impl Tokens {
             for (name, value) in p.entries() {
                 parse_hex(value).ok_or_else(|| invalid(&format!("{mode}.{name}"), value))?;
             }
-            for (a, b) in [
-                ("fg", "bg"),
-                ("fg", "surface"),
-                ("muted", "bg"),
-                ("primary", "bg"),
+            // 힌트는 토큰 이름을 모르는 사람이 읽는 말이다(편집기 디자인 판이 그대로 보여 준다).
+            for (a, b, hint) in [
+                ("fg", "bg", "hint.token_contrast_text"),
+                ("fg", "surface", "hint.token_contrast_text"),
+                ("muted", "bg", "hint.token_contrast_muted"),
+                ("primary", "bg", "hint.token_contrast_primary"),
             ] {
                 let ratio = contrast(p.get(a), p.get(b)).unwrap_or(0.0);
                 if ratio < MIN_CONTRAST {
                     return Err(Error::new(Code::Validation)
                         .with_message("error.token_contrast")
+                        .with_hint(hint)
                         .arg("pair", format!("{mode}.{a} / {mode}.{b}"))
                         .arg("ratio", format!("{ratio:.2}"))
                         .arg("min", format!("{MIN_CONTRAST}")));
@@ -474,6 +476,12 @@ mod tests {
         let mut t = Tokens::default();
         t.color_dark.fg = "#333333".into();
         assert!(t.validate().is_err());
+        // 사람이 읽는 힌트: 토큰 이름 없이 무엇이 안 보이는지와 대비 수치.
+        let mut t = Tokens::default();
+        t.color.primary = "#f4f4f4".into();
+        let hint = t.validate().unwrap_err().hint().unwrap();
+        assert!(hint.starts_with("주 색이 바탕과 너무 비슷해"), "{hint}");
+        assert!(hint.contains(":1") && !hint.contains("color."), "{hint}");
     }
 
     #[test]
