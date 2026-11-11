@@ -722,4 +722,22 @@ const T = (s, n) => ((MARU_EN && MARU_EN[s]) || s).replace("{n}", n);
   tick();
   setInterval(tick, 60000);
 })();
+
+// 섹션 등장 효과 (ADR-0157). 처음 화면 아래에 있는 블록만 숨겼다가 들어올 때 보인다. 움직임 줄이기면 아무것도 하지 않는다.
+(() => {
+  const secs = document.querySelectorAll(".sec.motion-fade, .sec.motion-rise");
+  if (!secs.length || !("IntersectionObserver" in window) || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (!e.isIntersecting) continue;
+      e.target.classList.remove("motion-wait");
+      io.unobserve(e.target);
+    }
+  }, { rootMargin: "0px 0px -8% 0px" });
+  for (const s of secs) {
+    if (s.getBoundingClientRect().top < innerHeight) continue;
+    s.classList.add("motion-wait");
+    io.observe(s);
+  }
+})();
 }

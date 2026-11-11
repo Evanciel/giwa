@@ -25,19 +25,14 @@ pub(crate) async fn view(
     collect_images(&data, &mut images);
     let mut infos = HashMap::new();
     for src in images {
-        if let Some(info) = media::image_info(ctx, &src).await? {
-            let srcset = info
-                .variants
-                .iter()
-                .map(|(width, u)| format!("{u} {width}w"))
-                .chain(std::iter::once(format!("{src} {}w", info.width)))
-                .collect::<Vec<_>>()
-                .join(", ");
-            infos.insert(
-                src.clone(),
-                json!({ "src": src, "srcset": srcset, "width": info.width, "height": info.height }),
-            );
+        if let Some(info) = image_json(ctx, &src).await? {
+            infos.insert(src, info);
         }
+    }
+    // 섹션 배경 그림 (ADR-0157). `image` 칸이 아니라 공통 칸이라 따로 읽는다. 지운 그림이면 배경을 그리지 않는다.
+    let bg = data["bg_image"].as_str().unwrap_or("").to_owned();
+    if !bg.is_empty() {
+        data["bg"] = image_json(ctx, &bg).await?.unwrap_or(Value::Null);
     }
     let mut body_images = HashMap::new();
     let mut bodies = Vec::new();
@@ -103,6 +98,23 @@ pub(crate) async fn view(
         _ => {}
     }
     Ok(data)
+}
+
+/// 보관소 그림의 화면 값(`src`·`srcset`·크기). 보관소에 없으면 `None`.
+async fn image_json(ctx: &Ctx, src: &str) -> Result<Option<Value>> {
+    let Some(info) = media::image_info(ctx, src).await? else {
+        return Ok(None);
+    };
+    let srcset = info
+        .variants
+        .iter()
+        .map(|(width, u)| format!("{u} {width}w"))
+        .chain(std::iter::once(format!("{src} {}w", info.width)))
+        .collect::<Vec<_>>()
+        .join(", ");
+    Ok(Some(
+        json!({ "src": src, "srcset": srcset, "width": info.width, "height": info.height }),
+    ))
 }
 
 fn collect_images(v: &Value, out: &mut Vec<String>) {

@@ -1155,6 +1155,32 @@ body:is(:has(main.page-blocks), :has(main.wide), :has(.with-sidebar), :has(.docs
 .tone-strong .sec-btn:hover, .tone-strong .sec-btn--main { background: var(--bg); color: var(--primary-band); }
 .tone-strong .sec-btn--main:hover { background: transparent; color: var(--bg); }
 
+/* 섹션 배경 그림 (ADR-0157). 덮개 짙기는 흰 그림 위에서도 흰 글자 대비가 4.5 이상이 되게 잡았다(옅게 55%·보통 65%·짙게 80%). */
+.sec.has-bg { position: relative; isolation: isolate; overflow: hidden; background: #1c1b1a; }
+.sec.has-bg::before { content: ""; position: absolute; inset: 0; z-index: -1; background: rgb(0 0 0 / .65); }
+.sec.has-bg.dim-light::before { background: rgb(0 0 0 / .55); }
+.sec.has-bg.dim-strong::before { background: rgb(0 0 0 / .8); }
+.sec-bg { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; }
+.sec.has-bg > .sec-inner {
+  --fg: #fff;
+  --muted: rgb(255 255 255 / .88);
+  --primary: #fff;
+  --primary-band: #1c1b1a;
+  --bg: #1c1b1a;
+  --border: rgb(255 255 255 / .3);
+  --surface: rgb(255 255 255 / .1);
+  color: var(--fg);
+}
+.sec.tone-plain + .sec.tone-plain.has-bg, .sec.has-bg + .sec.tone-plain { padding-top: clamp(calc(var(--space) * 6), 8vw, var(--space-section)); }
+
+/* 섹션 등장 효과 (ADR-0157). site.js 가 화면 밖 블록에만 motion-wait 를 달았다가 들어오면 뗀다. 스크립트가 없으면 그냥 보인다. */
+@media (prefers-reduced-motion: no-preference) {
+  .sec.motion-fade, .sec.motion-rise { transition: opacity .7s ease, transform .7s cubic-bezier(.2, .7, .2, 1); }
+  .sec.motion-wait { opacity: 0; }
+  .sec.motion-rise.motion-wait { transform: translateY(1.5rem); }
+}
+@media print { .sec.motion-wait { opacity: 1; transform: none; } }
+
 /* 첫 인상 */
 .sec-hero { position: relative; isolation: isolate; padding-block: clamp(calc(var(--space) * 8), 11vw, calc(var(--space-section) * 1.35)); }
 .hero-eyebrow { margin: 0 0 calc(var(--space) * 2); color: var(--muted); font-size: var(--fs-sm); font-weight: 600; letter-spacing: .02em; }

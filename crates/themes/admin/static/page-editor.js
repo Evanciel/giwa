@@ -1020,30 +1020,63 @@
     if (STYLES[w.kind]) groups.push([STYLE_KEY[w.kind] || "style", "모양", STYLES[w.kind]]);
     LOOK.forEach(function (g) { groups.push(g); });
     var colors = canvasColors();
-    groups.forEach(function (g) {
-      var key = g[0], p = propsOf(w.kind)[key] || {};
-      var cur = (w.config || {})[key] || p.default || g[2][0][0];
-      var fs = el("fieldset", { cls: "ed-field ed-chips" }, [el("legend", { text: g[1] })]);
-      g[2].forEach(function (c) {
-        var sw = key === "tone" ? el("span", { cls: "ed-swatch", "aria-hidden": "true" }) : null;
-        if (sw && colors && colors.bg) {
-          sw.style.background = c[0] === "strong" ? colors.primary
-            : c[0] === "soft" ? "color-mix(in srgb, " + colors.primary + " 12%, " + colors.bg + ")" : colors.bg;
-        }
-        var b = el("button", { type: "button", cls: "ed-chip", "aria-pressed": String(cur === c[0]) }, [sw, el("span", { text: c[1] })]);
-        b.addEventListener("click", function () {
-          var cw = byId(w.id);
-          if (!cw || ((cw.config || {})[key] || p.default) === c[0]) return;
-          form = null; // 설정 칸이 옛 값을 다시 쓰지 않게 새로 만든다
-          change(function () { (cw.config || (cw.config = {}))[key] = c[0]; });
-        });
-        fs.appendChild(b);
-      });
-      box.appendChild(fs);
-    });
+    groups.forEach(function (g) { box.appendChild(chipGroup(w, g, colors)); });
+    // 첫 인상의 「배경 그림」 모양은 따로 그림 칸이 있어 공통 배경 그림을 두지 않는다.
+    if (w.kind !== "hero") box.appendChild(bgField(w));
+    box.appendChild(chipGroup(w, MOTION, null));
     box.appendChild(anchorField(w));
     return box;
   }
+  function chipGroup(w, g, colors) {
+    var key = g[0], p = propsOf(w.kind)[key] || {};
+    var cur = (w.config || {})[key] || p.default || g[2][0][0];
+    var fs = el("fieldset", { cls: "ed-field ed-chips" }, [el("legend", { text: g[1] })]);
+    g[2].forEach(function (c) {
+      var sw = key === "tone" ? el("span", { cls: "ed-swatch", "aria-hidden": "true" }) : null;
+      if (sw && colors && colors.bg) {
+        sw.style.background = c[0] === "strong" ? colors.primary
+          : c[0] === "soft" ? "color-mix(in srgb, " + colors.primary + " 12%, " + colors.bg + ")" : colors.bg;
+      }
+      var b = el("button", { type: "button", cls: "ed-chip", "aria-pressed": String(cur === c[0]) }, [sw, el("span", { text: c[1] })]);
+      b.addEventListener("click", function () {
+        var cw = byId(w.id);
+        if (!cw || ((cw.config || {})[key] || p.default) === c[0]) return;
+        form = null; // 설정 칸이 옛 값을 다시 쓰지 않게 새로 만든다
+        change(function () { (cw.config || (cw.config = {}))[key] = c[0]; });
+      });
+      fs.appendChild(b);
+    });
+    if (g[3]) fs.appendChild(el("p", { cls: "hint", text: g[3] }));
+    return fs;
+  }
+  // 섹션 배경 그림 (ADR-0157): 그림을 고르면 덮개 짙기 칩이 나온다. 글자는 밝게, 띠 색은 덮개 아래로 가린다.
+  function bgField(w) {
+    var cur = (w.config || {}).bg_image || "";
+    var pick = el("button", { type: "button", cls: "secondary small", text: cur ? "배경 그림 바꾸기" : "배경 그림 고르기" });
+    pick.addEventListener("click", function () {
+      if (!window.MaruMedia) return;
+      window.MaruMedia.open({
+        url: (byId(w.id).config || {}).bg_image || "", alt: null, csrf: csrf,
+        onPick: function (url) {
+          var cw = byId(w.id);
+          if (!cw) return;
+          form = null;
+          change(function () {
+            cw.config = cw.config || {};
+            if (url) cw.config.bg_image = url; else { delete cw.config.bg_image; delete cw.config.bg_dim; }
+          });
+        }
+      });
+    });
+    var kids = [el("span", { cls: "ed-label", text: "배경 그림" })];
+    if (cur) kids.push(el("img", { cls: "ed-bg-thumb", src: cur, alt: "" }));
+    kids.push(pick);
+    var box = el("div", { cls: "ed-field ed-bg" }, kids);
+    if (cur) box.appendChild(chipGroup(w, BG_DIM, null));
+    return box;
+  }
+  var BG_DIM = ["bg_dim", "그림 위 덮개", [["light", "옅게"], ["medium", "보통"], ["strong", "짙게"]], "덮개가 글자를 읽기 쉽게 합니다. 밝은 그림이면 짙게 고르세요."];
+  var MOTION = ["motion", "등장 효과", [["none", "없음"], ["fade", "서서히 나타나기"], ["rise", "아래에서 올라오기"]], "공개 화면에서 내려 볼 때만 움직입니다. 「움직임 줄이기」를 켠 사람에게는 움직이지 않습니다."];
   // 구역 이름 (ADR-0156): 메뉴·단추 링크가 이 블록으로 바로 오게 하는 이름. 형식이 맞을 때만 초안에 쓴다.
   function anchorField(w) {
     var id = "ed-anchor-" + w.id;
@@ -1298,7 +1331,7 @@
     if (window.MaruForm && data.types[w.kind]) {
       var mf = new window.MaruForm(f, data);
       if (looks) {
-        mf.skip = { tone: 1, space: 1, align: 1, anchor: 1 };
+        mf.skip = { tone: 1, space: 1, align: 1, anchor: 1, bg_image: 1, bg_dim: 1, motion: 1 };
         if (STYLES[w.kind]) mf.skip[STYLE_KEY[w.kind] || "style"] = 1;
       }
       var starting = true;

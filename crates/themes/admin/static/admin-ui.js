@@ -19,7 +19,8 @@
     price: "가격", featured: "추천으로 돋보이기", features: "들어 있는 것", period: "기간", date: "날짜",
     bio: "소개", flip: "그림을 오른쪽에", space: "위아래 여백", align: "글 정렬",
     url: "주소", ratio: "화면 비율", mono: "흑백으로 가라앉히기", target: "목표 시각", done: "지난 뒤 보일 글",
-    service: "종류", caption: "사진 아래 글", anchor: "구역 이름"
+    service: "종류", caption: "사진 아래 글", anchor: "구역 이름",
+    bg_image: "배경 그림", bg_dim: "그림 위 덮개", motion: "등장 효과"
   };
   var VALUE_LABELS = {
     tone: { plain: "기본", soft: "옅은 바탕", strong: "진한 바탕" },
@@ -27,7 +28,9 @@
     location: { header: "머리글 메뉴", footer: "바닥글 메뉴" },
     space: { tight: "좁게", normal: "보통", roomy: "넓게" },
     align: { start: "왼쪽", center: "가운데" },
-    ratio: { "16x9": "가로 16:9", "4x3": "4:3", "1x1": "정사각형", "9x16": "세로(쇼츠)" }
+    ratio: { "16x9": "가로 16:9", "4x3": "4:3", "1x1": "정사각형", "9x16": "세로(쇼츠)" },
+    bg_dim: { light: "옅게", medium: "보통", strong: "짙게" },
+    motion: { none: "없음", fade: "서서히 나타나기", rise: "아래에서 올라오기" }
   };
   var FIRST = ["name", "label", "q", "title", "eyebrow", "text", "lead", "body", "a", "quote", "role", "date", "value",
     "price", "board", "source", "view", "style", "limit", "days", "columns", "location", "image", "image_alt", "link",
@@ -224,7 +227,7 @@
       input.addEventListener("input", function () { set(input.value); });
     }
     wrap.appendChild(input);
-    if (key === "image" && input.tagName === "INPUT") wrap.appendChild(this.upload(input, set));
+    if ((key === "image" || key === "bg_image") && input.tagName === "INPUT") wrap.appendChild(this.upload(input, set));
     // 링크 고르기 (ADR-0147): 게시판·페이지 목록에서 고른다. media-picker.js 가 있는 화면에서만.
     if (key === "link" && input.tagName === "INPUT" && window.MaruLinks) {
       var lb = el("button", { type: "button", cls: "secondary small", text: "고르기" });

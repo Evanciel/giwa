@@ -726,9 +726,28 @@ pub struct Common {
     /// 구역 이름. 영문 소문자·숫자·`-` 32자. 메뉴 링크를 `#s-이름` 으로 쓰면 이 블록으로 바로 간다
     #[serde(default)]
     pub anchor: String,
+    /// 배경 그림 (ADR-0157). 보관소 그림 주소. 있으면 어두운 덮개를 깔고 글자를 밝게 해 대비를 지킨다
+    #[serde(default)]
+    pub bg_image: String,
+    /// 배경 덮개 짙기: `light`·`medium`(기본)·`strong`. 배경 그림이 있을 때만 쓴다
+    #[serde(default = "medium")]
+    pub bg_dim: String,
+    /// 등장 효과: `none`(기본)·`fade`·`rise`. 움직임 줄이기 설정이면 움직이지 않는다
+    #[serde(default = "no_motion")]
+    pub motion: String,
 }
 
-const COMMON_KEYS: [&str; 1] = ["anchor"];
+const COMMON_KEYS: [&str; 4] = ["anchor", "bg_image", "bg_dim", "motion"];
+pub const BG_DIMS: [&str; 3] = ["light", "medium", "strong"];
+pub const MOTIONS: [&str; 3] = ["none", "fade", "rise"];
+
+fn medium() -> String {
+    "medium".into()
+}
+
+fn no_motion() -> String {
+    "none".into()
+}
 
 /// 종류의 설정 schema 에 공통 칸을 더한다.
 fn with_common(mut s: Value) -> Value {
@@ -877,10 +896,17 @@ pub(super) fn check(kind: &str, config: Value) -> Option<Result<Value>> {
 fn check_inner(kind: &str, mut config: Value) -> Result<Value> {
     let common = take_common(kind, &mut config)?;
     let mut out = check_kind(kind, config)?;
-    if let Some(m) = out.as_object_mut()
-        && !common.anchor.is_empty()
-    {
-        m.insert("anchor".into(), json!(common.anchor));
+    if let Some(m) = out.as_object_mut() {
+        if !common.anchor.is_empty() {
+            m.insert("anchor".into(), json!(common.anchor));
+        }
+        if !common.bg_image.is_empty() {
+            m.insert("bg_image".into(), json!(common.bg_image));
+            m.insert("bg_dim".into(), json!(common.bg_dim));
+        }
+        if common.motion != "none" {
+            m.insert("motion".into(), json!(common.motion));
+        }
     }
     Ok(out)
 }
@@ -906,6 +932,22 @@ fn take_common(kind: &str, config: &mut Value) -> Result<Common> {
             && !a.ends_with('-'));
     if !ok {
         return Err(bad_config(kind, "anchor 는 영문 소문자·숫자·- 로 32자까지"));
+    }
+    image(&mut c.bg_image)?;
+    for (field, v, allowed, default) in [
+        ("bg_dim", &mut c.bg_dim, &BG_DIMS, "medium"),
+        ("motion", &mut c.motion, &MOTIONS, "none"),
+    ] {
+        *v = v.trim().to_owned();
+        if v.is_empty() {
+            *v = default.into();
+        }
+        if !allowed.contains(&v.as_str()) {
+            return Err(bad_config(
+                kind,
+                format!("{field} 는 {}", allowed.join("·")),
+            ));
+        }
     }
     Ok(c)
 }
@@ -1365,6 +1407,40 @@ mod tests {
                 check("cta", json!({ "anchor": a })).unwrap().is_err(),
                 "{a}"
             );
+        }
+    }
+
+    #[test]
+    fn backgrounds_and_motion_are_common() {
+        for (id, ..) in KINDS {
+            let s = schema(id).unwrap();
+            for k in ["bg_image", "bg_dim", "motion"] {
+                assert!(s["properties"][k].is_object(), "{id} {k}");
+            }
+        }
+        // 기본값은 저장하지 않는다. 덮개 짙기는 배경 그림이 있을 때만 남는다.
+        let v = check("cta", json!({ "bg_dim": "strong", "motion": "none" }))
+            .unwrap()
+            .unwrap();
+        assert!(
+            v.get("bg_dim").is_none() && v.get("motion").is_none(),
+            "{v}"
+        );
+        let v = check(
+            "quote",
+            json!({ "text": "한 문장", "bg_image": "/media/2026/11/a.jpg", "motion": "rise" }),
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(v["bg_image"], "/media/2026/11/a.jpg");
+        assert_eq!(v["bg_dim"], "medium");
+        assert_eq!(v["motion"], "rise");
+        for bad in [
+            json!({ "bg_image": "https://example.com/a.jpg" }),
+            json!({ "bg_image": "/media/a.jpg", "bg_dim": "black" }),
+            json!({ "motion": "spin" }),
+        ] {
+            assert!(check("cta", bad.clone()).unwrap().is_err(), "{bad}");
         }
     }
 

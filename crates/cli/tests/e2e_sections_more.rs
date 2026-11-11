@@ -172,3 +172,64 @@ fn new_sections_render_and_reject_bad_values() {
     assert!(html.contains("개업까지"));
     assert!(html.contains("행사가 끝났습니다"), "지난 남은 날");
 }
+
+const PNG: &[u8] = &[
+    137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0,
+    0, 0, 31, 21, 196, 137, 0, 0, 0, 13, 73, 68, 65, 84, 120, 218, 99, 100, 96, 248, 95, 15, 0, 2,
+    135, 1, 128, 235, 71, 186, 146, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130,
+];
+
+/// W2 섹션 배경 그림·등장 효과 (ADR-0157).
+#[test]
+fn section_backgrounds_and_motion() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("사이트");
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "company", "--yes"],
+    );
+    let file = tmp.path().join("배경.png");
+    std::fs::write(&file, PNG).unwrap();
+    let up = maru(&data, &["media", "upload", file.to_str().unwrap()]);
+    let url = up["url"].as_str().unwrap().to_owned();
+
+    for (kind, config) in [
+        (
+            "quote",
+            r#"{"text":"한 문장","bg_image":"https://example.com/a.jpg"}"#.to_owned(),
+        ),
+        ("quote", r#"{"text":"한 문장","motion":"spin"}"#.to_owned()),
+        (
+            "quote",
+            format!(r#"{{"text":"한 문장","bg_image":"{url}","bg_dim":"black"}}"#),
+        ),
+    ] {
+        let v = place(&data, kind, &config);
+        assert_eq!(v["ok"], false, "{config} → {v}");
+    }
+    for config in [
+        format!(
+            r#"{{"text":"배경 있는 인용","bg_image":"{url}","bg_dim":"strong","motion":"rise"}}"#
+        ),
+        // 보관소에 없는 그림은 배경을 그리지 않는다.
+        r#"{"text":"없는 그림","bg_image":"/media/2000/01/none.png"}"#.to_owned(),
+    ] {
+        let v = place(&data, "quote", &config);
+        assert_eq!(v["ok"], true, "{config} → {v}");
+    }
+
+    let (_server, info) = start_server(&data);
+    let (status, html) = get(info["bind"].as_str().unwrap(), "/");
+    assert_eq!(status, 200);
+    assert_eq!(
+        html.matches("has-bg dim-strong").count(),
+        1,
+        "배경 띠는 하나"
+    );
+    assert!(html.contains("motion-rise"), "등장 효과");
+    assert!(
+        html.contains(&format!(r#"<img class="sec-bg" src="{url}""#)),
+        "배경 그림"
+    );
+    assert!(!html.contains("/media/2000/01/none.png"), "없는 그림");
+}

@@ -2059,3 +2059,23 @@
   - 단위 테스트: `new_kinds_check_their_values`, `social_links_are_normalized`, `anchors_are_common_to_every_section`.
   - e2e `e2e_sections_more::new_sections_render_and_reject_bad_values` 가 실제 바이너리로 나쁜 값 거절과 공개 HTML(재생기 주소·비율·구역 id 하나·mailto·빈 사진 전시 빼기·남은 날)을 확인한다.
   - 브라우저: 더하기 판 카드 6종이 들어가고, 발행 뒤 공개 화면에 D-30·남은 시분·큰 인용·로고 이름·SNS 단추가 보였다. 구역 이름 「contact」를 달아 발행하니 `id="s-contact"` 하나, 링크 고르기에 「SNS 링크 (#s-contact)」가 보였다.
+
+## ADR-0157: 섹션 배경 그림과 정해진 등장 효과 세 가지
+
+- 날짜: 2026-11-11
+- 배경:
+  - `docs/plans/wix-plus.md` W2. 섹션 띠는 색 세 가지(바탕·옅은 면·주 색)뿐이라 사진을 깐 띠를 만들 수 없었다. 첫 인상만 배경 그림 모양이 있었다.
+  - `docs/plans/editor-wix-gap.md` §1 은 「애니메이션 편집 안 함」으로 등장 효과를 뺐다. 남의 빌더와 견줄 때 가장 먼저 눈에 띄는 차이였다.
+- 결정:
+  - 모든 섹션 공통 칸에 `bg_image`(보관소 그림)·`bg_dim`(`light`·`medium`·`strong`)·`motion`(`none`·`fade`·`rise`)을 더한다. ADR-0156 의 `Common` 에 넣어 스키마 합치기·검사를 그대로 쓴다. 기본값(`none`, 그림 없는 `bg_dim`)은 저장하지 않는다.
+  - 배경 그림이 있으면 띠 색 대신 어두운 덮개를 깔고 글자·단추 토큰을 흰색으로 바꾼다. 사용자가 글자 색을 고르지 않는다. 덮개는 옅게 55%·보통 65%·짙게 80% 검정이라 순백 그림 위에서도 흰 글자 대비가 각각 4.7·7.0·12.6 이다.
+  - 배경 그림은 `<img class="sec-bg" alt="" loading="lazy">` 로 그린다. 공개 화면 CSP 가 `style-src 'self'` 라 `style="background-image"` 를 쓸 수 없고, `srcset` 으로 작은 화면에 작은 그림을 준다. 보관소에서 지운 그림이면 배경을 그리지 않는다. 첫 인상의 「배경 그림」 모양은 따로 그림 칸이 있어 공통 배경을 쓰지 않는다.
+  - 등장 효과는 키프레임 편집이 아니라 정해진 세 가지다. site.js 가 처음 화면 아래에 있는 블록에만 `motion-wait` 를 달았다가 IntersectionObserver 로 들어올 때 뗀다. 스크립트가 없거나 「움직임 줄이기」면 그냥 보인다. 편집 캔버스에서는 class 를 달지 않는다(고르기·끌기를 방해한다). 인쇄에서는 숨기지 않는다.
+  - 편집기 꾸미기 판: 「배경 그림 고르기/바꾸기」(그림 판 재사용) → 그림이 있으면 「그림 위 덮개」 칩, 「등장 효과」 칩. 관리 → 위젯 화면에도 칸 이름·고르기 글자를 단다.
+- 대안:
+  - 덮개 색을 주 색으로. 주 색이 밝은 프리셋에서 대비가 깨진다.
+  - CSS 만으로 하는 스크롤 연동 애니메이션(`animation-timeline`). 지원 브라우저가 고르지 않아 스크립트 없는 기본을 「그냥 보임」으로 둘 수 없다.
+  - 처음부터 모든 블록을 숨기고 스크립트로 보이기. 스크립트가 늦거나 막히면 빈 화면이 된다.
+- 결과:
+  - 단위 테스트 `backgrounds_and_motion_are_common`, e2e `e2e_sections_more::section_backgrounds_and_motion`(나쁜 값 거절, `has-bg dim-strong`·`motion-rise`·`sec-bg` 그림, 없는 그림은 그리지 않음).
+  - 브라우저: 큰 인용 블록에 그림을 고르고 짙게·아래에서 올라오기를 골라 발행했다. 캔버스와 공개 화면 모두 그림 위 짙은 덮개와 흰 글자가 보였고, 공개 화면에서 내려가 블록이 화면에 들어오자 `motion-wait` 가 떨어졌다.

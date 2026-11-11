@@ -157,6 +157,11 @@ fieldset.ed-field legend { font-weight: 600; margin-bottom: .3rem; padding: 0; }
 .ed-chips { display: flex; flex-wrap: wrap; gap: .35rem; }
 .ed-chips legend { margin-bottom: .35rem; }
 .ed-chips .hint { flex-basis: 100%; margin: .2rem 0 0; }
+/* 섹션 배경 그림 (ADR-0157) */
+.ed-bg { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.ed-bg .ed-label { flex-basis: 100%; font-weight: 600; }
+.ed-bg-thumb { width: 4.5rem; height: 3rem; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); }
+.ed-bg .ed-chips { flex-basis: 100%; margin-top: .25rem; }
 .ed-chip { all: unset; display: inline-flex; align-items: center; gap: .4rem; padding: .35rem .7rem; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); cursor: pointer; font-size: .9rem; }
 .ed-chip:hover { border-color: var(--primary); }
 .ed-chip:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
