@@ -105,3 +105,70 @@ fn design_gallery_is_the_same_everywhere() {
     let rest: Value = serde_json::from_str(&body).unwrap();
     assert_eq!(rest["data"], one);
 }
+
+/// W4 내 블록 보관함 (ADR-0159). 저장은 멱등이고, 지우기도 여러 번 해도 같다. 손님은 보관함을 보지 못한다.
+#[test]
+fn saved_blocks_are_kept_for_reuse() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("사이트");
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
+    let save = [
+        "widget",
+        "saved",
+        "save",
+        "quote",
+        "--name",
+        "대표 인사말",
+        "--config",
+        r#"{"text":"늘 처음처럼","name":"대표"}"#,
+    ];
+    let a = maru(&data, &save);
+    let b = maru(&data, &save);
+    assert_eq!(a["id"], b["id"], "같은 내용은 한 번만 저장");
+    assert_eq!(a["region"], "main");
+    assert_eq!(a["config"]["text"], "늘 처음처럼");
+
+    let bad = run(
+        &data,
+        &[
+            "widget",
+            "saved",
+            "save",
+            "quote",
+            "--name",
+            "빈 인용",
+            "--config",
+            "{}",
+        ],
+    );
+    assert_eq!(bad["ok"], false, "놓을 때와 같은 검사: {bad}");
+    let bad = run(
+        &data,
+        &["widget", "saved", "save", "없는종류", "--name", "이름"],
+    );
+    assert_eq!(bad["ok"], false, "{bad}");
+
+    let list = maru(&data, &["widget", "saved", "list"]);
+    assert_eq!(list.as_array().unwrap().len(), 1, "{list}");
+
+    let (_server, bind) = start_server(&data);
+    let (status, body) = get(&bind, "/api/v1/saved-blocks");
+    assert_eq!(status, 401, "손님은 보관함을 볼 수 없다: {body}");
+    drop(_server);
+
+    let id = a["id"].as_str().unwrap();
+    let gone = maru(&data, &["widget", "saved", "delete", id]);
+    assert_eq!(gone["deleted"], true);
+    let again = maru(&data, &["widget", "saved", "delete", id]);
+    assert_eq!(again["deleted"], false, "두 번 지워도 오류가 아니다");
+    let list = maru(&data, &["widget", "saved", "list"]);
+    assert!(list.as_array().unwrap().is_empty());
+    let audit = maru(&data, &["audit", "list"]).to_string();
+    assert!(
+        audit.contains("block.save") && audit.contains("block.delete"),
+        "감사 기록"
+    );
+}

@@ -20,7 +20,7 @@ use maru_core::services::settings::SettingsPatch;
 use maru_core::services::stats::{self, StatsQuery};
 use maru_core::services::widgets::{self, NewWidget, WidgetPatch};
 use maru_core::services::{
-    boards, designs, indexnow, pages, presets, samples, sections, settings, tokens,
+    boards, designs, indexnow, pages, presets, samples, saved_blocks, sections, settings, tokens,
 };
 use maru_core::{Actor, Code, Ctx, Error, Permission, Result};
 use maru_modules::{Registry, schema_of, service};
@@ -484,6 +484,20 @@ const SPECS: &[Spec] = &[
         Permission::DesignEdit,
         schema_of::<ThemeInput>,
     ),
+    looked_up(
+        "list_saved_blocks",
+        "화면 편집기 보관함의 내 블록을 본다. List saved blocks.",
+        Permission::DesignEdit,
+        schema_of::<NoInput>,
+    ),
+    Spec {
+        name: "save_block",
+        description: "블록을 내 블록 보관함에 저장한다. 방문자에게 보이지 않아 바로 저장된다. 화면에 넣으려면 변경 묶음의 widget.place. Save a block for reuse.",
+        permission: Permission::DesignEdit,
+        read_only: false,
+        untrusted: false,
+        schema: schema_of::<saved_blocks::NewSavedBlock>,
+    },
     looked_up(
         "list_blocks",
         "페이지에 놓을 수 있는 섹션 블록과 설정 형식을 본다. List section blocks.",
@@ -980,6 +994,11 @@ impl Server {
                 }
                 fields["changeset_title"] = json!(format!("테마 입히기: {}", preset.name));
                 self.stage(actor, name, "tokens.set", fields).await
+            }
+            "list_saved_blocks" => to_value(saved_blocks::list(ctx, actor).await?),
+            "save_block" => {
+                let i: saved_blocks::NewSavedBlock = input(args)?;
+                to_value(saved_blocks::save(ctx, actor, i).await?)
             }
             "list_blocks" => {
                 actor.require(Permission::DesignEdit)?;

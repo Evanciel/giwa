@@ -14,8 +14,8 @@ use maru_core::services::posts::{self, NewPost};
 use maru_core::services::tokens::{self, NewToken};
 use maru_core::services::{
     anonymous_actor, audit_log, auth, backups, categories, comments, design, designs, files, fonts,
-    indexnow, mail, media, members, menus, pages, presets, retention, samples, search, settings,
-    signals, stats, tags, templates, views, widgets, wiki,
+    indexnow, mail, media, members, menus, pages, presets, retention, samples, saved_blocks,
+    search, settings, signals, stats, tags, templates, views, widgets, wiki,
 };
 use maru_core::urls::{self, Target};
 use maru_core::{Actor, Code, Ctx, Error, Result};
@@ -27,9 +27,9 @@ use crate::{
     AuditCmd, AuditListArgs, BackupArgs, BackupCmd, BoardCmd, CategoryCmd, ChangesetCmd, Command,
     CommentCmd, DesignCmd, ExportCmd, FileCmd, FontCmd, Global, InitArgs, LinkCmd, LoginLinkArgs,
     MailCmd, MailSetupArgs, McpCmd, MediaCmd, MemberCmd, MenuCmd, MenuSetArgs, PageCmd, PostCmd,
-    PostListArgs, PostNewArgs, PrivacyCmd, RedirectCmd, RestoreArgs, SampleCmd, SearchArgs,
-    SearchCmd, SeoCmd, ServeArgs, SignalsArgs, SignalsCmd, SiteCmd, StatsArgs, TagCmd, TemplateCmd,
-    ThemeCmd, ThemeTokensCmd, TokenCmd, TokenCreateArgs, WidgetCmd,
+    PostListArgs, PostNewArgs, PrivacyCmd, RedirectCmd, RestoreArgs, SampleCmd, SavedBlockCmd,
+    SearchArgs, SearchCmd, SeoCmd, ServeArgs, SignalsArgs, SignalsCmd, SiteCmd, StatsArgs, TagCmd,
+    TemplateCmd, ThemeCmd, ThemeTokensCmd, TokenCmd, TokenCreateArgs, WidgetCmd,
 };
 
 pub async fn run(g: &Global, command: Command) -> ExitCode {
@@ -1728,10 +1728,54 @@ async fn widget_run(ctx: &Ctx, cmd: WidgetCmd) -> Out {
             let human = format!("위젯을 고쳤습니다.\n{}", widget_line(&w));
             Ok((to_value(&w)?, human))
         }
+        WidgetCmd::Saved(c) => saved_block_run(ctx, &actor, c).await,
         WidgetCmd::Remove { id } => {
             let w = widgets::remove(ctx, &actor, &id).await?;
             let human = format!("위젯을 뺐습니다: {}", widget_line(&w));
             Ok((to_value(&w)?, human))
+        }
+    }
+}
+
+/// 내 블록 보관함 (ADR-0159).
+async fn saved_block_run(ctx: &Ctx, actor: &Actor, cmd: SavedBlockCmd) -> Out {
+    match cmd {
+        SavedBlockCmd::List => {
+            let list = saved_blocks::list(ctx, actor).await?;
+            let human = if list.is_empty() {
+                "내 블록이 없습니다. 저장: maru widget saved save <종류> --name <이름>".to_owned()
+            } else {
+                list.iter()
+                    .map(|b| format!("{}  {} ({}, {})", b.id, b.name, b.kind, b.region))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            };
+            Ok((to_value(&list)?, human))
+        }
+        SavedBlockCmd::Save(a) => {
+            let config = widget_config(a.config.as_deref(), a.config_file.as_deref())?;
+            let b = saved_blocks::save(
+                ctx,
+                actor,
+                saved_blocks::NewSavedBlock {
+                    name: a.name,
+                    kind: a.kind,
+                    region: a.region,
+                    title: a.title,
+                    config: config.unwrap_or(Value::Null),
+                },
+            )
+            .await?;
+            let human = format!("내 블록에 저장했습니다: {}  {}", b.id, b.name);
+            Ok((to_value(&b)?, human))
+        }
+        SavedBlockCmd::Delete { id } => {
+            let gone = saved_blocks::delete(ctx, actor, &id).await?;
+            let human = match &gone {
+                Some(b) => format!("내 블록을 지웠습니다: {}", b.name),
+                None => format!("이미 없는 내 블록입니다: {id}"),
+            };
+            Ok((json!({ "id": id, "deleted": gone.is_some() }), human))
         }
     }
 }

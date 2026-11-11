@@ -157,6 +157,14 @@ fieldset.ed-field legend { font-weight: 600; margin-bottom: .3rem; padding: 0; }
 .ed-chips { display: flex; flex-wrap: wrap; gap: .35rem; }
 .ed-chips legend { margin-bottom: .35rem; }
 .ed-chips .hint { flex-basis: 100%; margin: .2rem 0 0; }
+/* 내 블록 (ADR-0159) */
+.ed-saved-item { position: relative; display: flex; }
+.ed-saved-item .ed-kind { flex: 1; min-width: 0; }
+.ed-saved-item .ed-kind:disabled { opacity: .5; cursor: not-allowed; }
+.ed-saved-del { all: unset; position: absolute; top: -.4rem; right: -.4rem; display: grid; place-items: center; width: 1.3rem; height: 1.3rem; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--muted); font-size: .8rem; line-height: 1; cursor: pointer; }
+.ed-saved-del:hover { color: var(--danger, #b42318); border-color: currentColor; }
+.ed-saved-del:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
 /* 디자인 모음 (ADR-0158) */
 .ed-gallery-box summary { cursor: pointer; font-weight: 700; }
 .ed-gallery-box > .hint { margin: .35rem 0 .5rem; }

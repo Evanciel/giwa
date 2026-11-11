@@ -164,6 +164,7 @@ maru changeset preview-url <id> --json
 - `maru theme list`, `maru theme apply <id>`: 프리셋의 색과 모양만 입힙니다. 글과 구조는 그대로입니다. 토큰은 `maru theme tokens get|set` (`maru design` 과 같습니다).
 - MCP 는 `list_themes`, `apply_theme`(변경 묶음에 담음), `list_blocks`, `upload_media` 입니다.
 - 디자인 모음: `maru design gallery [id]`(REST `GET /api/v1/designs[/{id}]`, MCP `list_designs {id?}`). 프리셋의 첫 화면 블록과 색·모양입니다. 입히려면 변경 묶음에 블록마다 `widget.place`(`region: main`, `scope: home` 또는 `page:<주소>`)와 `tokens.set {"tokens": <tokens>}` 을 담습니다. 블록 안 링크는 이 사이트에 있는 게시판·페이지로 고칩니다.
+- 내 블록 보관함: `maru widget saved list|save <종류> --name <이름> --config <JSON>|delete <id>`(REST `/api/v1/saved-blocks`, MCP `list_saved_blocks`·`save_block`). 방문자에게 보이지 않아 바로 저장됩니다. 화면에 넣을 때는 변경 묶음의 `widget.place` 입니다.
 
 ### 지도와 카카오톡
 

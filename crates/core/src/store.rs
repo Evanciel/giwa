@@ -22,7 +22,7 @@ use crate::model::{
     Tag, TicketPurpose, Token, TotpChallenge, Widget,
 };
 use crate::model::{
-    EditorDraft, LinkPreview, LinkStatus, MemberActivity, MemberTotp, Redirect, Signal,
+    EditorDraft, LinkPreview, LinkStatus, MemberActivity, MemberTotp, Redirect, SavedBlock, Signal,
 };
 
 /// 댓글 관리 목록 조건. 비어 있는 조건은 거르지 않는다.
@@ -376,6 +376,9 @@ pub trait Store: Send + Sync {
     async fn put_editor_draft(&self, d: &EditorDraft) -> Result<()>;
     /// 지웠으면 `true`.
     async fn delete_editor_draft(&self, member_id: &str, screen: &str) -> Result<bool>;
+    /// 내 블록 보관함 (ADR-0159), 새것부터.
+    async fn saved_blocks(&self) -> Result<Vec<SavedBlock>>;
+    async fn saved_block(&self, id: &str) -> Result<Option<SavedBlock>>;
 
     async fn comment_by_id(&self, id: &str) -> Result<Option<Comment>>;
     /// 회원이 마지막으로 글이나 댓글을 쓴 때 (도배 방지, ADR-0071)
@@ -668,6 +671,9 @@ pub trait WriteTx: Send {
     async fn delete_font(&mut self, id: &str) -> Result<()>;
     async fn insert_font_file(&mut self, font_id: &str, f: &FontFile) -> Result<()>;
     async fn delete_font_file(&mut self, id: &str) -> Result<()>;
+    /// 내 블록 (ADR-0159).
+    async fn insert_saved_block(&mut self, b: &SavedBlock) -> Result<()>;
+    async fn delete_saved_block(&mut self, id: &str) -> Result<()>;
 }
 
 /// 쓰기 트랜잭션. 드롭하면 롤백된다.

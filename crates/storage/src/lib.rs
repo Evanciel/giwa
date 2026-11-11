@@ -13,6 +13,7 @@ pub mod mail;
 pub mod mailer;
 mod profiles;
 pub mod sandbox;
+mod saved_blocks;
 mod search;
 pub mod sqlite;
 pub mod tls;

@@ -11,7 +11,7 @@ use maru_core::model::{
     StatReferrer, Tag, TicketPurpose, Token, TotpChallenge, Widget,
 };
 use maru_core::model::{
-    EditorDraft, LinkPreview, LinkStatus, MemberActivity, MemberTotp, Redirect,
+    EditorDraft, LinkPreview, LinkStatus, MemberActivity, MemberTotp, Redirect, SavedBlock,
 };
 use maru_core::store::{
     AuditFilter, CommentQuery, LiteralSearchQuery, MenuRow, ModuleMigration, PopularQuery,
@@ -1475,6 +1475,14 @@ impl Store for SqliteStore {
 
     async fn delete_editor_draft(&self, member_id: &str, screen: &str) -> Result<bool> {
         crate::drafts::delete(&self.db.write, member_id, screen).await
+    }
+
+    async fn saved_blocks(&self) -> Result<Vec<SavedBlock>> {
+        crate::saved_blocks::list(&self.db.read).await
+    }
+
+    async fn saved_block(&self, id: &str) -> Result<Option<SavedBlock>> {
+        crate::saved_blocks::get(&self.db.read, id).await
     }
 
     async fn comment_by_id(&self, id: &str) -> Result<Option<Comment>> {
@@ -3599,6 +3607,14 @@ impl WriteTx for SqliteWriteTx {
             .await
             .map_err(db_error)?;
         Ok(())
+    }
+
+    async fn insert_saved_block(&mut self, b: &SavedBlock) -> Result<()> {
+        crate::saved_blocks::insert(&mut *self.tx, b).await
+    }
+
+    async fn delete_saved_block(&mut self, id: &str) -> Result<()> {
+        crate::saved_blocks::delete(&mut *self.tx, id).await
     }
 
     async fn insert_font_file(&mut self, font_id: &str, f: &FontFile) -> Result<()> {

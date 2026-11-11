@@ -1200,6 +1200,39 @@ pub enum WidgetCmd {
     Configure(WidgetConfigureArgs),
     /// 위젯을 뺀다
     Remove { id: String },
+    /// 내 블록 보관함: 화면 편집기에서 다른 화면에 다시 넣는 블록 (ADR-0159)
+    #[command(subcommand)]
+    Saved(SavedBlockCmd),
+}
+
+#[derive(Debug, Subcommand)]
+pub enum SavedBlockCmd {
+    /// 보관함 목록 (새것부터)
+    List,
+    /// 블록을 보관함에 저장한다. 같은 내용이 이미 있으면 그것을 돌려준다
+    Save(SavedBlockArgs),
+    /// 보관함에서 지운다. 화면에 넣은 블록은 그대로다
+    Delete { id: String },
+}
+
+#[derive(Debug, Args)]
+pub struct SavedBlockArgs {
+    /// 보관함에 보일 이름 (40자)
+    #[arg(long)]
+    pub name: String,
+    /// 블록 종류 (`maru widget types`)
+    pub kind: String,
+    /// 놓을 자리
+    #[arg(long, default_value = "main")]
+    pub region: String,
+    #[arg(long, default_value = "")]
+    pub title: String,
+    /// 설정 JSON
+    #[arg(long, conflicts_with = "config_file")]
+    pub config: Option<String>,
+    /// 설정 JSON 파일. `-` 이면 표준 입력
+    #[arg(long)]
+    pub config_file: Option<PathBuf>,
 }
 
 #[derive(Debug, Args)]

@@ -259,6 +259,9 @@ pub(crate) fn lookup(key: &str) -> Option<&'static str> {
             "Only signed-in people save drafts. Agents can only read a screen's drafts."
         }
         "error.draft_body" => "A draft body must be a JSON object.",
+        "error.saved_blocks_full" => {
+            "You can keep up to {max} saved blocks. Delete unused ones and try again."
+        }
         "error.draft_too_large" => {
             "The draft is too large (max {max}KB). Remove some blocks or publish first."
         }

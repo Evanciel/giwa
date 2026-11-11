@@ -1233,6 +1233,21 @@ pub struct EditorDraft {
     pub updated_at: String,
 }
 
+/// 내 블록 (ADR-0159). 화면 편집기 보관함에 이름을 붙여 둔 블록. 방문자에게 보이지 않는다.
+#[derive(Debug, Clone, PartialEq, Serialize, JsonSchema)]
+pub struct SavedBlock {
+    pub id: Id,
+    pub name: String,
+    pub kind: String,
+    /// 놓을 자리 (`main` 등)
+    pub region: String,
+    pub title: String,
+    pub config: serde_json::Value,
+    /// 저장한 사람. 에이전트가 저장했으면 비어 있다
+    pub created_by: Option<Id>,
+    pub created_at: String,
+}
+
 /// 보낼 편지함의 편지 한 통 (`mail_outbox`). 본문에 1회용 링크가 들 수 있어 REST 로 내보내지 않는다.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
 pub struct MailOut {

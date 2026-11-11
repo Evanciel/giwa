@@ -10,6 +10,7 @@
 //! - `/admin/editor/apps/{id}`: 꺼진 앱을 그 자리에서 켜고 새 블록 종류를 돌려준다(ADR-0151).
 //! - `/admin/editor/draft`: 고치던 초안을 서버에 둔다(ADR-0152). 다른 기기에서 이어 고치고, 발행하면 지운다.
 //! - `/admin/editor/tokens`: 디자인 판(ADR-0148)의 토큰 초안을 저장하지 않고 검사해 CSS 로 돌려준다.
+//! - `/admin/editor/saved-blocks`: 내 블록 보관함(ADR-0159)에 저장하고 지운다. 넣기는 초안·발행 그대로다.
 //!   발행하면 `tokens.set` 연산이 블록·사이트 연산과 같은 변경 묶음에 든다.
 //!
 //! 초안에는 블록 말고 사이트 공통 부분(이름·설명·메뉴, ADR-0145)도 실을 수 있다. 발행하면 `settings.set`·`menu.set` 이
@@ -26,7 +27,7 @@ use axum::extract::rejection::JsonRejection;
 use axum::extract::{ConnectInfo, Path, Query, Request, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, post, put};
+use axum::routing::{delete, get, post, put};
 use axum::{Json, Router, middleware};
 use maru_core::clock;
 use maru_core::design::FONTS;
@@ -34,11 +35,11 @@ use maru_core::model::{MENU_LOCATIONS, MenuItem, PageReq, PageStatus, WIDGET_REG
 use maru_core::output::Success;
 use maru_core::services::auth::SignedIn;
 use maru_core::services::changesets as change;
-use maru_core::services::designs;
 use maru_core::services::stats::StatCounter;
 use maru_core::services::views::ViewCounter;
 use maru_core::services::widgets;
 use maru_core::services::{boards, design, editor_drafts, fonts, media, menus, pages, settings};
+use maru_core::services::{designs, saved_blocks};
 use maru_core::urls::{self, Target};
 use maru_core::{Code, Error, Permission};
 use maru_modules::service as modules;
@@ -72,6 +73,14 @@ pub(super) fn routes() -> Router<AppState> {
             post(new_page).layer(middleware::map_response(editor_headers)),
         )
         .route("/admin/editor/tokens", post(tokens_css))
+        .route(
+            "/admin/editor/saved-blocks",
+            post(saved_put).layer(middleware::map_response(editor_headers)),
+        )
+        .route(
+            "/admin/editor/saved-blocks/{id}",
+            delete(saved_delete).layer(middleware::map_response(editor_headers)),
+        )
         .route(
             "/admin/editor/draft",
             put(draft_put)
@@ -326,6 +335,7 @@ async fn editor_data(
             "density": tokens.layout.density,
         },
         "fonts": font_list,
+        "saved_blocks": saved_blocks::list(ctx, &who.actor).await?,
         "pages": page_list
             .iter()
             .filter(|p| p.status == PageStatus::Published)
@@ -1024,6 +1034,29 @@ async fn draft_delete(
     let screen = EditScreen::parse(&q.screen).ok_or_else(|| bad_screen(&q.screen))?;
     let gone = editor_drafts::discard(&state.ctx, &who.actor, &screen.id()).await?;
     Ok(Json(Success::new(json!({ "deleted": gone }))).into_response())
+}
+
+/// 내 블록 보관함에 저장한다 (ADR-0159). 같은 내용이면 있는 것을 돌려준다.
+async fn saved_put(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    body: Result<Json<saved_blocks::NewSavedBlock>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let who = json_session(&state, &headers).await?;
+    let Json(input) = body.map_err(rejected)?;
+    let b = saved_blocks::save(&state.ctx, &who.actor, input).await?;
+    Ok(Json(Success::new(b)).into_response())
+}
+
+/// 보관함에서 지운다. 없어도 같다(멱등).
+async fn saved_delete(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Response, ApiError> {
+    let who = json_session(&state, &headers).await?;
+    let gone = saved_blocks::delete(&state.ctx, &who.actor, &id).await?;
+    Ok(Json(Success::new(json!({ "deleted": gone.is_some() }))).into_response())
 }
 
 /// 발행한 화면의 초안은 지운다. 발행은 이미 됐으므로 실패해도 기록만 남긴다.

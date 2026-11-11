@@ -15,8 +15,8 @@ use maru_core::services::changesets;
 use maru_core::services::{
     anonymous_actor, audit_log, backups, boards, categories, comments, design, designs,
     editor_drafts, files, fonts, indexnow, links, media, members, menus, pages, posts, redirects,
-    retention, samples, search, settings, signals, stats, tags, templates, tokens, views, widgets,
-    wiki,
+    retention, samples, saved_blocks, search, settings, signals, stats, tags, templates, tokens,
+    views, widgets, wiki,
 };
 use maru_core::{Actor, Code, Error};
 use maru_modules::service as modules;
@@ -95,6 +95,11 @@ pub fn routes() -> Router<AppState> {
         .route("/design/tokens", get(get_tokens).patch(update_tokens))
         .route("/designs", get(list_designs))
         .route("/designs/{id}", get(get_design))
+        .route("/saved-blocks", get(list_saved_blocks).post(save_block))
+        .route(
+            "/saved-blocks/{id}",
+            axum::routing::delete(delete_saved_block),
+        )
         .route("/fonts", get(list_fonts).post(add_font))
         .route(
             "/fonts/{slug}",
@@ -795,6 +800,42 @@ async fn get_design(
 ) -> Result<Response, ApiError> {
     let preset = maru_themes::preset(&id)?;
     Ok(ok(StatusCode::OK, designs::show(&actor, &preset)?))
+}
+
+/// 내 블록 보관함 (ADR-0159). 보관함은 방문자에게 보이지 않아 변경 묶음 없이 바로 저장한다.
+async fn list_saved_blocks(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+) -> Result<Response, ApiError> {
+    Ok(ok(
+        StatusCode::OK,
+        saved_blocks::list(&state.ctx, &actor).await?,
+    ))
+}
+
+async fn save_block(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    body: Result<Json<saved_blocks::NewSavedBlock>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let Json(input) = body.map_err(bad_json)?;
+    Ok(ok(
+        StatusCode::CREATED,
+        saved_blocks::save(&state.ctx, &actor, input).await?,
+    ))
+}
+
+/// 없었어도 같다(멱등).
+async fn delete_saved_block(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(id): Path<String>,
+) -> Result<Response, ApiError> {
+    let gone = saved_blocks::delete(&state.ctx, &actor, &id).await?;
+    Ok(ok(
+        StatusCode::OK,
+        serde_json::json!({ "id": id, "deleted": gone.is_some() }),
+    ))
 }
 
 async fn list_fonts(State(state): State<AppState>) -> Result<Response, ApiError> {

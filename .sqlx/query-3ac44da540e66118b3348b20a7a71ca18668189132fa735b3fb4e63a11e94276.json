@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO saved_blocks (id, name, kind, region, title, config, created_by, created_at)\n         VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 8
+    },
+    "nullable": []
+  },
+  "hash": "3ac44da540e66118b3348b20a7a71ca18668189132fa735b3fb4e63a11e94276"
+}

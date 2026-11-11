@@ -311,6 +311,9 @@ fn lookup_ko(key: &str) -> Option<&'static str> {
             "초안은 로그인한 사람만 저장합니다. 에이전트는 화면의 초안을 읽기만 합니다."
         }
         "error.draft_body" => "초안 본문은 JSON 객체여야 합니다.",
+        "error.saved_blocks_full" => {
+            "내 블록은 {max}개까지 저장합니다. 안 쓰는 것을 지운 뒤 다시 저장하세요."
+        }
         "error.draft_too_large" => {
             "초안이 너무 큽니다(최대 {max}KB). 블록을 줄이거나 먼저 발행하세요."
         }

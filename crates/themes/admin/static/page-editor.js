@@ -698,6 +698,10 @@
       default: return null;
     }
   }
+  // 내 블록·복사한 블록을 이 화면 범위의 새 블록으로. 띄우는 창(popup) 블록은 그 자리로만 간다.
+  function fromBlock(b, region) {
+    return { id: newId(), kind: b.kind, region: b.kind === "popup" ? "popup" : region, scope: screen, title: b.title || "", config: JSON.parse(JSON.stringify(b.config || {})), enabled: true };
+  }
   function blankBlock(kind, region) {
     var schema = data.types[kind];
     var config = sample(kind);
@@ -710,7 +714,7 @@
     var at = -1;
     var sel = selected && byId(selected);
     if (sel && kind !== "popup" && sel.region !== "popup") { region = sel.region; at = indexOf(sel.id) + 1; }
-    var w = blankBlock(kind, region);
+    var w = opts && opts.block ? fromBlock(opts.block, region) : blankBlock(kind, region);
     change(function () {
       if (at < 0) {
         var vis = visibleIn(w.region);
@@ -720,6 +724,89 @@
     });
     select(w.id);
     statusEl.textContent = "새 「" + nameOf(w) + "」 블록을 넣었습니다. 잘못 넣었으면 되돌리기(Ctrl+Z)를 누르세요.";
+  }
+
+  // ---- 내 블록·복사 (ADR-0159) ----
+  // 「내 블록으로 저장」은 서버 보관함에(다른 기기·사람도 본다), Ctrl+C 는 이 브라우저에 둔다. 둘 다 다른 화면에 넣을 수 있다.
+  // 넣으면 새 블록 id 를 받고 이 화면 범위로 들어간다. 발행 전에는 사이트에 보이지 않는다.
+  var CLIP_KEY = "maru-editor-clip";
+  function plainBlock(w) {
+    return { kind: w.kind, region: w.region, title: w.title || "", config: JSON.parse(JSON.stringify(w.config || {})) };
+  }
+  function copyBlock(id) {
+    var w = byId(id);
+    if (!w) return;
+    try { localStorage.setItem(CLIP_KEY, JSON.stringify(plainBlock(w))); } catch (e) { statusEl.textContent = "이 브라우저에는 복사해 둘 수 없습니다."; return; }
+    statusEl.textContent = "「" + nameOf(w) + "」 블록을 복사했습니다. 다른 화면에서도 Ctrl+V 로 붙여 넣습니다.";
+  }
+  function pasteBlock() {
+    var clip = null;
+    try { clip = JSON.parse(localStorage.getItem(CLIP_KEY) || "null"); } catch (e) { clip = null; }
+    if (!clip || !clip.kind || !data.types[clip.kind]) { statusEl.textContent = "붙여 넣을 블록이 없습니다. 블록을 고르고 Ctrl+C 로 복사하세요."; return; }
+    addBlock(clip.kind, { block: clip });
+  }
+  function saveBlock(id) {
+    var w = byId(id);
+    if (!w) return;
+    var name = window.prompt("내 블록 이름 (40자까지)", nameOf(w).slice(0, 40));
+    if (name === null) return;
+    name = name.trim();
+    if (!name) { statusEl.textContent = "이름을 적어야 저장합니다."; return; }
+    var body = plainBlock(w);
+    body.name = name;
+    fetch("/admin/editor/saved-blocks", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "content-type": "application/json", "x-csrf-token": csrf },
+      body: JSON.stringify(body)
+    }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); }).then(function (res) {
+      if (!res.ok) { statusEl.textContent = (res.j.error && res.j.error.message) || "저장하지 못했습니다."; return; }
+      data.saved_blocks = [res.j.data].concat(data.saved_blocks || []);
+      drawSaved();
+      statusEl.textContent = "「" + name + "」 을 내 블록에 저장했습니다. 더하기 판 맨 위 「내 블록」에서 어느 화면에나 넣습니다.";
+    }).catch(function () { statusEl.textContent = "저장하지 못했습니다. 연결을 확인하세요."; });
+  }
+  function forgetSaved(b) {
+    if (!window.confirm("내 블록 「" + b.name + "」 을 보관함에서 지웁니다. 이미 화면에 넣은 블록은 그대로입니다.")) return;
+    fetch("/admin/editor/saved-blocks/" + encodeURIComponent(b.id), {
+      method: "DELETE",
+      credentials: "same-origin",
+      headers: { "x-csrf-token": csrf }
+    }).then(function (r) {
+      if (!r.ok) { statusEl.textContent = "지우지 못했습니다."; return; }
+      data.saved_blocks = (data.saved_blocks || []).filter(function (x) { return x.id !== b.id; });
+      drawSaved();
+      statusEl.textContent = "내 블록 「" + b.name + "」 을 지웠습니다.";
+    }).catch(function () { statusEl.textContent = "지우지 못했습니다. 연결을 확인하세요."; });
+  }
+  // 더하기 판 맨 위 「내 블록」 묶음. 이 사이트에서 쓸 수 없는 종류(꺼진 앱)는 흐리게 두고 넣지 않는다.
+  function drawSaved() {
+    var box = paletteEl.querySelector("[data-saved]");
+    if (!box) {
+      box = el("section", { cls: "ed-saved", "data-saved": "" });
+      paletteEl.insertBefore(box, paletteEl.firstChild);
+    }
+    box.textContent = "";
+    var list = data.saved_blocks || [];
+    if (!list.length) { box.hidden = true; return; }
+    box.hidden = false;
+    box.appendChild(el("h3", { cls: "ed-group", text: "내 블록" }));
+    var grid = el("div", { cls: "ed-kinds" });
+    list.forEach(function (b) {
+      var usable = !!data.types[b.kind];
+      var k = kinds[b.kind] || { name: b.kind };
+      var card = el("button", { type: "button", cls: "ed-kind ed-saved-card", title: k.name + (usable ? "" : " (꺼진 앱의 블록)"), "aria-label": "내 블록 " + b.name + " 넣기" }, [
+        el("span", { cls: "ed-kind-ico", "aria-hidden": "true", text: "★" }),
+        el("span", { cls: "ed-kind-name", text: b.name }),
+        el("span", { cls: "ed-kind-add", "aria-hidden": "true", text: "+" })
+      ]);
+      if (!usable) card.disabled = true;
+      card.addEventListener("click", function () { addBlock(b.kind, { block: b }); });
+      var del = el("button", { type: "button", cls: "ed-saved-del", "aria-label": "내 블록 " + b.name + " 지우기", title: "보관함에서 지우기", text: "×" });
+      del.addEventListener("click", function () { forgetSaved(b); });
+      grid.appendChild(el("div", { cls: "ed-saved-item" }, [card, del]));
+    });
+    box.appendChild(grid);
   }
 
   // ---- 블록 일 ----
@@ -782,6 +869,7 @@
       paletteEl.appendChild(box);
     });
     drawApps();
+    drawSaved();
   }
 
   // ---- 앱 더하기 (ADR-0151) ----
@@ -1433,11 +1521,13 @@
     var acts = el("div", { cls: "ed-insp-acts" }, [
       el("button", { type: "button", cls: "secondary", "data-act": w.enabled ? "hide" : "show", text: w.enabled ? "숨기기" : "다시 보이기" }),
       el("button", { type: "button", cls: "secondary", "data-act": "copy", text: "복제" }),
+      el("button", { type: "button", cls: "secondary", "data-act": "save", text: "내 블록으로 저장" }),
       el("button", { type: "button", cls: "warn", "data-act": "remove", text: "지우기" })
     ]);
     acts.addEventListener("click", function (e) {
       var b = e.target.closest("[data-act]");
-      if (b) blockAction(b.getAttribute("data-act"), w.id);
+      if (b && b.getAttribute("data-act") === "save") saveBlock(w.id);
+      else if (b) blockAction(b.getAttribute("data-act"), w.id);
     });
     inspector.appendChild(acts);
     form = { __id: w.id, title: title, acts: acts, note: note, devs: devs };
@@ -1639,6 +1729,8 @@
     else if (mod && !typing(e) && (e.key === "y" || e.key === "Y")) { e.preventDefault(); redo(); }
     else if (mod && (e.key === "s" || e.key === "S")) { e.preventDefault(); if (syncTimer) saveDraftNow(); statusEl.textContent = "고친 것을 초안으로 저장했습니다. 다른 기기에서도 이어 고칠 수 있습니다. 사이트에 내보내려면 「발행」을 누르세요."; }
     else if (mod && (e.key === "d" || e.key === "D") && selected && !typing(e)) { e.preventDefault(); blockAction("copy", selected); }
+    else if (mod && (e.key === "c" || e.key === "C") && selected && !isSite(selected) && !typing(e) && !String(((e.target && e.target.ownerDocument) || document).getSelection())) { e.preventDefault(); copyBlock(selected); }
+    else if (mod && (e.key === "v" || e.key === "V") && !typing(e)) { e.preventDefault(); pasteBlock(); }
     else if ((e.key === "Delete" || e.key === "Backspace") && selected && !typing(e)) { e.preventDefault(); blockAction("remove", selected); }
     else if (e.key === "Escape" && selected) select(null);
   }

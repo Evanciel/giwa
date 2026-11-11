@@ -2098,3 +2098,23 @@
 - 결과:
   - 단위 테스트 `designs::tests::only_presets_with_home_blocks_are_designs`, e2e `e2e_designs::design_gallery_is_the_same_everywhere`(CLI·REST 같은 목록, 없는 id 거절), `e2e_mcp` 에 `list_designs` 목록·하나.
   - 브라우저: 「단추 시험」 페이지 편집기 디자인 판에 카드 21장이 보였다. 「가게」를 고르니 확인 문구(블록 6개 → 6개)가 뜨고, 캔버스 블록과 색이 크림·벽돌색으로 바뀌었다. 「고르기 전으로」를 누르니 원래 색(#b45309)과 블록으로 돌아왔다. 다시 골라 발행하니 `tokens.css` 가 `--primary: #9a3f18`·`--bg: #fbf8f2` 가 되고 그 페이지만 새 블록이 됐다. 첫 화면 블록은 그대로였다.
+
+## ADR-0159: 내 블록 보관함과 화면을 건너는 복사·붙여넣기
+
+- 날짜: 2026-11-11
+- 배경:
+  - `docs/plans/wix-plus.md` W4. 공들여 고친 블록(인사말·영업시간·문의 단추 묶음)을 다른 페이지에도 쓰려면 처음부터 다시 만들어야 했다. 편집기 복제(Ctrl+D)는 같은 화면 안에서만 됐다.
+- 결정:
+  - 새 표 `saved_blocks(id, name, kind, region, title, config, created_by, created_at)`(마이그레이션 `20261111000002`, down 있음). 사이트 전체가 함께 쓰는 보관함이다(사람마다 따로 두지 않는다. 같은 사이트를 고치는 사람끼리 나눠 쓰는 것이 쓸모가 크다).
+  - 서비스 `saved_blocks::{list, save, delete}`, 권한은 `DesignEdit`. 저장은 블록을 놓을 때와 같은 검사(`widgets::check_draft`)를 거치고, 이름 40자, 보관함 200개까지. 같은 이름·종류·자리·제목·설정이 이미 있으면 그것을 돌려준다(멱등). 지우기는 없었으면 `deleted: false`(멱등). 둘 다 감사 기록(`block.save`·`block.delete`)에 남는다.
+  - 보관함은 방문자에게 보이지 않으므로 변경 묶음을 거치지 않는다(`CHANGESET_ONLY` 에 넣지 않는다). 에이전트도 바로 저장한다. 화면에 넣는 일은 지금처럼 발행 묶음(사람)이나 변경 묶음의 `widget.place`(에이전트)다.
+  - 같은 서비스를 REST `GET|POST /api/v1/saved-blocks`·`DELETE /api/v1/saved-blocks/{id}`, CLI `maru widget saved list|save|delete`, MCP `list_saved_blocks`·`save_block`, 편집기 `/admin/editor/saved-blocks` 가 쓴다.
+  - 편집기:
+    - 오른쪽 판 「내 블록으로 저장」(이름을 묻는다) → 더하기 판 맨 위 「내 블록」 묶음. 누르면 고른 블록 아래(없으면 본문 끝)에 새 id 로 들어간다. 「×」로 보관함에서 지운다(화면에 넣은 블록은 그대로).
+    - Ctrl+C 는 고른 블록을 이 브라우저(`localStorage`)에 복사하고, Ctrl+V 는 어느 화면에서나 붙여 넣는다. 글자를 고르고 있거나 글자 칸을 고치는 중이면 브라우저 복사·붙여넣기를 그대로 둔다.
+    - 꺼진 앱의 블록 종류는 흐리게 두고 넣지 않는다.
+- 대안:
+  - 사람마다 보관함. 같이 고치는 사람이 서로 만든 블록을 못 쓴다. 필요하면 `created_by` 로 거를 수 있게 남겨 둔다.
+  - 「전역 블록」(한 번 고치면 모든 화면이 함께 바뀌는 연결 블록). 지우기·되돌리기·묶음 미리보기가 복잡해진다. 지금은 복사본으로 넣는다.
+- 결과:
+  - e2e `e2e_designs::saved_blocks_are_kept_for_reuse`: 같은 저장 두 번 → 한 줄, 놓을 때와 같은 검사로 거절, 손님 REST 401, 두 번 지우기, 감사 기록.
