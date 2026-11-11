@@ -713,6 +713,7 @@
       widgets.splice(at, 0, w);
     });
     select(w.id);
+    statusEl.textContent = "새 「" + nameOf(w) + "」 블록을 넣었습니다. 잘못 넣었으면 되돌리기(Ctrl+Z)를 누르세요.";
   }
 
   // ---- 블록 일 ----
@@ -763,9 +764,11 @@
       paletteEl.appendChild(el("h3", { cls: "ed-group", text: g }));
       var box = el("div", { cls: "ed-kinds" });
       groups[g].forEach(function (k) {
-        var card = el("button", { type: "button", cls: "ed-kind", "data-kind": k.id, title: k.description }, [
+        // 층 판의 블록 이름과 같으니, 새로 더하는 카드임을 「+」와 읽는 이름으로 구별한다.
+        var card = el("button", { type: "button", cls: "ed-kind", "data-kind": k.id, title: k.description, "aria-label": "새 " + k.name + " 블록 더하기" }, [
           el("span", { cls: "ed-kind-ico", "aria-hidden": "true", text: k.name.slice(0, 1) }),
-          el("span", { cls: "ed-kind-name", text: k.name })
+          el("span", { cls: "ed-kind-name", text: k.name }),
+          el("span", { cls: "ed-kind-add", "aria-hidden": "true", text: "+" })
         ]);
         paletteEl && box.appendChild(card);
         bindPaletteDrag(card, k.id);

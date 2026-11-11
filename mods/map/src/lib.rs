@@ -32,10 +32,10 @@ pub struct MapWidget {
     /// 장소 이름. 주소 위에 굵게 적힌다
     #[serde(default)]
     pub name: String,
-    /// `link`(지도 링크만, 기본값) · `kakao`(카카오맵) · `naver`(네이버 지도)
+    /// 지도 종류. `link`(지도 링크만, 기본값) · `kakao`(카카오맵) · `naver`(네이버 지도)
     #[serde(default)]
     pub provider: String,
-    /// kakao: JavaScript 키 · naver: Client ID. 등록한 사이트 주소에서만 동작한다
+    /// 지도 키. 카카오맵은 JavaScript 키, 네이버 지도는 Client ID. 등록한 사이트 주소에서만 동작한다
     #[serde(default)]
     pub key: String,
     /// 위도. 경도와 함께 넣으면 주소 변환을 건너뛴다

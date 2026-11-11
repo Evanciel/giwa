@@ -297,7 +297,14 @@ async fn editor_data(
         "types": types_json(&types),
         "bundles": bundles(
             &types.iter().map(|t| t.id).collect(),
-            &board_list.iter().map(|b| b.slug.clone()).collect::<Vec<_>>(),
+            &Known {
+                boards: &board_list.iter().map(|b| (b.slug.clone(), b.name.clone())).collect::<Vec<_>>(),
+                pages: &page_list
+                    .iter()
+                    .filter(|p| p.status != PageStatus::Deleted)
+                    .map(|p| p.slug.clone())
+                    .collect::<Vec<_>>(),
+            },
         ),
         "apps": off_apps(state).await,
         "can_enable": who.actor.has(Permission::ModuleManage),
@@ -373,9 +380,9 @@ fn kinds_json(types: &[widgets::WidgetType]) -> Vec<Value> {
 }
 
 /// 빈 화면에서 고를 시작 묶음 (ADR-0153). 사이트 종류 프리셋의 첫 화면 본문 블록을 그대로 쓴다.
-/// 이 사이트에서 쓸 수 없는 블록은 빼고, 없는 게시판을 가리키는 곳은 [`fit_boards`] 로 고친다.
+/// 이 사이트에서 쓸 수 없는 블록은 빼고, 없는 게시판·페이지를 가리키는 곳은 [`fit_links`] 로 고친다.
 /// 처음 보일 셋([`BUNDLE_PICKS`])을 앞에 둔다.
-fn bundles(kinds: &HashSet<&str>, boards: &[String]) -> Vec<Value> {
+fn bundles(kinds: &HashSet<&str>, site: &Known) -> Vec<Value> {
     let mut out: Vec<Value> = maru_themes::preset_ids()
         .iter()
         .filter_map(|id| maru_themes::preset(id).ok())
@@ -391,7 +398,7 @@ fn bundles(kinds: &HashSet<&str>, boards: &[String]) -> Vec<Value> {
                 .filter(|w| w.region == "main" && w.scope == "home" && kinds.contains(w.kind.as_str()))
                 .filter_map(|w| {
                     let mut config = w.config.clone();
-                    fit_boards(&mut config, boards).then(|| {
+                    fit_links(&mut config, site).then(|| {
                         json!({ "kind": w.kind, "region": w.region, "title": w.title, "config": config })
                     })
                 })
@@ -413,34 +420,97 @@ fn bundles(kinds: &HashSet<&str>, boards: &[String]) -> Vec<Value> {
 /// 빈 화면에 먼저 보일 시작 묶음. 나머지는 「다른 종류」에서 고른다.
 const BUNDLE_PICKS: [&str; 3] = ["company", "cafe", "portfolio"];
 
-/// 이 사이트에 없는 게시판을 가리키는 곳을 고친다. `board` 칸은 첫 게시판으로, `/b/…` 링크는 첫 게시판
-/// (없으면 첫 화면)으로. 게시판이 하나도 없는데 `board` 칸이 있으면 `false` 다(그 블록은 뺀다).
-fn fit_boards(v: &mut Value, boards: &[String]) -> bool {
-    let known = |slug: &str| boards.iter().any(|b| b == slug);
+/// 시작 묶음을 이 사이트에 맞출 때 보는 것: 게시판(주소, 이름)과 지우지 않은 페이지 주소.
+struct Known<'a> {
+    boards: &'a [(String, String)],
+    pages: &'a [String],
+}
+
+/// 이 사이트에 없는 곳을 가리키는 칸을 고친다 (ADR-0153·0155). `board` 칸은 첫 게시판으로, `/b/…` 링크는 첫
+/// 게시판(없으면 첫 화면)으로. 링크를 고친 단추는 글자도 그 게시판에 맞추고, 게시판이 하나도 없으면 그 단추를
+/// 비운다. 없는 페이지(`/p/…`)를 가리키는 단추도 비운다. 두 단추가 같은 곳을 가리키게 되면 둘째 단추를 비우고,
+/// 첫째 단추만 비면 둘째 단추를 앞으로 올린다.
+/// 게시판이 하나도 없는데 `board` 칸이 있으면 `false` 다(그 블록은 뺀다).
+fn fit_links(v: &mut Value, site: &Known) -> bool {
+    let board = |slug: &str| site.boards.iter().any(|(b, _)| b == slug);
+    let page = |slug: &str| site.pages.iter().any(|p| p == slug);
+    let slug_of = |l: &str, prefix: &str| {
+        l.strip_prefix(prefix).map(|r| {
+            r.split(['/', '?', '#'])
+                .next()
+                .unwrap_or_default()
+                .to_owned()
+        })
+    };
     match v {
-        Value::Object(map) => map.iter_mut().all(|(k, x)| {
-            let text = x.as_str().map(str::to_owned);
-            match (k.as_str(), text.as_deref()) {
-                ("board", Some(b)) if !known(b) => match boards.first() {
-                    Some(first) => {
-                        *x = json!(first);
+        Value::Object(map) => {
+            let (mut moved, mut dead) = (false, false);
+            let ok = map.iter_mut().all(|(k, x)| {
+                let text = x.as_str().map(str::to_owned);
+                match (k.as_str(), text.as_deref()) {
+                    ("board", Some(b)) if !board(b) => match site.boards.first() {
+                        Some((first, _)) => {
+                            *x = json!(first);
+                            true
+                        }
+                        None => false,
+                    },
+                    ("link", Some(l)) => {
+                        if slug_of(l, "/b/").is_some_and(|s| !board(&s)) {
+                            *x = json!(
+                                site.boards
+                                    .first()
+                                    .map_or("/".to_owned(), |(f, _)| format!("/b/{f}"))
+                            );
+                            moved = true;
+                        }
+                        dead = slug_of(l, "/p/").is_some_and(|s| !page(&s));
                         true
                     }
-                    None => false,
-                },
-                ("link", Some(l)) => {
-                    let slug = l
-                        .strip_prefix("/b/")
-                        .map(|r| r.split(['/', '?', '#']).next().unwrap_or_default());
-                    if slug.is_some_and(|s| !known(s)) {
-                        *x = json!(boards.first().map_or("/".to_owned(), |f| format!("/b/{f}")));
-                    }
-                    true
+                    _ => fit_links(x, site),
                 }
-                _ => fit_boards(x, boards),
+            });
+            if map.contains_key("label") {
+                match site.boards.first() {
+                    _ if dead => {}
+                    Some((_, name)) if moved => {
+                        let l = format!("{name} 보기");
+                        let l = if l.chars().count() <= 20 {
+                            l
+                        } else {
+                            "게시판 보기".to_owned()
+                        };
+                        map.insert("label".into(), json!(l));
+                    }
+                    None if moved => dead = true,
+                    _ => {}
+                }
+                if dead {
+                    map.insert("label".into(), json!(""));
+                    map.insert("link".into(), json!(""));
+                }
             }
-        }),
-        Value::Array(a) => a.iter_mut().all(|x| fit_boards(x, boards)),
+            let link = |k: &str| {
+                map.get(k)
+                    .and_then(|b| b.get("link"))
+                    .and_then(Value::as_str)
+                    .map(str::to_owned)
+            };
+            let (first, second) = (link("button"), link("button2"));
+            let blank = json!({ "label": "", "link": "" });
+            if first.as_deref().is_some_and(|l| !l.is_empty()) && first == second {
+                map.insert("button2".into(), blank);
+            } else if first.as_deref() == Some("")
+                && second.as_deref().is_some_and(|l| !l.is_empty())
+            {
+                // 첫째 단추만 비었으면 둘째 단추를 첫째 자리로 올린다.
+                if let Some(b2) = map.insert("button2".into(), blank) {
+                    map.insert("button".into(), b2);
+                }
+            }
+            ok
+        }
+        Value::Array(a) => a.iter_mut().all(|x| fit_links(x, site)),
         _ => true,
     }
 }
@@ -1291,21 +1361,57 @@ mod tests {
 
     #[test]
     fn bundles_fit_this_site() {
-        let boards = vec!["free".to_owned()];
-        let mut v = json!({ "board": "notice", "button": { "link": "/b/notice/1" },
-            "items": [{ "link": "/b/free" }, { "link": "/p/about" }] });
-        assert!(fit_boards(&mut v, &boards));
+        let boards = vec![("free".to_owned(), "자유게시판".to_owned())];
+        let pages = vec!["about".to_owned()];
+        let site = Known {
+            boards: &boards,
+            pages: &pages,
+        };
+        let none = Known {
+            boards: &[],
+            pages: &[],
+        };
+        let mut v = json!({ "board": "notice", "button": { "label": "소식 보기", "link": "/b/notice/1" },
+            "button2": { "label": "사진 보기", "link": "/b/photo" },
+            "items": [{ "label": "자유", "link": "/b/free" }, { "link": "/p/about" }] });
+        assert!(fit_links(&mut v, &site));
         assert_eq!(v["board"], "free");
-        assert_eq!(v["button"]["link"], "/b/free");
+        assert_eq!(
+            v["button"],
+            json!({ "label": "자유게시판 보기", "link": "/b/free" }),
+            "단추 글자도 맞춘다"
+        );
+        assert_eq!(
+            v["button2"],
+            json!({ "label": "", "link": "" }),
+            "같은 곳을 가리키는 둘째 단추는 비운다"
+        );
+        assert_eq!(v["items"][0]["label"], "자유", "이미 맞는 링크는 그대로");
         assert_eq!(v["items"][1]["link"], "/p/about");
+        let mut v = json!({ "button": { "label": "문의하기", "link": "/p/contact" },
+            "button2": { "label": "회사 소개", "link": "/p/about" } });
+        assert!(fit_links(&mut v, &site));
+        assert_eq!(
+            v["button"],
+            json!({ "label": "회사 소개", "link": "/p/about" }),
+            "없는 페이지로 가는 단추는 비우고 둘째 단추를 앞으로"
+        );
+        assert_eq!(v["button2"], json!({ "label": "", "link": "" }));
+        let mut v = json!({ "button": { "label": "소식 보기", "link": "/b/notice" } });
+        assert!(fit_links(&mut v, &none));
+        assert_eq!(
+            v["button"],
+            json!({ "label": "", "link": "" }),
+            "게시판이 없으면 그 단추를 비운다"
+        );
         let mut v = json!({ "tabs": [{ "board": "notice" }] });
-        assert!(!fit_boards(&mut v, &[]), "게시판이 없으면 그 블록은 뺀다");
+        assert!(!fit_links(&mut v, &none), "게시판이 없으면 그 블록은 뺀다");
         let mut v = json!({ "link": "/b/notice" });
-        assert!(fit_boards(&mut v, &[]));
+        assert!(fit_links(&mut v, &none));
         assert_eq!(v["link"], "/");
 
         let kinds: HashSet<&str> = ["hero", "features", "visit", "hours", "price_list"].into();
-        let list = bundles(&kinds, &boards);
+        let list = bundles(&kinds, &site);
         assert_eq!(list[0]["id"], "company", "먼저 보일 묶음이 앞");
         assert!(list.iter().any(|b| b["id"] == "cafe"));
         for b in &list {
@@ -1317,6 +1423,7 @@ mod tests {
                     .all(|w| kinds.contains(w["kind"].as_str().unwrap()))
             );
             assert!(!b.to_string().contains("/b/notice"), "{}", b["id"]);
+            assert!(!b.to_string().contains("/p/contact"), "{}", b["id"]);
         }
     }
 

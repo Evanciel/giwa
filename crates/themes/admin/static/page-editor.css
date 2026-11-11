@@ -57,6 +57,9 @@ body.editor-body { margin: 0; overflow: hidden; background: var(--bg); }
 }
 .ed-kind:hover { background: var(--primary-soft); border-color: color-mix(in srgb, var(--primary) 40%, var(--border)); }
 .ed-kind:active { cursor: grabbing; }
+.ed-kind { position: relative; }
+.ed-kind-add { position: absolute; top: .4rem; right: .55rem; color: var(--muted); font-size: 1rem; line-height: 1; }
+.ed-kind:hover .ed-kind-add { color: var(--primary-strong); }
 /* 꺼진 앱의 블록 (ADR-0151) */
 .ed-app { border-style: dashed; background: transparent; cursor: pointer; }
 .ed-app:active { cursor: pointer; }

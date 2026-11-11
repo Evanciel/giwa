@@ -26,12 +26,12 @@ const PROVIDERS: [&str; 2] = ["house", "adsense"];
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AdSlot {
-    /// `house`(자체 배너) · `adsense`(구글 애드센스)
+    /// 광고 종류. `house`(자체 배너) · `adsense`(구글 애드센스)
     pub provider: String,
-    /// adsense: 게시자 ID `ca-pub-` + 숫자
+    /// 애드센스 게시자 ID. `ca-pub-` + 숫자
     #[serde(default)]
     pub client: String,
-    /// adsense: 광고 단위 ID (숫자)
+    /// 애드센스 광고 단위 ID (숫자)
     #[serde(default)]
     pub slot: String,
     /// house: 사이트에 올린 사진 주소 (`/media/…`)
