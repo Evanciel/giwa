@@ -109,7 +109,7 @@ async fn sitemap_xml(state: &AppState) -> Result<String> {
     for p in pages::public_pages(&state.ctx, &actor)
         .await?
         .into_iter()
-        .filter(|p| p.slug != home_page)
+        .filter(|p| p.slug != home_page && !p.noindex)
     {
         entries.push((
             urls::absolute(site, &Target::Page { page: &p.slug }),

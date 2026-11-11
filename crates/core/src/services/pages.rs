@@ -11,12 +11,17 @@ use crate::error::{Code, Error, Result};
 use crate::model::{PAGE_LAYOUTS, Page, PageStatus, Revision};
 use crate::services::boards::Created;
 use crate::services::widgets::NewWidget;
-use crate::services::{redirects, required_text};
+use crate::services::{redirects, required_text, settings};
 use crate::slug;
 use crate::store::{Ctx, Tx};
 use crate::urls::{self, Target as UrlTarget};
 
 const MAX_TITLE: usize = 200;
+
+/// 페이지 제목 검사. 화면 편집기가 발행 전에 같은 규칙으로 본다 (ADR-0160).
+pub fn check_title(title: &str) -> Result<String> {
+    required_text("title", title, MAX_TITLE)
+}
 const MAX_BODY_BYTES: usize = 1024 * 1024;
 /// 페이지 계층은 네 단계까지다. 그보다 깊으면 읽는 사람이 길을 잃는다.
 const MAX_DEPTH: usize = 4;
@@ -57,6 +62,15 @@ pub struct PagePatch {
     /// 위 페이지의 주소. 빈 값이면 맨 위로 (ADR-0128)
     #[serde(default)]
     pub parent: Option<String>,
+    /// 검색 결과·공유 미리보기 설명. 빈 값이면 본문 앞부분 (ADR-0160)
+    #[serde(default)]
+    pub description: Option<String>,
+    /// 공유 미리보기 그림 (`/media/…` 또는 https). 빈 값이면 사이트 공유 그림
+    #[serde(default)]
+    pub share_image: Option<String>,
+    /// 검색 엔진에 내보내지 않는다
+    #[serde(default)]
+    pub noindex: Option<bool>,
 }
 
 /// 위 페이지를 찾고 고리·깊이를 본다. `this` 는 옮기는 페이지 (새로 만들면 없다).
@@ -148,6 +162,9 @@ async fn create_inner(
         published_at: None,
         created_at: now.clone(),
         updated_at: now,
+        description: String::new(),
+        share_image: String::new(),
+        noindex: false,
     };
     tx.insert_page(&page).await?;
     tx.insert_revision(&revision_of(&page, actor)).await?;
@@ -200,6 +217,21 @@ pub async fn update(ctx: &Ctx, actor: &Actor, slug_: &str, patch: PagePatch) -> 
     }
     if let Some(p) = &patch.parent {
         after.parent_id = parent_id(&mut tx, Some(&before.id), p).await?;
+    }
+    if let Some(d) = &patch.description {
+        after.description = settings::check_description(d)?;
+    }
+    if let Some(u) = &patch.share_image {
+        let u = u.trim();
+        if !u.is_empty() && !settings::share_image_ok(u) {
+            return Err(Error::new(Code::Validation)
+                .with_message("error.share_image")
+                .arg("value", u.chars().take(80).collect::<String>()));
+        }
+        after.share_image = u.to_owned();
+    }
+    if let Some(n) = patch.noindex {
+        after.noindex = n;
     }
     if after == before {
         return Ok(before);
@@ -619,6 +651,9 @@ mod nav_tests {
             published_at: None,
             created_at: String::new(),
             updated_at: String::new(),
+            description: String::new(),
+            share_image: String::new(),
+            noindex: false,
         }
     }
 

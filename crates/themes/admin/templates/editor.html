@@ -67,10 +67,12 @@
         </dl>
       </div>
     </dialog>
+    <button type="button" class="secondary small" data-page-settings hidden>페이지 설정</button>
+    <button type="button" class="secondary small" data-site-history title="발행한 묶음을 보고 하나만 되돌립니다">기록</button>
     <a class="button ghost small ed-view" href="/" target="_blank" rel="noopener" data-view>사이트 보기</a>
     <button type="button" class="primary" data-publish disabled>발행</button>
   </header>
-  {% if done %}<p class="ed-notice" role="note">사이트에 발행했습니다. 되돌리려면 <a href="/admin/changesets/{{ done }}">변경 묶음 화면</a>에서 「되돌리기」를 누르세요.</p>{% endif %}
+  {% if done %}<p class="ed-notice" role="note">사이트에 발행했습니다. 되돌리려면 위 「기록」에서 「이 묶음 되돌리기」를 누르세요(<a href="/admin/changesets/{{ done }}">묶음 자세히</a>).</p>{% endif %}
   <p class="ed-notice ed-restore" data-restore hidden><span data-restore-text>지난번 고치던 초안이 있습니다.</span>
     <button type="button" class="secondary" data-restore-yes>이어서 고치기</button>
     <button type="button" class="link" data-restore-no>버리기</button></p>

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE pages SET slug = ?, title = ?, body_md = ?, status = ?, layout = ?,\n                              parent_id = ?, sort_order = ?, published_at = ?, updated_at = ?,\n                              description = ?, share_image = ?, noindex = ?\n             WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 13
+    },
+    "nullable": []
+  },
+  "hash": "f855690492b2248604243a8a210d2af77b6f7ca73232d25ada6b4f3198d9782b"
+}

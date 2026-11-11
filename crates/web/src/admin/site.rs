@@ -817,6 +817,7 @@ async fn page_save(
             layout: Some(f.layout.clone()),
             sort_order: Some(n),
             parent: Some(f.parent.clone()),
+            ..Default::default()
         }),
         Err(e) => Err(e),
     };

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, slug, title, body_md, status, layout, parent_id, author_id, actor_type,\n                sort_order, published_at, created_at, updated_at\n         FROM pages WHERE id = ?",
+  "query": "SELECT id, slug, title, body_md, status, layout, parent_id, author_id, actor_type,\n                sort_order, published_at, created_at, updated_at, description, share_image, noindex\n         FROM pages WHERE id = ?",
   "describe": {
     "columns": [
       {
@@ -145,6 +145,39 @@
             "name": "updated_at"
           }
         }
+      },
+      {
+        "name": "description",
+        "ordinal": 13,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "pages",
+            "name": "description"
+          }
+        }
+      },
+      {
+        "name": "share_image",
+        "ordinal": 14,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "pages",
+            "name": "share_image"
+          }
+        }
+      },
+      {
+        "name": "noindex",
+        "ordinal": 15,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "pages",
+            "name": "noindex"
+          }
+        }
       }
     ],
     "parameters": {
@@ -163,8 +196,11 @@
       false,
       true,
       false,
+      false,
+      false,
+      false,
       false
     ]
   },
-  "hash": "7ef212c72855ef70413a8ce5664b4908143c5180f94b9a2f52c26fb587d62370"
+  "hash": "dc13e1ce08ed0123735d28d10f955583a9960303e8369f3ac78e8b7fed618a6a"
 }

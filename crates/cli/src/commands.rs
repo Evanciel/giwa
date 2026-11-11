@@ -1260,6 +1260,9 @@ async fn page_inner(ctx: &Ctx, actor: &Actor, cmd: PageCmd) -> Out {
                 layout: args.layout,
                 sort_order: args.sort_order,
                 parent: args.parent,
+                description: args.description,
+                share_image: args.share_image,
+                noindex: args.noindex,
             };
             let p = pages::update(ctx, actor, &args.slug, patch).await?;
             page_out(ctx, &p, "고쳤습니다")

@@ -259,6 +259,9 @@ struct PageRow {
     published_at: Option<String>,
     created_at: String,
     updated_at: String,
+    description: String,
+    share_image: String,
+    noindex: i64,
 }
 
 impl TryFrom<PageRow> for Page {
@@ -281,6 +284,9 @@ impl TryFrom<PageRow> for Page {
             published_at: r.published_at,
             created_at: r.created_at,
             updated_at: r.updated_at,
+            description: r.description,
+            share_image: r.share_image,
+            noindex: r.noindex != 0,
         })
     }
 }
@@ -289,7 +295,7 @@ async fn page_by_slug<'e>(e: impl SqliteExecutor<'e>, slug: &str) -> Result<Opti
     sqlx::query_as!(
         PageRow,
         "SELECT id, slug, title, body_md, status, layout, parent_id, author_id, actor_type,
-                sort_order, published_at, created_at, updated_at
+                sort_order, published_at, created_at, updated_at, description, share_image, noindex
          FROM pages WHERE slug = ?",
         slug
     )
@@ -304,7 +310,7 @@ async fn page_by_id<'e>(e: impl SqliteExecutor<'e>, id: &str) -> Result<Option<P
     sqlx::query_as!(
         PageRow,
         "SELECT id, slug, title, body_md, status, layout, parent_id, author_id, actor_type,
-                sort_order, published_at, created_at, updated_at
+                sort_order, published_at, created_at, updated_at, description, share_image, noindex
          FROM pages WHERE id = ?",
         id
     )
@@ -1129,7 +1135,7 @@ impl Store for SqliteStore {
         let rows = sqlx::query_as!(
             PageRow,
             "SELECT id, slug, title, body_md, status, layout, parent_id, author_id, actor_type,
-                    sort_order, published_at, created_at, updated_at
+                    sort_order, published_at, created_at, updated_at, description, share_image, noindex
              FROM pages WHERE (?1 IS NULL OR status = ?1)
              ORDER BY sort_order, title",
             status
@@ -2782,8 +2788,9 @@ impl WriteTx for SqliteWriteTx {
         let (status, actor_type) = (p.status.as_str(), p.actor_type.as_str());
         sqlx::query!(
             "INSERT INTO pages (id, slug, title, body_md, status, layout, parent_id, author_id,
-                                actor_type, sort_order, published_at, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                actor_type, sort_order, published_at, created_at, updated_at,
+                                description, share_image, noindex)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             p.id,
             p.slug,
             p.title,
@@ -2796,7 +2803,10 @@ impl WriteTx for SqliteWriteTx {
             p.sort_order,
             p.published_at,
             p.created_at,
-            p.updated_at
+            p.updated_at,
+            p.description,
+            p.share_image,
+            p.noindex
         )
         .execute(&mut *self.tx)
         .await
@@ -2808,7 +2818,8 @@ impl WriteTx for SqliteWriteTx {
         let status = p.status.as_str();
         sqlx::query!(
             "UPDATE pages SET slug = ?, title = ?, body_md = ?, status = ?, layout = ?,
-                              parent_id = ?, sort_order = ?, published_at = ?, updated_at = ?
+                              parent_id = ?, sort_order = ?, published_at = ?, updated_at = ?,
+                              description = ?, share_image = ?, noindex = ?
              WHERE id = ?",
             p.slug,
             p.title,
@@ -2819,6 +2830,9 @@ impl WriteTx for SqliteWriteTx {
             p.sort_order,
             p.published_at,
             p.updated_at,
+            p.description,
+            p.share_image,
+            p.noindex,
             p.id
         )
         .execute(&mut *self.tx)

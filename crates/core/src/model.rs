@@ -570,6 +570,15 @@ pub struct Page {
     pub published_at: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+    /// 검색 결과·공유 미리보기 설명 (ADR-0160). 비면 본문 앞부분.
+    #[serde(default)]
+    pub description: String,
+    /// 공유 미리보기 그림. 비면 사이트 공유 그림.
+    #[serde(default)]
+    pub share_image: String,
+    /// 검색 엔진에 내보내지 않는다.
+    #[serde(default)]
+    pub noindex: bool,
 }
 
 /// 옮긴 주소 (ADR-0128). 경로는 디코딩한 글자로 둔다.

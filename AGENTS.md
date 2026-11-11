@@ -165,6 +165,7 @@ maru changeset preview-url <id> --json
 - MCP 는 `list_themes`, `apply_theme`(변경 묶음에 담음), `list_blocks`, `upload_media` 입니다.
 - 디자인 모음: `maru design gallery [id]`(REST `GET /api/v1/designs[/{id}]`, MCP `list_designs {id?}`). 프리셋의 첫 화면 블록과 색·모양입니다. 입히려면 변경 묶음에 블록마다 `widget.place`(`region: main`, `scope: home` 또는 `page:<주소>`)와 `tokens.set {"tokens": <tokens>}` 을 담습니다. 블록 안 링크는 이 사이트에 있는 게시판·페이지로 고칩니다.
 - 내 블록 보관함: `maru widget saved list|save <종류> --name <이름> --config <JSON>|delete <id>`(REST `/api/v1/saved-blocks`, MCP `list_saved_blocks`·`save_block`). 방문자에게 보이지 않아 바로 저장됩니다. 화면에 넣을 때는 변경 묶음의 `widget.place` 입니다.
+- 페이지 설정: `maru page edit <주소> --description <검색 설명> --share-image </media/… 또는 https> --noindex true|false`(REST `PATCH /api/v1/pages/{slug}`). 비우면 본문 앞부분·사이트 공유 그림을 씁니다. 화면 편집기 「페이지 설정」·「기록」과 같은 서비스입니다.
 
 ### 지도와 카카오톡
 

@@ -1370,3 +1370,166 @@ fn stale_editor_keeps_what_others_published() {
             .any(|w| w["id"] == placed_id.as_str())
     );
 }
+
+/// W5 (ADR-0160): 편집기 「페이지 설정」은 발행 묶음의 `page.update` 로 들어가 공개 화면 머리·사이트맵에 남고,
+/// 「사이트 기록」에서 그 묶음만 되돌리면 설정도 원래대로다.
+#[test]
+fn editor_page_settings_and_site_history() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("사이트");
+    maru(
+        &data,
+        &["init", "--no-samples", "--preset", "blog", "--yes"],
+    );
+    let link = maru(&data, &["login-link"]);
+    let (_server, bind) = start_server(&data);
+    let session = sign_in(&bind, link["url"].as_str().unwrap());
+    let cookie = format!("maru_session={session}");
+    let page = http(
+        &bind,
+        "GET",
+        "/admin/editor?screen=home",
+        &[("Cookie", &cookie)],
+        "",
+    );
+    assert!(page.body.contains("data-site-history"), "기록 단추");
+    let csrf = {
+        let at = page.body.find("data-csrf=\"").unwrap() + 11;
+        page.body[at..at + page.body[at..].find('"').unwrap()].to_owned()
+    };
+    let json = ("Content-Type", "application/json");
+    let auth = [
+        json,
+        ("Cookie", cookie.as_str()),
+        ("x-csrf-token", csrf.as_str()),
+    ];
+    let made = http(
+        &bind,
+        "POST",
+        "/admin/editor/pages",
+        &auth,
+        r#"{"title":"회사 소개","slug":"about-us","starter":"about"}"#,
+    );
+    assert_eq!(made.status, 200, "{}", made.body);
+    let editor = http(
+        &bind,
+        "GET",
+        "/admin/editor?screen=page:about-us",
+        &[("Cookie", &cookie)],
+        "",
+    );
+    assert!(
+        editor.body.contains("data-page-settings"),
+        "페이지 설정 단추"
+    );
+    assert!(
+        editor.body.contains(r#""page":{"#) && editor.body.contains(r#""noindex":false"#),
+        "편집기 자료에 페이지 설정"
+    );
+    let name = maru(&data, &["site", "show"])["name"].clone();
+    let publish = |page: Value| {
+        let body = serde_json::json!({
+            "screen": "page:about-us",
+            "widgets": [],
+            "site": { "name": name, "page": page },
+            "opened": { "widgets": [], "untouched": [], "site_untouched": ["name", "description"] },
+        });
+        http(
+            &bind,
+            "POST",
+            "/admin/editor/publish",
+            &auth,
+            &body.to_string(),
+        )
+    };
+
+    // 틀린 공유 그림은 발행을 막는다.
+    let bad = publish(serde_json::json!({ "share_image": "javascript:alert(1)" }));
+    assert_eq!(bad.status, 400, "{}", bad.body);
+    assert_eq!(http(&bind, "GET", "/p/about-us", &[], "").status, 404);
+
+    let ok = publish(serde_json::json!({
+        "title": "우리 회사",
+        "description": "검색에 보일 짧은 설명",
+        "share_image": "https://example.com/share.jpg",
+        "noindex": true,
+        "slug": "무시되는-칸",
+    }));
+    assert_eq!(ok.status, 200, "{}", ok.body);
+    let out: Value = serde_json::from_str(&ok.body).unwrap();
+    assert_eq!(out["data"]["ops"], 2, "공개 + 설정: {out}");
+    let cs = out["data"]["changeset"].as_str().unwrap().to_owned();
+
+    let shown = http(&bind, "GET", "/p/about-us", &[], "").body;
+    assert!(shown.contains("<title>우리 회사 · "), "제목");
+    assert!(shown.contains(r#"<meta name="description" content="검색에 보일 짧은 설명">"#));
+    assert!(
+        shown.contains(r#"content="https://example.com/share.jpg""#),
+        "공유 그림"
+    );
+    assert!(shown.contains(r#"<meta name="robots" content="noindex">"#));
+    let sitemap = http(&bind, "GET", "/sitemap.xml", &[], "").body;
+    assert!(
+        !sitemap.contains("/p/about-us"),
+        "검색에서 뺀 페이지는 사이트맵에 없다"
+    );
+    let stored = maru(&data, &["page", "show", "about-us"]);
+    assert_eq!(
+        stored["slug"], "about-us",
+        "주소는 편집기에서 바꾸지 않는다"
+    );
+    assert_eq!(stored["noindex"], true);
+
+    // 같은 값으로 다시 발행하면 고칠 것이 없다.
+    let again = publish(serde_json::json!({ "title": "우리 회사", "noindex": true }));
+    assert_eq!(again.status, 200, "{}", again.body);
+    assert_eq!(
+        serde_json::from_str::<Value>(&again.body).unwrap()["data"]["ops"],
+        0
+    );
+
+    // 사이트 기록: CSRF 없으면 403, 있으면 맨 위가 방금 묶음.
+    let no_csrf = http(
+        &bind,
+        "GET",
+        "/admin/editor/history",
+        &[("Cookie", &cookie)],
+        "",
+    );
+    assert_eq!(no_csrf.status, 403);
+    let hist = http(&bind, "GET", "/admin/editor/history", &auth, "");
+    assert_eq!(hist.status, 200, "{}", hist.body);
+    let hist: Value = serde_json::from_str(&hist.body).unwrap();
+    let first = &hist["data"]["items"][0];
+    assert_eq!(first["id"], cs.as_str(), "{hist}");
+    assert_eq!(first["status"], "applied");
+    assert_eq!(first["ops"], 2);
+    assert_eq!(first["actor_type"], "human");
+
+    // 그 묶음만 되돌린다. 두 번 해도 같다.
+    let path = format!("/admin/editor/history/{cs}/revert");
+    for _ in 0..2 {
+        let r = http(&bind, "POST", &path, &auth, "");
+        assert_eq!(r.status, 200, "{}", r.body);
+    }
+    let stored = maru(&data, &["page", "show", "about-us"]);
+    assert_eq!(stored["title"], "회사 소개");
+    assert_eq!(stored["description"], "");
+    assert_eq!(stored["noindex"], false);
+    assert_eq!(http(&bind, "GET", "/p/about-us", &[], "").status, 404);
+
+    // CLI 도 같은 서비스: 설명·공유 그림·검색에서 빼기.
+    let edited = maru(
+        &data,
+        &[
+            "page",
+            "edit",
+            "about-us",
+            "--description",
+            "CLI 설명",
+            "--noindex",
+            "false",
+        ],
+    );
+    assert_eq!(edited["description"], "CLI 설명");
+}

@@ -40,21 +40,35 @@
     ["menu.footer", "아래 메뉴", "바닥글의 메뉴입니다."]
   ];
   function isSite(id) { return typeof id === "string" && id.indexOf("site:") === 0; }
-  function partOf(id) { var k = id.slice(5); return PARTS.filter(function (p) { return p[0] === k; })[0] || [k, k, ""]; }
-  // 저장된 것과 다른 메뉴 위치만 보낸다.
+  // 캔버스에 그려지지 않는 판 (ADR-0160). 위 단추로 연다.
+  var PANELS = {
+    page: ["page", "페이지 설정", "이 페이지의 제목과 검색 결과·공유 미리보기입니다. 발행하면 함께 바뀝니다."],
+    history: ["history", "사이트 기록", "발행한 묶음입니다. 하나만 골라 한 번에 되돌립니다."]
+  };
+  function partOf(id) { var k = id.slice(5); return PANELS[k] || PARTS.filter(function (p) { return p[0] === k; })[0] || [k, k, ""]; }
+  // 페이지 설정 칸 (ADR-0160). 페이지 화면이면 site.page 에 있고, 사이트 초안과 함께 되돌리기·보관·발행된다.
+  var PAGE_KEYS = ["title", "description", "share_image", "noindex"];
+  function pageChanged() {
+    var before = JSON.parse(savedSite).page || {};
+    return site.page ? PAGE_KEYS.filter(function (k) { return !same(site.page[k], before[k]); }) : [];
+  }
+  // 저장된 것과 다른 메뉴 위치·페이지 칸만 보낸다.
   function siteBody() {
     var before = JSON.parse(savedSite), menus = {};
     MENU_LOCS.forEach(function (l) {
       if (JSON.stringify(site.menus[l] || []) !== JSON.stringify(before.menus[l] || [])) menus[l] = site.menus[l] || [];
     });
-    return { name: site.name, description: site.description, menus: menus };
+    var body = { name: site.name, description: site.description, menus: menus };
+    var keys = pageChanged();
+    if (keys.length) { body.page = {}; keys.forEach(function (k) { body.page[k] = site.page[k]; }); }
+    return body;
   }
   function siteDirty() {
     var before = JSON.parse(savedSite), n = 0;
     if (site.name !== before.name) n += 1;
     if (site.description !== before.description) n += 1;
     MENU_LOCS.forEach(function (l) { if (JSON.stringify(site.menus[l] || []) !== JSON.stringify(before.menus[l] || [])) n += 1; });
-    return n;
+    return n + pageChanged().length;
   }
   var selected = null;
   var invalid = {};
@@ -108,6 +122,9 @@
     MENU_LOCS.forEach(function (l) {
       if (!same(kept.site.menus && kept.site.menus[l], from.site.menus && from.site.menus[l])) nowSite.menus[l] = (kept.site.menus || {})[l] || [];
     });
+    if (kept.site.page && nowSite.page) {
+      PAGE_KEYS.forEach(function (k) { if (!same(kept.site.page[k], (from.site.page || {})[k])) nowSite.page[k] = kept.site.page[k]; });
+    }
     Object.keys(kept.design || {}).forEach(function (k) { if (!same(kept.design[k], from.design[k])) nowDesign[k] = kept.design[k]; });
     var was = {}, now = {}, out = [], placed = {};
     from.widgets.forEach(function (w) { was[w.id] = w; });
@@ -1539,6 +1556,11 @@
   function syncInspector(w) {
     if (form && isSite(form.__id)) {
       var key = form.__id.slice(5), msgs = [];
+      if (PANELS[key]) {
+        if (form.refresh) form.refresh();
+        form.note.hidden = true;
+        return;
+      }
       if (invalid[form.__id]) {
         msgs.push(key === "name" ? "사이트 이름은 1~80자로 적어야 저장됩니다."
           : key === "description" ? "사이트 설명은 300자까지입니다."
@@ -1568,12 +1590,16 @@
     inspector.textContent = "";
     inspector.appendChild(el("div", { cls: "ed-insp-head" }, [
       el("h2", { text: p[1] }),
-      el("p", { cls: "hint", text: p[2] + " 모든 화면에 함께 바뀝니다." })
+      el("p", { cls: "hint", text: PANELS[key] ? p[2] : p[2] + " 모든 화면에 함께 바뀝니다." })
     ]));
     var note = el("p", { cls: "ed-insp-note", "data-note": "" });
     inspector.appendChild(note);
     form = { __id: id, note: note };
-    if (key === "name" || key === "description") {
+    if (key === "page") {
+      drawPageSettings();
+    } else if (key === "history") {
+      drawHistory();
+    } else if (key === "name" || key === "description") {
       var input = key === "name"
         ? el("input", { type: "text", maxlength: "80" })
         : el("textarea", { rows: "3", maxlength: "300" });
@@ -1586,6 +1612,137 @@
       drawMenuEditor(key.slice(5));
     }
     syncInspector(null);
+  }
+
+  // ---- 페이지 설정·사이트 기록 (ADR-0160) ----
+  // 검색 결과 설명은 보통 앞 80~120자쯤 보인다. 길면 잘리고, 비우면 본문 앞부분을 쓴다.
+  var DESC_SOFT = 120;
+  function drawPageSettings() {
+    if (!site.page) { inspector.appendChild(el("p", { cls: "hint", text: "페이지 화면에서만 씁니다." })); return; }
+    var pg = site.page;
+    var set = function (k, v) { change(function () { site.page[k] = v; }, "page:" + k); };
+    var title = el("input", { type: "text", maxlength: "200", id: "ed-page-title" });
+    title.addEventListener("input", function () { set("title", title.value); });
+    var desc = el("textarea", { rows: "3", maxlength: "300", id: "ed-page-desc", placeholder: "비우면 본문 앞부분을 씁니다." });
+    desc.addEventListener("input", function () { set("description", desc.value); });
+    var count = el("p", { cls: "hint ed-count", "aria-live": "polite" });
+    var noindex = el("input", { type: "checkbox", id: "ed-page-noindex" });
+    noindex.addEventListener("change", function () { set("noindex", noindex.checked); });
+    var shareBox = el("div", { cls: "ed-field ed-bg" });
+    var drawShare = function () {
+      shareBox.textContent = "";
+      var cur = site.page.share_image || "";
+      shareBox.appendChild(el("span", { cls: "ed-label", text: "공유 그림" }));
+      if (cur) shareBox.appendChild(el("img", { cls: "ed-bg-thumb", src: cur, alt: "" }));
+      var pick = el("button", { type: "button", cls: "secondary small", text: cur ? "공유 그림 바꾸기" : "공유 그림 고르기" });
+      pick.addEventListener("click", function () {
+        if (!window.MaruMedia) return;
+        window.MaruMedia.open({ url: site.page.share_image || "", alt: null, csrf: csrf, onPick: function (url) { set("share_image", url || ""); } });
+      });
+      shareBox.appendChild(pick);
+      if (cur) {
+        var off = el("button", { type: "button", cls: "ghost small", text: "빼기" });
+        off.addEventListener("click", function () { set("share_image", ""); });
+        shareBox.appendChild(off);
+      }
+      shareBox.appendChild(el("p", { cls: "hint", text: cur ? "카카오톡·SNS 에 주소를 붙이면 이 그림이 보입니다." : "비우면 사이트 공유 그림을 씁니다. 가로 1200 × 세로 630 쯤이 알맞습니다." }));
+    };
+    var addr = "/p/" + pg.slug;
+    var search = el("div", { cls: "ed-serp", "aria-label": "검색 결과 미리보기" });
+    var card = el("div", { cls: "ed-share-card", "aria-label": "공유 미리보기" });
+    inspector.appendChild(el("label", { cls: "ed-field", "for": "ed-page-title" }, [el("span", { text: "페이지 제목" }), title]));
+    inspector.appendChild(el("div", { cls: "ed-field" }, [
+      el("span", { cls: "ed-label", text: "주소" }),
+      el("code", { cls: "ed-addr", text: addr }),
+      el("p", { cls: "hint" }, [document.createTextNode("주소는 "), el("a", { href: "/admin/pages/" + encodeURIComponent(pg.slug), target: "_blank", rel: "noopener", text: "관리 › 페이지" }), document.createTextNode(" 에서 바꿉니다. 옛 주소는 새 주소로 이어집니다.")])
+    ]));
+    inspector.appendChild(el("label", { cls: "ed-field", "for": "ed-page-desc" }, [el("span", { text: "검색 설명" }), desc]));
+    inspector.appendChild(count);
+    inspector.appendChild(shareBox);
+    inspector.appendChild(el("label", { cls: "ed-check", "for": "ed-page-noindex" }, [noindex, el("span", { text: "검색 엔진에 내보내지 않기" })]));
+    inspector.appendChild(el("h3", { cls: "ed-group", text: "검색 결과 미리보기" }));
+    inspector.appendChild(search);
+    inspector.appendChild(el("h3", { cls: "ed-group", text: "공유 미리보기" }));
+    inspector.appendChild(card);
+    var fill = function () {
+      var p = site.page, siteName = site.name || "";
+      if (document.activeElement !== title) title.value = p.title || "";
+      if (document.activeElement !== desc) desc.value = p.description || "";
+      noindex.checked = !!p.noindex;
+      var n = (p.description || "").trim().length;
+      count.textContent = n === 0 ? "비어 있어 본문 앞부분이 설명으로 쓰입니다."
+        : n + "자" + (n > DESC_SOFT ? " · 검색 결과에서는 뒷부분이 잘려 보일 수 있습니다." : n < 40 ? " · 조금 더 자세히 쓰면 검색 결과에서 눈에 잘 띕니다." : "");
+      count.classList.toggle("is-warn", n > DESC_SOFT);
+      var shownDesc = (p.description || "").trim() || "본문 앞부분이 여기에 보입니다.";
+      search.textContent = "";
+      if (p.noindex) {
+        search.appendChild(el("p", { cls: "hint", text: "검색 엔진에 내보내지 않는 페이지입니다. 사이트맵에서도 빠집니다." }));
+      } else {
+        search.appendChild(el("span", { cls: "ed-serp-url", text: location.host + addr }));
+        search.appendChild(el("strong", { cls: "ed-serp-title", text: (p.title || "") + " · " + siteName }));
+        search.appendChild(el("span", { cls: "ed-serp-desc", text: shownDesc.length > DESC_SOFT ? shownDesc.slice(0, DESC_SOFT) + "…" : shownDesc }));
+      }
+      card.textContent = "";
+      var img = p.share_image || "/share.jpg";
+      card.appendChild(el("img", { src: img, alt: "", loading: "lazy" }));
+      card.appendChild(el("div", { cls: "ed-share-text" }, [
+        el("strong", { text: (p.title || "") + " · " + siteName }),
+        el("span", { text: shownDesc }),
+        el("small", { text: location.host })
+      ]));
+      if ((form && form.shareSeen) !== p.share_image) { if (form) form.shareSeen = p.share_image; drawShare(); }
+    };
+    form.refresh = fill;
+    form.shareSeen = null;
+    fill();
+  }
+
+  var WHO = { human: "사람", agent: "에이전트", local: "이 컴퓨터" };
+  function drawHistory() {
+    var list = el("ol", { cls: "ed-hist" }, [el("li", { cls: "ed-layer-empty", text: "불러오는 중…" })]);
+    inspector.appendChild(list);
+    inspector.appendChild(el("p", { cls: "hint" }, [el("a", { href: "/admin/changesets", target: "_blank", rel: "noopener", text: "변경 묶음 전체 보기" })]));
+    fetch("/admin/editor/history", { credentials: "same-origin", headers: { "x-csrf-token": csrf } })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        list.textContent = "";
+        var items = (j.data && j.data.items) || [];
+        if (!items.length) { list.appendChild(el("li", { cls: "ed-layer-empty", text: "아직 발행한 묶음이 없습니다." })); return; }
+        items.forEach(function (c) {
+          var when = c.reverted_at || c.applied_at;
+          var meta = (WHO[c.actor_type] || c.actor_type) + " · 고친 곳 " + c.ops + "개" + (when ? " · " + new Date(when).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "");
+          var li = el("li", { cls: "ed-hist-item is-" + c.status }, [
+            el("a", { cls: "ed-hist-title", href: c.url, target: "_blank", rel: "noopener", text: c.title }),
+            el("span", { cls: "hint", text: meta })
+          ]);
+          if (c.status === "applied") {
+            var undoBtn2 = el("button", { type: "button", cls: "secondary small", text: "이 묶음 되돌리기" });
+            undoBtn2.addEventListener("click", function () { revertChangeset(c, undoBtn2); });
+            li.appendChild(undoBtn2);
+          } else {
+            li.appendChild(el("span", { cls: "ed-hist-state", text: c.status === "reverted" ? "되돌림" : "실패" }));
+          }
+          list.appendChild(li);
+        });
+      })
+      .catch(function () { list.textContent = ""; list.appendChild(el("li", { cls: "ed-layer-empty", text: "기록을 불러오지 못했습니다." })); });
+  }
+  function revertChangeset(c, btn) {
+    var pending = dirtyCount();
+    var msg = "「" + c.title + "」 묶음을 한 번에 되돌립니다. 그 뒤 같은 곳을 고친 묶음이 있으면 그 고침도 이 묶음 이전으로 돌아갑니다.";
+    if (pending) msg += " 아직 발행하지 않은 고침은 초안으로 남습니다.";
+    if (!window.confirm(msg)) return;
+    btn.disabled = true;
+    if (pending) saveDraftNow(true);
+    fetch("/admin/editor/history/" + encodeURIComponent(c.id) + "/revert", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "x-csrf-token": csrf }
+    }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); }).then(function (res) {
+      if (!res.ok) { btn.disabled = false; statusEl.textContent = (res.j.error && res.j.error.message) || "되돌리지 못했습니다."; return; }
+      statusEl.textContent = "되돌렸습니다. 화면을 다시 엽니다.";
+      setTimeout(function () { location.reload(); }, 300);
+    }).catch(function () { btn.disabled = false; statusEl.textContent = "되돌리지 못했습니다. 연결을 확인하세요."; });
   }
 
   function destOf(link) {
@@ -1716,6 +1873,14 @@
   var view = root.querySelector("[data-view]");
   var current = data.screens.filter(function (s) { return s.id === screen; })[0];
   if (view) view.href = screen === "home" ? "/" : screen.indexOf("page:") === 0 ? "/p/" + encodeURIComponent(screen.slice(5)) : "/b/" + encodeURIComponent(screen.slice(6));
+  // 페이지 설정·사이트 기록 판을 여는 단추 (ADR-0160). 오른쪽 판에 연다.
+  var pageBtn = root.querySelector("[data-page-settings]");
+  if (pageBtn && site.page) {
+    pageBtn.hidden = false;
+    pageBtn.addEventListener("click", function () { select("site:page"); });
+  }
+  var histBtn = root.querySelector("[data-site-history]");
+  if (histBtn) histBtn.addEventListener("click", function () { form = null; select("site:history"); });
   undoBtn.addEventListener("click", undo);
   redoBtn.addEventListener("click", redo);
 

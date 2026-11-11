@@ -1080,6 +1080,15 @@ pub struct PageEditArgs {
     /// 위 페이지의 주소. 빈 값이면 맨 위로
     #[arg(long)]
     pub parent: Option<String>,
+    /// 검색 결과·공유 미리보기 설명. 빈 값이면 본문 앞부분 (ADR-0160)
+    #[arg(long)]
+    pub description: Option<String>,
+    /// 공유 미리보기 그림 (`/media/…` 또는 https). 빈 값이면 사이트 공유 그림
+    #[arg(long)]
+    pub share_image: Option<String>,
+    /// 검색 엔진에 내보내지 않기 (true|false)
+    #[arg(long)]
+    pub noindex: Option<bool>,
 }
 
 #[derive(Debug, Subcommand)]

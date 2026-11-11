@@ -1434,11 +1434,31 @@ async fn page_inner(state: &AppState, slug: &str) -> Result<Value> {
     view["tree"] = json!(nav.tree.iter().map(nav_node).collect::<Vec<_>>());
     view["prev"] = nav.prev.as_ref().map_or(Value::Null, nav_link);
     view["next"] = nav.next.as_ref().map_or(Value::Null, nav_link);
+    // 페이지 설정(ADR-0160)이 비어 있으면 본문 앞부분과 사이트 공유 그림을 쓴다.
+    let mut meta = json!({
+        "title": format!("{} · {}", p.title, site.settings.name),
+        "description": if p.description.is_empty() {
+            markdown::plain_text(&p.body_md, markdown::SUMMARY_CHARS)
+        } else {
+            p.description.clone()
+        },
+    });
+    if !p.share_image.is_empty() {
+        meta["image"] = json!(if p.share_image.starts_with('/') {
+            format!(
+                "{}{}",
+                state.ctx.site_url.trim_end_matches('/'),
+                p.share_image
+            )
+        } else {
+            p.share_image.clone()
+        });
+    }
+    if p.noindex {
+        meta["noindex"] = json!(true);
+    }
     Ok(json!({
-        "meta": json!({
-            "title": format!("{} · {}", p.title, site.settings.name),
-            "description": markdown::plain_text(&p.body_md, markdown::SUMMARY_CHARS),
-        }),
+        "meta": meta,
         "site": site.json,
         "canonical": urls::absolute(&state.ctx.site_url, &target),
         "page": view,

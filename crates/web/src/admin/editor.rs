@@ -31,7 +31,9 @@ use axum::routing::{delete, get, post, put};
 use axum::{Json, Router, middleware};
 use maru_core::clock;
 use maru_core::design::FONTS;
-use maru_core::model::{MENU_LOCATIONS, MenuItem, PageReq, PageStatus, WIDGET_REGIONS, Widget};
+use maru_core::model::{
+    ChangesetStatus, MENU_LOCATIONS, MenuItem, PageReq, PageStatus, WIDGET_REGIONS, Widget,
+};
 use maru_core::output::Success;
 use maru_core::services::auth::SignedIn;
 use maru_core::services::changesets as change;
@@ -41,7 +43,7 @@ use maru_core::services::widgets;
 use maru_core::services::{boards, design, editor_drafts, fonts, media, menus, pages, settings};
 use maru_core::services::{designs, saved_blocks};
 use maru_core::urls::{self, Target};
-use maru_core::{Code, Error, Permission};
+use maru_core::{Actor, Code, Error, Permission};
 use maru_modules::service as modules;
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
@@ -55,6 +57,8 @@ use crate::widgets::{EDITING, Editing, SiteDraft};
 
 /// 초안 하나에 담을 수 있는 블록 수. 위젯 전체 한도보다 넉넉하지 않게.
 const MAX_DRAFT: usize = 300;
+/// 「사이트 기록」 판에 보일 묶음 수 (ADR-0160)
+const HISTORY_LIMIT: i64 = 30;
 
 pub(super) fn routes() -> Router<AppState> {
     Router::new()
@@ -86,6 +90,11 @@ pub(super) fn routes() -> Router<AppState> {
             put(draft_put)
                 .delete(draft_delete)
                 .layer(middleware::map_response(editor_headers)),
+        )
+        .route("/admin/editor/history", get(history_list))
+        .route(
+            "/admin/editor/history/{id}/revert",
+            post(history_revert).layer(middleware::map_response(editor_headers)),
         )
         .route(
             "/admin/editor/publish",
@@ -293,6 +302,14 @@ async fn editor_data(
             .map(|p| p.status.as_str()),
         _ => None,
     };
+    // 페이지 설정 판 (ADR-0160). 사이트 초안 안에 두어 되돌리기·초안 보관·발행을 함께 탄다.
+    let page_settings = match screen {
+        EditScreen::Page(slug) => page_list
+            .iter()
+            .find(|p| &p.slug == slug)
+            .map(page_settings),
+        _ => None,
+    };
     let draft = editor_drafts::get(ctx, &who.actor, &screen.id())
         .await?
         .map(|d| json!({ "body": d.body, "base": d.base, "updated_at": d.updated_at }));
@@ -326,7 +343,7 @@ async fn editor_data(
             json!({ "id": r, "label": label, "hint": hint })
         }).collect::<Vec<_>>(),
         "tz": site.tz_offset_min,
-        "site": { "name": site.name, "description": site.description, "menus": menu_map },
+        "site": { "name": site.name, "description": site.description, "menus": menu_map, "page": page_settings },
         "design": {
             "primary": tokens.color.primary,
             "font_body": tokens.font.body,
@@ -625,6 +642,36 @@ struct SiteInput {
     description: String,
     #[serde(default)]
     menus: BTreeMap<String, Vec<MenuItem>>,
+    /// 페이지 화면이면 그 페이지 설정 (ADR-0160). 고친 칸만 실어도 된다.
+    #[serde(default)]
+    page: Option<PageSettingsInput>,
+}
+
+/// 편집기 「페이지 설정」 판의 칸. 주소는 여기서 바꾸지 않는다(관리 › 페이지).
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PageSettingsInput {
+    #[serde(default)]
+    title: Option<String>,
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(default)]
+    share_image: Option<String>,
+    #[serde(default)]
+    noindex: Option<bool>,
+    /// 그리기만 하는 칸. 보내도 무시한다.
+    #[serde(default, rename = "slug")]
+    _slug: Option<String>,
+}
+
+fn page_settings(p: &maru_core::model::Page) -> Value {
+    json!({
+        "title": p.title,
+        "slug": p.slug,
+        "description": p.description,
+        "share_image": p.share_image,
+        "noindex": p.noindex,
+    })
 }
 
 #[derive(Debug, Deserialize)]
@@ -724,6 +771,47 @@ async fn site_ops(
         }
     }
     Ok(ops)
+}
+
+/// 페이지 설정 판의 발행 연산 (ADR-0160). 지금 값과 다른 칸만 `page.update` 하나로 묶는다. 틀린 값은 발행을 막는다.
+async fn page_settings_op(
+    state: &AppState,
+    actor: &Actor,
+    slug: &str,
+    input: &PageSettingsInput,
+) -> maru_core::Result<Option<Value>> {
+    let page = pages::editable_page(&state.ctx, actor, slug).await?;
+    let mut patch = Map::new();
+    if let Some(t) = &input.title {
+        let t = pages::check_title(t)?;
+        if t != page.title {
+            patch.insert("title".into(), json!(t));
+        }
+    }
+    if let Some(d) = &input.description {
+        let d = settings::check_description(d)?;
+        if d != page.description {
+            patch.insert("description".into(), json!(d));
+        }
+    }
+    if let Some(u) = &input.share_image {
+        let u = u.trim();
+        if !u.is_empty() && !settings::share_image_ok(u) {
+            return Err(Error::new(Code::Validation)
+                .with_message("error.share_image")
+                .arg("value", u.chars().take(80).collect::<String>()));
+        }
+        if u != page.share_image {
+            patch.insert("share_image".into(), json!(u));
+        }
+    }
+    if let Some(n) = input.noindex
+        && n != page.noindex
+    {
+        patch.insert("noindex".into(), json!(n));
+    }
+    Ok((!patch.is_empty())
+        .then(|| json!({ "op": "page.update", "slug": page.slug, "patch": patch })))
 }
 
 fn check_ids(list: &[DraftWidget]) -> maru_core::Result<()> {
@@ -1059,6 +1147,48 @@ async fn saved_delete(
     Ok(Json(Success::new(json!({ "deleted": gone.is_some() }))).into_response())
 }
 
+/// 「사이트 기록」 판 (ADR-0160): 적용·되돌린 변경 묶음 최근 30개. 묶음 화면(`/admin/changesets`)과 같은 서비스다.
+async fn history_list(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Response, ApiError> {
+    let who = json_session(&state, &headers).await?;
+    let list = change::list(&state.ctx, &who.actor, None, HISTORY_LIMIT).await?;
+    let items = list
+        .iter()
+        .filter(|c| {
+            matches!(
+                c.status,
+                ChangesetStatus::Applied | ChangesetStatus::Reverted | ChangesetStatus::Failed
+            )
+        })
+        .map(|c| {
+            json!({
+                "id": c.id,
+                "title": c.title,
+                "actor_type": c.actor_type,
+                "status": c.status,
+                "ops": c.ops.len(),
+                "applied_at": c.applied_at,
+                "reverted_at": c.reverted_at,
+                "url": format!("/admin/changesets/{}", c.id),
+            })
+        })
+        .collect::<Vec<_>>();
+    Ok(Json(Success::new(json!({ "items": items }))).into_response())
+}
+
+/// 그 묶음만 한 번에 되돌린다. 이미 되돌렸으면 그대로다.
+async fn history_revert(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Response, ApiError> {
+    let who = json_session(&state, &headers).await?;
+    let cs = change::revert(&state.ctx, &who.actor, &id).await?;
+    Ok(Json(Success::new(json!({ "id": cs.id, "status": cs.status }))).into_response())
+}
+
 /// 발행한 화면의 초안은 지운다. 발행은 이미 됐으므로 실패해도 기록만 남긴다.
 async fn forget_draft(state: &AppState, who: &SignedIn, screen: &EditScreen) {
     if let Err(e) = editor_drafts::discard(&state.ctx, &who.actor, &screen.id()).await {
@@ -1084,6 +1214,12 @@ async fn publish(
         Some(s) => site_ops(&state, s, opened.map_or(&[], |o| &o.site_untouched)).await?,
         None => Vec::new(),
     };
+    if let (Some(s), EditScreen::Page(slug)) = (&input.site, &screen)
+        && let Some(p) = &s.page
+        && let Some(op) = page_settings_op(&state, actor, slug, p).await?
+    {
+        ops.push(op);
+    }
     if let Some(patch) = input
         .tokens
         .filter(|p| p.as_object().is_some_and(|o| !o.is_empty()))
