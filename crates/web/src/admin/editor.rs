@@ -34,7 +34,7 @@ use maru_core::model::{MENU_LOCATIONS, MenuItem, PageReq, PageStatus, WIDGET_REG
 use maru_core::output::Success;
 use maru_core::services::auth::SignedIn;
 use maru_core::services::changesets as change;
-use maru_core::services::presets::Op;
+use maru_core::services::designs;
 use maru_core::services::stats::StatCounter;
 use maru_core::services::views::ViewCounter;
 use maru_core::services::widgets;
@@ -382,32 +382,31 @@ fn kinds_json(types: &[widgets::WidgetType]) -> Vec<Value> {
         .collect()
 }
 
-/// 빈 화면에서 고를 시작 묶음 (ADR-0153). 사이트 종류 프리셋의 첫 화면 본문 블록을 그대로 쓴다.
+/// 빈 화면에서 고를 시작 묶음 (ADR-0153)이자 디자인 모음 (ADR-0158). 사이트 종류 프리셋의 첫 화면 본문 블록을 쓴다.
 /// 이 사이트에서 쓸 수 없는 블록은 빼고, 없는 게시판·페이지를 가리키는 곳은 [`fit_links`] 로 고친다.
 /// 처음 보일 셋([`BUNDLE_PICKS`])을 앞에 둔다.
 fn bundles(kinds: &HashSet<&str>, site: &Known) -> Vec<Value> {
     let mut out: Vec<Value> = maru_themes::preset_ids()
         .iter()
         .filter_map(|id| maru_themes::preset(id).ok())
-        .filter_map(|p| {
-            let blocks: Vec<Value> = p
-                .ops
+        .filter_map(|p| designs::from_preset(&p))
+        .filter_map(|d| {
+            let blocks: Vec<Value> = d
+                .items
                 .iter()
-                .filter_map(|op| match op {
-                    Op::WidgetsEnsure { items } => Some(items),
-                    _ => None,
-                })
-                .flatten()
-                .filter(|w| w.region == "main" && w.scope == "home" && kinds.contains(w.kind.as_str()))
-                .filter_map(|w| {
-                    let mut config = w.config.clone();
+                .filter(|b| kinds.contains(b.kind.as_str()))
+                .filter_map(|b| {
+                    let mut config = b.config.clone();
                     fit_links(&mut config, site).then(|| {
-                        json!({ "kind": w.kind, "region": w.region, "title": w.title, "config": config })
+                        json!({ "kind": b.kind, "region": "main", "title": b.title, "config": config })
                     })
                 })
                 .collect();
             (blocks.len() >= 2).then(|| {
-                json!({ "id": p.id, "name": p.name, "description": p.description, "blocks": blocks })
+                json!({
+                    "id": d.info.id, "name": d.info.name, "description": d.info.description,
+                    "look": d.info.look, "swatch": d.info.swatch, "tokens": d.tokens, "blocks": blocks,
+                })
             })
         })
         .collect();

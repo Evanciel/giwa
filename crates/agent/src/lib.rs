@@ -19,7 +19,9 @@ use maru_core::services::search::{self, SearchInput};
 use maru_core::services::settings::SettingsPatch;
 use maru_core::services::stats::{self, StatsQuery};
 use maru_core::services::widgets::{self, NewWidget, WidgetPatch};
-use maru_core::services::{boards, indexnow, pages, presets, samples, sections, settings, tokens};
+use maru_core::services::{
+    boards, designs, indexnow, pages, presets, samples, sections, settings, tokens,
+};
 use maru_core::{Actor, Code, Ctx, Error, Permission, Result};
 use maru_modules::{Registry, schema_of, service};
 use rmcp::model::{
@@ -78,6 +80,14 @@ struct ListChangesetsInput {
     /// preview, applied, reverted 등. 비우면 모두
     #[serde(default)]
     status: Option<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct DesignInput {
+    /// `list_designs` 목록의 id. 비우면 목록
+    #[serde(default)]
+    id: Option<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -455,6 +465,12 @@ const SPECS: &[Spec] = &[
         "디자인 토큰(색·서체·간격) 일부를 바꾸는 연산을 담는다. 지금 값은 get_tokens 로 본다. Stage changing design tokens; read them with get_tokens.",
         Permission::DesignEdit,
         schema_of::<Staged<TokensInput>>,
+    ),
+    looked_up(
+        "list_designs",
+        "디자인 모음(프리셋의 첫 화면 블록과 색·모양)을 본다. id 를 주면 그 디자인의 블록과 토큰. List site designs.",
+        Permission::SiteView,
+        schema_of::<DesignInput>,
     ),
     looked_up(
         "list_themes",
@@ -931,6 +947,13 @@ impl Server {
                 let preset = maru_themes::preset(&i.preset)?;
                 let cs = changesets::create_from_preset(ctx, actor, &preset).await?;
                 self.handed_over(actor, &cs).await
+            }
+            "list_designs" => {
+                let i: DesignInput = input(args)?;
+                match i.id {
+                    Some(id) => to_value(designs::show(actor, &maru_themes::preset(&id)?)?),
+                    None => Ok(json!({ "items": designs::list(actor, &maru_themes::presets()?)? })),
+                }
             }
             "list_themes" => {
                 actor.require(Permission::SiteView)?;

@@ -13,9 +13,10 @@ use maru_core::model::{ChangesetStatus, MenuItem, PageReq, PageStatus, PostStatu
 use maru_core::output::Success;
 use maru_core::services::changesets;
 use maru_core::services::{
-    anonymous_actor, audit_log, backups, boards, categories, comments, design, editor_drafts,
-    files, fonts, indexnow, links, media, members, menus, pages, posts, redirects, retention,
-    samples, search, settings, signals, stats, tags, templates, tokens, views, widgets, wiki,
+    anonymous_actor, audit_log, backups, boards, categories, comments, design, designs,
+    editor_drafts, files, fonts, indexnow, links, media, members, menus, pages, posts, redirects,
+    retention, samples, search, settings, signals, stats, tags, templates, tokens, views, widgets,
+    wiki,
 };
 use maru_core::{Actor, Code, Error};
 use maru_modules::service as modules;
@@ -92,6 +93,8 @@ pub fn routes() -> Router<AppState> {
         .route("/stats.csv", get(get_stats_csv))
         .route("/settings", get(get_settings).patch(update_settings))
         .route("/design/tokens", get(get_tokens).patch(update_tokens))
+        .route("/designs", get(list_designs))
+        .route("/designs/{id}", get(get_design))
         .route("/fonts", get(list_fonts).post(add_font))
         .route(
             "/fonts/{slug}",
@@ -778,6 +781,20 @@ async fn update_tokens(
         StatusCode::OK,
         design::update(&state.ctx, &actor, patch).await?,
     ))
+}
+
+/// 디자인 모음 (ADR-0158). 입히는 길은 변경 묶음의 `widget.place`·`tokens.set` 이다.
+async fn list_designs(ApiActor(actor): ApiActor) -> Result<Response, ApiError> {
+    let presets = maru_themes::presets()?;
+    Ok(ok(StatusCode::OK, designs::list(&actor, &presets)?))
+}
+
+async fn get_design(
+    ApiActor(actor): ApiActor,
+    Path(id): Path<String>,
+) -> Result<Response, ApiError> {
+    let preset = maru_themes::preset(&id)?;
+    Ok(ok(StatusCode::OK, designs::show(&actor, &preset)?))
 }
 
 async fn list_fonts(State(state): State<AppState>) -> Result<Response, ApiError> {

@@ -240,6 +240,13 @@ pub fn preset_ids() -> Vec<String> {
         .collect()
 }
 
+/// 내장 프리셋 전부 (id 순). 디자인 모음이 쓴다 (ADR-0158).
+pub fn presets() -> Result<Vec<Preset>> {
+    let mut ids = preset_ids();
+    ids.sort();
+    ids.iter().map(|id| preset(id)).collect()
+}
+
 /// 프리셋의 예시 글 파일 (`builtin/samples/<id>.toml`, ADR-0142). 프리셋 연산 뒤에 붙는다.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]

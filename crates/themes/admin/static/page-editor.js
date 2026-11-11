@@ -1132,10 +1132,16 @@
   var shownDesign = JSON.stringify(design), designCss = null, designBad = "", designSeq = 0;
   function designPatch() {
     var b = JSON.parse(savedDesign), p = {};
-    if (design.primary !== b.primary) p.color = { primary: design.primary };
-    if (design.font_body !== b.font_body || design.font_heading !== b.font_heading) p.font = { body: design.font_body, heading: design.font_heading };
+    // 디자인 모음에서 고른 테마 패치(ADR-0158)를 바닥에 깔고, 그 위에 이 판에서 고친 칸을 겹친다.
+    if (design.theme && !same(design.theme, b.theme)) p = JSON.parse(JSON.stringify(design.theme));
+    if (design.primary !== b.primary || p.color) { p.color = p.color || {}; p.color.primary = design.primary; }
+    if (design.font_body !== b.font_body || design.font_heading !== b.font_heading) {
+      p.font = p.font || {};
+      p.font.body = design.font_body;
+      p.font.heading = design.font_heading;
+    }
     if (JSON.stringify(design.radius) !== JSON.stringify(b.radius)) p.radius = design.radius;
-    if (design.density !== b.density) p.layout = { density: design.density };
+    if (design.density !== b.density) { p.layout = p.layout || {}; p.layout.density = design.density; }
     return p;
   }
   function applyDesign() {
@@ -1194,10 +1200,85 @@
     s.addEventListener("change", function () { change(function () { design[key] = s.value; }, null, true); });
     return el("label", { cls: "ed-field" }, [el("span", { text: label }), s]);
   }
+  // ---- 디자인 모음 (ADR-0158) ----
+  // 프리셋 디자인(첫 화면 본문 블록 + 색·모양)을 카드로 보이고, 고르면 이 화면의 본문 블록과 사이트 토큰을 초안에서만 바꾼다.
+  // 발행하면 한 묶음이라 묶음 되돌리기 한 번으로 원래대로 돌아간다.
+  var beforePick = null;
+  function screenMain() {
+    return widgets.filter(function (w) { return w.scope === screen && w.region === "main"; });
+  }
+  function useDesign(b) {
+    var old = screenMain();
+    var msg = old.length
+      ? "이 화면의 본문 블록 " + old.length + "개를 「" + b.name + "」 디자인 블록 " + b.blocks.length + "개로 바꾸고 사이트 색·모서리도 바꿉니다. 발행하기 전에는 사이트에 보이지 않습니다."
+      : "「" + b.name + "」 디자인 블록 " + b.blocks.length + "개를 넣고 사이트 색·모서리도 바꿉니다. 발행하기 전에는 사이트에 보이지 않습니다.";
+    if (!window.confirm(msg)) return;
+    var snap = snapshot(), ids = [];
+    change(function () {
+      widgets = widgets.filter(function (w) { return old.indexOf(w) < 0; });
+      b.blocks.forEach(function (x) {
+        var w = { id: newId(), kind: x.kind, region: x.region, scope: screen, title: x.title || "", config: JSON.parse(JSON.stringify(x.config || {})), enabled: true };
+        ids.push(w.id);
+        widgets.push(w);
+      });
+      if (b.tokens) {
+        design.theme = JSON.parse(JSON.stringify(b.tokens));
+        if (b.tokens.color && b.tokens.color.primary) design.primary = b.tokens.color.primary;
+        if (b.tokens.radius) design.radius = JSON.parse(JSON.stringify(b.tokens.radius));
+        if (b.tokens.font && b.tokens.font.heading) design.font_heading = b.tokens.font.heading;
+      }
+    });
+    beforePick = snap;
+    selected = null;
+    form = null;
+    drawDesign();
+    statusEl.textContent = "「" + b.name + "」 디자인을 입혔습니다. 마음에 안 들면 「고르기 전으로」를 누르세요.";
+  }
+  function designGallery() {
+    var list = data.bundles || [];
+    if (!list.length) return null;
+    var grid = el("div", { cls: "ed-gallery" });
+    list.forEach(function (b) {
+      var sw = el("span", { cls: "ed-gallery-swatch", "aria-hidden": "true" });
+      var c = b.swatch || {};
+      [c.bg, c.surface, c.primary, c.fg].forEach(function (x) {
+        var dot = el("span");
+        if (x) dot.style.background = x;
+        sw.appendChild(dot);
+      });
+      var card = el("button", { type: "button", cls: "ed-gallery-card", "aria-label": b.name + " 디자인 입히기" }, [
+        sw,
+        el("strong", { text: b.name }),
+        el("small", { text: b.look || b.description }),
+        el("small", { cls: "ed-gallery-count", text: "블록 " + b.blocks.length + "개" })
+      ]);
+      card.addEventListener("click", function () { useDesign(b); });
+      grid.appendChild(card);
+    });
+    var kids = [el("summary", { text: "디자인 모음 (" + list.length + ")" }),
+      el("p", { cls: "hint", text: "고르면 이 화면의 본문 블록과 사이트 색·모서리가 그 디자인으로 바뀝니다. 글자는 예시이니 눌러서 고치세요." })];
+    if (beforePick) {
+      var back = el("button", { type: "button", cls: "secondary small", text: "고르기 전으로" });
+      back.addEventListener("click", function () {
+        var snap = beforePick;
+        beforePick = null;
+        change(function () { restoreSnap(snap); });
+        selected = null;
+        form = null;
+        drawDesign();
+        statusEl.textContent = "디자인을 고르기 전으로 돌렸습니다.";
+      });
+      kids.push(back);
+    }
+    kids.push(grid);
+    return el("details", { cls: "ed-field ed-gallery-box", open: "" }, kids);
+  }
   function drawDesign() {
     var box = root.querySelector("[data-design]");
     if (!box) return;
     box.textContent = "";
+    var gallery = designGallery();
+    if (gallery) box.appendChild(gallery);
     var fs = el("fieldset", { cls: "ed-field ed-chips ed-colors" }, [el("legend", { text: "주 색" })]);
     SWATCHES.forEach(function (c) {
       var b = el("button", { type: "button", cls: "ed-color", title: c, "aria-label": "주 색 " + c, "aria-pressed": String(design.primary.toLowerCase() === c) });

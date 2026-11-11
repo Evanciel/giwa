@@ -2079,3 +2079,22 @@
 - 결과:
   - 단위 테스트 `backgrounds_and_motion_are_common`, e2e `e2e_sections_more::section_backgrounds_and_motion`(나쁜 값 거절, `has-bg dim-strong`·`motion-rise`·`sec-bg` 그림, 없는 그림은 그리지 않음).
   - 브라우저: 큰 인용 블록에 그림을 고르고 짙게·아래에서 올라오기를 골라 발행했다. 캔버스와 공개 화면 모두 그림 위 짙은 덮개와 흰 글자가 보였고, 공개 화면에서 내려가 블록이 화면에 들어오자 `motion-wait` 가 떨어졌다.
+
+## ADR-0158: 디자인 모음 — 보고 골라 이 화면과 사이트 색을 한 번에 바꾼다
+
+- 날짜: 2026-11-11
+- 배경:
+  - `docs/plans/wix-plus.md` W3. 남의 빌더는 템플릿을 보며 고르고 나중에 바꿀 수 있다. 우리는 설치 때 프리셋 하나, 빈 화면에서만 뜨는 시작 묶음 3장(ADR-0153), 색만 바꾸는 테마(`maru theme apply`)가 따로 있었다.
+- 결정:
+  - 프리셋에서 「첫 화면 본문 블록 둘 이상」인 것을 디자인으로 본다. core `services::designs::{from_preset, list, show}` 가 블록과 테마 패치(`presets::theme_tokens`, 정하지 않은 색은 기본값으로 채운 것)를 묶는다. 프리셋 파일은 테마 크레이트에 있어(의존 방향) 부르는 쪽이 `maru_themes::presets()` 를 넘긴다. `list`·`show` 는 `SiteView` 권한을 서비스에서 본다.
+  - 같은 서비스를 REST `GET /api/v1/designs[/{id}]`, CLI `maru design gallery [id]`, MCP `list_designs {id?}` 가 쓴다. 입히는 길은 새로 만들지 않는다. 에이전트는 변경 묶음에 `widget.place`·`tokens.set` 을 담는다.
+  - 화면 편집기 「디자인」 판 맨 위에 「디자인 모음」 카드(이름·색 견본·모양 설명·블록 수)를 둔다. 빈 화면 시작 묶음과 같은 목록(`bundles`)이라 이 사이트의 게시판·페이지에 맞춘 링크(ADR-0155 `fit_links`)를 쓴다.
+    - 고르면 확인(「본문 블록 N개를 M개로 바꾸고 색·모서리도 바꿉니다」) 뒤 **초안에서만** 이 화면의 본문(main) 블록을 그 디자인 블록으로 바꾸고, 테마 패치를 초안 디자인 값(`design.theme`)에 싣는다. 주 색·모서리·제목 서체 칩도 그 값으로 맞춘다. 다른 화면·다른 자리의 블록은 건드리지 않는다.
+    - 발행할 때 `design.theme` 를 바닥에 깔고 이 판에서 고친 칸을 겹쳐 `tokens.set` 하나로 보낸다. 대비 검사는 그대로다.
+    - 「고르기 전으로」 단추와 되돌리기(Ctrl+Z)로 고르기 전 블록·색으로 돌아간다. 발행 뒤에는 묶음 되돌리기 한 번이다.
+- 대안:
+  - 디자인을 별도 파일로 새로 만들기. 프리셋과 내용이 겹치고 둘이 어긋난다. 새 원페이지 디자인이 필요하면 프리셋을 더한다.
+  - 사이트 전체(모든 화면)를 한꺼번에 바꾸기. 사용자가 고친 다른 페이지를 잃는다. 이 화면만 바꾼다.
+- 결과:
+  - 단위 테스트 `designs::tests::only_presets_with_home_blocks_are_designs`, e2e `e2e_designs::design_gallery_is_the_same_everywhere`(CLI·REST 같은 목록, 없는 id 거절), `e2e_mcp` 에 `list_designs` 목록·하나.
+  - 브라우저: 「단추 시험」 페이지 편집기 디자인 판에 카드 21장이 보였다. 「가게」를 고르니 확인 문구(블록 6개 → 6개)가 뜨고, 캔버스 블록과 색이 크림·벽돌색으로 바뀌었다. 「고르기 전으로」를 누르니 원래 색(#b45309)과 블록으로 돌아왔다. 다시 골라 발행하니 `tokens.css` 가 `--primary: #9a3f18`·`--bg: #fbf8f2` 가 되고 그 페이지만 새 블록이 됐다. 첫 화면 블록은 그대로였다.

@@ -157,6 +157,20 @@ fieldset.ed-field legend { font-weight: 600; margin-bottom: .3rem; padding: 0; }
 .ed-chips { display: flex; flex-wrap: wrap; gap: .35rem; }
 .ed-chips legend { margin-bottom: .35rem; }
 .ed-chips .hint { flex-basis: 100%; margin: .2rem 0 0; }
+/* 디자인 모음 (ADR-0158) */
+.ed-gallery-box summary { cursor: pointer; font-weight: 700; }
+.ed-gallery-box > .hint { margin: .35rem 0 .5rem; }
+.ed-gallery-box > button { margin-bottom: .5rem; }
+.ed-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); gap: .5rem; }
+.ed-gallery-card { all: unset; box-sizing: border-box; display: flex; flex-direction: column; gap: .25rem; padding: .55rem; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); cursor: pointer; }
+.ed-gallery-card:hover { border-color: var(--primary); }
+.ed-gallery-card:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.ed-gallery-card strong { font-size: .95rem; }
+.ed-gallery-card small { color: var(--muted); font-size: .78rem; line-height: 1.35; }
+.ed-gallery-swatch { display: flex; height: 1.4rem; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); }
+.ed-gallery-swatch span { flex: 1; }
+.ed-gallery-swatch span:nth-child(3) { flex: 1.6; }
+
 /* 섹션 배경 그림 (ADR-0157) */
 .ed-bg { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
 .ed-bg .ed-label { flex-basis: 100%; font-weight: 600; }

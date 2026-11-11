@@ -13,7 +13,7 @@ use maru_core::services::boards::{self, NewBoard};
 use maru_core::services::posts::{self, NewPost};
 use maru_core::services::tokens::{self, NewToken};
 use maru_core::services::{
-    anonymous_actor, audit_log, auth, backups, categories, comments, design, files, fonts,
+    anonymous_actor, audit_log, auth, backups, categories, comments, design, designs, files, fonts,
     indexnow, mail, media, members, menus, pages, presets, retention, samples, search, settings,
     signals, stats, tags, templates, views, widgets, wiki,
 };
@@ -1985,6 +1985,30 @@ async fn design_cmd(g: &Global, cmd: DesignCmd) -> Out {
     res
 }
 
+/// 디자인 모음 (ADR-0158). id 가 없으면 목록, 있으면 그 디자인의 블록과 토큰.
+fn design_gallery(actor: &Actor, id: Option<&str>) -> Out {
+    let Some(id) = id else {
+        let items = designs::list(actor, &maru_themes::presets()?)?;
+        let mut human = format!("디자인 {}개. 자세히: maru design gallery <id>", items.len());
+        for d in &items {
+            human.push_str(&format!(
+                "\n{}  {} (블록 {}개)  {}",
+                d.id, d.name, d.blocks, d.look
+            ));
+        }
+        return Ok((json!({ "items": items }), human));
+    };
+    let d = designs::show(actor, &maru_themes::preset(id)?)?;
+    let mut human = format!(
+        "{} 디자인: 블록 {}개. 첫 화면에 놓으려면 변경 묶음에 widget.place(region main, scope home)를, 색은 tokens.set 을 담습니다.",
+        d.info.name, d.info.blocks
+    );
+    for b in &d.items {
+        human.push_str(&format!("\n- {} {}", b.kind, b.title));
+    }
+    Ok((serde_json::to_value(&d).map_err(Error::internal)?, human))
+}
+
 async fn design_inner(ctx: &Ctx, actor: &Actor, cmd: DesignCmd) -> Out {
     let (tokens, verb) = match cmd {
         DesignCmd::Show { css: true } => {
@@ -1992,6 +2016,7 @@ async fn design_inner(ctx: &Ctx, actor: &Actor, cmd: DesignCmd) -> Out {
             return Ok((json!({ "css": css }), css));
         }
         DesignCmd::Show { css: false } => (design::tokens(ctx).await?, None),
+        DesignCmd::Gallery { id } => return design_gallery(actor, id.as_deref()),
         DesignCmd::Reset => (
             design::reset(ctx, actor).await?,
             Some("기본값으로 되돌렸습니다"),

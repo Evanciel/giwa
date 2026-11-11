@@ -1411,6 +1411,11 @@ pub enum DesignCmd {
     Set(DesignSetArgs),
     /// 기본값으로 되돌린다
     Reset,
+    /// 디자인 모음: 프리셋의 첫 화면 블록과 색·모양. id 를 주면 그 디자인의 블록·토큰 (ADR-0158)
+    Gallery {
+        /// `maru design gallery` 목록의 id
+        id: Option<String>,
+    },
 }
 
 #[derive(Debug, Subcommand)]
