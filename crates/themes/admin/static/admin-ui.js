@@ -20,7 +20,8 @@
     bio: "소개", flip: "그림을 오른쪽에", space: "위아래 여백", align: "글 정렬",
     url: "주소", ratio: "화면 비율", mono: "흑백으로 가라앉히기", target: "목표 시각", done: "지난 뒤 보일 글",
     service: "종류", caption: "사진 아래 글", anchor: "구역 이름",
-    bg_image: "배경 그림", bg_dim: "그림 위 덮개", motion: "등장 효과"
+    bg_image: "배경 그림", bg_dim: "그림 위 덮개", motion: "등장 효과",
+    loop_muted: "소리 없이 저절로 되풀이"
   };
   var VALUE_LABELS = {
     tone: { plain: "기본", soft: "옅은 바탕", strong: "진한 바탕" },
@@ -239,6 +240,18 @@
         });
       });
       wrap.appendChild(lb);
+    }
+    // 동영상 섹션의 주소 칸 (ADR-0161): 유튜브 주소를 쓰거나 올린 동영상을 고른다.
+    if (key === "url" && input.tagName === "INPUT" && /올린 .*동영상/.test(hint) && window.MaruMedia) {
+      var vb = el("button", { type: "button", cls: "secondary small", text: "동영상 올리기·고르기" });
+      vb.addEventListener("click", function () {
+        window.MaruMedia.open({
+          kind: "video", url: /^\/media\//.test(input.value) ? input.value : "", alt: null,
+          csrf: self.csrf, required: true,
+          onPick: function (url) { input.value = url; set(url); }
+        });
+      });
+      wrap.appendChild(vb);
     }
     if (hint && !choices) wrap.appendChild(el("p", { cls: "hint", text: hint }));
     return wrap;

@@ -2202,8 +2202,17 @@ async fn media_cmd(g: &Global, cmd: MediaCmd) -> Out {
             let m = media::upload(&ctx, &actor, input).await?;
             media_out(&m, "올렸습니다")
         }
-        MediaCmd::List { page, per_page } => {
-            let list = media::list(&ctx, &actor, PageReq::new(page, per_page)).await?;
+        MediaCmd::List {
+            page,
+            per_page,
+            kind,
+        } => {
+            let req = PageReq::new(page, per_page);
+            let list = match kind.as_deref() {
+                Some("video") => media::list_of(&ctx, &actor, media::MediaKind::Video, req).await?,
+                Some(_) => media::list_of(&ctx, &actor, media::MediaKind::Image, req).await?,
+                None => media::list(&ctx, &actor, req).await?,
+            };
             let mut human = format!("미디어 {}개", list.total);
             for m in &list.items {
                 human.push_str(&format!(

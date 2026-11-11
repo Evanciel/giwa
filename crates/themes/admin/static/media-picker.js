@@ -2,6 +2,7 @@
 //   MaruMedia.open({ url, alt, csrf, required, onPick: function (url, alt) {} })
 //     올려 둔 그림을 고르거나 새로 올린다. alt 가 null 이면 그림 설명 칸을 보이지 않는다.
 //     url 이 "" 로 오면 「그림 빼기」다(required 면 단추가 없다).
+//     kind: "video" 면 올린 동영상(mp4·webm)만 보이고, 새 동영상은 8MB 조각으로 나눠 올린다 (ADR-0161).
 //   MaruLinks.open({ link, targets: { pages: [{id,label}], boards: [{id,label}] }, onPick: function (link) {} })
 //     첫 화면·게시판·페이지·바깥 주소 가운데 고른다. link 가 "" 로 오면 「링크 빼기」다.
 (function () {
@@ -31,26 +32,63 @@
     return v ? v.url : m.url;
   }
 
+  // 동영상 나눠 올리기 (ADR-0161): 열기 → 조각마다 PUT ?offset= → 마치기. 409 면 서버가 받은 자리부터 잇는다.
+  function uploadVideo(f, csrf, status) {
+    var h = { "x-csrf-token": csrf };
+    var json = function (r) { return r.json().then(function (j) { if (!r.ok) throw Object.assign(new Error((j.error && j.error.message) || "올리지 못했습니다"), { server: true }); return j; }); };
+    return fetch("/admin/media/videos", {
+      method: "POST", credentials: "same-origin",
+      headers: { "content-type": "application/json", "x-csrf-token": csrf },
+      body: JSON.stringify({ filename: f.name })
+    }).then(json).then(function (res) {
+      var up = res.data, size = up.chunk_bytes, tries = 0;
+      if (f.size > up.max_bytes) throw new Error("동영상은 " + Math.round(up.max_bytes / 1024 / 1024) + "MB 까지 올릴 수 있습니다.");
+      var send = function (offset) {
+        if (offset >= f.size) {
+          return fetch("/admin/media/videos/" + up.id + "/finish", {
+            method: "POST", credentials: "same-origin",
+            headers: { "content-type": "application/json", "x-csrf-token": csrf },
+            body: JSON.stringify({ filename: f.name })
+          }).then(function (r) { return r.json(); });
+        }
+        status.textContent = "「" + f.name + "」 올리는 중… " + Math.floor(offset / f.size * 100) + "%";
+        return fetch("/admin/media/videos/" + up.id + "?offset=" + offset, {
+          method: "PUT", credentials: "same-origin", headers: h, body: f.slice(offset, offset + size)
+        }).then(json).then(function (r) {
+          return send(r.data.received);
+        }, function (e) {
+          // 연결이 끊기면 같은 조각을 다시 보낸다. 서버는 이미 받은 부분을 건너뛴다. 서버가 거절한 것은 다시 보내지 않는다.
+          tries += 1;
+          if (e.server || tries > 3) throw e;
+          return send(offset);
+        });
+      };
+      return send(0);
+    });
+  }
+
   // ---- 그림 ----
   function openMedia(opts) {
-    var d = dialog("그림 고르기", "mp-media");
+    var video = opts.kind === "video";
+    var noun = video ? "동영상" : "그림";
+    var d = dialog(noun + " 고르기", "mp-media");
     var picked = opts.url || "";
     var status = el("p", { cls: "mp-status", role: "status" });
-    var grid = el("ul", { cls: "mp-grid", "aria-label": "올린 그림" });
+    var grid = el("ul", { cls: "mp-grid", "aria-label": "올린 " + noun });
     var more = el("button", { type: "button", cls: "secondary small mp-more", text: "더 보기", hidden: "" });
-    var file = el("input", { type: "file", accept: "image/jpeg,image/png,image/gif,image/webp", cls: "visually-hidden", tabindex: "-1" });
+    var file = el("input", { type: "file", accept: video ? "video/mp4,video/webm" : "image/jpeg,image/png,image/gif,image/webp", cls: "visually-hidden", tabindex: "-1" });
     var upBtn = el("button", { type: "button", cls: "secondary", text: "컴퓨터에서 올리기" });
     var drop = el("div", { cls: "mp-drop" }, [
-      el("span", { text: "그림 파일을 여기로 끌어다 놓거나" }), upBtn, file,
-      el("small", { text: "jpg·png·gif·webp, 10MB 이하. 위치 정보는 지우고 저장합니다." })
+      el("span", { text: noun + " 파일을 여기로 끌어다 놓거나" }), upBtn, file,
+      el("small", { text: video ? "mp4·webm, 200MB 이하. 큰 파일은 나눠서 올리고, 끊기면 이어서 올립니다." : "jpg·png·gif·webp, 10MB 이하. 위치 정보는 지우고 저장합니다." })
     ]);
     var alt = null;
     if (opts.alt !== null && opts.alt !== undefined) {
       alt = el("input", { type: "text", maxlength: "200", id: "mp-alt" });
       alt.value = opts.alt || "";
     }
-    var use = el("button", { type: "button", text: "이 그림 쓰기" });
-    var remove = !opts.required && opts.url ? el("button", { type: "button", cls: "secondary mp-remove", text: "그림 빼기" }) : null;
+    var use = el("button", { type: "button", text: "이 " + noun + " 쓰기" });
+    var remove = !opts.required && opts.url ? el("button", { type: "button", cls: "secondary mp-remove", text: noun + " 빼기" }) : null;
     var body = el("div", { cls: "mp-body" }, [drop, status, grid, more]);
     d.appendChild(body);
     if (alt) {
@@ -68,8 +106,10 @@
     };
     var card = function (m, first) {
       byUrl[m.url] = m;
-      var b = el("button", { type: "button", cls: "mp-item", "data-url": m.url, title: (m.alt_text || "") + " " + m.width + "×" + m.height }, [
-        el("img", { src: thumbOf(m), alt: m.alt_text || "", loading: "lazy", width: "160", height: "120" })
+      var b = el("button", { type: "button", cls: "mp-item", "data-url": m.url, title: video ? (m.alt_text || "동영상") + " · " + Math.round(m.size / 1024 / 1024 * 10) / 10 + "MB" : (m.alt_text || "") + " " + m.width + "×" + m.height }, [
+        video
+          ? el("video", { src: m.url + "#t=0.5", preload: "metadata", muted: "", playsinline: "", width: "160", height: "120", "aria-label": m.alt_text || "동영상" })
+          : el("img", { src: thumbOf(m), alt: m.alt_text || "", loading: "lazy", width: "160", height: "120" })
       ]);
       b.addEventListener("click", function () {
         picked = m.url;
@@ -84,14 +124,14 @@
     var page = 1;
     var load = function () {
       more.disabled = true;
-      status.textContent = "그림을 불러오는 중…";
-      fetch("/admin/editor/media?page=" + page, { credentials: "same-origin", headers: { "x-csrf-token": opts.csrf || "" } })
+      status.textContent = noun + " 목록을 불러오는 중…";
+      fetch("/admin/editor/media?page=" + page + (video ? "&kind=video" : ""), { credentials: "same-origin", headers: { "x-csrf-token": opts.csrf || "" } })
         .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
         .then(function (res) {
-          if (!res.ok) throw new Error((res.j.error && res.j.error.message) || "그림 목록을 받지 못했습니다");
+          if (!res.ok) throw new Error((res.j.error && res.j.error.message) || noun + " 목록을 받지 못했습니다");
           var items = res.j.data.items || [];
           items.forEach(function (m) { if (!byUrl[m.url]) card(m); });
-          status.textContent = grid.children.length ? "" : "아직 올린 그림이 없습니다. 위에서 올려 주세요.";
+          status.textContent = grid.children.length ? "" : "아직 올린 " + noun + "이 없습니다. 위에서 올려 주세요.";
           more.hidden = !res.j.data.more;
           more.disabled = false;
           page += 1;
@@ -102,17 +142,20 @@
     more.addEventListener("click", load);
     var upload = function (f) {
       if (!f) return;
-      if (!/^image\/(jpeg|png|gif|webp)$/.test(f.type)) { status.textContent = "jpg·png·gif·webp 그림만 올릴 수 있습니다."; return; }
+      if (video ? !/^video\/(mp4|webm)$/.test(f.type) : !/^image\/(jpeg|png|gif|webp)$/.test(f.type)) {
+        status.textContent = video ? "mp4·webm 동영상만 올릴 수 있습니다." : "jpg·png·gif·webp 그림만 올릴 수 있습니다.";
+        return;
+      }
       upBtn.disabled = true;
       status.textContent = "「" + f.name + "」 올리는 중…";
-      fetch("/admin/media?filename=" + encodeURIComponent(f.name), {
+      (video ? uploadVideo(f, opts.csrf || "", status) : fetch("/admin/media?filename=" + encodeURIComponent(f.name), {
         method: "POST", body: f, credentials: "same-origin", headers: { "x-csrf-token": opts.csrf || "" }
-      }).then(function (r) { return r.json(); }).then(function (j) {
+      }).then(function (r) { return r.json(); })).then(function (j) {
         var m = j.data;
         if (!m || !m.url) throw new Error((j.error && j.error.message) || "올리지 못했습니다");
         card(m, true);
         picked = m.url;
-        status.textContent = "올렸습니다. 「이 그림 쓰기」를 누르세요.";
+        status.textContent = "올렸습니다. 「이 " + noun + " 쓰기」를 누르세요.";
         mark();
         if (alt) alt.focus();
       }).catch(function (e) { status.textContent = e.message; }).then(function () {

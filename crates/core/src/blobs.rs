@@ -13,6 +13,35 @@ pub trait Blobs: Send + Sync {
     async fn get(&self, path: &str) -> Result<Option<Vec<u8>>>;
     /// 없으면 아무 일도 하지 않는다.
     async fn delete(&self, path: &str) -> Result<()>;
+    /// 끝에 이어 쓴다. 없으면 만든다. 이어 쓴 뒤의 크기를 돌려준다 (나눠 올리기, ADR-0161).
+    async fn append(&self, path: &str, bytes: &[u8]) -> Result<u64> {
+        let mut all = self.get(path).await?.unwrap_or_default();
+        all.extend_from_slice(bytes);
+        self.put(path, &all).await?;
+        Ok(all.len() as u64)
+    }
+    /// 바이트 수. 없으면 `None`.
+    async fn size(&self, path: &str) -> Result<Option<u64>> {
+        Ok(self.get(path).await?.map(|b| b.len() as u64))
+    }
+    /// `start` 부터 최대 `len` 바이트 (동영상 부분 응답).
+    async fn get_range(&self, path: &str, start: u64, len: u64) -> Result<Option<Vec<u8>>> {
+        Ok(self.get(path).await?.map(|b| {
+            let s = usize::try_from(start).unwrap_or(usize::MAX).min(b.len());
+            let e = s
+                .saturating_add(usize::try_from(len).unwrap_or(usize::MAX))
+                .min(b.len());
+            b[s..e].to_vec()
+        }))
+    }
+    /// 이름을 바꾼다. 받는 쪽이 있으면 덮어쓴다.
+    async fn rename(&self, from: &str, to: &str) -> Result<()> {
+        if let Some(b) = self.get(from).await? {
+            self.put(to, &b).await?;
+            self.delete(from).await?;
+        }
+        Ok(())
+    }
 }
 
 /// 보관소 경로 규칙: 소문자·숫자·`-`·`.` 조각을 `/` 로 잇고, `.`·`..` 조각과 빈 조각은 없다.

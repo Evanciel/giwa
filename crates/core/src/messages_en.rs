@@ -259,6 +259,11 @@ pub(crate) fn lookup(key: &str) -> Option<&'static str> {
             "Only signed-in people save drafts. Agents can only read a screen's drafts."
         }
         "error.draft_body" => "A draft body must be a JSON object.",
+        "error.video_type" => "Only mp4 and webm videos can be uploaded: {filename}",
+        "error.video_too_large" => "Videos can be up to {max_mb}MB.",
+        "error.video_chunk" => "Each upload chunk can be up to {max_mb}MB.",
+        "error.video_offset" => "The upload offset does not match. Resume from byte {received}.",
+        "error.video_upload" => "Upload in progress not found: {id}. Start the upload again.",
         "error.saved_blocks_full" => {
             "You can keep up to {max} saved blocks. Delete unused ones and try again."
         }

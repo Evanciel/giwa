@@ -108,6 +108,10 @@ struct Processed {
 
 pub async fn upload(ctx: &Ctx, actor: &Actor, input: Upload) -> Result<Media> {
     actor.require(Permission::PostUpload)?;
+    // 동영상은 다시 인코딩하지 않고 머리 모양만 본다 (ADR-0161).
+    if is_video(&input.filename) {
+        return store_video(ctx, actor, input).await;
+    }
     store(ctx, actor, input).await
 }
 
@@ -282,6 +286,233 @@ pub async fn list(ctx: &Ctx, actor: &Actor, page: PageReq) -> Result<Listing<Med
         page: page.page,
         per_page: page.per_page,
     })
+}
+
+/// 그림·동영상 가운데 하나만 보는 목록 (ADR-0161). 그림 고르기 창은 그림만, 동영상 고르기 창은 동영상만 본다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum MediaKind {
+    Image,
+    Video,
+}
+
+pub async fn list_of(
+    ctx: &Ctx,
+    actor: &Actor,
+    kind: MediaKind,
+    page: PageReq,
+) -> Result<Listing<Media>> {
+    actor.require(Permission::PostUpload)?;
+    let prefix = match kind {
+        MediaKind::Image => "image/",
+        MediaKind::Video => "video/",
+    };
+    let total = ctx.store.count_media_of(prefix).await?;
+    let items = ctx
+        .store
+        .list_media_of(prefix, page.limit(), page.offset())
+        .await?;
+    Ok(Listing {
+        items,
+        total,
+        page: page.page,
+        per_page: page.per_page,
+    })
+}
+
+// ---- 동영상 (ADR-0161) ----
+// 다시 인코딩하지 않는다(서버에 코덱을 두지 않는다). 확장자와 파일 머리 모양이 둘 다 맞아야 받는다.
+// 큰 파일은 요청 한 번의 상한·시간 제한에 걸리므로 조각으로 나눠 올린다: begin → append(여러 번) → finish.
+
+/// 동영상 한 건의 최대 크기.
+pub const MAX_VIDEO_BYTES: u64 = 200 * 1024 * 1024;
+/// 나눠 올리는 한 조각의 최대 크기. 업로드 경로 본문 상한 안이다.
+pub const VIDEO_CHUNK_BYTES: usize = 8 * 1024 * 1024;
+
+/// 나눠 올리기 상태. `received` 부터 이어서 보내면 된다(끊겼다가 다시 해도 같다).
+#[derive(Debug, Clone, Serialize, JsonSchema)]
+pub struct VideoUpload {
+    pub id: String,
+    pub received: u64,
+    pub max_bytes: u64,
+    pub chunk_bytes: usize,
+}
+
+/// 동영상 확장자 → (저장 확장자, MIME).
+fn video_type(filename: &str) -> Option<(&'static str, &'static str)> {
+    let ext = filename.rsplit_once('.')?.1.to_ascii_lowercase();
+    match ext.as_str() {
+        "mp4" | "m4v" => Some(("mp4", "video/mp4")),
+        "webm" => Some(("webm", "video/webm")),
+        _ => None,
+    }
+}
+
+/// 동영상 확장자인가.
+pub fn is_video(filename: &str) -> bool {
+    video_type(filename).is_some()
+}
+
+/// 파일 머리가 확장자와 맞는가. mp4 는 4번째 바이트부터 `ftyp`, webm 은 EBML 머리.
+fn video_head_ok(ext: &str, head: &[u8]) -> bool {
+    match ext {
+        "mp4" => head.len() >= 8 && &head[4..8] == b"ftyp",
+        "webm" => head.starts_with(&[0x1A, 0x45, 0xDF, 0xA3]),
+        _ => false,
+    }
+}
+
+fn video_tmp(id: &str) -> Result<String> {
+    if id.len() < 10
+        || id.len() > 40
+        || !id
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
+    {
+        return Err(Error::new(Code::NotFound)
+            .with_message("error.video_upload")
+            .arg("id", id.chars().take(40).collect::<String>()));
+    }
+    Ok(format!("tmp/{id}.part"))
+}
+
+fn not_video(filename: &str) -> Error {
+    Error::new(Code::Validation)
+        .with_message("error.video_type")
+        .arg("filename", filename.chars().take(80).collect::<String>())
+}
+
+fn video_too_large() -> Error {
+    Error::new(Code::Validation)
+        .with_message("error.video_too_large")
+        .arg("max_mb", (MAX_VIDEO_BYTES / 1024 / 1024).to_string())
+}
+
+/// 나눠 올리기를 연다. 파일은 첫 조각이 올 때 생긴다.
+pub async fn video_begin(_ctx: &Ctx, actor: &Actor, filename: &str) -> Result<VideoUpload> {
+    actor.require(Permission::PostUpload)?;
+    video_type(filename).ok_or_else(|| not_video(filename))?;
+    Ok(VideoUpload {
+        id: clock::new_id(),
+        received: 0,
+        max_bytes: MAX_VIDEO_BYTES,
+        chunk_bytes: VIDEO_CHUNK_BYTES,
+    })
+}
+
+/// 조각 하나를 잇는다. 이미 받은 부분을 다시 보내면(끊긴 뒤 다시 보내기) 받은 만큼 건너뛴다.
+/// `offset` 이 받은 크기보다 뒤면 빈틈이 생기므로 409 와 받은 크기를 알린다.
+pub async fn video_append(
+    ctx: &Ctx,
+    actor: &Actor,
+    id: &str,
+    offset: u64,
+    bytes: &[u8],
+) -> Result<VideoUpload> {
+    actor.require(Permission::PostUpload)?;
+    let tmp = video_tmp(id)?;
+    let have = ctx.blobs.size(&tmp).await?.unwrap_or(0);
+    let state = |received| VideoUpload {
+        id: id.to_owned(),
+        received,
+        max_bytes: MAX_VIDEO_BYTES,
+        chunk_bytes: VIDEO_CHUNK_BYTES,
+    };
+    if offset > have {
+        return Err(Error::new(Code::Conflict)
+            .with_message("error.video_offset")
+            .arg("received", have.to_string()));
+    }
+    let skip = usize::try_from(have - offset).unwrap_or(usize::MAX);
+    if skip >= bytes.len() {
+        return Ok(state(have));
+    }
+    let bytes = &bytes[skip..];
+    if bytes.len() > VIDEO_CHUNK_BYTES {
+        return Err(Error::new(Code::Validation)
+            .with_message("error.video_chunk")
+            .arg("max_mb", (VIDEO_CHUNK_BYTES / 1024 / 1024).to_string()));
+    }
+    if have + bytes.len() as u64 > MAX_VIDEO_BYTES {
+        ctx.blobs.delete(&tmp).await?;
+        return Err(video_too_large());
+    }
+    let received = ctx.blobs.append(&tmp, bytes).await?;
+    Ok(state(received))
+}
+
+/// 다 올린 동영상을 보관함에 넣는다. 머리 모양이 맞지 않으면 올린 조각을 지우고 거절한다.
+pub async fn video_finish(
+    ctx: &Ctx,
+    actor: &Actor,
+    id: &str,
+    filename: &str,
+    alt_text: Option<String>,
+) -> Result<Media> {
+    actor.require(Permission::PostUpload)?;
+    let tmp = video_tmp(id)?;
+    let alt_text = alt(alt_text)?;
+    let (ext, mime) = video_type(filename).ok_or_else(|| not_video(filename))?;
+    let Some(size) = ctx.blobs.size(&tmp).await? else {
+        return Err(Error::new(Code::NotFound)
+            .with_message("error.video_upload")
+            .arg("id", id.to_owned()));
+    };
+    let head = ctx.blobs.get_range(&tmp, 0, 16).await?.unwrap_or_default();
+    if size == 0 || !video_head_ok(ext, &head) {
+        ctx.blobs.delete(&tmp).await?;
+        return Err(not_video(filename));
+    }
+    let media_id = clock::new_id();
+    let now = clock::now();
+    let path = format!("{}/{}/{media_id}.{ext}", &now[0..4], &now[5..7]);
+    ctx.blobs.rename(&tmp, &path).await?;
+    let media = Media {
+        id: media_id,
+        url: urls::media(&path),
+        path: path.clone(),
+        mime: mime.to_owned(),
+        size: i64::try_from(size).unwrap_or(i64::MAX),
+        width: 0,
+        height: 0,
+        alt_text,
+        variants: Vec::new(),
+        created_at: now.clone(),
+        updated_at: now,
+    };
+    let saved = async {
+        let mut tx = Tx::begin(ctx).await?;
+        tx.insert_media(&media).await?;
+        tx.audit(
+            actor,
+            "media.upload",
+            Target::new("media", &media.id),
+            audit::diff(None, Some(&media)),
+        )
+        .await?;
+        tx.commit().await
+    }
+    .await;
+    if let Err(e) = saved {
+        let _ = ctx.blobs.delete(&path).await;
+        return Err(e);
+    }
+    Ok(media)
+}
+
+/// 한 번에 올리기 (CLI·이미 다 읽은 파일). 나눠 올리기와 같은 검사·저장을 거친다.
+pub async fn store_video(ctx: &Ctx, actor: &Actor, input: Upload) -> Result<Media> {
+    let up = video_begin(ctx, actor, &input.filename).await?;
+    if input.bytes.len() as u64 > MAX_VIDEO_BYTES {
+        return Err(video_too_large());
+    }
+    let tmp = video_tmp(&up.id)?;
+    ctx.blobs.put(&tmp, &input.bytes).await?;
+    let out = video_finish(ctx, actor, &up.id, &input.filename, input.alt_text).await;
+    if out.is_err() {
+        let _ = ctx.blobs.delete(&tmp).await;
+    }
+    out
 }
 
 /// 한 글에서 크기·축소본을 찾아 보는 그림 수. 나머지는 정보 없이 그린다.

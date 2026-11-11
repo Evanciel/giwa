@@ -26,6 +26,7 @@ Structure, design and module changes go through changesets: stage, preview URL, 
 - `maru design gallery [id]` (REST `/api/v1/designs`, MCP `list_designs`): preset home blocks + tokens to place via a changeset
 - `maru widget saved list|save|delete` (REST `/api/v1/saved-blocks`, MCP `list_saved_blocks`/`save_block`): reusable block library, saved directly (not visitor-facing); place copies via `widget.place` in a changeset
 - `maru page edit <slug> --description --share-image --noindex true|false`: per-page search description, share image, noindex (empty = body excerpt / site share image)
+- `maru media upload <file.mp4|webm>` (<=200MB, not re-encoded); large files: REST `POST /api/v1/media/videos` → `PUT /api/v1/media/videos/{id}?offset=N` (8MB chunks, idempotent resend, gap = 409) → `POST …/{id}/finish`; `media list --kind video`; posts `::video[/media/….mp4]{loop muted autoplay}`; video section `url` + `loop_muted`
 
 ## MCP
 

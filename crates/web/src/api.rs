@@ -124,6 +124,12 @@ pub fn routes() -> Router<AppState> {
             get(get_media).patch(update_media).delete(delete_media),
         )
         .route("/media/{id}/transform", post(transform_media))
+        .route("/media/videos", post(begin_video))
+        .route(
+            "/media/videos/{id}",
+            axum::routing::put(append_video).layer(crate::upload_limit()),
+        )
+        .route("/media/videos/{id}/finish", post(finish_video))
         .route(
             "/files",
             get(list_files)
@@ -948,10 +954,62 @@ async fn upload_media(
     Ok(ok(StatusCode::CREATED, m))
 }
 
+/// 동영상 나눠 올리기 (ADR-0161): 열기 → 조각(`PUT ?offset=`) 여러 번 → 마치기. 10MB 이하는 `POST /media` 한 번으로도 된다.
+#[derive(Debug, Deserialize)]
+struct VideoBeginBody {
+    filename: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct VideoFinishBody {
+    filename: String,
+    #[serde(default)]
+    alt: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct VideoChunkQuery {
+    offset: u64,
+}
+
+async fn begin_video(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    body: Result<Json<VideoBeginBody>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let Json(input) = body.map_err(bad_json)?;
+    let up = media::video_begin(&state.ctx, &actor, &input.filename).await?;
+    Ok(ok(StatusCode::CREATED, up))
+}
+
+async fn append_video(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(id): Path<String>,
+    Query(q): Query<VideoChunkQuery>,
+    body: Bytes,
+) -> Result<Response, ApiError> {
+    let up = media::video_append(&state.ctx, &actor, &id, q.offset, &body).await?;
+    Ok(ok(StatusCode::OK, up))
+}
+
+async fn finish_video(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(id): Path<String>,
+    body: Result<Json<VideoFinishBody>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let Json(input) = body.map_err(bad_json)?;
+    let m = media::video_finish(&state.ctx, &actor, &id, &input.filename, input.alt).await?;
+    Ok(ok(StatusCode::CREATED, m))
+}
+
 #[derive(Debug, Deserialize)]
 struct MediaListQuery {
     page: Option<u32>,
     per_page: Option<u32>,
+    /// image | video. 없으면 둘 다
+    kind: Option<media::MediaKind>,
 }
 
 async fn list_media(
@@ -962,7 +1020,10 @@ async fn list_media(
     let page = PageReq::new(q.page.unwrap_or(1), q.per_page.unwrap_or(20));
     Ok(ok(
         StatusCode::OK,
-        media::list(&state.ctx, &actor, page).await?,
+        match q.kind {
+            Some(kind) => media::list_of(&state.ctx, &actor, kind, page).await?,
+            None => media::list(&state.ctx, &actor, page).await?,
+        },
     ))
 }
 

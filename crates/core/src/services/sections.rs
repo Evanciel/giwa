@@ -41,7 +41,7 @@ pub const KINDS: [(&str, &str, &str); 20] = [
     ("team", "구성원", "사람 사진·이름·역할"),
     ("image_text", "그림과 글", "그림 한 장과 글을 나란히"),
     // ADR-0156
-    ("video", "동영상", "유튜브·비메오 동영상 하나와 설명"),
+    ("video", "동영상", "유튜브·비메오나 올린 동영상 하나와 설명"),
     (
         "gallery",
         "사진 전시",
@@ -536,8 +536,11 @@ pub struct ImageTextConfig {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct VideoConfig {
-    /// 유튜브·비메오 주소
+    /// 유튜브·비메오 주소, 또는 올린 mp4·webm 동영상(/media/…)
     pub url: String,
+    /// 올린 동영상을 소리 없이 저절로 되풀이 (움직이는 배경처럼). 유튜브·비메오에는 쓰지 않는다
+    #[serde(default)]
+    pub loop_muted: bool,
     /// 동영상 아래 설명, 300자
     #[serde(default)]
     pub text: String,
@@ -1190,8 +1193,11 @@ fn check_kind(kind: &str, config: Value) -> Result<Value> {
         "video" => {
             let mut c: VideoConfig = parse(kind, config)?;
             required(kind, "url", &mut c.url, 300)?;
-            if directives::video_embed(&c.url).is_none() {
-                return Err(bad_config(kind, "url 은 유튜브·비메오 주소만 받습니다"));
+            if directives::video_embed(&c.url).is_none() && !directives::local_video(&c.url) {
+                return Err(bad_config(
+                    kind,
+                    "url 은 유튜브·비메오 주소나 올린 동영상(/media/…mp4·webm)만 받습니다",
+                ));
             }
             text(kind, "text", &mut c.text, 300)?;
             c.ratio = c.ratio.trim().to_owned();
@@ -1322,6 +1328,13 @@ mod tests {
         let v = ok("video", json!({ "url": "https://youtu.be/dQw4w9WgXcQ" }));
         assert_eq!(v["ratio"], "16x9");
         assert!(bad("video", json!({ "url": "https://example.com/a.mp4" })));
+        let f = ok(
+            "video",
+            json!({ "url": "/media/2026/11/abc.mp4", "loop_muted": true }),
+        );
+        assert_eq!(f["loop_muted"], true);
+        assert!(bad("video", json!({ "url": "/media/tmp/abc.part" })));
+        assert!(bad("video", json!({ "url": "/media/../a.mp4" })));
         assert!(bad(
             "video",
             json!({ "url": "https://youtu.be/dQw4w9WgXcQ", "ratio": "21x9" })

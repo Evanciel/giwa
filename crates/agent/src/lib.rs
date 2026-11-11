@@ -682,7 +682,7 @@ const SPECS: &[Spec] = &[
     },
     Spec {
         name: "list_media",
-        description: "올린 이미지 목록을 본다. List uploaded images.",
+        description: "올린 이미지·동영상 목록을 본다. List uploaded images and videos.",
         permission: Permission::PostUpload,
         read_only: true,
         untrusted: false,
@@ -690,7 +690,7 @@ const SPECS: &[Spec] = &[
     },
     Spec {
         name: "upload_media",
-        description: "이미지를 올린다. 공개 주소가 생기므로 사용자 사진은 동의를 받고 올린다. Upload an image.",
+        description: "이미지나 mp4·webm 동영상을 올린다. 큰 동영상은 REST 나눠 올리기(/api/v1/media/videos)를 쓴다. 공개 주소가 생기므로 사용자 사진·영상은 동의를 받고 올린다. Upload an image or a video.",
         permission: Permission::PostUpload,
         read_only: false,
         untrusted: false,

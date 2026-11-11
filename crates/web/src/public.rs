@@ -1566,16 +1566,26 @@ async fn asset(State(state): State<AppState>, Path(path): Path<String>) -> Respo
     }
 }
 
-/// 업로드한 이미지. 파일 이름에 ID 가 들어 있어 내용이 바뀌지 않으므로 오래 캐시한다.
+/// 업로드한 이미지·동영상. 파일 이름에 ID 가 들어 있어 내용이 바뀌지 않으므로 오래 캐시한다.
 /// 확장자로 정한 형식만 내보내고, 보관소 경로 규칙에 맞지 않으면 파일 시스템을 보지 않는다.
-async fn media_file(State(state): State<AppState>, Path(path): Path<String>) -> Response {
-    let mime = match path.rsplit_once('.').map(|(_, e)| e) {
-        Some("jpg") => "image/jpeg",
-        Some("png") => "image/png",
+/// 동영상은 `Range` 요청에 `206` 으로 그 부분만 보낸다(ADR-0161). 큰 파일을 통째로 읽지 않는다.
+async fn media_file(
+    State(state): State<AppState>,
+    Path(path): Path<String>,
+    headers: HeaderMap,
+) -> Response {
+    let (mime, video) = match path.rsplit_once('.').map(|(_, e)| e) {
+        Some("jpg") => ("image/jpeg", false),
+        Some("png") => ("image/png", false),
+        Some("mp4") => ("video/mp4", true),
+        Some("webm") => ("video/webm", true),
         _ => return (StatusCode::NOT_FOUND, "not found").into_response(),
     };
-    if !blobs::valid_path(&path) {
+    if !blobs::valid_path(&path) || path.starts_with("tmp/") {
         return (StatusCode::NOT_FOUND, "not found").into_response();
+    }
+    if video {
+        return video_file(&state, &path, mime, &headers).await;
     }
     match state.ctx.blobs.get(&path).await {
         Ok(Some(bytes)) => (
@@ -1595,6 +1605,143 @@ async fn media_file(State(state): State<AppState>, Path(path): Path<String>) -> 
             tracing::error!(error = ?e, "미디어 파일 읽기 실패");
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
+    }
+}
+
+/// 범위 요청 하나에 보내는 동영상 부분의 최대 크기. 브라우저는 나머지를 이어서 다시 묻는다.
+const VIDEO_PART: u64 = 4 * 1024 * 1024;
+
+/// `Range: bytes=a-b` 하나만 읽는다(여러 구간은 받지 않는다). `None` 은 머리가 없거나 모르는 모양.
+fn byte_range(headers: &HeaderMap, total: u64) -> Option<Result<(u64, u64), ()>> {
+    let v = headers.get(header::RANGE)?.to_str().ok()?;
+    let spec = v.trim().strip_prefix("bytes=")?;
+    if spec.contains(',') {
+        return None;
+    }
+    let (a, b) = spec.split_once('-')?;
+    let (start, end) = match (a.trim(), b.trim()) {
+        ("", "") => return None,
+        // 끝에서 n 바이트
+        ("", n) => {
+            let n = n.parse::<u64>().ok()?;
+            (total.saturating_sub(n), total.saturating_sub(1))
+        }
+        (s, "") => (s.parse::<u64>().ok()?, total.saturating_sub(1)),
+        (s, e) => (
+            s.parse::<u64>().ok()?,
+            e.parse::<u64>().ok()?.min(total.saturating_sub(1)),
+        ),
+    };
+    if total == 0 || start >= total || start > end {
+        return Some(Err(()));
+    }
+    Some(Ok((start, end)))
+}
+
+async fn video_file(
+    state: &AppState,
+    path: &str,
+    mime: &'static str,
+    headers: &HeaderMap,
+) -> Response {
+    let total = match state.ctx.blobs.size(path).await {
+        Ok(Some(n)) => n,
+        Ok(None) => return (StatusCode::NOT_FOUND, "not found").into_response(),
+        Err(e) => {
+            tracing::error!(error = ?e, "동영상 파일 읽기 실패");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let common = [
+        (header::CONTENT_TYPE, mime.to_owned()),
+        (header::ACCEPT_RANGES, "bytes".to_owned()),
+        (
+            header::CACHE_CONTROL,
+            "public, max-age=31536000, immutable".to_owned(),
+        ),
+        (
+            header::CONTENT_SECURITY_POLICY,
+            "default-src 'none'; sandbox".to_owned(),
+        ),
+    ];
+    let (start, end) = match byte_range(headers, total) {
+        Some(Err(())) => {
+            return (
+                StatusCode::RANGE_NOT_SATISFIABLE,
+                [(header::CONTENT_RANGE, format!("bytes */{total}"))],
+            )
+                .into_response();
+        }
+        // 구간을 다 주지 않고 앞부분만 준다. `Content-Range` 가 실제로 보낸 구간을 알린다.
+        Some(Ok((s, e))) => (s, e.min(s + VIDEO_PART - 1)),
+        // 범위 없는 요청(내려받기 링크 등)은 파일 전체를 조각조각 흘려보낸다. 통째로 읽지 않는다.
+        None => {
+            let mut res =
+                (StatusCode::OK, common, video_stream(state, path, total)).into_response();
+            res.headers_mut()
+                .insert(header::CONTENT_LENGTH, HeaderValue::from(total));
+            return res;
+        }
+    };
+    let bytes = match state
+        .ctx
+        .blobs
+        .get_range(path, start, end - start + 1)
+        .await
+    {
+        Ok(Some(b)) => b,
+        Ok(None) => return (StatusCode::NOT_FOUND, "not found").into_response(),
+        Err(e) => {
+            tracing::error!(error = ?e, "동영상 파일 읽기 실패");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let mut res = (StatusCode::PARTIAL_CONTENT, common, bytes).into_response();
+    if let Ok(v) = HeaderValue::from_str(&format!("bytes {start}-{end}/{total}")) {
+        res.headers_mut().insert(header::CONTENT_RANGE, v);
+    }
+    res
+}
+
+/// 파일을 `VIDEO_PART` 씩 읽어 보내는 흐름. 받는 쪽이 느리면 두 조각 넘게 앞서 읽지 않는다.
+fn video_stream(state: &AppState, path: &str, total: u64) -> axum::body::Body {
+    let (tx, rx) = tokio::sync::mpsc::channel(2);
+    let ctx = state.ctx.clone();
+    let path = path.to_owned();
+    tokio::spawn(async move {
+        let mut at = 0;
+        while at < total {
+            let item = match ctx
+                .blobs
+                .get_range(&path, at, VIDEO_PART.min(total - at))
+                .await
+            {
+                Ok(Some(b)) if !b.is_empty() => Ok(axum::body::Bytes::from(b)),
+                Ok(_) => Err(std::io::Error::from(std::io::ErrorKind::UnexpectedEof)),
+                Err(e) => Err(std::io::Error::other(e.to_string())),
+            };
+            let stop = item.is_err();
+            if let Ok(b) = &item {
+                at += b.len() as u64;
+            }
+            if tx.send(item).await.is_err() || stop {
+                break;
+            }
+        }
+    });
+    axum::body::Body::from_stream(Pieces(rx))
+}
+
+struct Pieces(tokio::sync::mpsc::Receiver<std::io::Result<axum::body::Bytes>>);
+
+impl futures_core::Stream for Pieces {
+    type Item = std::io::Result<axum::body::Bytes>;
+
+    fn poll_next(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Self::Item>> {
+        self.0.poll_recv(cx)
     }
 }
 

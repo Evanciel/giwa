@@ -10,6 +10,10 @@ const MARU_EN = document.documentElement.lang.startsWith("en") ? {
   "내 정보": "My account",
   "다음": "Next",
   "닫기": "Close",
+  "복사": "Copy",
+  "코드 복사": "Copy code",
+  "복사했습니다": "Copied",
+  "Ctrl+C 로 복사하세요": "Press Ctrl+C to copy",
   "로그아웃": "Log out",
   "보기": "Show",
   "복사됨": "Copied",
@@ -738,6 +742,39 @@ const T = (s, n) => ((MARU_EN && MARU_EN[s]) || s).replace("{n}", n);
     if (s.getBoundingClientRect().top < innerHeight) continue;
     s.classList.add("motion-wait");
     io.observe(s);
+  }
+})();
+
+// 글 코드 블록 복사 단추 (ADR-0161). 스크립트가 있을 때만 붙고, 클립보드를 못 쓰면 글자를 골라 둔다.
+(() => {
+  const blocks = document.querySelectorAll(".prose pre > code");
+  for (const code of blocks) {
+    const pre = code.parentElement;
+    if (pre.parentElement && pre.parentElement.classList.contains("code-wrap")) continue;
+    const wrap = document.createElement("div");
+    wrap.className = "code-wrap";
+    pre.replaceWith(wrap);
+    wrap.append(pre);
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "code-copy";
+    btn.textContent = T("복사");
+    btn.setAttribute("aria-label", T("코드 복사"));
+    btn.addEventListener("click", async () => {
+      const done = (msg) => { btn.textContent = msg; setTimeout(() => { btn.textContent = T("복사"); }, 2000); };
+      try {
+        await navigator.clipboard.writeText(code.innerText);
+        done(T("복사했습니다"));
+      } catch (e) {
+        const r = document.createRange();
+        r.selectNodeContents(code);
+        const s = getSelection();
+        s.removeAllRanges();
+        s.addRange(r);
+        done(T("Ctrl+C 로 복사하세요"));
+      }
+    });
+    wrap.append(btn);
   }
 })();
 }

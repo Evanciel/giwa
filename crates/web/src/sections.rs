@@ -64,7 +64,11 @@ pub(crate) async fn view(
             data["tel"] = json!(tel);
         }
         "video" => {
-            data["embed"] = json!(directives::video_embed(data["url"].as_str().unwrap_or("")));
+            let url = data["url"].as_str().unwrap_or("").to_owned();
+            data["embed"] = json!(directives::video_embed(&url));
+            if directives::local_video(&url) {
+                data["file"] = json!(url);
+            }
         }
         "gallery" => {
             // 그림을 하나도 고르지 않은 사진 전시는 공개 화면에서 뺀다(편집 중엔 고르기 칸을 보인다).

@@ -13,7 +13,7 @@ use axum::extract::rejection::JsonRejection;
 use axum::extract::{DefaultBodyLimit, Form, Path, Query, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{Html, IntoResponse, Redirect, Response};
-use axum::routing::{get, post};
+use axum::routing::{get, post, put};
 use axum::{Router, middleware};
 use maru_core::actor::{Actor, AuthorType, Permission};
 use maru_core::clock;
@@ -61,6 +61,12 @@ pub fn routes() -> Router<AppState> {
         .route("/admin/posts/{id}", get(edit_form).post(save))
         .route("/admin/posts/{id}/{action}", post(action))
         .route("/admin/media", post(upload).layer(crate::upload_limit()))
+        .route("/admin/media/videos", post(video_begin))
+        .route(
+            "/admin/media/videos/{id}",
+            put(video_chunk).layer(crate::upload_limit()),
+        )
+        .route("/admin/media/videos/{id}/finish", post(video_finish))
         .route("/admin/media/{id}/transform", post(transform_media))
         .route(
             "/admin/files",
@@ -1998,6 +2004,69 @@ async fn upload(
         alt_text: q.alt,
     };
     let m = crate::upload_media(&state, who.actor, input).await?;
+    Ok((StatusCode::CREATED, Json(Success::new(m))).into_response())
+}
+
+/// 동영상 나눠 올리기 (ADR-0161). REST `/api/v1/media/videos` 와 같은 서비스.
+#[derive(Debug, Deserialize)]
+struct VideoBeginInput {
+    filename: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct VideoFinishInput {
+    filename: String,
+    #[serde(default)]
+    alt: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct VideoChunkQuery {
+    offset: u64,
+}
+
+fn json_body<T>(body: Result<Json<T>, JsonRejection>) -> Result<T, ApiError> {
+    body.map(|Json(v)| v).map_err(|e| {
+        ApiError(
+            Error::new(Code::Validation)
+                .with_message("error.json_body")
+                .arg("detail", e.body_text()),
+        )
+    })
+}
+
+async fn video_begin(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    body: Result<Json<VideoBeginInput>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let who = json_session(&state, &headers).await?;
+    let input = json_body(body)?;
+    let up = media::video_begin(&state.ctx, &who.actor, &input.filename).await?;
+    Ok((StatusCode::CREATED, Json(Success::new(up))).into_response())
+}
+
+async fn video_chunk(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Query(q): Query<VideoChunkQuery>,
+    body: Bytes,
+) -> Result<Response, ApiError> {
+    let who = json_session(&state, &headers).await?;
+    let up = media::video_append(&state.ctx, &who.actor, &id, q.offset, &body).await?;
+    Ok(Json(Success::new(up)).into_response())
+}
+
+async fn video_finish(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    body: Result<Json<VideoFinishInput>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let who = json_session(&state, &headers).await?;
+    let input = json_body(body)?;
+    let m = media::video_finish(&state.ctx, &who.actor, &id, &input.filename, input.alt).await?;
     Ok((StatusCode::CREATED, Json(Success::new(m))).into_response())
 }
 

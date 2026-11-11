@@ -1854,6 +1854,30 @@ impl Store for SqliteStore {
             .map_err(db_error)
     }
 
+    async fn list_media_of(&self, prefix: &str, limit: i64, offset: i64) -> Result<Vec<Media>> {
+        let like = format!("{prefix}%");
+        let rows = sqlx::query_as!(
+            MediaRow,
+            "SELECT id, path, mime, size, width, height, alt_text, variants, created_at, updated_at
+             FROM media WHERE mime LIKE ? ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?",
+            like,
+            limit,
+            offset
+        )
+        .fetch_all(&self.db.read)
+        .await
+        .map_err(db_error)?;
+        convert(rows)
+    }
+
+    async fn count_media_of(&self, prefix: &str) -> Result<i64> {
+        let like = format!("{prefix}%");
+        sqlx::query_scalar!("SELECT COUNT(*) FROM media WHERE mime LIKE ?", like)
+            .fetch_one(&self.db.read)
+            .await
+            .map_err(db_error)
+    }
+
     async fn categories_of_board(&self, board_id: &str) -> Result<Vec<Category>> {
         categories_of_board(&self.db.read, board_id).await
     }

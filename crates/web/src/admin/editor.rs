@@ -918,6 +918,9 @@ async fn frame_post(
 struct MediaQuery {
     #[serde(default = "first_page")]
     page: u32,
+    /// 그림 고르기는 그림만, 동영상 고르기는 동영상만 (ADR-0161). 없으면 그림.
+    #[serde(default)]
+    kind: Option<media::MediaKind>,
 }
 
 fn first_page() -> u32 {
@@ -934,7 +937,14 @@ async fn media_list(
     Query(q): Query<MediaQuery>,
 ) -> Result<Response, ApiError> {
     let who = json_session(&state, &headers).await?;
-    let list = media::list(&state.ctx, &who.actor, PageReq::new(q.page, MEDIA_PER_PAGE)).await?;
+    let kind = q.kind.unwrap_or(media::MediaKind::Image);
+    let list = media::list_of(
+        &state.ctx,
+        &who.actor,
+        kind,
+        PageReq::new(q.page, MEDIA_PER_PAGE),
+    )
+    .await?;
     let shown =
         i64::from(list.page.saturating_sub(1)) * i64::from(list.per_page) + list.items.len() as i64;
     Ok(Json(Success::new(json!({

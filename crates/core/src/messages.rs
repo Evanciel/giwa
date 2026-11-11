@@ -311,6 +311,13 @@ fn lookup_ko(key: &str) -> Option<&'static str> {
             "초안은 로그인한 사람만 저장합니다. 에이전트는 화면의 초안을 읽기만 합니다."
         }
         "error.draft_body" => "초안 본문은 JSON 객체여야 합니다.",
+        "error.video_type" => "동영상은 mp4·webm 파일만 올릴 수 있습니다: {filename}",
+        "error.video_too_large" => "동영상은 {max_mb}MB 까지 올릴 수 있습니다.",
+        "error.video_chunk" => "한 번에 보내는 조각은 {max_mb}MB 까지입니다.",
+        "error.video_offset" => {
+            "이어 올릴 자리가 맞지 않습니다. 받은 크기 {received} 바이트부터 다시 보내세요."
+        }
+        "error.video_upload" => "올리던 동영상을 찾지 못했습니다: {id}. 처음부터 다시 올리세요.",
         "error.saved_blocks_full" => {
             "내 블록은 {max}개까지 저장합니다. 안 쓰는 것을 지운 뒤 다시 저장하세요."
         }

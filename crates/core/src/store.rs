@@ -446,6 +446,9 @@ pub trait Store: Send + Sync {
     /// 최근 것부터.
     async fn list_media(&self, limit: i64, offset: i64) -> Result<Vec<Media>>;
     async fn count_media(&self) -> Result<i64>;
+    /// MIME 이 `prefix` 로 시작하는 것만 (`image/`·`video/`, ADR-0161).
+    async fn list_media_of(&self, prefix: &str, limit: i64, offset: i64) -> Result<Vec<Media>>;
+    async fn count_media_of(&self, prefix: &str) -> Result<i64>;
     /// 예약 시각이 지났고 아직 공개되지 않은 글 ID (오래된 예약부터).
     async fn due_posts(&self, now: &str, limit: i64) -> Result<Vec<String>>;
 

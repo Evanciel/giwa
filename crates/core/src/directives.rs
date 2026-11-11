@@ -92,7 +92,7 @@ fn build_classes() -> Vec<(&'static str, Vec<String>)> {
         .iter()
         .flat_map(|(_, prefix, values)| values.iter().map(move |v| format!("{prefix}-{v}")))
         .collect();
-    divs.extend(["video", "place", "link-card"].map(str::to_owned));
+    divs.extend(["video", "video-file", "place", "link-card"].map(str::to_owned));
     spans.extend(["place-addr", "place-links"].map(str::to_owned));
     vec![
         ("div", divs),
@@ -309,6 +309,12 @@ fn leaf_at(lines: &[&str], fenced: &[bool], start: usize, end: usize, i: usize) 
     }
     let (kind, label, value) = parse_leaf(lines[i])?;
     match kind {
+        // 올린 동영상. 정화 뒤 [`embed_videos`] 가 `<video>` 로 바꾼다. 글자에는 재생 선택지만 둔다.
+        "video" if local_video(label.trim()) => Some(format!(
+            "<div class=\"video video-file\"><a href=\"{}\">{}</a></div>",
+            label.trim(),
+            video_flags(value)
+        )),
         // 정화 단계는 iframe 을 받지 않는다. 링크로 두었다가 정화 뒤 [`embed_videos`] 가 재생기로 바꾼다.
         "video" if value.is_none() => video_embed(label)
             .map(|src| format!("<div class=\"video\"><a href=\"{src}\">동영상 보기</a></div>")),
@@ -404,9 +410,47 @@ pub fn video_embed(url: &str) -> Option<String> {
     }
 }
 
+/// 정화를 마친 HTML 에서 올린 동영상 상자의 링크를 `<video>` 로 바꾼다 (ADR-0161).
+fn embed_video_files(html: &str) -> Cow<'_, str> {
+    const OPEN: &str = "<div class=\"video video-file\"><a href=\"";
+    const CLOSE: &str = "</a></div>";
+    if !html.contains(OPEN) {
+        return Cow::Borrowed(html);
+    }
+    let mut out = String::with_capacity(html.len() + 128);
+    let mut rest = html;
+    while let Some(at) = rest.find(OPEN) {
+        out.push_str(&rest[..at]);
+        let after = &rest[at + OPEN.len()..];
+        let parsed = after.split_once('"').and_then(|(src, tail)| {
+            let end = tail.find(CLOSE)?;
+            let inner = &tail[..end];
+            let text = &inner[inner.find('>')? + 1..];
+            if text.contains('<') {
+                return None;
+            }
+            video_tag(src, text).map(|tag| (tag, tail.len() - end - CLOSE.len()))
+        });
+        match parsed {
+            Some((tag, remain)) => {
+                out.push_str(&tag);
+                rest = &rest[rest.len() - remain..];
+            }
+            None => {
+                out.push_str(OPEN);
+                rest = after;
+            }
+        }
+    }
+    out.push_str(rest);
+    Cow::Owned(out)
+}
+
 /// 정화를 마친 HTML 에서 동영상 상자의 링크를 재생기로 바꾼다.
 /// 주소가 [`video_embed`] 가 만드는 모양일 때만 바꾸고, 재생기 HTML 은 여기서만 만든다.
 pub fn embed_videos(html: &str) -> String {
+    let files = embed_video_files(html);
+    let html = files.as_ref();
     const OPEN: &str = "<div class=\"video\"><a href=\"";
     const CLOSE: &str = "</a></div>";
     if !html.contains(OPEN) {
@@ -439,6 +483,56 @@ pub fn embed_videos(html: &str) -> String {
     }
     out.push_str(rest);
     out
+}
+
+// ---- 올린 동영상: `::video[/media/…mp4]{loop muted autoplay}` (ADR-0161) ----
+
+/// 올린 동영상 주소: `/media/` 아래 보관소 경로 규칙에 맞는 `.mp4`·`.webm`.
+pub fn local_video(src: &str) -> bool {
+    src.strip_prefix("/media/").is_some_and(|p| {
+        crate::blobs::valid_path(p)
+            && !p.starts_with("tmp/")
+            && (p.ends_with(".mp4") || p.ends_with(".webm"))
+    })
+}
+
+/// 재생 선택지. 아는 낱말만 남기고 순서를 고정한다. 자동 재생이면 소리를 끈다(브라우저도 그래야 재생한다).
+fn video_flags(value: Option<&str>) -> String {
+    let words: Vec<&str> = value.unwrap_or("").split_whitespace().collect();
+    let has = |w: &str| words.contains(&w);
+    let autoplay = has("autoplay");
+    let mut out = Vec::new();
+    if has("loop") {
+        out.push("loop");
+    }
+    if autoplay || has("muted") {
+        out.push("muted");
+    }
+    if autoplay {
+        out.push("autoplay");
+    }
+    out.join(" ")
+}
+
+/// 정화 뒤 올린 동영상 상자를 `<video>` 로. 링크 글자에 담긴 선택지는 [`video_flags`] 가 만든 것만 받는다.
+fn video_tag(src: &str, flags: &str) -> Option<String> {
+    if !local_video(src) {
+        return None;
+    }
+    let mut attrs = String::new();
+    for w in flags.split_whitespace() {
+        match w {
+            "loop" | "muted" | "autoplay" => {
+                attrs.push(' ');
+                attrs.push_str(w);
+            }
+            _ => return None,
+        }
+    }
+    Some(format!(
+        "<div class=\"video video-file\"><video src=\"{src}\" controls preload=\"metadata\" playsinline{attrs}>\
+         <a href=\"{src}\">동영상 받기</a></video></div>"
+    ))
 }
 
 // ---- 링크 카드: `::link[주소]` (GAP E12, ADR-0084) ----
@@ -964,6 +1058,39 @@ mod tests {
         )
         .into_string();
         assert!(!s.contains("<iframe"), "{s}");
+    }
+
+    /// 올린 동영상 (ADR-0161): 보관소 주소만 `<video>` 가 되고, 자동 재생은 늘 음소거다.
+    #[test]
+    fn uploaded_videos_become_video_tags() {
+        let r = |md: &str| crate::markdown::render(md).into_string();
+        let s = r("::video[/media/2026/11/abc.mp4]");
+        assert!(
+            s.contains(
+                "<video src=\"/media/2026/11/abc.mp4\" controls preload=\"metadata\" playsinline>"
+            ),
+            "{s}"
+        );
+        let s = r("::video[/media/2026/11/abc.webm]{autoplay loop}");
+        assert!(
+            s.contains("playsinline loop muted autoplay>"),
+            "자동 재생은 음소거: {s}"
+        );
+        let s = r("::video[/media/2026/11/abc.mp4]{onload=alert(1)}");
+        assert!(s.contains("playsinline>") && !s.contains("onload"), "{s}");
+        for bad in [
+            "::video[/media/../a.mp4]",
+            "::video[/media/tmp/x.part]",
+            "::video[/media/2026/11/a.exe]",
+            "::video[https://example.com/a.mp4]",
+        ] {
+            assert!(!r(bad).contains("<video"), "{bad}");
+        }
+        // 손으로 같은 모양을 써도 선택지가 아는 낱말이 아니면 링크로 남는다.
+        let s = r(
+            "<div class=\"video video-file\"><a href=\"/media/2026/11/a.mp4\">x onerror</a></div>",
+        );
+        assert!(!s.contains("<video"), "{s}");
     }
 
     #[test]

@@ -715,7 +715,8 @@ pub struct PostListArgs {
 
 #[derive(Debug, Subcommand)]
 pub enum MediaCmd {
-    /// 이미지를 올린다 (jpg, png, gif, webp, 10MB 이하). 다시 인코딩해 위치 정보 등 메타데이터를 지운다
+    /// 이미지(jpg, png, gif, webp, 10MB 이하. 다시 인코딩해 위치 정보 등 메타데이터를 지운다)나
+    /// 동영상(mp4, webm, 200MB 이하. 다시 인코딩하지 않는다)을 올린다
     Upload(MediaUploadArgs),
     /// 미디어 목록 (최근 것부터)
     List {
@@ -723,6 +724,9 @@ pub enum MediaCmd {
         page: u32,
         #[arg(long, default_value_t = 20)]
         per_page: u32,
+        /// image 또는 video 만 본다
+        #[arg(long, value_parser = ["image", "video"])]
+        kind: Option<String>,
     },
     /// 미디어 하나
     Show { id: String },
