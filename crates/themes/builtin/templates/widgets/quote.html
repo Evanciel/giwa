@@ -1,0 +1,5 @@
+{# 큰 인용 (ADR-0156) #}
+<figure class="bq">
+  <blockquote class="bq-text"{{ edit_field("text") }}>{{ w.data.text }}</blockquote>
+  {% if w.data.name or w.data.role %}<figcaption class="bq-who">{% if w.data.name %}<strong{{ edit_field("name") }}>{{ w.data.name }}</strong>{% endif %}{% if w.data.name and w.data.role %} · {% endif %}{% if w.data.role %}<span{{ edit_field("role") }}>{{ w.data.role }}</span>{% endif %}</figcaption>{% endif %}
+</figure>

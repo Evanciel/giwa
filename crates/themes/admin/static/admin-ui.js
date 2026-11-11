@@ -17,14 +17,17 @@
     eyebrow: "제목 위 작은 글", lead: "머리말", value: "숫자", name: "이름", quote: "한마디", role: "역할",
     a: "답", q: "질문", note: "덧붙임", time: "시간", parking: "주차 안내", transit: "대중교통 안내",
     price: "가격", featured: "추천으로 돋보이기", features: "들어 있는 것", period: "기간", date: "날짜",
-    bio: "소개", flip: "그림을 오른쪽에", space: "위아래 여백", align: "글 정렬"
+    bio: "소개", flip: "그림을 오른쪽에", space: "위아래 여백", align: "글 정렬",
+    url: "주소", ratio: "화면 비율", mono: "흑백으로 가라앉히기", target: "목표 시각", done: "지난 뒤 보일 글",
+    service: "종류", caption: "사진 아래 글", anchor: "구역 이름"
   };
   var VALUE_LABELS = {
     tone: { plain: "기본", soft: "옅은 바탕", strong: "진한 바탕" },
     position: { center: "가운데", "bottom-left": "왼쪽 아래", "bottom-right": "오른쪽 아래" },
     location: { header: "머리글 메뉴", footer: "바닥글 메뉴" },
     space: { tight: "좁게", normal: "보통", roomy: "넓게" },
-    align: { start: "왼쪽", center: "가운데" }
+    align: { start: "왼쪽", center: "가운데" },
+    ratio: { "16x9": "가로 16:9", "4x3": "4:3", "1x1": "정사각형", "9x16": "세로(쇼츠)" }
   };
   var FIRST = ["name", "label", "q", "title", "eyebrow", "text", "lead", "body", "a", "quote", "role", "date", "value",
     "price", "board", "source", "view", "style", "limit", "days", "columns", "location", "image", "image_alt", "link",
@@ -228,7 +231,7 @@
       lb.addEventListener("click", function () {
         window.MaruLinks.open({
           link: input.value,
-          targets: { pages: self.data.pages || [], boards: self.data.boards || [] },
+          targets: { pages: self.data.pages || [], boards: self.data.boards || [], anchors: self.data.anchors },
           onPick: function (v) { input.value = v; set(v); }
         });
       });

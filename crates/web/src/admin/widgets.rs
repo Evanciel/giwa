@@ -252,13 +252,16 @@ fn scope_text(scope: &str, names: &Names<'_>) -> String {
 pub(super) fn kind_icon(kind: &str) -> &'static str {
     match kind {
         "latest_posts" | "popular_posts" | "post_tabs" => "posts",
-        "gallery_grid" | "image_banner" | "image_text" | "hero" => "image",
+        "gallery_grid" | "image_banner" | "image_text" | "hero" | "video" | "gallery" | "logos" => {
+            "image"
+        }
         "menu" => "menus",
         "search" => "eye",
         "account_box" | "team" => "members",
         "stats" => "stats",
-        "popup" | "notice_bar" => "bell",
-        "markdown_block" | "faq" | "testimonials" => "comments",
+        "popup" | "notice_bar" | "countdown" => "bell",
+        "social" => "menus",
+        "markdown_block" | "faq" | "testimonials" | "quote" => "comments",
         _ => "widgets",
     }
 }

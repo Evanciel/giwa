@@ -1,0 +1,5 @@
+{# 동영상 섹션 (ADR-0156). embed 는 서버가 유튜브·비메오 주소에서만 만든 재생기 주소다. #}
+<figure class="vid">
+  <div class="vid-frame r-{{ w.data.ratio }}">{% if w.data.embed %}<iframe src="{{ w.data.embed }}" title="{{ w.title or ("동영상"|t) }}" loading="lazy" allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>{% endif %}{% if w.edit_id %}<span class="vid-shield" aria-hidden="true"></span>{% endif %}</div>
+  {% if w.data.text %}<figcaption class="sec-note"{{ edit_field("text") }}>{{ w.data.text }}</figcaption>{% endif %}
+</figure>

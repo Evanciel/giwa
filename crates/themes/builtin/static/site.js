@@ -15,6 +15,10 @@ const MARU_EN = document.documentElement.lang.startsWith("en") ? {
   "복사됨": "Copied",
   "불러오는 중…": "Loading…",
   "빠른 보기": "Quick view",
+  "사진 크게 보기": "Enlarge photo",
+  "{n}일": "{n}d",
+  "{n}시간": "{n}h",
+  "{n}분 남았습니다": "{n}m left",
   "이전": "Previous",
   "읽지 않은 {n}개": "{n} unread",
   "자동 넘김 다시": "Resume slideshow",
@@ -636,5 +640,86 @@ const T = (s, n) => ((MARU_EN && MARU_EN[s]) || s).replace("{n}", n);
       wait = setTimeout(() => go(Math.round(strip.scrollLeft / Math.max(1, strip.clientWidth)), true), 120);
     }, { passive: true });
   }
+})();
+
+// 사진 전시 크게 보기 (ADR-0156). 같은 띠의 사진을 앞뒤로 넘긴다. 스크립트가 없으면 링크가 원본 그림을 연다.
+(() => {
+  const gals = document.querySelectorAll(".gal");
+  if (!gals.length || typeof HTMLDialogElement !== "function") return;
+  let dlg = null, list = [], at = 0;
+  const show = () => {
+    const a = list[at];
+    const img = a.querySelector("img");
+    const big = dlg.querySelector("img");
+    big.src = a.href;
+    big.alt = img ? img.alt : "";
+    const cap = a.closest("figure") && a.closest("figure").querySelector("figcaption");
+    const fc = dlg.querySelector("figcaption");
+    fc.textContent = cap ? cap.textContent : "";
+    fc.hidden = !cap;
+    dlg.querySelector("[data-n]").textContent = (at + 1) + " / " + list.length;
+    dlg.querySelectorAll("[data-step]").forEach((b) => { b.hidden = list.length < 2; });
+  };
+  const step = (d) => { at = (at + d + list.length) % list.length; show(); };
+  const make = () => {
+    dlg = document.createElement("dialog");
+    dlg.className = "lightbox";
+    dlg.setAttribute("aria-label", T("사진 크게 보기"));
+    const fig = document.createElement("figure");
+    fig.append(document.createElement("img"), document.createElement("figcaption"));
+    const bar = document.createElement("div");
+    bar.className = "lightbox-bar";
+    const btn = (label, fn, attr) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = label;
+      if (attr) b.setAttribute(attr, "");
+      b.addEventListener("click", fn);
+      return b;
+    };
+    const n = document.createElement("span");
+    n.setAttribute("data-n", "");
+    n.className = "visually-hidden";
+    n.setAttribute("aria-live", "polite");
+    bar.append(btn(T("이전"), () => step(-1), "data-step"), btn(T("닫기"), () => dlg.close()), btn(T("다음"), () => step(1), "data-step"), n);
+    dlg.append(fig, bar);
+    dlg.addEventListener("click", (ev) => { if (ev.target === dlg) dlg.close(); });
+    dlg.addEventListener("keydown", (ev) => {
+      if (ev.key === "ArrowLeft") step(-1);
+      else if (ev.key === "ArrowRight") step(1);
+    });
+    document.body.append(dlg);
+  };
+  for (const g of gals) {
+    g.addEventListener("click", (ev) => {
+      const a = ev.target.closest && ev.target.closest("a.gal-link");
+      if (!a || ev.button !== 0 || ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.altKey) return;
+      ev.preventDefault();
+      if (!dlg) make();
+      list = Array.from(g.querySelectorAll("a.gal-link"));
+      at = Math.max(0, list.indexOf(a));
+      show();
+      dlg.showModal();
+    });
+  }
+})();
+
+// 남은 날 (ADR-0156). 서버가 그린 D-day 아래에 남은 일·시간·분을 채우고 1분마다 고친다. 0 이 되면 새로 읽지 않고 멈춘다.
+(() => {
+  const boxes = document.querySelectorAll("[data-countdown]");
+  if (!boxes.length) return;
+  const tick = () => {
+    for (const box of boxes) {
+      const left = Date.parse(box.dataset.countdown) - Date.now();
+      const out = box.querySelector(".cd-left");
+      if (!out || !(left > 0)) { if (out) out.hidden = true; continue; }
+      const m = Math.floor(left / 60000);
+      const d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), mm = m % 60;
+      out.textContent = (d ? T("{n}일", d) + " " : "") + T("{n}시간", h) + " " + T("{n}분 남았습니다", mm);
+      out.hidden = false;
+    }
+  };
+  tick();
+  setInterval(tick, 60000);
 })();
 }

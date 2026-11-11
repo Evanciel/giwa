@@ -157,6 +157,12 @@
     };
     group("게시판", "/b/", t.boards);
     group("페이지", "/p/", t.pages);
+    // 이 화면의 구역 (ADR-0156): 값이 이미 완성된 주소(/…#s-이름)다.
+    if (t.anchors && t.anchors.length) {
+      var ag = el("optgroup", { label: "이 화면의 구역" });
+      t.anchors.forEach(function (x) { ag.appendChild(el("option", { value: x.value, text: x.label })); });
+      sel.appendChild(ag);
+    }
     sel.appendChild(el("option", { value: "url", text: "직접 주소 쓰기…" }));
     var url = el("input", { type: "text", id: "lp-url", maxlength: "300", spellcheck: "false", placeholder: "https://… 또는 /recent" });
     var urlRow = el("div", { cls: "mp-alt" }, [el("label", { for: "lp-url", text: "주소" }), url,

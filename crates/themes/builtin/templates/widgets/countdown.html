@@ -1,0 +1,8 @@
+{# 남은 날 (ADR-0156). 날짜 수는 서버가 그리고, 시·분은 site.js 가 있으면 채운다. #}
+<div class="cd"{% if not w.data.passed %} data-countdown="{{ w.data.target }}"{% endif %}>
+  {% if w.data.passed %}<p class="cd-num cd-done"{{ edit_field("done") }}>{{ w.data.done or ("끝났습니다"|t) }}</p>
+  {% else %}<p class="cd-num">{% if w.data.days > 0 %}D-{{ w.data.days }}{% else %}D-day{% endif %}</p><p class="cd-left" hidden></p>{% endif %}
+  <p class="cd-at"><time datetime="{{ w.data.target }}">{{ w.data.at }}</time></p>
+  {% if w.data.text %}<p class="cd-text"{{ edit_field("text") }}>{{ w.data.text }}</p>{% endif %}
+  {% with b1 = w.data.button, b2 = none %}{% include "widgets/_section_actions.html" %}{% endwith %}
+</div>

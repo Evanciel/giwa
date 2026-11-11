@@ -1,0 +1,7 @@
+{# 사진 전시 (ADR-0156). 사진을 누르면 site.js 가 크게 보기 판을 연다. 스크립트가 없으면 원본 그림으로 간다. #}
+<ul class="gal gal-{{ w.data.style }} cols-{{ w.data.columns }}"{% if w.data.style == "strip" %} data-scroller{% endif %}>
+  {% for i in w.data.items %}{% if i.image %}<li><figure>
+    <a class="gal-link" href="{{ i.image.src }}"{% if not i.alt %} aria-label="{{ "사진 크게 보기"|t }} {{ loop.index }}"{% endif %}><img src="{{ i.image.src }}" srcset="{{ i.image.srcset }}" sizes="(min-width: 760px) {% if w.data.style == "strip" %}40vw{% else %}{{ (100 / w.data.columns)|int }}vw{% endif %}, 90vw" width="{{ i.image.width }}" height="{{ i.image.height }}" alt="{{ i.alt }}" loading="lazy"{{ edit_image("items." ~ loop.index0 ~ ".image", "items." ~ loop.index0 ~ ".alt") }}></a>
+    {% if i.caption %}<figcaption{{ edit_field("items." ~ loop.index0 ~ ".caption") }}>{{ i.caption }}</figcaption>{% endif %}
+  </figure></li>{% elif w.edit_id %}<li><div class="maru-img-empty"{{ edit_image("items." ~ loop.index0 ~ ".image", "items." ~ loop.index0 ~ ".alt") }}>{{ "사진 넣기"|t }}</div></li>{% endif %}{% endfor %}
+</ul>

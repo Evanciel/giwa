@@ -1,6 +1,7 @@
 //! 화면 편집기 (ADR-0138). 실제 공개 화면 위에서 블록(위젯·섹션)을 끌어다 놓고 고친다.
 //!
-//! - `/admin/editor`: 편집기 화면. 캔버스 iframe 을 담으려고 자기 CSP(`frame-src 'self'`)를 쓴다.
+//! - `/admin/editor`: 편집기 화면. 캔버스 iframe 을 담으려고 자기 CSP(`frame-src 'self'`)를 쓴다. 캔버스 안의
+//!   동영상 블록(ADR-0156)이 그려지게 공개 화면과 같은 재생기 두 곳도 허용한다.
 //! - `/admin/editor/frame`: 캔버스. 공개 라우터로 그 화면을 그리되, 초안이 오면 DB 대신 초안 위젯을 그린다.
 //!   응답은 공개 화면 CSP(`frame-ancestors 'self'`) 그대로다.
 //! - `/admin/editor/publish`: 초안과 지금 위젯을 견주어 연산을 만들고 변경 묶음 하나로 적용한다(원칙 4).
@@ -96,7 +97,7 @@ async fn editor_headers(mut res: Response) -> Response {
         HeaderValue::from_static(
             "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; \
              connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; \
-             frame-ancestors 'none'; frame-src 'self'",
+             frame-ancestors 'none'; frame-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com",
         ),
     );
     res
@@ -288,6 +289,8 @@ async fn editor_data(
         .map(|d| json!({ "body": d.body, "base": d.base, "updated_at": d.updated_at }));
     Ok(json!({
         "screen": screen.id(),
+        // 링크 고르기의 「이 화면의 구역」 주소 앞부분 (ADR-0156)
+        "screen_path": screen.path(),
         "page_status": page_status,
         "draft": draft,
         "screens": screens,
@@ -554,11 +557,12 @@ async fn off_apps(state: &AppState) -> Vec<Value> {
 /// 왼쪽 「더하기」 판의 묶음.
 fn kind_group(kind: &str) -> &'static str {
     match kind {
-        "hero" | "image_banner" | "notice_bar" | "cta" | "slider" => "첫 인상",
+        "hero" | "image_banner" | "notice_bar" | "cta" | "slider" | "countdown" => "첫 인상",
         "features" | "image_text" | "stats" | "testimonials" | "team" | "timeline"
-        | "org_chart" | "faq" => "소개",
+        | "org_chart" | "faq" | "quote" => "소개",
+        "video" | "gallery" | "logos" => "그림·영상",
         "latest_posts" | "popular_posts" | "post_tabs" | "gallery_grid" => "글 목록",
-        "hours" | "visit" | "price_list" | "plans" => "가게·연락",
+        "hours" | "visit" | "price_list" | "plans" | "social" => "가게·연락",
         "markdown_block" | "menu" | "search" | "account_box" | "popup" => "기본",
         _ => "더 보기",
     }

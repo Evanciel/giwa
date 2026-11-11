@@ -7,8 +7,8 @@ use std::collections::HashMap;
 
 use maru_core::directives;
 use maru_core::model::SiteSettings;
-use maru_core::services::media;
-use maru_core::{Ctx, Result, markdown};
+use maru_core::services::{media, sections};
+use maru_core::{Ctx, Result, clock, markdown};
 use serde_json::{Value, json};
 
 /// 마크다운을 받는 칸. 그려서 `<칸>_html` 로 둔다.
@@ -67,6 +67,38 @@ pub(crate) async fn view(
                 .filter(|c| c.is_ascii_digit() || *c == '+')
                 .collect();
             data["tel"] = json!(tel);
+        }
+        "video" => {
+            data["embed"] = json!(directives::video_embed(data["url"].as_str().unwrap_or("")));
+        }
+        "gallery" => {
+            // 그림을 하나도 고르지 않은 사진 전시는 공개 화면에서 뺀다(편집 중엔 고르기 칸을 보인다).
+            let any = data["items"]
+                .as_array()
+                .is_some_and(|a| a.iter().any(|i| i["image"].is_object()));
+            data["empty"] = json!(!any);
+        }
+        "countdown" => {
+            // 날짜 수(D-day)는 서버가 그리고, 시·분은 site.js 가 있으면 채운다.
+            let target = data["target"].as_str().unwrap_or("").to_owned();
+            data["passed"] = json!(clock::seconds_since(&target).is_none_or(|s| s >= 0));
+            data["days"] = json!(clock::days_until(&target, site.tz_offset_min).unwrap_or(0));
+            data["at"] = json!(clock::display_datetime(&target, site.tz_offset_min));
+        }
+        "social" => {
+            if let Some(items) = data["items"].as_array_mut() {
+                for i in items {
+                    if i["label"].as_str().is_none_or(str::is_empty) {
+                        let name = sections::SOCIAL_SERVICES
+                            .iter()
+                            .find(|(id, _)| i["service"] == *id)
+                            .map_or("", |(_, n)| n);
+                        i["label"] = json!(name);
+                    }
+                    let url = i["url"].as_str().unwrap_or("");
+                    i["external"] = json!(url.starts_with("http"));
+                }
+            }
         }
         _ => {}
     }

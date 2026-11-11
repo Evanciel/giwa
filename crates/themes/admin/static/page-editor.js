@@ -555,7 +555,7 @@
     finishText(false);
     window.MaruLinks.open({
       link: getPath(id, path),
-      targets: { pages: data.pages || [], boards: data.boards || [] },
+      targets: { pages: data.pages || [], boards: data.boards || [], anchors: data.anchors },
       onPick: function (v) {
         if (!byId(id)) return;
         form = null;
@@ -688,6 +688,12 @@
       case "timeline": return { items: [{ date: "연도", title: "있었던 일을 적으세요" }] };
       case "visit": return { address: "주소를 적으세요" };
       case "gallery_grid": return { board: (photo && photo.id) || firstBoard };
+      case "video": return { url: "" };
+      case "gallery": return { items: [{}, {}, {}] };
+      case "logos": return { items: [{ name: "함께하는 곳 1" }, { name: "함께하는 곳 2" }, { name: "함께하는 곳 3" }] };
+      case "countdown": return { target: new Date(Date.now() + 30 * 864e5).toISOString().replace(/.d+Z$/, "Z"), text: "무엇까지 남았는지 적으세요" };
+      case "social": return { items: [{ service: "instagram", url: "https://www.instagram.com/" }, { service: "youtube", url: "https://www.youtube.com/" }] };
+      case "quote": return { text: "마음에 남는 한 문장을 적으세요" };
       case "latest_posts": case "popular_posts": return {};
       default: return null;
     }
@@ -758,7 +764,7 @@
       if (!groups[k.group]) { groups[k.group] = []; order.push(k.group); }
       groups[k.group].push(k);
     });
-    var want = ["첫 인상", "소개", "글 목록", "가게·연락", "기본", "더 보기"];
+    var want = ["첫 인상", "소개", "그림·영상", "글 목록", "가게·연락", "기본", "더 보기"];
     order.sort(function (a, b) { return want.indexOf(a) - want.indexOf(b); });
     order.forEach(function (g) {
       paletteEl.appendChild(el("h3", { cls: "ed-group", text: g }));
@@ -993,8 +999,12 @@
   ];
   var STYLES = {
     hero: [["type", "글자만"], ["image", "배경 그림"], ["split", "글과 그림 나란히"]],
-    features: [["cards", "카드"], ["rows", "줄"], ["bento", "벤토"], ["steps", "단계"], ["tiles", "작은 칸"]]
+    features: [["cards", "카드"], ["rows", "줄"], ["bento", "벤토"], ["steps", "단계"], ["tiles", "작은 칸"]],
+    gallery: [["grid", "격자"], ["strip", "옆으로 넘기기"]],
+    video: [["16x9", "가로 16:9"], ["4x3", "4:3"], ["1x1", "정사각형"], ["9x16", "세로(쇼츠)"]]
   };
+  // 모양 칩이 고치는 칸. 동영상은 비율을 모양으로 고른다.
+  var STYLE_KEY = { video: "ratio" };
   var inspTab = "content";
   function propsOf(kind) { return ((data.types[kind] || {}).properties) || {}; }
   function hasLook(kind) { return !!propsOf(kind).tone; }
@@ -1007,7 +1017,7 @@
   function lookPanel(w) {
     var box = el("div", { cls: "ed-look" });
     var groups = [];
-    if (STYLES[w.kind]) groups.push(["style", "모양", STYLES[w.kind]]);
+    if (STYLES[w.kind]) groups.push([STYLE_KEY[w.kind] || "style", "모양", STYLES[w.kind]]);
     LOOK.forEach(function (g) { groups.push(g); });
     var colors = canvasColors();
     groups.forEach(function (g) {
@@ -1031,8 +1041,49 @@
       });
       box.appendChild(fs);
     });
+    box.appendChild(anchorField(w));
     return box;
   }
+  // 구역 이름 (ADR-0156): 메뉴·단추 링크가 이 블록으로 바로 오게 하는 이름. 형식이 맞을 때만 초안에 쓴다.
+  function anchorField(w) {
+    var id = "ed-anchor-" + w.id;
+    var input = el("input", { type: "text", id: id, maxlength: "32", spellcheck: "false", autocomplete: "off", placeholder: "예: menu, contact" });
+    input.value = (w.config || {}).anchor || "";
+    var hint = el("p", { cls: "hint" });
+    var say = function () {
+      var v = input.value.trim().toLowerCase();
+      hint.textContent = !v ? "이름을 주면 메뉴나 단추에서 이 블록으로 바로 올 수 있습니다."
+        : ANCHOR_RE.test(v) ? "링크 주소: " + (data.screen_path || "/") + "#s-" + v
+        : "영문 소문자·숫자·- 만, 32자까지 씁니다.";
+    };
+    input.addEventListener("input", say);
+    input.addEventListener("change", function () {
+      var v = input.value.trim().toLowerCase(), cw = byId(w.id);
+      if (!cw || (v && !ANCHOR_RE.test(v)) || ((cw.config || {}).anchor || "") === v) return;
+      form = null;
+      change(function () {
+        cw.config = cw.config || {};
+        if (v) cw.config.anchor = v; else delete cw.config.anchor;
+      });
+    });
+    say();
+    return el("div", { cls: "ed-field" }, [el("label", { for: id, text: "구역 이름" }), input, hint]);
+  }
+  var ANCHOR_RE = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/;
+  // 링크 고르기의 「이 화면의 구역」: 이 화면에 보이는 블록 중 구역 이름이 있는 것.
+  Object.defineProperty(data, "anchors", {
+    get: function () {
+      var seen = {};
+      return widgets.filter(function (w) {
+        var a = (w.config || {}).anchor;
+        if (!a || seen[a] || !(w.scope === screen || w.scope === "all" || (w.scope === "home" && screen === "home"))) return false;
+        seen[a] = 1;
+        return true;
+      }).map(function (w) {
+        return { value: (data.screen_path || "/") + "#s-" + w.config.anchor, label: nameOf(w) + " (#s-" + w.config.anchor + ")" };
+      });
+    }
+  });
   function showInspTab() {
     inspector.querySelectorAll("[data-insp-tab]").forEach(function (b) {
       b.setAttribute("aria-selected", String(b.getAttribute("data-insp-tab") === inspTab));
@@ -1246,7 +1297,10 @@
     inspector.appendChild(f);
     if (window.MaruForm && data.types[w.kind]) {
       var mf = new window.MaruForm(f, data);
-      if (looks) mf.skip = { tone: 1, space: 1, align: 1, style: STYLES[w.kind] ? 1 : 0 };
+      if (looks) {
+        mf.skip = { tone: 1, space: 1, align: 1, anchor: 1 };
+        if (STYLES[w.kind]) mf.skip[STYLE_KEY[w.kind] || "style"] = 1;
+      }
       var starting = true;
       mf.onsave = function (v) {
         if (starting) return;

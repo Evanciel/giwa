@@ -8,11 +8,12 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use super::widgets::{bad_config, check_link, parse, schema_of, short_text};
+use super::widgets::{bad_config, check_link, check_time, parse, schema_of, short_text};
+use crate::directives;
 use crate::error::Result;
 use crate::services::posts;
 
-pub const KINDS: [(&str, &str, &str); 14] = [
+pub const KINDS: [(&str, &str, &str); 20] = [
     (
         "hero",
         "첫 인상",
@@ -39,6 +40,45 @@ pub const KINDS: [(&str, &str, &str); 14] = [
     ("org_chart", "조직도", "3단까지의 조직 나무"),
     ("team", "구성원", "사람 사진·이름·역할"),
     ("image_text", "그림과 글", "그림 한 장과 글을 나란히"),
+    // ADR-0156
+    ("video", "동영상", "유튜브·비메오 동영상 하나와 설명"),
+    (
+        "gallery",
+        "사진 전시",
+        "올린 사진 여러 장을 격자나 옆으로 넘기는 띠로",
+    ),
+    ("logos", "함께하는 곳", "협력사·고객사·후원처 로고 줄"),
+    (
+        "countdown",
+        "남은 날",
+        "행사·개업·마감까지 남은 날짜와 시간",
+    ),
+    (
+        "social",
+        "SNS 링크",
+        "인스타그램·유튜브·블로그·카카오톡 채널 같은 바로가기 단추",
+    ),
+    ("quote", "큰 인용", "한두 문장을 크게. 대표 인사말·좌우명"),
+];
+
+/// 동영상 비율 (ADR-0156)
+pub const VIDEO_RATIOS: [&str; 4] = ["16x9", "4x3", "1x1", "9x16"];
+/// 사진 전시 모양 (ADR-0156)
+pub const GALLERY_STYLES: [&str; 2] = ["grid", "strip"];
+/// SNS 링크 종류와 단추 글자 (ADR-0156). 상표 그림은 쓰지 않는다(원칙 7).
+pub const SOCIAL_SERVICES: [(&str, &str); 12] = [
+    ("instagram", "인스타그램"),
+    ("youtube", "유튜브"),
+    ("blog", "블로그"),
+    ("kakao", "카카오톡 채널"),
+    ("x", "X"),
+    ("facebook", "페이스북"),
+    ("threads", "스레드"),
+    ("tiktok", "틱톡"),
+    ("band", "밴드"),
+    ("email", "이메일"),
+    ("phone", "전화"),
+    ("link", "바로가기"),
 ];
 
 /// 띠 색: 바탕 그대로, 옅은 면, 주 색
@@ -493,8 +533,222 @@ pub struct ImageTextConfig {
     pub align: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct VideoConfig {
+    /// 유튜브·비메오 주소
+    pub url: String,
+    /// 동영상 아래 설명, 300자
+    #[serde(default)]
+    pub text: String,
+    /// 화면 비율. `16x9`(기본) · `4x3` · `1x1` · `9x16`(쇼츠)
+    #[serde(default = "wide")]
+    pub ratio: String,
+    #[serde(default = "plain")]
+    pub tone: String,
+    /// 위아래 여백: `tight`·`normal`(기본)·`roomy` (ADR-0148)
+    #[serde(default = "normal_space")]
+    pub space: String,
+    /// 글 정렬: `start`(기본)·`center` (ADR-0148)
+    #[serde(default = "start_align")]
+    pub align: String,
+}
+
+fn wide() -> String {
+    "16x9".into()
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct GalleryItem {
+    /// 올린 그림 주소(`/media/...`). 비운 칸은 공개 화면에 보이지 않는다
+    #[serde(default)]
+    pub image: String,
+    /// 그림 설명, 120자
+    #[serde(default)]
+    pub alt: String,
+    /// 그림 아래 글, 120자
+    #[serde(default)]
+    pub caption: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct GalleryConfig {
+    /// 모양. `grid`(격자, 기본) · `strip`(옆으로 넘기는 띠)
+    #[serde(default = "grid")]
+    pub style: String,
+    /// 한 줄 칸 수, 2~4 (격자)
+    #[serde(default = "three")]
+    pub columns: u8,
+    /// 1~24장
+    pub items: Vec<GalleryItem>,
+    #[serde(default = "plain")]
+    pub tone: String,
+    /// 위아래 여백: `tight`·`normal`(기본)·`roomy` (ADR-0148)
+    #[serde(default = "normal_space")]
+    pub space: String,
+    /// 글 정렬: `start`(기본)·`center` (ADR-0148)
+    #[serde(default = "start_align")]
+    pub align: String,
+}
+
+fn grid() -> String {
+    "grid".into()
+}
+
+fn three() -> u8 {
+    3
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct LogoItem {
+    /// 이름, 40자. 그림이 없으면 이름을 글자로 보인다
+    pub name: String,
+    /// 올린 로고 그림 주소(`/media/...`)
+    #[serde(default)]
+    pub image: String,
+    #[serde(default)]
+    pub link: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct LogosConfig {
+    /// 1~24개
+    pub items: Vec<LogoItem>,
+    /// 로고를 흑백으로 가라앉혀 보인다(올리면 원래 색)
+    #[serde(default = "yes")]
+    pub mono: bool,
+    #[serde(default = "plain")]
+    pub tone: String,
+    /// 위아래 여백: `tight`·`normal`(기본)·`roomy` (ADR-0148)
+    #[serde(default = "normal_space")]
+    pub space: String,
+    /// 글 정렬: `start`(기본)·`center` (ADR-0148)
+    #[serde(default = "center_align")]
+    pub align: String,
+}
+
+fn yes() -> bool {
+    true
+}
+
+fn center_align() -> String {
+    "center".into()
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct CountdownConfig {
+    /// 목표 시각
+    #[schemars(extend("format" = "date-time"))]
+    pub target: String,
+    /// 숫자 아래 설명, 200자
+    #[serde(default)]
+    pub text: String,
+    /// 지난 뒤 숫자 대신 보일 글, 60자. 비우면 「끝났습니다」
+    #[serde(default)]
+    pub done: String,
+    #[serde(default)]
+    pub button: Button,
+    #[serde(default = "soft")]
+    pub tone: String,
+    /// 위아래 여백: `tight`·`normal`(기본)·`roomy` (ADR-0148)
+    #[serde(default = "normal_space")]
+    pub space: String,
+    /// 글 정렬: `start`·`center`(기본) (ADR-0148)
+    #[serde(default = "center_align")]
+    pub align: String,
+}
+
+fn soft() -> String {
+    "soft".into()
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SocialItem {
+    /// 종류. `instagram`(인스타그램) · `youtube`(유튜브) · `blog`(블로그) · `kakao`(카카오톡 채널) · `x`(X) ·
+    /// `facebook`(페이스북) · `threads`(스레드) · `tiktok`(틱톡) · `band`(밴드) · `email`(이메일) ·
+    /// `phone`(전화) · `link`(바로가기)
+    pub service: String,
+    /// 주소. https 주소, 이메일은 메일 주소, 전화는 번호
+    pub url: String,
+    /// 단추 글자, 20자. 비우면 종류 이름
+    #[serde(default)]
+    pub label: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SocialConfig {
+    /// 1~12개
+    pub items: Vec<SocialItem>,
+    /// 단추 위 글, 200자
+    #[serde(default)]
+    pub text: String,
+    #[serde(default = "plain")]
+    pub tone: String,
+    /// 위아래 여백: `tight`·`normal`(기본)·`roomy` (ADR-0148)
+    #[serde(default = "normal_space")]
+    pub space: String,
+    /// 글 정렬: `start`·`center`(기본) (ADR-0148)
+    #[serde(default = "center_align")]
+    pub align: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct QuoteConfig {
+    /// 인용할 말, 300자
+    pub text: String,
+    /// 누가 했는지, 40자
+    #[serde(default)]
+    pub name: String,
+    /// 그 사람의 자리, 60자
+    #[serde(default)]
+    pub role: String,
+    #[serde(default = "soft")]
+    pub tone: String,
+    /// 위아래 여백: `tight`·`normal`(기본)·`roomy` (ADR-0148)
+    #[serde(default = "normal_space")]
+    pub space: String,
+    /// 글 정렬: `start`·`center`(기본) (ADR-0148)
+    #[serde(default = "center_align")]
+    pub align: String,
+}
+
+/// 모든 섹션이 함께 받는 칸 (ADR-0156). 종류별 구조체 밖에서 읽어 검사하고 다시 붙인다.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct Common {
+    /// 구역 이름. 영문 소문자·숫자·`-` 32자. 메뉴 링크를 `#s-이름` 으로 쓰면 이 블록으로 바로 간다
+    #[serde(default)]
+    pub anchor: String,
+}
+
+const COMMON_KEYS: [&str; 1] = ["anchor"];
+
+/// 종류의 설정 schema 에 공통 칸을 더한다.
+fn with_common(mut s: Value) -> Value {
+    let common = schema_of::<Common>();
+    if let (Some(props), Some(extra)) = (
+        s.get_mut("properties").and_then(Value::as_object_mut),
+        common.get("properties").and_then(Value::as_object),
+    ) {
+        for (k, v) in extra {
+            props.insert(k.clone(), v.clone());
+        }
+    }
+    s
+}
+
 pub(super) fn schema(kind: &str) -> Option<Value> {
-    Some(match kind {
+    if !is_section(kind) {
+        return None;
+    }
+    Some(with_common(match kind {
         "hero" => schema_of::<HeroConfig>(),
         "features" => schema_of::<FeaturesConfig>(),
         "stats" => schema_of::<StatsConfig>(),
@@ -509,8 +763,13 @@ pub(super) fn schema(kind: &str) -> Option<Value> {
         "org_chart" => schema_of::<OrgChartConfig>(),
         "team" => schema_of::<TeamConfig>(),
         "image_text" => schema_of::<ImageTextConfig>(),
-        _ => return None,
-    })
+        "video" => schema_of::<VideoConfig>(),
+        "gallery" => schema_of::<GalleryConfig>(),
+        "logos" => schema_of::<LogosConfig>(),
+        "countdown" => schema_of::<CountdownConfig>(),
+        "social" => schema_of::<SocialConfig>(),
+        _ => schema_of::<QuoteConfig>(),
+    }))
 }
 
 pub fn is_section(kind: &str) -> bool {
@@ -615,7 +874,93 @@ pub(super) fn check(kind: &str, config: Value) -> Option<Result<Value>> {
     Some(check_inner(kind, config))
 }
 
-fn check_inner(kind: &str, config: Value) -> Result<Value> {
+fn check_inner(kind: &str, mut config: Value) -> Result<Value> {
+    let common = take_common(kind, &mut config)?;
+    let mut out = check_kind(kind, config)?;
+    if let Some(m) = out.as_object_mut()
+        && !common.anchor.is_empty()
+    {
+        m.insert("anchor".into(), json!(common.anchor));
+    }
+    Ok(out)
+}
+
+/// 공통 칸을 설정에서 빼내 검사한다. 종류별 구조체는 모르는 칸을 거절하므로 먼저 뺀다.
+fn take_common(kind: &str, config: &mut Value) -> Result<Common> {
+    let mut picked = serde_json::Map::new();
+    if let Some(m) = config.as_object_mut() {
+        for k in COMMON_KEYS {
+            if let Some(v) = m.remove(k) {
+                picked.insert(k.into(), v);
+            }
+        }
+    }
+    let mut c: Common = parse(kind, Value::Object(picked))?;
+    c.anchor = c.anchor.trim().to_ascii_lowercase();
+    let a = c.anchor.as_str();
+    let ok = a.is_empty()
+        || (a.len() <= 32
+            && a.bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+            && !a.starts_with('-')
+            && !a.ends_with('-'));
+    if !ok {
+        return Err(bad_config(kind, "anchor 는 영문 소문자·숫자·- 로 32자까지"));
+    }
+    Ok(c)
+}
+
+/// SNS 단추 주소 (ADR-0156). 이메일은 `mailto:`, 전화는 `tel:` 로 바꾸고, 나머지는 http(s) 주소만 받는다.
+/// `link`(바로가기)는 사이트 안 주소도 받는다.
+fn social_url(kind: &str, service: &str, url: &str) -> Result<String> {
+    let u = url.trim();
+    let bad = || bad_config(kind, format!("SNS 주소가 올바르지 않습니다: {u}"));
+    if u.is_empty() || u.len() > 300 || u.chars().any(char::is_control) {
+        return Err(bad());
+    }
+    match service {
+        "email" => {
+            let addr = u.strip_prefix("mailto:").unwrap_or(u);
+            let (name, host) = addr.split_once('@').ok_or_else(bad)?;
+            let clean = |s: &str| {
+                !s.is_empty()
+                    && s.chars()
+                        .all(|c| c.is_alphanumeric() || matches!(c, '.' | '_' | '-' | '+'))
+            };
+            if !clean(name) || !clean(host) || !host.contains('.') {
+                return Err(bad());
+            }
+            Ok(format!("mailto:{addr}"))
+        }
+        "phone" => {
+            let n = u.strip_prefix("tel:").unwrap_or(u);
+            if !n
+                .chars()
+                .all(|c| c.is_ascii_digit() || matches!(c, '+' | '-' | ' ' | '(' | ')'))
+            {
+                return Err(bad());
+            }
+            let digits: String = n
+                .chars()
+                .filter(|c| c.is_ascii_digit() || *c == '+')
+                .collect();
+            let count = digits.chars().filter(char::is_ascii_digit).count();
+            if !(3..=15).contains(&count) || digits[1..].contains('+') {
+                return Err(bad());
+            }
+            Ok(format!("tel:{digits}"))
+        }
+        "link" => check_link(kind, u),
+        _ => {
+            if !(u.starts_with("https://") || u.starts_with("http://")) {
+                return Err(bad());
+            }
+            check_link(kind, u)
+        }
+    }
+}
+
+fn check_kind(kind: &str, config: Value) -> Result<Value> {
     Ok(match kind {
         "hero" => {
             let mut c: HeroConfig = parse(kind, config)?;
@@ -790,12 +1135,99 @@ fn check_inner(kind: &str, config: Value) -> Result<Value> {
             look(kind, &mut c.space, &mut c.align)?;
             json!(c)
         }
-        _ => {
+        "image_text" => {
             let mut c: ImageTextConfig = parse(kind, config)?;
             image(&mut c.image)?;
             text(kind, "image_alt", &mut c.image_alt, 120)?;
             markdown(kind, "body", &mut c.body)?;
             button(kind, &mut c.button)?;
+            tone(kind, &mut c.tone)?;
+            look(kind, &mut c.space, &mut c.align)?;
+            json!(c)
+        }
+        "video" => {
+            let mut c: VideoConfig = parse(kind, config)?;
+            required(kind, "url", &mut c.url, 300)?;
+            if directives::video_embed(&c.url).is_none() {
+                return Err(bad_config(kind, "url 은 유튜브·비메오 주소만 받습니다"));
+            }
+            text(kind, "text", &mut c.text, 300)?;
+            c.ratio = c.ratio.trim().to_owned();
+            if !VIDEO_RATIOS.contains(&c.ratio.as_str()) {
+                return Err(bad_config(kind, "ratio 는 16x9·4x3·1x1·9x16"));
+            }
+            tone(kind, &mut c.tone)?;
+            look(kind, &mut c.space, &mut c.align)?;
+            json!(c)
+        }
+        "gallery" => {
+            let mut c: GalleryConfig = parse(kind, config)?;
+            c.style = c.style.trim().to_owned();
+            if !GALLERY_STYLES.contains(&c.style.as_str()) {
+                return Err(bad_config(kind, "style 은 grid·strip"));
+            }
+            if !(2..=4).contains(&c.columns) {
+                return Err(bad_config(kind, "columns 는 2~4"));
+            }
+            count(kind, "items", c.items.len(), 1, 24)?;
+            for i in &mut c.items {
+                image(&mut i.image)?;
+                text(kind, "alt", &mut i.alt, 120)?;
+                text(kind, "caption", &mut i.caption, 120)?;
+            }
+            tone(kind, &mut c.tone)?;
+            look(kind, &mut c.space, &mut c.align)?;
+            json!(c)
+        }
+        "logos" => {
+            let mut c: LogosConfig = parse(kind, config)?;
+            count(kind, "items", c.items.len(), 1, 24)?;
+            for i in &mut c.items {
+                required(kind, "name", &mut i.name, 40)?;
+                image(&mut i.image)?;
+                i.link = check_link(kind, &i.link)?;
+            }
+            tone(kind, &mut c.tone)?;
+            look(kind, &mut c.space, &mut c.align)?;
+            json!(c)
+        }
+        "countdown" => {
+            let mut c: CountdownConfig = parse(kind, config)?;
+            c.target = check_time(kind, "target", &c.target)?;
+            if c.target.is_empty() {
+                return Err(bad_config(kind, "target 이 비었습니다"));
+            }
+            text(kind, "text", &mut c.text, 200)?;
+            text(kind, "done", &mut c.done, 60)?;
+            button(kind, &mut c.button)?;
+            tone(kind, &mut c.tone)?;
+            look(kind, &mut c.space, &mut c.align)?;
+            json!(c)
+        }
+        "social" => {
+            let mut c: SocialConfig = parse(kind, config)?;
+            count(kind, "items", c.items.len(), 1, 12)?;
+            for i in &mut c.items {
+                i.service = i.service.trim().to_owned();
+                if !SOCIAL_SERVICES.iter().any(|(id, _)| *id == i.service) {
+                    return Err(bad_config(
+                        kind,
+                        format!("모르는 SNS 종류입니다: {}", i.service),
+                    ));
+                }
+                i.url = social_url(kind, &i.service, &i.url)?;
+                text(kind, "label", &mut i.label, 20)?;
+            }
+            text(kind, "text", &mut c.text, 200)?;
+            tone(kind, &mut c.tone)?;
+            look(kind, &mut c.space, &mut c.align)?;
+            json!(c)
+        }
+        _ => {
+            let mut c: QuoteConfig = parse(kind, config)?;
+            required(kind, "text", &mut c.text, 300)?;
+            text(kind, "name", &mut c.name, 40)?;
+            text(kind, "role", &mut c.role, 60)?;
             tone(kind, &mut c.tone)?;
             look(kind, &mut c.space, &mut c.align)?;
             json!(c)
@@ -839,6 +1271,101 @@ mod tests {
                 { "name": "나", "price": "2", "featured": true }
             ] })
         ));
+    }
+
+    #[test]
+    fn new_kinds_check_their_values() {
+        let ok = |kind: &str, v: Value| check(kind, v).unwrap().unwrap();
+        let bad = |kind: &str, v: Value| check(kind, v).unwrap().is_err();
+        let v = ok("video", json!({ "url": "https://youtu.be/dQw4w9WgXcQ" }));
+        assert_eq!(v["ratio"], "16x9");
+        assert!(bad("video", json!({ "url": "https://example.com/a.mp4" })));
+        assert!(bad(
+            "video",
+            json!({ "url": "https://youtu.be/dQw4w9WgXcQ", "ratio": "21x9" })
+        ));
+        let g = ok(
+            "gallery",
+            json!({ "items": [{ "caption": "그림은 나중에" }] }),
+        );
+        assert_eq!(
+            (g["style"].as_str(), g["columns"].as_u64()),
+            (Some("grid"), Some(3))
+        );
+        assert!(bad("gallery", json!({ "items": [], "columns": 3 })));
+        assert!(bad("gallery", json!({ "items": [{}], "columns": 5 })));
+        assert!(bad(
+            "gallery",
+            json!({ "items": [{ "image": "https://example.com/a.png" }] })
+        ));
+        let l = ok("logos", json!({ "items": [{ "name": "협력사" }] }));
+        assert_eq!(
+            (l["mono"].as_bool(), l["align"].as_str()),
+            (Some(true), Some("center"))
+        );
+        assert!(bad("logos", json!({ "items": [{ "name": "" }] })));
+        let c = ok(
+            "countdown",
+            json!({ "target": "2026-12-24T18:00:00+09:00" }),
+        );
+        assert_eq!(c["target"], "2026-12-24T09:00:00.000000Z");
+        assert!(bad("countdown", json!({ "target": "" })));
+        assert!(bad("countdown", json!({ "target": "다음 주" })));
+        assert!(ok("quote", json!({ "text": "늘 처음처럼" }))["tone"] == "soft");
+        assert!(bad("quote", json!({ "text": " " })));
+    }
+
+    #[test]
+    fn social_links_are_normalized() {
+        let one = |service: &str, url: &str| {
+            check(
+                "social",
+                json!({ "items": [{ "service": service, "url": url }] }),
+            )
+            .unwrap()
+            .map(|v| v["items"][0]["url"].as_str().unwrap_or("").to_owned())
+        };
+        assert_eq!(
+            one("email", "hello@example.com").unwrap(),
+            "mailto:hello@example.com"
+        );
+        assert_eq!(one("phone", "02-123-4567").unwrap(), "tel:021234567");
+        assert_eq!(
+            one("phone", "+82 10 1234 5678").unwrap(),
+            "tel:+821012345678"
+        );
+        assert_eq!(
+            one("instagram", "https://instagram.com/x").unwrap(),
+            "https://instagram.com/x"
+        );
+        assert_eq!(one("link", "/p/about").unwrap(), "/p/about");
+        assert!(one("instagram", "/p/about").is_err());
+        assert!(one("instagram", "javascript:alert(1)").is_err());
+        assert!(one("email", "a@b").is_err());
+        assert!(one("email", "a<b>@c.d").is_err());
+        assert!(one("phone", "12").is_err());
+        assert!(one("phone", "1+234").is_err());
+        assert!(one("myspace", "https://example.com").is_err());
+    }
+
+    #[test]
+    fn anchors_are_common_to_every_section() {
+        for (id, ..) in KINDS {
+            let s = schema(id).unwrap();
+            assert!(s["properties"]["anchor"].is_object(), "{id}");
+        }
+        let v = check("cta", json!({ "anchor": " Contact-Us " }))
+            .unwrap()
+            .unwrap();
+        assert_eq!(v["anchor"], "contact-us");
+        let v = check("cta", json!({ "anchor": "" })).unwrap().unwrap();
+        assert!(v.get("anchor").is_none());
+        for a in ["오시는길", "-a", "a-", "a b", "a_b", &"a".repeat(33)] {
+            assert!(
+                check("cta", json!({ "anchor": a })).unwrap().is_err(),
+                "{a}"
+            );
+        }
     }
 
     #[test]

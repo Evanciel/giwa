@@ -49,6 +49,13 @@ pub fn seconds_since(s: &str) -> Option<i64> {
     parse(s).map(|t| (OffsetDateTime::now_utc() - t).whole_seconds())
 }
 
+/// 그 시각의 날짜까지 남은 날 수(사이트 시간대 날짜로 센다). 같은 날이면 0, 지났으면 음수 (ADR-0156).
+pub fn days_until(s: &str, offset_minutes: i32) -> Option<i64> {
+    let offset = site_offset(offset_minutes);
+    let t = parse(s)?.to_offset(offset).date();
+    Some((t - OffsetDateTime::now_utc().to_offset(offset).date()).whole_days())
+}
+
 /// 사이트 시간대의 오늘 `YYYY-MM-DD` (마감 칸 비교용, ADR-0106).
 pub fn today(offset_minutes: i32) -> String {
     let offset = UtcOffset::from_whole_seconds(offset_minutes * 60).unwrap_or(UtcOffset::UTC);

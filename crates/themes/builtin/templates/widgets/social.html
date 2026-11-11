@@ -1,0 +1,5 @@
+{# SNS 링크 (ADR-0156). 상표 그림 없이 글자 단추로 그린다. 주소는 서버가 https·mailto·tel 로 고친 값이다. #}
+{% if w.data.text %}<p class="soc-text"{{ edit_field("text") }}>{{ w.data.text }}</p>{% endif %}
+<ul class="soc">
+  {% for i in w.data.items %}<li><a class="sec-btn soc-btn" href="{{ i.url }}"{% if i.external %} rel="me noopener noreferrer"{% endif %}{{ edit_field("items." ~ loop.index0 ~ ".label") }}>{{ i.label|t }}</a></li>{% endfor %}
+</ul>

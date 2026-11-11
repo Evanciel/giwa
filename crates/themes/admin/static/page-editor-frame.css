@@ -49,6 +49,8 @@ html.maru-editing .maru-selected [data-maru-img]:hover { outline: 2px dashed #2f
 }
 .maru-selected > .maru-img-chip { display: flex; }
 .maru-img-chip:hover { background: #2f54eb; color: #fff; }
+/* 작은 그림 칸(로고 등)에 붙는 고르기 단추 (ADR-0156) */
+.maru-img-inline { display: inline-flex; min-height: 0; height: auto; padding: .25rem .6rem; border-width: 1px; font-size: 12px; }
 /* 링크 바꾸기 (ADR-0147): 단추 글자를 고치는 동안 그 아래에 뜬다. */
 .maru-linkchip {
   all: unset; position: absolute; z-index: 2147483647; padding: 5px 10px; border-radius: 7px; cursor: pointer;

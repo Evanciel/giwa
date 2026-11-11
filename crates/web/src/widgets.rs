@@ -78,11 +78,20 @@ pub(crate) async fn regions(state: &AppState, screen: Screen<'_>) -> Value {
         _ => return json!({}),
     };
     let mut out = Map::new();
+    let mut anchors = std::collections::HashSet::new();
     for w in &list {
         match view(state, &actor, &site, w).await {
             Ok(Some(mut v)) => {
                 if editing {
                     v["edit_id"] = json!(w.id);
+                } else if v["data"]["empty"] == true {
+                    continue;
+                }
+                // 한 화면에 같은 구역 이름이 둘이면 뒤의 것은 id 를 달지 않는다 (ADR-0156).
+                if let Some(a) = v["data"]["anchor"].as_str().map(str::to_owned)
+                    && !anchors.insert(a)
+                {
+                    v["data"]["anchor"] = Value::Null;
                 }
                 if let Some(arr) = out
                     .entry(w.region.clone())

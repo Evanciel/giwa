@@ -754,7 +754,7 @@ pub(super) fn check_link(kind: &str, link: &str) -> Result<String> {
 }
 
 /// RFC3339 시각을 저장 형식(UTC)으로. 빈 값은 그대로.
-fn check_time(kind: &str, field: &str, v: &str) -> Result<String> {
+pub(super) fn check_time(kind: &str, field: &str, v: &str) -> Result<String> {
     let t = v.trim();
     if t.is_empty() {
         return Ok(String::new());
