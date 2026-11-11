@@ -404,6 +404,10 @@ img.sticker { display: inline-block; width: 6rem; height: 6rem; margin: 0 .125re
 .code-copy:hover, .code-copy:focus-visible { opacity: 1; color: var(--fg, inherit); border-color: var(--primary); }
 .code-copy:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 @media print { .code-copy { display: none; } }
+/* 오프라인 안내 (ADR-0162). 서비스 워커가 담아 두는 한 쪽. */
+.offline-note { max-width: 32rem; padding-block: calc(var(--space) * 12); text-align: center; }
+.offline-note h1 { font-size: var(--fs-xl, 1.6rem); margin: calc(var(--space) * 2) 0; word-break: keep-all; }
+.offline-site { color: var(--muted); font-weight: 650; }
 .prose table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; display: block; overflow-x: auto; }
 .prose th, .prose td { padding: .55em .8em; border-bottom: 1px solid var(--border); text-align: left; }
 .prose th { font-weight: 650; }

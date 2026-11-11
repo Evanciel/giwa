@@ -1869,6 +1869,7 @@ async fn site(g: &Global, cmd: SiteCmd) -> Out {
                 skin: args.skin,
                 share_image: args.share_image,
                 indexnow: args.indexnow,
+                pwa: args.pwa,
             };
             settings::update(&ctx, &actor, patch).await
         }

@@ -3,6 +3,8 @@
 //! 도형은 거리 함수로 그려 가장자리를 부드럽게 한다. 같은 (장면, 번호, 색)이면 같은 그림이 나온다.
 
 use image::codecs::jpeg::JpegEncoder;
+use image::codecs::png::PngEncoder;
+use image::{ExtendedColorType, ImageEncoder};
 use image::{Rgb, RgbImage};
 
 use crate::error::{Error, Result};
@@ -607,6 +609,116 @@ fn f(c: [u8; 3]) -> [f32; 3] {
     [c[0] as f32, c[1] as f32, c[2] as f32]
 }
 
+// ---- 아이콘 (ADR-0162) ----
+
+/// 홈 화면 아이콘의 무늬 수. 사이트마다 씨앗으로 하나를 고른다.
+const ICON_MARKS: u32 = 4;
+
+/// 주 색 위에 쓸 무늬 색: 흰색과 짙은 회색 가운데 대비가 큰 쪽.
+fn icon_ink(primary: &str) -> &'static str {
+    let white = crate::design::contrast(primary, "#ffffff").unwrap_or(0.0);
+    let dark = crate::design::contrast(primary, "#1c1c1c").unwrap_or(0.0);
+    if white >= dark { "#ffffff" } else { "#1c1c1c" }
+}
+
+/// 무늬 하나: 512 기준 좌표의 원·둥근 사각형. 바탕은 주 색으로 가득 칠해 둥근 마스크에 잘려도 된다.
+/// 모든 무늬는 가운데 반지름 200 안에 든다(마스크 아이콘 안전 영역).
+enum Shape {
+    /// 중심 x, y, 반지름, 무늬 색이면 true(아니면 바탕 색으로 뚫기)
+    Circle(f32, f32, f32, bool),
+    /// x0, y0, x1, y1, 모서리 반지름, 무늬 색이면 true
+    Round(f32, f32, f32, f32, f32, bool),
+}
+
+fn icon_shapes(seed: u32) -> Vec<Shape> {
+    use Shape::{Circle, Round};
+    match seed % ICON_MARKS {
+        // 고리와 점
+        0 => vec![
+            Circle(256.0, 256.0, 150.0, true),
+            Circle(256.0, 256.0, 96.0, false),
+            Circle(256.0, 256.0, 40.0, true),
+        ],
+        // 초승달 (가로 막대 셋은 메뉴 단추처럼 보여 쓰지 않는다)
+        1 => vec![
+            Circle(248.0, 264.0, 144.0, true),
+            Circle(318.0, 204.0, 124.0, false),
+        ],
+        // 창
+        2 => vec![
+            Round(128.0, 128.0, 384.0, 384.0, 64.0, true),
+            Round(178.0, 178.0, 334.0, 334.0, 26.0, false),
+            Circle(256.0, 256.0, 34.0, true),
+        ],
+        // 해 뜨는 언덕
+        _ => vec![
+            Circle(256.0, 290.0, 124.0, true),
+            Round(120.0, 290.0, 392.0, 420.0, 0.0, false),
+            Round(136.0, 318.0, 376.0, 352.0, 17.0, true),
+        ],
+    }
+}
+
+/// 아이콘 PNG (`size`×`size`). 같은 (씨앗, 색, 크기)면 같은 바이트.
+pub fn icon(seed: u32, primary: &str, size: u32) -> Result<Vec<u8>> {
+    let size = size.clamp(16, 1024);
+    let p = Palette::from_hex(primary);
+    let ink = Palette::from_hex(icon_ink(primary)).base();
+    let mut c = Canvas::new(size, size);
+    c.rect(0.0, 0.0, size as f32, size as f32, p.base(), 1.0);
+    let k = size as f32 / 512.0;
+    for s in icon_shapes(seed) {
+        match s {
+            Shape::Circle(x, y, r, on) => {
+                c.circle(x * k, y * k, r * k, if on { ink } else { p.base() }, 1.0)
+            }
+            Shape::Round(x0, y0, x1, y1, r, on) => {
+                c.rrect(
+                    x0 * k,
+                    y0 * k,
+                    x1 * k,
+                    y1 * k,
+                    r * k,
+                    if on { ink } else { p.base() },
+                    1.0,
+                );
+            }
+        }
+    }
+    let img = c.into_image();
+    let mut out = Vec::new();
+    PngEncoder::new(&mut out)
+        .write_image(img.as_raw(), size, size, ExtendedColorType::Rgb8)
+        .map_err(Error::internal)?;
+    Ok(out)
+}
+
+/// 같은 무늬의 SVG. 색은 `#rrggbb` 로 다시 써서 넣는다(입력 문자열을 그대로 넣지 않는다).
+pub fn icon_svg(seed: u32, primary: &str) -> String {
+    let hex = |c: [u8; 3]| format!("#{:02x}{:02x}{:02x}", c[0], c[1], c[2]);
+    let base = hex(Palette::from_hex(primary).base());
+    let ink = hex(Palette::from_hex(icon_ink(primary)).base());
+    let mut svg = format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 512 512\"><rect width=\"512\" height=\"512\" rx=\"96\" fill=\"{base}\"/>"
+    );
+    for s in icon_shapes(seed) {
+        match s {
+            Shape::Circle(x, y, r, on) => svg.push_str(&format!(
+                "<circle cx=\"{x}\" cy=\"{y}\" r=\"{r}\" fill=\"{}\"/>",
+                if on { &ink } else { &base }
+            )),
+            Shape::Round(x0, y0, x1, y1, r, on) => svg.push_str(&format!(
+                "<rect x=\"{x0}\" y=\"{y0}\" width=\"{}\" height=\"{}\" rx=\"{r}\" fill=\"{}\"/>",
+                x1 - x0,
+                y1 - y0,
+                if on { &ink } else { &base }
+            )),
+        }
+    }
+    svg.push_str("</svg>");
+    svg
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -627,6 +739,24 @@ mod tests {
         let img = image::load_from_memory(&bytes).unwrap();
         assert_eq!((img.width(), img.height()), (SHARE_WIDTH, SHARE_HEIGHT));
         assert_eq!(bytes, share(7, "#2754c5").unwrap());
+    }
+
+    #[test]
+    fn icons_are_square_pngs_with_every_mark() {
+        for seed in 0..ICON_MARKS {
+            let bytes = icon(seed, "#2754c5", 192).unwrap();
+            let img = image::load_from_memory(&bytes).unwrap();
+            assert_eq!((img.width(), img.height()), (192, 192));
+            // 가장자리는 주 색, 가운데 무늬는 흰색 쪽
+            let rgb = img.to_rgb8();
+            assert_eq!(rgb.get_pixel(2, 2).0, [0x27, 0x54, 0xc5]);
+            let svg = icon_svg(seed, "#2754c5");
+            assert!(svg.starts_with("<svg") && svg.contains("#ffffff"), "{svg}");
+        }
+        // 밝은 주 색에는 짙은 무늬
+        assert!(icon_svg(0, "#f5e663").contains("#1c1c1c"));
+        // 틀린 색 문자열은 그대로 들어가지 않는다
+        assert!(!icon_svg(0, "\"><script>").contains("script"));
     }
 
     #[test]

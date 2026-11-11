@@ -527,3 +527,7 @@
 "틱톡" = "TikTok"
 "밴드" = "Band"
 "전화" = "Phone"
+"연결 끊김" = "Offline"
+"인터넷에 연결되어 있지 않습니다" = "You are offline"
+"연결을 확인한 뒤 다시 열어 주세요." = "Check your connection and open the page again."
+"다시 열기" = "Try again"

@@ -813,6 +813,9 @@ pub struct SiteSettings {
     /// 공개한 사이트의 새 글·페이지 주소를 IndexNow 로 검색엔진에 바로 알린다 (ADR-0143)
     #[serde(default = "default_true")]
     pub indexnow: bool,
+    /// 홈 화면에 추가 (ADR-0162): 앱 정보(`/manifest.webmanifest`)와 오프라인 안내만 담는 서비스 워커를 둔다
+    #[serde(default = "default_true")]
+    pub pwa: bool,
 }
 
 /// 내장 스킨 `(id, 이름)`. 스킨은 머리글·메뉴·몸통 배치만 바꾸고 안의 화면은 기본 테마를 같이 쓴다.
@@ -923,6 +926,7 @@ impl Default for SiteSettings {
             skin: default_skin(),
             share_image: String::new(),
             indexnow: true,
+            pwa: true,
         }
     }
 }

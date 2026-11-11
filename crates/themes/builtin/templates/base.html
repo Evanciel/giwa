@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="{{ site.lang or 'ko' }}">
+<html lang="{{ site.lang or 'ko' }}"{% if site.pwa %} data-pwa="1"{% endif %}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -24,6 +24,10 @@
 {% if site.google_verification %}<meta name="google-site-verification" content="{{ site.google_verification }}">{% endif %}
 {% if seo and seo.jsonld %}<script type="application/ld+json"{% if csp_nonce %} nonce="{{ csp_nonce }}"{% endif %}>{{ seo.jsonld|safe }}</script>{% endif %}
 <link rel="alternate" type="application/rss+xml" title="{{ site.name }}" href="{{ site.rss_url }}">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+{% if site.pwa %}<link rel="manifest" href="/manifest.webmanifest">{% endif %}
+{% if site.theme_color %}<meta name="theme-color" content="{{ site.theme_color }}">{% endif %}
 <link rel="stylesheet" href="/assets/tokens.css">
 <link rel="stylesheet" href="/assets/fonts.css">
 <link rel="stylesheet" href="/assets/site.css">

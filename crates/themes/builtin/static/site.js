@@ -777,4 +777,17 @@ const T = (s, n) => ((MARU_EN && MARU_EN[s]) || s).replace("{n}", n);
     wrap.append(btn);
   }
 })();
+
+// 홈 화면에 추가 (ADR-0162): 켜져 있으면 오프라인 안내만 담는 서비스 워커를 둔다. 끄면 걷어 낸다.
+// 편집기 미리보기(틀 안)에서는 하지 않는다.
+(() => {
+  if (!("serviceWorker" in navigator) || window.top !== window) return;
+  if (document.documentElement.dataset.pwa === "1") {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  } else {
+    navigator.serviceWorker.getRegistrations()
+      .then((rs) => rs.forEach((r) => r.unregister()))
+      .catch(() => {});
+  }
+})();
 }

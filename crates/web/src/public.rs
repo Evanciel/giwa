@@ -46,6 +46,15 @@ pub fn routes() -> Router<AppState> {
         .route("/rss.xml", get(crate::feeds::rss))
         .route("/robots.txt", get(crate::feeds::robots))
         .route(crate::seo::SHARE_PATH, get(crate::seo::share_picture))
+        // 홈 화면에 추가 (ADR-0162)
+        .route("/manifest.webmanifest", get(crate::pwa::manifest))
+        .route("/sw.js", get(crate::pwa::worker))
+        .route("/offline", get(crate::pwa::offline))
+        .route("/icon.svg", get(crate::pwa::icon_svg))
+        .route("/icon-192.png", get(crate::pwa::icon_192))
+        .route("/icon-512.png", get(crate::pwa::icon_512))
+        .route("/apple-touch-icon.png", get(crate::pwa::apple_icon))
+        .route("/favicon.ico", get(crate::pwa::favicon))
         .route("/{file}", get(crate::seo::root_file))
         .route("/assets/tokens.css", get(tokens_css))
         .route("/assets/fonts.css", get(fonts_css))
@@ -117,6 +126,10 @@ async fn site_value(state: &AppState, s: &SiteSettings) -> Value {
         "account_url": "/me",
         "naver_verification": s.naver_verification,
         "share_image": s.share_image,
+        // 홈 화면에 추가 (ADR-0162): 앱 정보·서비스 워커를 둘지
+        "pwa": s.pwa,
+        // 휴대폰 주소창 색 (ADR-0162)
+        "theme_color": design::tokens(&state.ctx).await.map(|t| t.color.primary).unwrap_or_default(),
         "google_verification": s.google_verification,
         "menus": {
             "header": menu_value(state, "header").await,

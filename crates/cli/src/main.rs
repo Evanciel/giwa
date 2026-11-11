@@ -1379,6 +1379,9 @@ pub struct SiteSetArgs {
     /// 공개한 사이트의 새 글 주소를 IndexNow 로 검색엔진에 바로 알린다 (true/false)
     #[arg(long)]
     pub indexnow: Option<bool>,
+    /// 휴대폰 홈 화면에 추가(앱 정보·오프라인 안내 서비스 워커)를 둘지 (true/false)
+    #[arg(long)]
+    pub pwa: Option<bool>,
     /// 회원 가입: off(받지 않음), open(누구나)
     #[arg(long)]
     pub signup: Option<String>,

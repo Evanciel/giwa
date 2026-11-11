@@ -125,6 +125,7 @@
     </div>
     <div class="toggles">
       {{ toggle("indexnow", form.indexnow, "새 글을 검색엔진에 바로 알리기 (IndexNow)", "글·페이지를 발행·수정·삭제하면 그 주소를 네이버 IndexNow 로 보냅니다. 참여 검색엔진(빙 등)과 나눕니다. 공개 도메인(https)으로 연 사이트만 보냅니다.") }}
+      {{ toggle("pwa", form.pwa, "휴대폰 홈 화면에 추가", "방문자가 휴대폰 홈 화면에 이 사이트를 앱처럼 놓을 수 있게 합니다(사이트 색 아이콘). 기기에는 인터넷이 끊겼을 때 보일 안내 한 쪽만 담고, 글·로그인·관리 화면은 담지 않습니다.") }}
     </div>
     <p class="hint">{% if not seo.public_site %}지금 사이트 주소는 내 컴퓨터용이라 검색엔진에 알리지 않습니다. 공개 주소로 열면 그때부터 보냅니다.{% elif seo.last_at %}마지막으로 {{ seo.last_at }}에 주소 {{ seo.last_count }}개를 보냈습니다{% if seo.last_error %}. 실패: {{ seo.last_error }} (30분 뒤 다시 보냅니다){% endif %}. 지금까지 {{ seo.sent_total }}개.{% else %}아직 보낸 주소가 없습니다. 글을 발행하면 1분 안에 보냅니다.{% endif %}</p>
   </section>

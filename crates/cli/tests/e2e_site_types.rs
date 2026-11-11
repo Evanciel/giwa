@@ -83,7 +83,7 @@ fn request(bind: &str, raw: &str) -> (u16, String, String) {
     s.write_all(raw.as_bytes()).unwrap();
     let mut out = Vec::new();
     s.read_to_end(&mut out).unwrap();
-    let text = String::from_utf8(out).unwrap();
+    let text = String::from_utf8_lossy(&out).into_owned(); // 아이콘 같은 그림 응답도 따라간다
     let (head, body) = text.split_once("\r\n\r\n").unwrap_or((&text, ""));
     (
         head[9..12].parse().unwrap(),

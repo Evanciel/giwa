@@ -90,6 +90,9 @@ pub struct SettingsPatch {
     /// 공개한 사이트의 새 글 주소를 IndexNow 로 검색엔진에 바로 알릴지 (ADR-0143)
     #[serde(default)]
     pub indexnow: Option<bool>,
+    /// 휴대폰 홈 화면에 추가할 수 있게 앱 정보·서비스 워커를 둘지 (ADR-0162)
+    #[serde(default)]
+    pub pwa: Option<bool>,
 }
 
 /// 공유 그림 주소로 쓸 수 있는가. 사이트 미디어 경로나 https 주소, 공백·따옴표·꺾쇠 없이 500자까지.
@@ -271,6 +274,9 @@ pub async fn update(ctx: &Ctx, actor: &Actor, patch: SettingsPatch) -> Result<Si
     }
     if let Some(b) = patch.indexnow {
         changes.push(("indexnow", json!(b)));
+    }
+    if let Some(b) = patch.pwa {
+        changes.push(("pwa", json!(b)));
     }
     if let Some(m) = &patch.signup {
         actor.require(Permission::MemberManage)?;

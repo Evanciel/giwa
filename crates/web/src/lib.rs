@@ -16,6 +16,7 @@ mod mcp;
 mod modules;
 pub mod preview;
 mod public;
+mod pwa;
 mod ratelimit;
 mod sections;
 mod seo;
@@ -101,6 +102,8 @@ pub struct AppState {
     pub indexnow: Option<Arc<dyn IndexNowSender>>,
     /// 서버가 그린 공유 그림 `(색, JPEG)`. 색이 바뀌면 다시 그린다 (ADR-0143).
     pub share_picture: Arc<SharePicture>,
+    /// 서버가 그린 홈 화면 아이콘 (ADR-0162). 사이트 이름이나 색이 바뀌면 다시 그린다.
+    pub icons: Arc<pwa::Icons>,
     /// 백업 파일 보관소 (ADR-0063). 없으면 백업 경로가 「쓸 수 없음」으로 답한다.
     pub archiver: Option<Arc<dyn Archiver>>,
     /// 이 바이너리에 든 모듈 (ADR-0066). 켜짐은 DB 에 있다.
@@ -126,6 +129,7 @@ impl AppState {
             link_fetcher: None,
             indexnow: None,
             share_picture: Arc::default(),
+            icons: Arc::default(),
             archiver: None,
             modules: Arc::new(Registry::default()),
             trust_tunnel: false,

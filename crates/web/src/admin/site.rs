@@ -1277,6 +1277,8 @@ struct SettingsForm {
     share_image: String,
     #[serde(default)]
     indexnow: Option<String>,
+    #[serde(default)]
+    pwa: Option<String>,
 }
 
 fn on(b: bool) -> Option<String> {
@@ -1314,6 +1316,7 @@ impl SettingsForm {
             link_cards: on(s.link_cards),
             share_image: s.share_image.clone(),
             indexnow: on(s.indexnow),
+            pwa: on(s.pwa),
         }
     }
 
@@ -1384,6 +1387,7 @@ impl SettingsForm {
             link_cards: changed(self.link_cards.is_some(), now.link_cards),
             share_image: changed(self.share_image.trim().to_owned(), now.share_image.clone()),
             indexnow: changed(self.indexnow.is_some(), now.indexnow),
+            pwa: changed(self.pwa.is_some(), now.pwa),
         })
     }
 }
