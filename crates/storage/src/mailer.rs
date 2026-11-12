@@ -208,8 +208,8 @@ fn eml(from: &str, m: &MailOut) -> String {
     )
 }
 
-/// 표준 base64 (RFC 4648, 패딩 있음). 제목 인코딩(RFC 2047)에만 쓴다.
-fn base64(input: &[u8]) -> String {
+/// 표준 base64 (RFC 4648, 패딩 있음). 제목 인코딩(RFC 2047)과 결제사 Basic 인증에 쓴다.
+pub(crate) fn base64(input: &[u8]) -> String {
     const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = String::with_capacity(input.len().div_ceil(3) * 4);
     for chunk in input.chunks(3) {

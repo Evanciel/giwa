@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO mod_pay_refund (id, order_id, amount, reason, status, created_at)\n             VALUES (?, ?, ?, ?, 'requested', ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "d59b5d26febbaf784c25ce6d49f8b9a3a6bd5c0a9d3154bc3f190b7085a390eb"
+}

@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT status, refunded FROM mod_pay_order WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "status",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_pay_order",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "name": "refunded",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_pay_order",
+            "name": "refunded"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "d9c8be50f59686ced191d28b566c42d7021f68cb9ed92e50905b23aa216c10f5"
+}

@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id!\", enabled, client_key, secret_key, config FROM mod_pay_provider",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_pay_provider",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "enabled",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_pay_provider",
+            "name": "enabled"
+          }
+        }
+      },
+      {
+        "name": "client_key",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_pay_provider",
+            "name": "client_key"
+          }
+        }
+      },
+      {
+        "name": "secret_key",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_pay_provider",
+            "name": "secret_key"
+          }
+        }
+      },
+      {
+        "name": "config",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_pay_provider",
+            "name": "config"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "b562604c10fa6e2bb9992f4644c62c575687915e1fd277d916a96a50f4016512"
+}

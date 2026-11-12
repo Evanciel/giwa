@@ -1,0 +1,314 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id!\", owner, ref_id, name, amount, refunded, status, provider, pg_order_id,\n                      attempts, payment_key, method, deposit_secret, last_error, buyer_name, buyer_email,\n                      buyer_phone, depositor, member_id, return_to, view_hash, created_at, expires_at,\n                      paid_at, updated_at\n               FROM mod_pay_order WHERE pg_order_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_pay_order",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "owner",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_pay_order",
+            "name": "owner"
+          }
+        }
+      },
+      {
+        "name": "ref_id",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_pay_order",
+            "name": "ref_id"
+          }
+        }
+      },
+      {
+        "name": "name",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_pay_order",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "name": "amount",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_pay_order",
+            "name": "amount"
+          }
+        }
+      },
+      {
+        "name": "refunded",
+        "ordinal": 5,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_pay_order",
+            "name": "refunded"
+          }
+        }
+      },
+      {
+        "name": "status",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_pay_order",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "name": "provider",
+        "ordinal": 7,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_pay_order",
+            "name": "provider"
+          }
+        }
+      },
+      {
+        "name": "pg_order_id",
+        "ordinal": 8,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_pay_order",
+            "name": "pg_order_id"
+          }
+        }
+      },
+      {
+        "name": "attempts",
+        "ordinal": 9,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_pay_order",
+            "name": "attempts"
+          }
+        }
+      },
+      {
+        "name": "payment_key",
+        "ordinal": 10,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_pay_order",
+            "name": "payment_key"
+          }
+        }
+      },
+      {
+        "name": "method",
+        "ordinal": 11,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_pay_order",
+            "name": "method"
+          }
+        }
+      },
+      {
+        "name": "deposit_secret",
+        "ordinal": 12,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_pay_order",
+            "name": "deposit_secret"
+          }
+        }
+      },
+      {
+        "name": "last_error",
+        "ordinal": 13,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_pay_order",
+            "name": "last_error"
+          }
+        }
+      },
+      {
+        "name": "buyer_name",
+        "ordinal": 14,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_pay_order",
+            "name": "buyer_name"
+          }
+        }
+      },
+      {
+        "name": "buyer_email",
+        "ordinal": 15,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_pay_order",
+            "name": "buyer_email"
+          }
+        }
+      },
+      {
+        "name": "buyer_phone",
+        "ordinal": 16,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_pay_order",
+            "name": "buyer_phone"
+          }
+        }
+      },
+      {
+        "name": "depositor",
+        "ordinal": 17,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_pay_order",
+            "name": "depositor"
+          }
+        }
+      },
+      {
+        "name": "member_id",
+        "ordinal": 18,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_pay_order",
+            "name": "member_id"
+          }
+        }
+      },
+      {
+        "name": "return_to",
+        "ordinal": 19,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_pay_order",
+            "name": "return_to"
+          }
+        }
+      },
+      {
+        "name": "view_hash",
+        "ordinal": 20,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_pay_order",
+            "name": "view_hash"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 21,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_pay_order",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "name": "expires_at",
+        "ordinal": 22,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_pay_order",
+            "name": "expires_at"
+          }
+        }
+      },
+      {
+        "name": "paid_at",
+        "ordinal": 23,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_pay_order",
+            "name": "paid_at"
+          }
+        }
+      },
+      {
+        "name": "updated_at",
+        "ordinal": 24,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_pay_order",
+            "name": "updated_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "2dd6fcf9b17be60ef8066798cae509fc14e6b53b7f504b9e1846575ec908f0b1"
+}

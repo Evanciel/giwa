@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO mod_pay_order (id, owner, ref_id, name, amount, status, buyer_name, buyer_email,\n                 buyer_phone, member_id, return_to, view_hash, created_at, expires_at, updated_at)\n             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 15
+    },
+    "nullable": []
+  },
+  "hash": "aba233acbbd50637394367fa6a230b2388300277ffca7845d247a672143fdc1f"
+}

@@ -1496,6 +1496,7 @@ dependencies = [
  "maru-mod-map",
  "maru-mod-message",
  "maru-mod-notify",
+ "maru-mod-pay",
  "maru-mod-point",
  "maru-mod-poll",
  "maru-mod-reaction",
@@ -1636,6 +1637,23 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+]
+
+[[package]]
+name = "maru-mod-pay"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "axum",
+ "maru-core",
+ "maru-modules",
+ "maru-storage",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "time",
+ "tracing",
 ]
 
 [[package]]

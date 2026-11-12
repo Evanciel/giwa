@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE mod_pay_order SET status = ?, refunded = ?, provider = COALESCE(?, provider),\n                 payment_key = COALESCE(?, payment_key), method = COALESCE(?, method),\n                 deposit_secret = COALESCE(?, deposit_secret), depositor = COALESCE(?, depositor),\n                 paid_at = COALESCE(paid_at, ?), last_error = '', updated_at = ?\n             WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 10
+    },
+    "nullable": []
+  },
+  "hash": "7ba277ec1d96f30313cf22197b0fd61c6c14078332b14315a3f8465256c69e58"
+}

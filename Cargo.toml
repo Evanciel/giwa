@@ -30,6 +30,7 @@ maru-mod-forms = { path = "mods/forms" }
 maru-mod-kakao = { path = "mods/kakao" }
 maru-mod-map = { path = "mods/map" }
 maru-mod-webhook = { path = "mods/webhook" }
+maru-mod-pay = { path = "mods/pay" }
 
 # 웹
 axum = "0.8.9"

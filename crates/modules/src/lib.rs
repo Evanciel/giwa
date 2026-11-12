@@ -7,6 +7,7 @@
 //! - 라우트: `/m/<id>` 아래에만 놓인다. 꺼져 있으면 404.
 //! - 툴: 같은 정의로 REST·CLI(나중에 MCP)가 만들어진다.
 
+pub mod checkout;
 pub mod delivery;
 pub mod service;
 

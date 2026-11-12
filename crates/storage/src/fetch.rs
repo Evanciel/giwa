@@ -380,6 +380,81 @@ impl OAuthClient {
     }
 }
 
+/// 결제사 API 와 주고받기 (결제 모듈, ADR-0166). 주소는 모듈이 정한 결제사 주소뿐이라 소셜 로그인과 같은
+/// 규칙(https, 되돌이만 http)을 쓴다. 리디렉션은 따라가지 않고 응답은 64KB 까지 JSON 으로 읽는다.
+pub struct PayClient {
+    client: Client,
+}
+
+/// `Authorization: Basic …` 값. 사용자 이름만 있고 비밀번호는 빈 값이다(`이름:`).
+pub fn basic_auth(user: &str) -> String {
+    format!(
+        "Basic {}",
+        crate::mailer::base64(format!("{user}:").as_bytes())
+    )
+}
+
+impl PayClient {
+    pub fn new() -> Result<Self, String> {
+        crate::tls::install_provider();
+        let client = Client::builder()
+            .no_proxy()
+            .redirect(redirect::Policy::none())
+            .connect_timeout(CONNECT_TIMEOUT)
+            .timeout(Duration::from_secs(30))
+            .user_agent(concat!("Maru-Pay/", env!("CARGO_PKG_VERSION")))
+            .build()
+            .map_err(|e| e.to_string())?;
+        Ok(Self { client })
+    }
+
+    /// JSON 을 보내고 JSON 을 받는다. `idempotency` 가 있으면 `Idempotency-Key` 로 싣는다. `(응답 코드, 본문)`
+    pub async fn post_json(
+        &self,
+        url: &str,
+        authorization: &str,
+        idempotency: Option<&str>,
+        body: &serde_json::Value,
+    ) -> Result<(u16, serde_json::Value), String> {
+        let url = Url::parse(url).map_err(|e| format!("주소를 읽지 못했습니다: {e}"))?;
+        oauth_allowed(&url)?;
+        let mut req = self
+            .client
+            .post(url)
+            .header(reqwest::header::ACCEPT, "application/json")
+            .header(reqwest::header::CONTENT_TYPE, "application/json")
+            .header(reqwest::header::AUTHORIZATION, authorization);
+        if let Some(key) = idempotency {
+            req = req.header("Idempotency-Key", key);
+        }
+        let res = req
+            .body(body.to_string())
+            .send()
+            .await
+            .map_err(|e| describe(&e))?;
+        read_json(res).await
+    }
+
+    /// JSON 을 받는다 (결제 조회). `(응답 코드, 본문)`
+    pub async fn get_json(
+        &self,
+        url: &str,
+        authorization: &str,
+    ) -> Result<(u16, serde_json::Value), String> {
+        let url = Url::parse(url).map_err(|e| format!("주소를 읽지 못했습니다: {e}"))?;
+        oauth_allowed(&url)?;
+        let res = self
+            .client
+            .get(url)
+            .header(reqwest::header::ACCEPT, "application/json")
+            .header(reqwest::header::AUTHORIZATION, authorization)
+            .send()
+            .await
+            .map_err(|e| describe(&e))?;
+        read_json(res).await
+    }
+}
+
 async fn read_json(res: reqwest::Response) -> Result<(u16, serde_json::Value), String> {
     let status = res.status().as_u16();
     if res

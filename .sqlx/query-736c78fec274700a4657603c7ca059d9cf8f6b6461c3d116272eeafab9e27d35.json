@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE mod_pay_order SET buyer_name = '', buyer_email = '', buyer_phone = '', depositor = '',\n                 member_id = NULL\n             WHERE created_at < ? AND (buyer_name != '' OR buyer_email != '' OR buyer_phone != ''\n                 OR depositor != '' OR member_id IS NOT NULL)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "736c78fec274700a4657603c7ca059d9cf8f6b6461c3d116272eeafab9e27d35"
+}

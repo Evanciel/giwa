@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO mod_pay_provider (id, enabled, client_key, secret_key, config, updated_at)\n             VALUES (?, ?, ?, ?, ?, ?)\n             ON CONFLICT (id) DO UPDATE SET enabled = excluded.enabled, client_key = excluded.client_key,\n                 secret_key = excluded.secret_key, config = excluded.config, updated_at = excluded.updated_at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "119b78a5dd17b8d2216990a2d0da4c4bce2f17c7310adcb3c1fb1be43403c7fe"
+}

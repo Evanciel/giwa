@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE mod_pay_refund SET status = 'failed', error = ?, done_at = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "d7f13c3b0f14552bbedb0a165de1329ed84587eaf483aa873230dea5541dd347"
+}
