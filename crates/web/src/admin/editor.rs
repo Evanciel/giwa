@@ -172,12 +172,21 @@ struct ScreenQuery {
     /// 발행하고 돌아왔을 때 그 변경 묶음 id
     #[serde(default)]
     done: String,
+    /// 사이트 기록에서 되돌리고 돌아왔을 때 그 변경 묶음 id
+    #[serde(default)]
+    reverted: String,
     /// 새 페이지 틀 (ADR-0149). 공개 전이고 블록이 없는 페이지에서만 초안으로 싣는다.
     #[serde(default)]
     starter: String,
     /// `1` 이면 새 페이지를 위 메뉴 초안에 넣는다.
     #[serde(default)]
     menu: String,
+}
+
+/// 안내에 링크로 넣는 변경 묶음 id. 모양이 다르면 안내를 보이지 않는다.
+fn changeset_id(id: &str) -> Option<&str> {
+    (!id.is_empty() && id.len() <= 64 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'))
+        .then_some(id)
 }
 
 fn bad_screen(screen: &str) -> Error {
@@ -227,7 +236,8 @@ async fn page(
         json!({
             "screen": screen.id(),
             "screen_label": label,
-            "done": (!q.done.is_empty() && q.done.len() <= 64 && q.done.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')).then_some(q.done.as_str()),
+            "done": changeset_id(&q.done),
+            "reverted": changeset_id(&q.reverted),
             "screens": data["screens"],
             "starters": maru_themes::starters().unwrap_or_default(),
             "editor_json": script_json(&data),

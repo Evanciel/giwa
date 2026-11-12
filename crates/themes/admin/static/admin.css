@@ -57,6 +57,8 @@
   }
 }
 * { box-sizing: border-box; }
+/* `hidden` 은 언제나 숨긴다. 단추·카드의 display 가 브라우저 기본 규칙을 이겨 숨긴 것이 보이던 일이 되풀이됐다. */
+[hidden] { display: none !important; }
 html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0;

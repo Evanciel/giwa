@@ -710,7 +710,7 @@
       case "video": return { url: "" };
       case "gallery": return { items: [{}, {}, {}] };
       case "logos": return { items: [{ name: "함께하는 곳 1" }, { name: "함께하는 곳 2" }, { name: "함께하는 곳 3" }] };
-      case "countdown": return { target: new Date(Date.now() + 30 * 864e5).toISOString().replace(/.d+Z$/, "Z"), text: "무엇까지 남았는지 적으세요" };
+      case "countdown": return { target: new Date(Date.now() + 30 * 864e5).toISOString().replace(/\.\d+Z$/, "Z"), text: "무엇까지 남았는지 적으세요" };
       case "social": return { items: [{ service: "instagram", url: "https://www.instagram.com/" }, { service: "youtube", url: "https://www.youtube.com/" }] };
       case "quote": return { text: "마음에 남는 한 문장을 적으세요" };
       case "latest_posts": case "popular_posts": return {};
@@ -1747,7 +1747,8 @@
     }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); }).then(function (res) {
       if (!res.ok) { btn.disabled = false; statusEl.textContent = (res.j.error && res.j.error.message) || "되돌리지 못했습니다."; return; }
       statusEl.textContent = "되돌렸습니다. 화면을 다시 엽니다.";
-      setTimeout(function () { location.reload(); }, 300);
+      // 발행하고 돌아온 주소(`done=`)로 다시 열면 「발행했습니다」 안내가 남는다. 되돌림 안내로 연다.
+      setTimeout(function () { location.href = "/admin/editor?screen=" + encodeURIComponent(screen) + "&reverted=" + encodeURIComponent(c.id); }, 300);
     }).catch(function () { btn.disabled = false; statusEl.textContent = "되돌리지 못했습니다. 연결을 확인하세요."; });
   }
 

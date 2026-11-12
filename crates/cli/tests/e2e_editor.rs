@@ -1517,6 +1517,29 @@ fn editor_page_settings_and_site_history() {
     assert_eq!(stored["description"], "");
     assert_eq!(stored["noindex"], false);
     assert_eq!(http(&bind, "GET", "/p/about-us", &[], "").status, 404);
+    // 되돌린 뒤 편집기는 「발행했습니다」가 아니라 되돌림 안내로 연다. 모양이 틀린 id 는 안내를 보이지 않는다.
+    let back = http(
+        &bind,
+        "GET",
+        &format!("/admin/editor?screen=page:about-us&reverted={cs}"),
+        &[("Cookie", &cookie)],
+        "",
+    );
+    assert_eq!(back.status, 200);
+    assert!(back.body.contains("묶음을 되돌렸습니다"), "{}", back.body);
+    assert!(!back.body.contains("사이트에 발행했습니다"));
+    assert!(back.body.contains(&format!("/admin/changesets/{cs}")));
+    let odd = http(
+        &bind,
+        "GET",
+        "/admin/editor?screen=page:about-us&reverted=%3Cb%3E",
+        &[("Cookie", &cookie)],
+        "",
+    );
+    assert!(!odd.body.contains("묶음을 되돌렸습니다"));
+    // 숨긴 단추가 관리 화면 CSS 때문에 보이지 않도록 `hidden` 을 언제나 이기는 규칙이 있다.
+    let css = http(&bind, "GET", "/admin/assets/admin.css", &[], "");
+    assert!(css.body.contains("[hidden] { display: none !important; }"));
 
     // CLI 도 같은 서비스: 설명·공유 그림·검색에서 빼기.
     let edited = maru(
