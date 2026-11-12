@@ -500,6 +500,14 @@ pub async fn video_finish(
     Ok(media)
 }
 
+/// 이만큼 이어 받지 않은 나눠 올리기 조각은 버려진 것으로 보고 지운다.
+pub const VIDEO_PART_TTL: std::time::Duration = std::time::Duration::from_secs(24 * 60 * 60);
+
+/// 끊긴 채 남은 나눠 올리기 조각을 지운다. 보존 정리가 하루 한 번 부른다.
+pub async fn sweep_video_parts(ctx: &Ctx) -> Result<u64> {
+    ctx.blobs.sweep("tmp", VIDEO_PART_TTL).await
+}
+
 /// 한 번에 올리기 (CLI·이미 다 읽은 파일). 나눠 올리기와 같은 검사·저장을 거친다.
 pub async fn store_video(ctx: &Ctx, actor: &Actor, input: Upload) -> Result<Media> {
     let up = video_begin(ctx, actor, &input.filename).await?;

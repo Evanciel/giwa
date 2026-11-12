@@ -34,6 +34,11 @@ pub trait Blobs: Send + Sync {
             b[s..e].to_vec()
         }))
     }
+    /// `dir` 바로 아래에서 `older_than` 동안 손대지 않은 파일을 지우고 그 수를 돌려준다.
+    /// 끊긴 나눠 올리기 조각(`tmp/`)을 치운다. 기본 구현은 아무것도 지우지 않는다.
+    async fn sweep(&self, _dir: &str, _older_than: std::time::Duration) -> Result<u64> {
+        Ok(0)
+    }
     /// 이름을 바꾼다. 받는 쪽이 있으면 덮어쓴다.
     async fn rename(&self, from: &str, to: &str) -> Result<()> {
         if let Some(b) = self.get(from).await? {

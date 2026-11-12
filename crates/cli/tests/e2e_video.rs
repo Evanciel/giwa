@@ -441,4 +441,54 @@ fn video_upload_ranges_sections_and_posts() {
     );
     assert_eq!(picker.status, 200, "{}", picker.text());
     assert!(picker.text().contains(&small_url), "{}", picker.text());
+
+    // 끊긴 채 하루 넘게 남은 조각은 보존 정리가 지운다. 막 올리던 조각은 남긴다.
+    let begin = || {
+        let res = http(
+            &bind,
+            "POST",
+            "/api/v1/media/videos",
+            &json_auth,
+            br#"{"filename":"d.mp4"}"#,
+        );
+        res.json()["data"]["id"].as_str().unwrap().to_owned()
+    };
+    let (stale, fresh) = (begin(), begin());
+    for id in [&stale, &fresh] {
+        let res = http(
+            &bind,
+            "PUT",
+            &format!("/api/v1/media/videos/{id}?offset=0"),
+            &auth,
+            &small[..100],
+        );
+        assert_eq!(res.status, 200, "{}", res.text());
+    }
+    let part = data.join("media").join("tmp").join(format!("{stale}.part"));
+    std::fs::File::options()
+        .write(true)
+        .open(&part)
+        .unwrap()
+        .set_modified(std::time::SystemTime::now() - std::time::Duration::from_secs(2 * 86_400))
+        .unwrap();
+    let r = maru(&data, &["privacy", "run"]);
+    assert_eq!(r["data"]["video_parts_removed"], 1, "{r}");
+    assert!(!part.exists());
+    // 지워진 조각에 이어 보내면 받은 크기 0 을 알려 처음부터 다시 보내게 한다.
+    let res = http(
+        &bind,
+        "PUT",
+        &format!("/api/v1/media/videos/{stale}?offset=100"),
+        &auth,
+        &small[100..200],
+    );
+    assert_eq!(res.status, 409, "{}", res.text());
+    let res = http(
+        &bind,
+        "PUT",
+        &format!("/api/v1/media/videos/{fresh}?offset=100"),
+        &auth,
+        &small[100..200],
+    );
+    assert_eq!(res.json()["data"]["received"], 200, "{}", res.text());
 }

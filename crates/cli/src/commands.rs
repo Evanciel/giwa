@@ -3015,8 +3015,8 @@ async fn privacy_cmd(g: &Global, cmd: PrivacyCmd) -> Out {
     db.close().await;
     let r = res?;
     let human = format!(
-        "보존 정리: 휴면 알림 {}명, 휴면 전환 {}명, 지운 메일 {}통, 모듈 기록 {}건",
-        r.notified, r.dormant, r.mails_removed, r.module_removed
+        "보존 정리: 휴면 알림 {}명, 휴면 전환 {}명, 지운 메일 {}통, 모듈 기록 {}건, 끊긴 동영상 조각 {}개",
+        r.notified, r.dormant, r.mails_removed, r.module_removed, r.video_parts_removed
     );
     Ok((to_value(&r)?, human))
 }

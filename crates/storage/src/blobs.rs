@@ -122,6 +122,29 @@ impl Blobs for FsBlobs {
         Ok(Some(out))
     }
 
+    async fn sweep(&self, dir: &str, older_than: std::time::Duration) -> Result<u64> {
+        let root = self.resolve(dir)?;
+        let mut entries = match tokio::fs::read_dir(&root).await {
+            Ok(r) => r,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(0),
+            Err(e) => return Err(io_error(&root, e)),
+        };
+        let Some(cutoff) = std::time::SystemTime::now().checked_sub(older_than) else {
+            return Ok(0);
+        };
+        let mut removed = 0;
+        while let Some(entry) = entries.next_entry().await.map_err(|e| io_error(&root, e))? {
+            let Ok(meta) = entry.metadata().await else {
+                continue;
+            };
+            let stale = meta.is_file() && meta.modified().is_ok_and(|m| m < cutoff);
+            if stale && tokio::fs::remove_file(entry.path()).await.is_ok() {
+                removed += 1;
+            }
+        }
+        Ok(removed)
+    }
+
     async fn rename(&self, from: &str, to: &str) -> Result<()> {
         let src = self.resolve(from)?;
         let dest = self.resolve(to)?;
@@ -157,6 +180,34 @@ mod tests {
             .unwrap()
             .collect();
         assert!(left.is_empty());
+    }
+
+    #[tokio::test]
+    async fn sweep_removes_only_stale_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let blobs = FsBlobs::new(dir.path());
+        // 폴더가 없어도 된다.
+        assert_eq!(
+            blobs
+                .sweep("tmp", std::time::Duration::from_secs(1))
+                .await
+                .unwrap(),
+            0
+        );
+        blobs.append("tmp/old.part", b"x").await.unwrap();
+        blobs.append("tmp/new.part", b"y").await.unwrap();
+        let old = std::fs::File::options()
+            .write(true)
+            .open(dir.path().join("tmp").join("old.part"))
+            .unwrap();
+        old.set_modified(std::time::SystemTime::now() - std::time::Duration::from_secs(3 * 86_400))
+            .unwrap();
+        drop(old);
+        let day = std::time::Duration::from_secs(86_400);
+        assert_eq!(blobs.sweep("tmp", day).await.unwrap(), 1);
+        assert!(blobs.size("tmp/old.part").await.unwrap().is_none());
+        assert_eq!(blobs.size("tmp/new.part").await.unwrap(), Some(1));
+        assert_eq!(blobs.sweep("tmp", day).await.unwrap(), 0);
     }
 
     #[tokio::test]

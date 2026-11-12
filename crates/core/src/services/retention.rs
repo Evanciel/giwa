@@ -17,7 +17,7 @@ use crate::actor::{Actor, Permission};
 use crate::audit::Target;
 use crate::clock;
 use crate::error::Result;
-use crate::services::{mail, settings};
+use crate::services::{mail, media, settings};
 use crate::store::{Ctx, Tx};
 
 /// 휴면 전에 알리는 날수. 알린 뒤에도 이만큼 기다린다.
@@ -37,6 +37,8 @@ pub struct Report {
     pub mails_removed: u64,
     /// 모듈이 지운 기록 수 (오래된 알림 등)
     pub module_removed: u64,
+    /// 하루 넘게 끊긴 채 남은 동영상 나눠 올리기 조각 수
+    pub video_parts_removed: u64,
 }
 
 /// 보존 정리를 한 번 한다. 서버가 하루 한 번 부르고, CLI·REST 로 바로 부를 수도 있다. 여러 번 불러도 안전하다.
@@ -49,6 +51,7 @@ pub async fn run(ctx: &Ctx, actor: &Actor) -> Result<Report> {
             .purge_mails(&days_ago(site.mail_retention_days))
             .await?,
         module_removed: ctx.extensions.purge(ctx).await,
+        video_parts_removed: media::sweep_video_parts(ctx).await?,
         ..Report::default()
     };
     if site.dormant_days == 0 {

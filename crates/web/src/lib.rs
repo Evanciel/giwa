@@ -583,6 +583,7 @@ async fn purge_loop(state: AppState) {
                         dormant = r.dormant,
                         mails = r.mails_removed,
                         modules = r.module_removed,
+                        video_parts = r.video_parts_removed,
                         "보존 정리"
                     );
                 }
