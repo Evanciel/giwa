@@ -1,0 +1,30 @@
+{# 예약 폼 위젯 (ADR-0169). 서비스와 날짜를 골라 예약 화면으로 간다. 남은 자리는 공개 화면 캐시 밖(/m/booking/new)에서 센다. #}
+{% with b = w.data %}
+<form class="cf booking-pick" method="get" action="{{ b.action }}">
+  {% if b.note %}<p class="cf-intro">{{ b.note }}</p>{% endif %}
+  {% if b.services|length > 1 %}
+  <fieldset class="booking-services">
+    <legend>{{ "무엇을 예약할까요"|t }}</legend>
+    {% for s in b.services %}<label class="booking-service">
+      <input type="radio" name="service" value="{{ s.id }}"{% if loop.first %} checked{% endif %}>
+      <span class="booking-service-name">{{ s.name }}</span>
+      <span class="booking-service-meta">{{ s.minutes_text }}{% if s.price_text %} · {{ s.price_text }}{% endif %}{% if s.deposit_text %} · {{ "예약금"|t }} {{ s.deposit_text }}{% endif %}</span>
+    </label>{% endfor %}
+  </fieldset>
+  {% elif b.services %}{% with s = b.services[0] %}
+  <input type="hidden" name="service" value="{{ s.id }}">
+  <div class="booking-one">
+    <p class="booking-service-name">{{ s.name }}</p>
+    <p class="booking-service-meta">{{ s.minutes_text }}{% if s.price_text %} · {{ s.price_text }}{% endif %}{% if s.deposit_text %} · {{ "예약금"|t }} {{ s.deposit_text }}{% endif %}</p>
+    {% if s.description %}<p class="hint">{{ s.description }}</p>{% endif %}
+  </div>
+  {% endwith %}{% else %}
+  <p class="muted">{{ "지금은 예약을 받지 않습니다."|t }}</p>
+  {% endif %}
+  {% if b.services %}<div class="cf-field">
+    <label for="bk-{{ w.id }}-day">{{ "날짜"|t }} <span class="cf-optional">{{ "(비우면 가장 가까운 날)"|t }}</span></label>
+    <input id="bk-{{ w.id }}-day" name="day" type="date">
+  </div>
+  <p class="sec-actions"><button class="sec-btn sec-btn--main" type="submit">{{ b.label }}</button></p>{% endif %}
+</form>
+{% endwith %}

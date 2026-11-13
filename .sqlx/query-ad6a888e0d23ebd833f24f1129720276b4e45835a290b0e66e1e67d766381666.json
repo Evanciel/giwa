@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO mod_booking_service (id, name, description, minutes, capacity, price, deposit, enabled,\n                 position, created_at, updated_at)\n             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)\n             ON CONFLICT (id) DO UPDATE SET name = excluded.name, description = excluded.description,\n                 minutes = excluded.minutes, capacity = excluded.capacity, price = excluded.price,\n                 deposit = excluded.deposit, enabled = excluded.enabled, position = excluded.position,\n                 updated_at = excluded.updated_at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 11
+    },
+    "nullable": []
+  },
+  "hash": "ad6a888e0d23ebd833f24f1129720276b4e45835a290b0e66e1e67d766381666"
+}

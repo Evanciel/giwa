@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO mod_booking_hours (weekday, open_min, close_min) VALUES (?, ?, ?)\n                         ON CONFLICT (weekday) DO UPDATE SET open_min = excluded.open_min, close_min = excluded.close_min",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "518a3085f16e589ff2a4f189894230442ef4e280b95d7e5b7f0aa9a1f5c1bd7a"
+}

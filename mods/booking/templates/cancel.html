@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{# 손님 예약 취소 (ADR-0169). 편지의 1회용 링크(k)를 가진 사람만 본다. 취소하면 링크는 더 쓰지 못한다. #}
+{% block main_class %}wrap account-wrap{% endblock %}
+{% block main %}
+<section class="account booking" aria-labelledby="bk-cancel-title">
+  <h1 id="bk-cancel-title">{% if done %}{{ "예약을 취소했습니다"|t }}{% else %}{{ "예약 취소"|t }}{% endif %}</h1>
+  {% if error %}<p class="form-error" role="alert">{{ error }}</p>{% endif %}
+  <dl class="pay-summary">
+    <dt>{{ "예약"|t }}</dt><dd>{{ b.service_name }}</dd>
+    <dt>{{ "일시"|t }}</dt><dd><strong>{{ b.when }}</strong></dd>
+    <dt>{{ "상태"|t }}</dt><dd><span class="badge">{{ b.status_label }}</span></dd>
+    {% if b.deposit %}<dt>{{ "예약금"|t }}</dt><dd>{{ b.deposit_text }}{% if b.paid %} ({{ "결제함"|t }}){% endif %}</dd>{% endif %}
+  </dl>
+  {% if done %}
+  <p>{{ "취소 편지를 보냈습니다."|t }}{% if refund %} {{ "받은 예약금은 확인한 뒤 돌려드립니다."|t }}{% endif %}</p>
+  {% elif can_cancel %}
+  <form method="post" action="/m/booking/c/{{ b.id }}" class="pay-methods">
+    <input type="hidden" name="k" value="{{ k }}">
+    <button type="submit">{{ "이 예약을 취소합니다"|t }}</button>
+  </form>
+  <p class="hint">{{ "취소하면 되돌릴 수 없습니다."|t }}{% if b.paid %} {{ "받은 예약금은 확인한 뒤 돌려드립니다."|t }}{% endif %}</p>
+  {% elif b.status == "canceled" or b.status == "expired" %}<p>{{ "이미 끝난 예약입니다."|t }}</p>
+  {% else %}<p>{{ "예약"|t }} {{ cancel_hours }}{{ "시간 전이 지나 직접 취소할 수 없습니다. 전화로 알려 주세요."|t }}</p>{% endif %}
+  <p class="hint">{{ "예약 번호"|t }} {{ b.id }}</p>
+  <p><a href="{{ site.home_url }}">{{ "처음으로"|t }}</a></p>
+</section>
+{% endblock %}

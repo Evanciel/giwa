@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{# 예약 관리 (ADR-0169). 모듈 관리 권한이 있는 운영자만 본다. 손님 정보는 바깥 사람이 쓴 값이라 이스케이프해 그린다.
+   취소는 사람만 누른다(에이전트 토큰은 서비스가 거절한다). 예약금 환불은 결제 관리에서 한다. #}
+{% block main_class %}wrap wide{% endblock %}
+{% block main %}
+<section class="account me pay-admin booking-admin" aria-labelledby="bk-admin-title">
+  <h1 id="bk-admin-title">{{ "예약 관리"|t }}</h1>
+  {% if done %}<p class="form-notice" role="status">{{ done }}</p>{% endif %}
+  {% if error %}<p class="form-error" role="alert">{{ error }}</p>{% endif %}
+  {% if not services %}<p class="hint pay-admin-warn">{{ "예약받을 서비스가 없습니다. 아래 「서비스」에서 하나 만들고 영업 시간을 정하세요."|t }}</p>{% endif %}
+
+  {% if waiting %}<h2>{{ "확정을 기다리는 예약"|t }} <span class="count">{{ waiting|length }}</span></h2>
+  <ul class="pay-orders">
+    {% for b in waiting %}<li class="pay-row is-{{ b.status }}">
+      <div class="pay-row-main">
+        <p class="pay-row-name"><strong>{{ b.when }}</strong> · {{ b.service_name }}</p>
+        <p>{{ b.guest.name }}{% if b.guest.phone %} · {{ b.guest.phone }}{% endif %}</p>
+      </div>
+      <div class="pay-row-actions">
+        <form method="post" action="/m/booking/admin/{{ b.id }}/confirm"><input type="hidden" name="day" value="{{ day }}"><button type="submit">{{ "확정"|t }}</button></form>
+        <a href="/m/booking?day={{ b.day }}">{{ "그 날 보기"|t }}</a>
+      </div>
+    </li>{% endfor %}
+  </ul>{% endif %}
+
+  <h2>{{ day_text }}{% if is_today %} <span class="badge">{{ "오늘"|t }}</span>{% endif %} <span class="count">{{ items|length }}</span></h2>
+  <nav class="post-actions" aria-label="{{ "날짜"|t }}">
+    <a href="/m/booking?day={{ prev }}" rel="prev">{{ "전날"|t }}</a>
+    {% if not is_today %}<a href="/m/booking?day={{ today }}">{{ "오늘"|t }}</a>{% endif %}
+    <a href="/m/booking?day={{ next }}" rel="next">{{ "다음날"|t }}</a>
+    <form method="get" action="/m/booking" class="booking-jump"><label class="visually-hidden" for="bk-jump">{{ "날짜로 가기"|t }}</label><input id="bk-jump" name="day" type="date" value="{{ day }}"><button type="submit">{{ "가기"|t }}</button></form>
+  </nav>
+  {% if items %}
+  <ul class="pay-orders">
+    {% for b in items %}<li class="pay-row is-{{ b.status }}">
+      <div class="pay-row-main">
+        <p class="pay-row-name"><strong>{{ b.start }}~{{ b.end }}</strong> {{ b.service_name }} <span class="badge">{{ b.status_label }}</span></p>
+        {% if b.deposit %}<p class="pay-row-amount">{{ "예약금"|t }} {{ b.deposit_text }}{% if b.paid %} · {{ "결제함"|t }}{% endif %}{% if b.refunded %} · {{ "환불함"|t }}{% endif %}</p>{% endif %}
+      </div>
+      <dl class="forms-values">
+        <dt>{{ "손님"|t }}</dt><dd>{{ b.guest.name or "-" }}{% if b.guest.email %} · {{ b.guest.email }}{% endif %}{% if b.guest.phone %} · {{ b.guest.phone }}{% endif %}</dd>
+        {% if b.guest.memo %}<dt>{{ "요청 사항"|t }}</dt><dd>{{ b.guest.memo }}</dd>{% endif %}
+        {% if b.cancel_reason %}<dt>{{ "취소 사유"|t }}</dt><dd>{{ b.cancel_reason }}</dd>{% endif %}
+        {% if b.order_id %}<dt>{{ "주문 번호"|t }}</dt><dd><code>{{ b.order_id }}</code></dd>{% endif %}
+        <dt>{{ "예약 번호"|t }}</dt><dd><code>{{ b.id }}</code></dd>
+      </dl>
+      {% if b.refund_needed %}<p class="hint pay-admin-warn">{{ "예약금을 받은 예약이 취소됐습니다."|t }} <a href="/m/pay?status=paid">{{ "결제 관리에서 환불하기"|t }}</a></p>{% endif %}
+      {% if b.can_confirm or b.can_cancel %}<div class="pay-row-actions">
+        {% if b.can_confirm %}<form method="post" action="/m/booking/admin/{{ b.id }}/confirm"><input type="hidden" name="day" value="{{ day }}"><button type="submit">{{ "확정"|t }}</button></form>{% endif %}
+        {% if b.can_cancel %}<details class="pay-refund">
+          <summary>{{ "취소"|t }}</summary>
+          <form method="post" action="/m/booking/admin/{{ b.id }}/cancel" class="pay-refund-form">
+            <input type="hidden" name="day" value="{{ day }}">
+            <label for="bc-{{ b.id }}-reason">{{ "사유 (손님에게 갑니다)"|t }}</label>
+            <input id="bc-{{ b.id }}-reason" name="reason" required maxlength="200">
+            <button type="submit">{{ "예약 취소"|t }}</button>
+          </form>
+        </details>{% endif %}
+      </div>{% endif %}
+    </li>{% endfor %}
+  </ul>
+  {% else %}<p class="muted">{{ "이 날 예약이 없습니다."|t }}</p>{% endif %}
+
+  <div class="pay-admin-tools">
+    <details class="pay-box"{% if not services %} open{% endif %}>
+      <summary>{{ "서비스"|t }} · {{ services|length }}</summary>
+      {% for s in services %}<form method="post" action="/m/booking/admin/service" class="pay-grid booking-service-form">
+        <input type="hidden" name="id" value="{{ s.id }}">
+        <p><strong>{{ s.name }}</strong> <code>{{ s.id }}</code>{% if not s.enabled %} <span class="badge">{{ "숨김"|t }}</span>{% endif %}</p>
+        <label for="sv-{{ s.id }}-name">{{ "이름"|t }}</label><input id="sv-{{ s.id }}-name" name="name" value="{{ s.name }}" required maxlength="60">
+        <label for="sv-{{ s.id }}-desc">{{ "설명"|t }}</label><input id="sv-{{ s.id }}-desc" name="description" value="{{ s.description }}" maxlength="300">
+        <label for="sv-{{ s.id }}-min">{{ "소요 시간(분)"|t }}</label><input id="sv-{{ s.id }}-min" name="minutes" inputmode="numeric" value="{{ s.minutes }}" required>
+        <label for="sv-{{ s.id }}-cap">{{ "한 칸 정원"|t }}</label><input id="sv-{{ s.id }}-cap" name="capacity" inputmode="numeric" value="{{ s.capacity }}">
+        <label for="sv-{{ s.id }}-price">{{ "가격(원, 안내용)"|t }}</label><input id="sv-{{ s.id }}-price" name="price" inputmode="numeric" value="{{ s.price }}">
+        <label for="sv-{{ s.id }}-dep">{{ "예약금(원)"|t }}</label><input id="sv-{{ s.id }}-dep" name="deposit" inputmode="numeric" value="{{ s.deposit }}" aria-describedby="sv-{{ s.id }}-dep-hint">
+        <p class="hint" id="sv-{{ s.id }}-dep-hint">{{ "예약금이 있으면 결제 모듈로 받습니다. 결제를 마칠 때까지 15분 동안 자리를 잡아 둡니다."|t }}</p>
+        <label for="sv-{{ s.id }}-pos">{{ "순서"|t }}</label><input id="sv-{{ s.id }}-pos" name="position" inputmode="numeric" value="{{ s.position }}">
+        <label class="cf-check"><input type="checkbox" name="enabled" value="1"{% if s.enabled %} checked{% endif %}> {{ "예약을 받습니다"|t }}</label>
+        <p><button type="submit">{{ "저장"|t }}</button></p>
+      </form>{% endfor %}
+      <form method="post" action="/m/booking/admin/service" class="pay-grid booking-service-form">
+        <p><strong>{{ "새 서비스"|t }}</strong></p>
+        <label for="sv-new-id">{{ "영문 이름 (주소에 씁니다)"|t }}</label><input id="sv-new-id" name="id" required maxlength="40" pattern="[a-z0-9-]+" placeholder="first-visit" spellcheck="false">
+        <label for="sv-new-name">{{ "이름"|t }}</label><input id="sv-new-name" name="name" required maxlength="60">
+        <label for="sv-new-desc">{{ "설명"|t }}</label><input id="sv-new-desc" name="description" maxlength="300">
+        <label for="sv-new-min">{{ "소요 시간(분)"|t }}</label><input id="sv-new-min" name="minutes" inputmode="numeric" value="60" required>
+        <label for="sv-new-cap">{{ "한 칸 정원"|t }}</label><input id="sv-new-cap" name="capacity" inputmode="numeric" value="1">
+        <label for="sv-new-price">{{ "가격(원, 안내용)"|t }}</label><input id="sv-new-price" name="price" inputmode="numeric" value="0">
+        <label for="sv-new-dep">{{ "예약금(원)"|t }}</label><input id="sv-new-dep" name="deposit" inputmode="numeric" value="0">
+        <input type="hidden" name="enabled" value="1">
+        <p><button type="submit">{{ "만들기"|t }}</button></p>
+      </form>
+    </details>
+
+    <details class="pay-box"{% if not services %} open{% endif %}>
+      <summary>{{ "영업 시간"|t }}</summary>
+      <form method="post" action="/m/booking/admin/hours" class="booking-hours">
+        <table>
+          <thead><tr><th scope="col">{{ "요일"|t }}</th><th scope="col">{{ "여는 시간"|t }}</th><th scope="col">{{ "닫는 시간"|t }}</th><th scope="col">{{ "쉼"|t }}</th></tr></thead>
+          <tbody>
+          {% for h in hours %}<tr>
+            <th scope="row">{{ h.label }}</th>
+            <td><input type="time" name="open_{{ h.day }}" value="{{ h.open }}" aria-label="{{ h.label }} {{ "여는 시간"|t }}"></td>
+            <td><input type="time" name="close_{{ h.day }}" value="{{ h.close }}" aria-label="{{ h.label }} {{ "닫는 시간"|t }}"></td>
+            <td><input type="checkbox" name="closed_{{ h.day }}" value="1"{% if h.closed %} checked{% endif %} aria-label="{{ h.label }} {{ "쉼"|t }}"></td>
+          </tr>{% endfor %}
+          </tbody>
+        </table>
+        <p class="hint">{{ "칸은 서비스 소요 시간 단위로 나뉘고, 마지막 칸은 닫는 시간 안에 끝납니다."|t }}</p>
+        <p><button type="submit">{{ "저장"|t }}</button></p>
+      </form>
+    </details>
+
+    <details class="pay-box">
+      <summary>{{ "쉬는 날·막은 시간"|t }} · {{ blocks|length }}</summary>
+      {% if blocks %}<ul class="booking-blocks">
+        {% for k in blocks %}<li>
+          <span>{{ k.day_text }} {% if k.whole_day %}{{ "하루 쉼"|t }}{% else %}{{ k.start }}~{{ k.end }}{% endif %}{% if k.reason %} · {{ k.reason }}{% endif %}</span>
+          <form method="post" action="/m/booking/admin/block/{{ k.id }}/delete"><button type="submit">{{ "지우기"|t }}</button></form>
+        </li>{% endfor %}
+      </ul>{% endif %}
+      <form method="post" action="/m/booking/admin/block" class="pay-grid">
+        <label for="bl-day">{{ "날짜"|t }}</label><input id="bl-day" name="day" type="date" required min="{{ today }}">
+        <label for="bl-start">{{ "시작"|t }} <span class="cf-optional">{{ "(비우면 하루 종일)"|t }}</span></label><input id="bl-start" name="start" type="time">
+        <label for="bl-end">{{ "끝"|t }}</label><input id="bl-end" name="end" type="time">
+        <label for="bl-reason">{{ "까닭"|t }} <span class="cf-optional">{{ "(선택)"|t }}</span></label><input id="bl-reason" name="reason" maxlength="100">
+        <p class="hint">{{ "이미 잡힌 예약은 그대로 남습니다. 필요하면 그 예약을 직접 취소하세요."|t }}</p>
+        <p><button type="submit">{{ "막기"|t }}</button></p>
+      </form>
+    </details>
+
+    <p class="hint">{{ "취소 마감"|t }} {{ conf.cancel_hours }}{{ "시간 전"|t }} · {{ "준비 시간"|t }} {{ conf.notice_minutes }}{{ "분"|t }} · {{ conf.days_ahead }}{{ "일 앞까지"|t }} · {% if conf.auto_confirm %}{{ "바로 확정"|t }}{% else %}{{ "운영자 확정"|t }}{% endif %}. <a href="/admin/modules">{{ "예약 설정 바꾸기"|t }}</a></p>
+  </div>
+</section>
+{% endblock %}

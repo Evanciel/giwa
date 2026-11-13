@@ -1,0 +1,122 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id!\", name, description, minutes, capacity, price, deposit, enabled, position\n               FROM mod_booking_service ORDER BY position, created_at",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_service",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_service",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "name": "description",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_service",
+            "name": "description"
+          }
+        }
+      },
+      {
+        "name": "minutes",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_service",
+            "name": "minutes"
+          }
+        }
+      },
+      {
+        "name": "capacity",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_service",
+            "name": "capacity"
+          }
+        }
+      },
+      {
+        "name": "price",
+        "ordinal": 5,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_service",
+            "name": "price"
+          }
+        }
+      },
+      {
+        "name": "deposit",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_service",
+            "name": "deposit"
+          }
+        }
+      },
+      {
+        "name": "enabled",
+        "ordinal": 7,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_service",
+            "name": "enabled"
+          }
+        }
+      },
+      {
+        "name": "position",
+        "ordinal": 8,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_service",
+            "name": "position"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "61bfc1cb70e58071aec5ab31302a44eb7d9cfe25b44a00e9924b1db72d499eae"
+}

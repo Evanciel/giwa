@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id!\", day, start_min, end_min, reason FROM mod_booking_block\n               WHERE day >= ? ORDER BY day, start_min LIMIT 200",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_block",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "day",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_block",
+            "name": "day"
+          }
+        }
+      },
+      {
+        "name": "start_min",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_block",
+            "name": "start_min"
+          }
+        }
+      },
+      {
+        "name": "end_min",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_block",
+            "name": "end_min"
+          }
+        }
+      },
+      {
+        "name": "reason",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_block",
+            "name": "reason"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "6fd78e3983658aecd31be19dda932a3373aaec696e34f411ff5841967c98f362"
+}

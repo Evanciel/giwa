@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM mod_booking_hours WHERE weekday = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "16e84cf5585932ecca6346e951c59787ba4fe30a0143055bf91e042325476643"
+}

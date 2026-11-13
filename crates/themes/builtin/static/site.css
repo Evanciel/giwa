@@ -1499,6 +1499,43 @@ body:is(:has(main.page-blocks), :has(main.wide), :has(.with-sidebar), :has(.docs
 .pay-box { padding: calc(var(--space) * 2); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
 .pay-error { color: #b42318; }
 
+/* 예약 (ADR-0169) */
+.booking-pick { padding: calc(var(--space) * 3); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
+.sec-booking_form .booking-pick { max-width: 40rem; }
+.booking-services { display: grid; gap: calc(var(--space) * 1); margin: 0 0 calc(var(--space) * 2); padding: 0; border: 0; }
+.booking-services legend { margin-bottom: calc(var(--space) * 1); font-weight: 650; }
+.booking-service { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0 calc(var(--space) * 1.25); align-items: baseline; padding: calc(var(--space) * 1.5); border: 1px solid var(--border); border-radius: min(var(--radius-sm), 12px); cursor: pointer; }
+.booking-service:has(input:checked) { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 6%, var(--surface)); }
+.booking-service .booking-service-meta { grid-column: 2; }
+.booking-service-name { margin: 0; font-weight: 700; }
+.booking-service-meta { margin: 0; font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
+.booking-one { margin-bottom: calc(var(--space) * 2); }
+.booking-list { display: grid; gap: calc(var(--space) * 1.5); margin: calc(var(--space) * 2) 0; padding: 0; list-style: none; }
+.booking-card { display: grid; gap: calc(var(--space) * .5); padding: calc(var(--space) * 2); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); color: inherit; text-decoration: none; }
+.booking-card:hover { border-color: var(--primary); }
+.booking-step { margin: calc(var(--space) * 4) 0 calc(var(--space) * 1.5); font-size: 1.05rem; }
+.booking-days { display: flex; gap: calc(var(--space) * 1); overflow-x: auto; padding-bottom: calc(var(--space) * .5); scrollbar-width: thin; }
+.booking-days a { flex: none; padding: calc(var(--space) * 1) calc(var(--space) * 1.5); border: 1px solid var(--border); border-radius: 999px; color: inherit; text-decoration: none; white-space: nowrap; font-size: var(--fs-sm); }
+.booking-days a[aria-current] { border-color: var(--primary); background: var(--primary); color: var(--bg); font-weight: 650; }
+.booking-other-day { display: flex; flex-wrap: wrap; align-items: center; gap: calc(var(--space) * 1); margin-top: calc(var(--space) * 1.5); font-size: var(--fs-sm); }
+.booking-other-day input, .booking-jump input, .booking-hours input[type="time"] { padding: calc(var(--space) * .75) calc(var(--space) * 1); font: inherit; color: var(--fg); background: var(--surface); border: 1px solid var(--muted); border-radius: min(var(--radius-sm), 12px); }
+.booking-other-day button, .booking-jump button, .booking-hours button, .booking-blocks button { padding: calc(var(--space) * .75) calc(var(--space) * 1.5); font: inherit; font-weight: 600; color: var(--fg); background: var(--surface); border: 1px solid var(--fg); border-radius: min(var(--radius-sm), 12px); cursor: pointer; }
+.booking-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr)); gap: calc(var(--space) * 1); margin: 0; padding: 0; border: 0; }
+.booking-slot { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: calc(var(--space) * 1.25) calc(var(--space) * 1); border: 1px solid var(--border); border-radius: min(var(--radius-sm), 12px); background: var(--surface); font-weight: 650; font-variant-numeric: tabular-nums; cursor: pointer; }
+.booking-slot input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.booking-slot:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
+.booking-slot:has(input:checked) { border-color: var(--primary); background: var(--primary); color: var(--bg); }
+.booking-slot.is-full { color: var(--muted); background: transparent; text-decoration: line-through; cursor: not-allowed; }
+.booking-slot-left { font-size: var(--fs-sm); font-weight: 400; text-decoration: none; }
+.booking-form .cf-field:first-of-type { margin-top: 0; }
+.booking-jump { display: inline-flex; gap: calc(var(--space) * .75); align-items: center; }
+.booking-hours table { border-collapse: collapse; margin-block: calc(var(--space) * 1.5); }
+.booking-hours th, .booking-hours td { padding: calc(var(--space) * .5) calc(var(--space) * 1); text-align: left; }
+.booking-blocks { display: grid; gap: calc(var(--space) * 1); margin: calc(var(--space) * 1.5) 0; padding: 0; list-style: none; }
+.booking-blocks li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: calc(var(--space) * 1); }
+.booking-service-form { padding-top: calc(var(--space) * 2); border-top: 1px solid var(--border); }
+.pay-row.is-canceled, .pay-row.is-expired { opacity: .7; }
+
 /* 첫 화면의 카드 묶음은 한 칸에 세로로 쌓지 않고 한 줄을 다 쓴다. */
 .region-main > .widget:has(.widget-cards) { grid-column: 1 / -1; }
 .region-main > .widget:has(.map-box) { grid-column: 1 / -1; }

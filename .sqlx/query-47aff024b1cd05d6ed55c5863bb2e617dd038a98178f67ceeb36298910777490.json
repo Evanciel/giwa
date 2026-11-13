@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT weekday, open_min, close_min FROM mod_booking_hours",
+  "describe": {
+    "columns": [
+      {
+        "name": "weekday",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_hours",
+            "name": "weekday"
+          }
+        }
+      },
+      {
+        "name": "open_min",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_hours",
+            "name": "open_min"
+          }
+        }
+      },
+      {
+        "name": "close_min",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_hours",
+            "name": "close_min"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "47aff024b1cd05d6ed55c5863bb2e617dd038a98178f67ceeb36298910777490"
+}

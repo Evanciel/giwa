@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{# 예약 접수 화면 (ADR-0169). 예약 ID 만 알면 보이므로 손님 정보는 싣지 않는다. #}
+{% block main_class %}wrap account-wrap{% endblock %}
+{% block main %}
+<section class="account booking" aria-labelledby="bk-done-title">
+  <h1 id="bk-done-title">{% if b.status == "confirmed" %}{{ "예약이 확정됐습니다"|t }}{% elif b.status == "requested" %}{{ "예약 신청을 받았습니다"|t }}{% elif b.status == "held" %}{{ "예약금 결제를 기다립니다"|t }}{% elif b.status == "canceled" %}{{ "취소된 예약입니다"|t }}{% else %}{{ "예약 기한이 지났습니다"|t }}{% endif %}</h1>
+  <dl class="pay-summary">
+    <dt>{{ "예약"|t }}</dt><dd>{{ b.service_name }}</dd>
+    <dt>{{ "일시"|t }}</dt><dd><strong>{{ b.when }}</strong></dd>
+    <dt>{{ "상태"|t }}</dt><dd><span class="badge">{{ b.status_label }}</span></dd>
+    {% if b.deposit %}<dt>{{ "예약금"|t }}</dt><dd>{{ b.deposit_text }}{% if b.paid %} ({{ "결제함"|t }}){% endif %}</dd>{% endif %}
+  </dl>
+  {% if b.status == "confirmed" %}<p>{{ "확인 편지를 보냈습니다. 편지의 링크로 예약을 취소할 수 있습니다."|t }}</p>
+  {% elif b.status == "requested" %}<p>{{ "운영자가 확인하면 확정 편지를 보내 드립니다. 접수 편지의 링크로 취소할 수 있습니다."|t }}</p>
+  {% elif held %}<p>{{ "결제가 끝나면 예약이 확정되고 편지가 갑니다. 무통장 입금은 입금을 확인한 뒤 확정됩니다."|t }}</p>
+  {% elif b.status == "expired" %}<p>{{ "예약금 결제 기한이 지나 자리를 풀었습니다. 다시 예약해 주세요."|t }} <a href="/m/booking/new?service={{ b.service_id }}">{{ "다시 예약하기"|t }}</a></p>{% endif %}
+  <p class="hint">{{ "예약 번호"|t }} {{ b.id }}</p>
+  <p><a href="{{ site.home_url }}">{{ "처음으로"|t }}</a></p>
+</section>
+{% endblock %}

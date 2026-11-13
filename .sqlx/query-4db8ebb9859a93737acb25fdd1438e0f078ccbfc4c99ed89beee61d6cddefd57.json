@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO mod_booking_block (id, day, start_min, end_min, reason, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "4db8ebb9859a93737acb25fdd1438e0f078ccbfc4c99ed89beee61d6cddefd57"
+}

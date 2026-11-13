@@ -28,6 +28,7 @@ Structure, design and module changes go through changesets: stage, preview URL, 
 - `maru page edit <slug> --description --share-image --noindex true|false`: per-page search description, share image, noindex (empty = body excerpt / site share image)
 - `maru media upload <file.mp4|webm>` (<=200MB, not re-encoded); large files: REST `POST /api/v1/media/videos` → `PUT /api/v1/media/videos/{id}?offset=N` (8MB chunks, idempotent resend, gap = 409) → `POST …/{id}/finish`; `media list --kind video`; posts `::video[/media/….mp4]{loop muted autoplay}`; video section `url` + `loop_muted`
 - Payments (`maru module enable pay`): `maru site set --business-*` (footer seller info, required before live keys), `maru page new terms|refund --starter terms|refund`, `maru pay provider_set` (bank transfer, Toss Payments widget keys), `pay_button` widget via changeset, `maru pay order_create` (one-off pay link), `maru pay orders`; `mark_paid`/`refund` are human-only, admin at `/m/pay`
+- Booking (`maru module enable booking`): `maru booking service_set` (minutes, capacity, price, deposit via pay), `maru booking set_hours --days weekdays --open 10:00 --close 19:00`, `maru booking block`, `booking_form` widget via changeset, `maru booking list|slots|confirm`; `cancel` is human-only, guests cancel via one-time mail link, admin at `/m/booking`
 - Home-screen install (PWA) on by default: `/manifest.webmanifest`, generated icons, `/sw.js` caches only `/offline` + styles; `maru site set --pwa false` to turn off
 
 ## MCP

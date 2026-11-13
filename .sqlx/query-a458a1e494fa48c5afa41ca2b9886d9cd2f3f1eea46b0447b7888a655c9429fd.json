@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE mod_booking_booking SET hold_until = MAX(COALESCE(hold_until, ''), ?)\n                     WHERE id = ? AND status = 'held'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "a458a1e494fa48c5afa41ca2b9886d9cd2f3f1eea46b0447b7888a655c9429fd"
+}

@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT start_min, end_min FROM mod_booking_booking\n             WHERE service_id = ? AND day = ?\n               AND (status IN ('requested', 'confirmed') OR (status = 'held' AND hold_until > ?))",
+  "describe": {
+    "columns": [
+      {
+        "name": "start_min",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_booking",
+            "name": "start_min"
+          }
+        }
+      },
+      {
+        "name": "end_min",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_booking",
+            "name": "end_min"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "02224ed86d1b77ff50ea71f8d6b102989eaa2eb3ea17cfdbdfd07fba32717155"
+}

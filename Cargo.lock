@@ -1490,6 +1490,7 @@ dependencies = [
  "maru-agent",
  "maru-core",
  "maru-mod-ads",
+ "maru-mod-booking",
  "maru-mod-consult",
  "maru-mod-forms",
  "maru-mod-kakao",
@@ -1556,6 +1557,23 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "maru-mod-booking"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "axum",
+ "maru-core",
+ "maru-modules",
+ "maru-storage",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "time",
+ "tracing",
 ]
 
 [[package]]

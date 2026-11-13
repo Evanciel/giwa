@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE mod_booking_booking SET name = '', email = '', phone = '', memo = '', member_id = NULL,\n                 cancel_hash = NULL\n             WHERE day < ? AND (name != '' OR email != '' OR phone != '' OR memo != '' OR member_id IS NOT NULL)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "85414e46ba8c969d1d456163c0e8638aec6fb3b87394257e506495587807f448"
+}

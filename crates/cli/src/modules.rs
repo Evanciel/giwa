@@ -13,6 +13,8 @@ use crate::{Global, ModuleCmd};
 
 /// 이 바이너리에 든 모듈. 새 공식 모듈은 여기와 [`IDS`] 에 더한다.
 pub(crate) fn registry(db: &Db) -> Result<Arc<Registry>> {
+    // 예약은 결제 모듈 크레이트를 모르고 `Checkout` 으로만 주문을 맡긴다 (ADR-0166).
+    let pay = Arc::new(maru_mod_pay::PayModule::new(db.clone()));
     let modules: Vec<Arc<dyn Module>> = vec![
         Arc::new(maru_mod_point::PointModule::new(db.clone())),
         Arc::new(maru_mod_reaction::ReactionModule::new(db.clone())),
@@ -28,15 +30,16 @@ pub(crate) fn registry(db: &Db) -> Result<Arc<Registry>> {
         Arc::new(maru_mod_webhook::WebhookModule::new(db.clone())?),
         Arc::new(maru_mod_social::SocialModule::new(db.clone())),
         Arc::new(maru_mod_forms::FormsModule::new(db.clone())),
-        Arc::new(maru_mod_pay::PayModule::new(db.clone())),
+        pay.clone(),
+        Arc::new(maru_mod_booking::BookingModule::new(db.clone(), pay)),
     ];
     Ok(Arc::new(Registry::new(modules)?))
 }
 
 /// 데이터 디렉터리를 열기 전에 모르는 명령을 가려내는 데 쓴다.
-const IDS: [&str; 15] = [
+const IDS: [&str; 16] = [
     "point", "reaction", "scrap", "notify", "message", "poll", "report", "ads", "consult",
-    "webhook", "social", "forms", "map", "kakao", "pay",
+    "webhook", "social", "forms", "map", "kakao", "pay", "booking",
 ];
 
 fn usage(detail: impl Into<String>) -> Error {

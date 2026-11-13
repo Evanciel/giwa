@@ -1,0 +1,290 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id!\", service_id, service_name, day, start_min, end_min, starts_at, status,\n                      deposit, order_id, paid, refunded, hold_until, name, email, phone, memo, member_id,\n                      cancel_hash, cancel_reason, canceled_by, created_at, updated_at\n               FROM mod_booking_booking WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_booking",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "service_id",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_booking",
+            "name": "service_id"
+          }
+        }
+      },
+      {
+        "name": "service_name",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_booking",
+            "name": "service_name"
+          }
+        }
+      },
+      {
+        "name": "day",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_booking",
+            "name": "day"
+          }
+        }
+      },
+      {
+        "name": "start_min",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_booking",
+            "name": "start_min"
+          }
+        }
+      },
+      {
+        "name": "end_min",
+        "ordinal": 5,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_booking",
+            "name": "end_min"
+          }
+        }
+      },
+      {
+        "name": "starts_at",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_booking",
+            "name": "starts_at"
+          }
+        }
+      },
+      {
+        "name": "status",
+        "ordinal": 7,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_booking",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "name": "deposit",
+        "ordinal": 8,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_booking",
+            "name": "deposit"
+          }
+        }
+      },
+      {
+        "name": "order_id",
+        "ordinal": 9,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_booking",
+            "name": "order_id"
+          }
+        }
+      },
+      {
+        "name": "paid",
+        "ordinal": 10,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_booking",
+            "name": "paid"
+          }
+        }
+      },
+      {
+        "name": "refunded",
+        "ordinal": 11,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_booking",
+            "name": "refunded"
+          }
+        }
+      },
+      {
+        "name": "hold_until",
+        "ordinal": 12,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_booking",
+            "name": "hold_until"
+          }
+        }
+      },
+      {
+        "name": "name",
+        "ordinal": 13,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_booking",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "name": "email",
+        "ordinal": 14,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_booking",
+            "name": "email"
+          }
+        }
+      },
+      {
+        "name": "phone",
+        "ordinal": 15,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_booking",
+            "name": "phone"
+          }
+        }
+      },
+      {
+        "name": "memo",
+        "ordinal": 16,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_booking",
+            "name": "memo"
+          }
+        }
+      },
+      {
+        "name": "member_id",
+        "ordinal": 17,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_booking",
+            "name": "member_id"
+          }
+        }
+      },
+      {
+        "name": "cancel_hash",
+        "ordinal": 18,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_booking",
+            "name": "cancel_hash"
+          }
+        }
+      },
+      {
+        "name": "cancel_reason",
+        "ordinal": 19,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_booking",
+            "name": "cancel_reason"
+          }
+        }
+      },
+      {
+        "name": "canceled_by",
+        "ordinal": 20,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_booking",
+            "name": "canceled_by"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 21,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_booking",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "name": "updated_at",
+        "ordinal": 22,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_booking",
+            "name": "updated_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "b448764bf9f45c93bc94ba8f8e573403a883195dc72d58a628d038b71c8670b9"
+}

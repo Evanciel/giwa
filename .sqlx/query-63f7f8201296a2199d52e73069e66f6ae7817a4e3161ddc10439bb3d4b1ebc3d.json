@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT start_min, end_min FROM mod_booking_block WHERE day = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "start_min",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_block",
+            "name": "start_min"
+          }
+        }
+      },
+      {
+        "name": "end_min",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_block",
+            "name": "end_min"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "63f7f8201296a2199d52e73069e66f6ae7817a4e3161ddc10439bb3d4b1ebc3d"
+}

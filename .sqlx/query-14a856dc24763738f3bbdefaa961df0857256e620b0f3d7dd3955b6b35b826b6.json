@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE mod_booking_booking SET refunded = 1 WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "14a856dc24763738f3bbdefaa961df0857256e620b0f3d7dd3955b6b35b826b6"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO mod_booking_booking (id, service_id, service_name, day, start_min, end_min, starts_at,\n                 status, deposit, hold_until, name, email, phone, memo, member_id, cancel_hash, created_at, updated_at)\n             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 18
+    },
+    "nullable": []
+  },
+  "hash": "d940cdd8514a61477fe9c85114ec0f08347419ee6e221ddf096f4388b7155bce"
+}

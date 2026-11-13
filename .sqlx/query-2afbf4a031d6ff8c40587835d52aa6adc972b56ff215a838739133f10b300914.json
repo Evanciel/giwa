@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE mod_booking_booking SET status = ?, paid = ?, cancel_hash = ?,\n                 cancel_reason = COALESCE(?, cancel_reason), canceled_by = COALESCE(?, canceled_by),\n                 updated_at = ?\n             WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "2afbf4a031d6ff8c40587835d52aa6adc972b56ff215a838739133f10b300914"
+}

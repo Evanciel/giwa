@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{# 예약 화면 (ADR-0169). 서비스 → 날짜 → 시간 → 연락처. 자바스크립트 없이 링크와 폼으로 간다.
+   보낸 값은 바깥 값이라 이스케이프해 다시 채운다. 금액(예약금)은 서버가 서비스 설정에서 읽는다. #}
+{% block main_class %}wrap account-wrap{% endblock %}
+{% block main %}
+<section class="account booking" aria-labelledby="bk-title">
+  <h1 id="bk-title">{% if svc %}{{ svc.name }}{% else %}{{ "예약하기"|t }}{% endif %}</h1>
+  {% if error %}<p class="form-error" role="alert">{{ error }}</p>{% endif %}
+
+  {% if not svc %}
+  <p>{{ "예약할 것을 골라 주세요."|t }}</p>
+  <ul class="booking-list">
+    {% for s in services %}<li><a class="booking-card" href="{{ s.url }}">
+      <span class="booking-service-name">{{ s.name }}</span>
+      <span class="booking-service-meta">{{ s.minutes_text }}{% if s.price_text %} · {{ s.price_text }}{% endif %}{% if s.deposit_text %} · {{ "예약금"|t }} {{ s.deposit_text }}{% endif %}</span>
+      {% if s.description %}<span class="hint">{{ s.description }}</span>{% endif %}
+    </a></li>{% endfor %}
+  </ul>
+  {% else %}
+  <dl class="pay-summary">
+    <dt>{{ "소요 시간"|t }}</dt><dd>{{ svc.minutes_text }}</dd>
+    {% if svc.price_text %}<dt>{{ "가격"|t }}</dt><dd>{{ svc.price_text }}</dd>{% endif %}
+    {% if svc.deposit_text %}<dt>{{ "예약금"|t }}</dt><dd><strong>{{ svc.deposit_text }}</strong></dd>{% endif %}
+  </dl>
+  {% if svc.description %}<p>{{ svc.description }}</p>{% endif %}
+  {% if many %}<p class="hint"><a href="/m/booking/new">{{ "다른 것 예약하기"|t }}</a></p>{% endif %}
+
+  <h2 class="booking-step">{{ "날짜"|t }}</h2>
+  {% if days %}
+  <nav class="booking-days" aria-label="{{ "예약 받는 날"|t }}">
+    {% for d in days %}<a href="{{ d.url }}"{% if d.current %} aria-current="date"{% endif %}>{{ d.label }}</a>{% endfor %}
+  </nav>
+  {% else %}<p class="muted">{{ "앞으로 예약을 받는 날이 없습니다."|t }}</p>{% endif %}
+  <form class="booking-other-day" method="get" action="/m/booking/new">
+    <input type="hidden" name="service" value="{{ svc.id }}">
+    <label for="bk-day">{{ "다른 날짜"|t }}</label>
+    <input id="bk-day" name="day" type="date" min="{{ today }}" value="{{ day }}">
+    <button type="submit">{{ "보기"|t }}</button>
+  </form>
+
+  {% if day %}
+  <h2 class="booking-step">{{ day_text }} {{ "시간"|t }}</h2>
+  {% if slots and any_left %}
+  <form class="cf booking-form" method="post" action="/m/booking/new">
+    <input type="hidden" name="service" value="{{ svc.id }}">
+    <input type="hidden" name="day" value="{{ day }}">
+    <fieldset class="booking-slots">
+      <legend class="visually-hidden">{{ "시간 고르기"|t }}</legend>
+      {% for s in slots %}<label class="booking-slot{% if s.full %} is-full{% endif %}">
+        <input type="radio" name="start" value="{{ s.start }}" required{% if s.full %} disabled{% endif %}{% if values.start == s.start %} checked{% endif %}>
+        <span>{{ s.start }}</span>{% if s.full %}<span class="booking-slot-left">{{ "마감"|t }}</span>{% elif svc.capacity > 1 %}<span class="booking-slot-left">{{ s.left }}{{ "자리"|t }}</span>{% endif %}
+      </label>{% endfor %}
+    </fieldset>
+    <h2 class="booking-step">{{ "연락처"|t }}</h2>
+    <div class="cf-field">
+      <label for="bk-name">{{ "이름"|t }}</label>
+      <input id="bk-name" name="name" required maxlength="60" autocomplete="name" value="{{ values.name }}">
+    </div>
+    <div class="cf-field">
+      <label for="bk-email">{{ "전자우편"|t }}</label>
+      <input id="bk-email" name="email" type="email" required maxlength="254" autocomplete="email" value="{{ values.email }}">
+      <p class="hint">{{ "예약 확인과 취소 링크를 이 주소로 보냅니다."|t }}</p>
+    </div>
+    {% if ask_phone %}<div class="cf-field">
+      <label for="bk-phone">{{ "전화"|t }}</label>
+      <input id="bk-phone" name="phone" type="tel" inputmode="tel" required maxlength="20" autocomplete="tel" value="{{ values.phone }}">
+    </div>{% endif %}
+    <div class="cf-field">
+      <label for="bk-memo">{{ "요청 사항"|t }} <span class="cf-optional">{{ "(선택)"|t }}</span></label>
+      <textarea id="bk-memo" name="memo" rows="3" maxlength="500">{{ values.memo }}</textarea>
+    </div>
+    <div class="cf-trap" aria-hidden="true"><label>{{ "비워 두세요"|t }} <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+    <div class="cf-consent">
+      <label class="cf-check"><input type="checkbox" name="agree" value="1" required{% if values.agree %} checked{% endif %}> {{ "예약 내용을 확인했고 개인정보 수집에 동의합니다"|t }}</label>
+      <p class="hint">{% if ask_phone %}{{ "예약 확인과 연락을 위해 이름·전자우편·전화를 받고, 예약일로부터 1년 동안 보관합니다."|t }}{% else %}{{ "예약 확인과 연락을 위해 이름·전자우편을 받고, 예약일로부터 1년 동안 보관합니다."|t }}{% endif %} {{ "예약 시각"|t }} {{ cancel_hours }}{{ "시간 전까지 편지의 링크로 직접 취소할 수 있습니다."|t }}{% if policy %} <a href="{{ policy }}">{{ "예약·취소 규정 보기"|t }}</a>{% endif %}</p>
+      {% if svc.deposit %}<p class="hint">{{ "예약금을 결제해야 예약이 확정됩니다. 결제 화면에서"|t }} {{ hold_minutes }}{{ "분 안에 마쳐 주세요."|t }}</p>{% endif %}
+    </div>
+    <p class="sec-actions"><button class="sec-btn sec-btn--main" type="submit">{% if svc.deposit %}{{ "예약하고 예약금 결제"|t }}{% else %}{{ "예약하기"|t }}{% endif %}</button></p>
+  </form>
+  {% elif slots %}<p class="muted">{{ "이 날은 모두 찼습니다. 다른 날을 골라 주세요."|t }}</p>
+  {% else %}<p class="muted">{{ reason or "이 날은 예약을 받지 않습니다."|t }}</p>{% endif %}
+  {% endif %}
+  {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT capacity FROM mod_booking_service WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "capacity",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_booking_service",
+            "name": "capacity"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "60b7af457689ed0fa1d813a093e1b6abbef16dc044bcf7dbf91e5b9fe4524545"
+}

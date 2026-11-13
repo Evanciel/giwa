@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE mod_booking_booking SET paid = 1 WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "ddd0bfdb35796a40a7fb5fe59d06e3ee46aa194ccf6dfe6c0f687b23954cfb2d"
+}

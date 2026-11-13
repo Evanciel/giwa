@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT COUNT(*) AS \"n!: i64\" FROM mod_booking_booking\n                   WHERE service_id = ? AND day = ? AND start_min < ? AND end_min > ? AND id != ?\n                     AND (status IN ('requested', 'confirmed') OR (status = 'held' AND hold_until > ?))",
+  "describe": {
+    "columns": [
+      {
+        "name": "n!: i64",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "7912a7c1c37f7d58d8aa27d4d8a6560096992e34fbae3c9ee8ed98e1192467a4"
+}
