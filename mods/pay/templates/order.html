@@ -36,6 +36,12 @@
       <button type="submit" class="button primary">{{ "카드·간편결제로 결제"|t }}</button>
     </form>
     {% endif %}
+    {% if portone %}
+    <form method="post" action="/m/pay/o/{{ o.id }}/portone">
+      <input type="hidden" name="k" value="{{ k }}">
+      <button type="submit" class="button{% if not toss %} primary{% endif %}">{{ "카드로 결제"|t }}</button>
+    </form>
+    {% endif %}
     {% if bank %}
     <form method="post" action="/m/pay/o/{{ o.id }}/bank" class="pay-bank-form">
       <input type="hidden" name="k" value="{{ k }}">
@@ -44,7 +50,7 @@
       <button type="submit">{{ "무통장 입금으로 주문"|t }}</button>
     </form>
     {% endif %}
-    {% if not toss and not bank %}<p class="muted">{{ "지금은 결제할 수 있는 방법이 없습니다. 판매자에게 문의해 주세요."|t }}</p>{% endif %}
+    {% if not toss and not portone and not bank %}<p class="muted">{{ "지금은 결제할 수 있는 방법이 없습니다. 판매자에게 문의해 주세요."|t }}</p>{% endif %}
   </div>
   {% endif %}
   <p class="hint">{{ "주문 번호"|t }} {{ o.id }}</p>

@@ -182,7 +182,7 @@ maru changeset preview-url <id> --json
 - 카카오톡 채널 `maru widget place kakao_channel --config '{"channel":"_abc","chat":true}'`: 키 없이 채널 링크만 둡니다.
 - 키를 넣은 위젯이 있는 화면은 보안 정책(CSP)이 넓어지고, 방문자 브라우저가 카카오·네이버에 접속합니다. 그 사실을 사용자에게 알립니다.
 
-### 결제 (ADR-0166·0167·0168)
+### 결제 (ADR-0166·0167·0168·0171)
 
 돈이 오가는 일이라 **계좌·키·사업자 정보는 사용자에게 받은 실제 값만** 넣습니다. 지어내거나 예시 값을 운영에 남기지 않습니다.
 
@@ -191,6 +191,7 @@ maru changeset preview-url <id> --json
 3. 결제 방법: `maru module enable pay` 뒤
    - 무통장 `maru pay provider_set --provider bank --enabled true --bank <은행> --account <계좌> --holder <예금주>`
    - 토스페이먼츠 `maru pay provider_set --provider toss --enabled true --client-key test_gck_… --secret-key test_gsk_…`(결제위젯 연동 키). 운영 키(`live_`)는 https 사이트이면서 사업자 정보 칸이 모두 찬 뒤에만 들어갑니다. 결과의 `webhook_url` 을 사용자가 토스페이먼츠 관리자 화면에 등록합니다.
+   - PortOne(포트원, ADR-0171) `maru pay provider_set --provider portone --enabled true --store-id store-… --client-key channel-key-… --secret-key <V2 API 시크릿> --mode test`. 이니시스·KCP·카카오페이 같은 PG사는 사용자가 PortOne 콘솔에서 채널로 붙입니다. 키로는 시험·운영을 알 수 없으니 **시험 채널인지 사용자에게 묻고** `--mode test` 를 붙입니다. 적지 않으면 운영으로 보고 https·사업자 정보가 있어야 저장됩니다. `webhook_url` 은 PortOne 콘솔 웹훅(버전 2024-04-25)에 등록합니다. 결제사가 환불을 접수만 하면 결과에 `requested: true` 가 오고, 끝나면 주문이 바뀝니다(`maru pay sync --id <주문>`).
 4. 받는 길 두 가지:
    - 결제 단추 위젯(화면에 상시): 변경 묶음에 `{"op":"widget.place","kind":"pay_button","region":"main","scope":"page:<주소>","config":{"name":"첫 상담 30분","amount":30000,"policy":"/refund"}}`. 구매자가 금액을 적게 하려면 `"amount":0,"min":1000,"max":50000`. `ask_phone`·`label`·`note`·`return_to`·`anchor`·`tone` 도 받습니다. `"anchor":"pay"` 를 주면 첫 인상 단추를 `/#s-pay` 로 걸어 그 자리로 내려옵니다.
    - 결제 요청 링크(한 사람에게): `maru pay order_create --name <주문 이름> --amount <원>`. 돌려준 `pay_url` 은 다시 볼 수 없으니 바로 사용자에게 건넵니다.

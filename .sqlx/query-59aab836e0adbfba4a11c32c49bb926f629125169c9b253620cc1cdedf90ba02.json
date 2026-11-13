@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE mod_pay_order SET pg_order_id = ?, attempts = ?, provider = ?, updated_at = ?\n             WHERE id = ? AND status = 'pending'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "59aab836e0adbfba4a11c32c49bb926f629125169c9b253620cc1cdedf90ba02"
+}

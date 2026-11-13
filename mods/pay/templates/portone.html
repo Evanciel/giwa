@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{# PortOne V2 결제 창 (ADR-0171). 값은 data- 속성으로 넘기고 스크립트는 /m/pay/checkout.js 하나다(인라인 스크립트 없음). #}
+{% block main_class %}wrap account-wrap{% endblock %}
+{% block main %}
+<section class="account pay-order" aria-labelledby="pay-title">
+  <h1 id="pay-title">{{ o.name }}</h1>
+  <p><strong>{{ o.amount_text }}</strong></p>
+  <div id="pay-portone"
+       data-store-id="{{ pay.store_id }}"
+       data-channel-key="{{ pay.channel_key }}"
+       data-payment-id="{{ pay.payment_id }}"
+       data-order-name="{{ pay.order_name }}"
+       data-amount="{{ pay.amount }}"
+       data-redirect-url="{{ pay.redirect_url }}"
+       data-customer-name="{{ pay.customer_name }}"
+       data-customer-email="{{ pay.customer_email }}"
+       data-customer-phone="{{ pay.customer_phone }}">
+    <button type="button" class="button primary" id="pay-portone-open" disabled>{{ "결제 창 열기"|t }}</button>
+    <p class="hint" id="pay-portone-status" role="status">{{ "결제 창을 준비하고 있습니다."|t }}</p>
+  </div>
+  <p><a href="{{ back }}">{{ "주문 화면으로"|t }}</a></p>
+</section>
+<script src="{{ sdk }}"></script>
+<script src="/m/pay/checkout.js"></script>
+{% endblock %}

@@ -1,4 +1,4 @@
-//! 결제 모듈 (ADR-0166). 주문을 받고 무통장 입금·토스페이먼츠로 결제하며 환불한다.
+//! 결제 모듈 (ADR-0166). 주문을 받고 무통장 입금·토스페이먼츠·PortOne(ADR-0171)으로 결제하며 환불한다.
 //!
 //! - 금액은 늘 서버가 정한다. 브라우저·결제사가 알려 준 금액은 주문 금액과 **대조**에만 쓴다.
 //! - 카드 정보는 이 사이트를 지나가지 않는다. 결제 창은 결제사가 띄운다.
@@ -10,6 +10,8 @@
 mod admin;
 mod button;
 mod letter;
+pub mod pg;
+pub mod portone;
 pub mod toss;
 
 use std::sync::Arc;
@@ -31,6 +33,7 @@ use maru_core::{Code, Ctx, Error, Result, clock};
 use maru_modules::checkout::{Checkout, CheckoutOrder, CheckoutRequest, CheckoutStarted};
 use maru_modules::{Manifest, Module, ModuleState, ToolDef, module_error, schema_of};
 use maru_storage::Db;
+use pg::State as PgState;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
@@ -39,7 +42,7 @@ static MANIFEST: Manifest = Manifest {
     id: "pay",
     name: "결제",
     version: env!("CARGO_PKG_VERSION"),
-    description: "주문·결제·환불. 무통장 입금과 토스페이먼츠를 붙입니다.",
+    description: "주문·결제·환불. 무통장 입금과 토스페이먼츠·PortOne 을 붙입니다.",
     // 결제 확인 편지 (ADR-0167)
     events: &["pay.paid", "pay.awaiting_deposit", "pay.refunded"],
 };
@@ -63,7 +66,7 @@ pub const PARTIAL: &str = "partial_refunded";
 pub const REFUNDED: &str = "refunded";
 pub const EXPIRED: &str = "expired";
 
-const PROVIDERS: [&str; 2] = ["bank", "toss"];
+const PROVIDERS: [&str; 3] = ["bank", "toss", "portone"];
 
 /// 주문 상태가 `from` 에서 `to` 로 바뀔 수 있는가. 같은 상태로는 부분 환불(`partial_refunded`)만 다시 간다.
 pub fn can_move(from: &str, to: &str) -> bool {
@@ -85,6 +88,16 @@ fn label(status: &str) -> &'static str {
         REFUNDED => "환불 완료",
         EXPIRED => "기간 끝남",
         _ => "알 수 없음",
+    }
+}
+
+/// 결제 방법 이름.
+fn pg_name(provider: &str) -> &'static str {
+    match provider {
+        "bank" => "무통장 입금",
+        "toss" => "토스페이먼츠",
+        "portone" => "PortOne",
+        _ => "결제사",
     }
 }
 
@@ -202,12 +215,21 @@ impl ProviderRow {
             && match self.id.as_str() {
                 "bank" => !self.conf("bank").is_empty() && !self.conf("account").is_empty(),
                 "toss" => !self.client_key.is_empty() && !self.secret_key.is_empty(),
+                "portone" => {
+                    !self.client_key.is_empty()
+                        && !self.secret_key.is_empty()
+                        && !self.conf("store_id").is_empty()
+                }
                 _ => false,
             }
     }
 
+    /// 운영 결제인가. PortOne 키에는 시험·운영 표시가 없어 `mode` 를 따로 받고, 적지 않으면 운영으로 본다.
     fn live(&self) -> bool {
-        self.secret_key.starts_with("live_")
+        match self.id.as_str() {
+            "portone" => !self.secret_key.is_empty() && self.conf("mode") != "test",
+            _ => self.secret_key.starts_with("live_"),
+        }
     }
 }
 
@@ -239,8 +261,12 @@ fn provider_view(ctx: &Ctx, row: &ProviderRow) -> ProviderView {
         secret_hint: tail4(&row.secret_key),
         live: row.live(),
         config: row.config.clone(),
-        webhook_url: if row.id == "toss" {
-            format!("{}{HOME}/webhook/toss", ctx.site_url.trim_end_matches('/'))
+        webhook_url: if row.id != "bank" {
+            format!(
+                "{}{HOME}/webhook/{}",
+                ctx.site_url.trim_end_matches('/'),
+                row.id
+            )
         } else {
             String::new()
         },
@@ -291,6 +317,18 @@ impl OrderRow {
             created_at: self.created_at.clone(),
             expires_at: self.expires_at.clone(),
             paid_at: self.paid_at.clone(),
+        }
+    }
+
+    /// 결제사에 물을 결제 키. PortOne 은 결제 키가 곧 우리가 매긴 결제사 주문 번호라 돌아오기 전에도 물을 수 있다.
+    fn pg_key(&self) -> Option<String> {
+        match self.provider.as_str() {
+            "portone" => self
+                .payment_key
+                .clone()
+                .or_else(|| self.pg_order_id.clone()),
+            "toss" => self.payment_key.clone(),
+            _ => None,
         }
     }
 
@@ -407,7 +445,11 @@ impl PayModule {
             .await?
             .into_iter()
             .find(|p| p.id == id)
-            .ok_or_else(|| bad(format!("결제 방법은 bank, toss 중 하나입니다: {id}")))
+            .ok_or_else(|| {
+                bad(format!(
+                    "결제 방법은 bank, toss, portone 중 하나입니다: {id}"
+                ))
+            })
     }
 
     async fn order_row(&self, id: &str) -> Result<Option<OrderRow>> {
@@ -667,7 +709,7 @@ impl PayModule {
     }
 
     /// 결제사가 알려 준 결제(승인 응답·조회 결과)로 주문을 맞춘다. 바꿨으면 `true`.
-    async fn reconcile(&self, order: &OrderRow, p: &toss::Payment) -> Result<bool> {
+    async fn reconcile(&self, order: &OrderRow, p: &pg::Payment, provider: &str) -> Result<bool> {
         if !Self::owns_pg(order, &p.order_id) || p.total != order.amount {
             let msg = format!(
                 "결제사 결제가 주문과 맞지 않습니다 (주문 번호 {}, 금액 {}).",
@@ -688,46 +730,100 @@ impl PayModule {
         }
         let system = Actor::anonymous([]);
         let base = || Change {
-            provider: Some("toss".into()),
+            provider: Some(provider.to_owned()),
             payment_key: Some(p.payment_key.clone()),
             method: Some(p.method.chars().take(40).collect()),
             ..Change::default()
         };
         let refunded = (p.total - p.balance).clamp(0, order.amount);
-        let ch = match (p.status.as_str(), order.status.as_str()) {
-            ("DONE", PENDING | AWAITING) => Change {
+        let ch = match (p.state, order.status.as_str()) {
+            (PgState::Paid, PENDING | AWAITING) => Change {
                 status: PAID,
                 ..base()
             },
-            ("WAITING_FOR_DEPOSIT", PENDING) => Change {
+            (PgState::WaitingDeposit, PENDING) => Change {
                 status: AWAITING,
                 deposit_secret: p.secret.clone(),
                 ..base()
             },
-            ("CANCELED", PAID | PARTIAL) => Change {
+            (PgState::Cancelled, PAID | PARTIAL) => Change {
                 status: REFUNDED,
                 refunded: Some(order.amount),
                 ..base()
             },
-            ("PARTIAL_CANCELED", PAID | PARTIAL) if refunded > order.refunded => Change {
+            (PgState::PartialCancelled, PAID | PARTIAL) if refunded > order.refunded => Change {
                 status: PARTIAL,
                 refunded: Some(refunded),
                 ..base()
             },
-            ("CANCELED" | "EXPIRED", AWAITING) => Change {
+            (PgState::Cancelled | PgState::Expired, AWAITING) => Change {
                 status: EXPIRED,
                 ..base()
             },
             _ => return Ok(false),
         };
-        self.apply(&system, order, ch).await
+        let refund = matches!(ch.status, REFUNDED | PARTIAL);
+        let changed = self.apply(&system, order, ch).await?;
+        if changed && refund {
+            // 결제사가 접수만 했던 취소(PortOne REQUESTED)가 끝났다.
+            let now = clock::now();
+            sqlx::query!(
+                "UPDATE mod_pay_refund SET status = 'done', done_at = ? WHERE order_id = ? AND status = 'requested'",
+                now,
+                order.id
+            )
+            .execute(self.db.write_pool())
+            .await
+            .map_err(Error::internal)?;
+        }
+        Ok(changed)
+    }
+
+    fn not_pg(order: &OrderRow, name: &str) -> Error {
+        module_error(
+            Code::Conflict,
+            format!("{name} 주문이 아닙니다: {}", order.id),
+        )
     }
 
     fn not_toss(order: &OrderRow) -> Error {
-        module_error(
-            Code::Conflict,
-            format!("토스페이먼츠 주문이 아닙니다: {}", order.id),
-        )
+        Self::not_pg(order, "토스페이먼츠")
+    }
+
+    /// PortOne 결제 창에서 돌아왔을 때. 결제사가 이미 승인했으니 조회해서 맞춘다.
+    async fn confirm_portone(&self, order: &OrderRow, payment_id: &str) -> Result<()> {
+        if order.status == PAID && order.payment_key.as_deref() == Some(payment_id) {
+            return Ok(()); // 새로고침
+        }
+        if order.provider != "portone" {
+            return Err(Self::not_pg(order, "PortOne"));
+        }
+        if order.status != PENDING {
+            return Err(module_error(
+                Code::Conflict,
+                format!(
+                    "이 주문은 지금 결제할 수 없습니다 ({}).",
+                    label(&order.status)
+                ),
+            ));
+        }
+        if !Self::owns_pg(order, payment_id) {
+            return Err(module_error(
+                Code::Conflict,
+                "결제 창을 다시 연 주문입니다. 마지막으로 연 창에서 결제하세요.",
+            ));
+        }
+        self.sync(order, payment_id).await?;
+        let now = self
+            .order_row(&order.id)
+            .await?
+            .ok_or_else(|| no_order(&order.id))?;
+        if now.status != PAID {
+            let msg = "결제사에서 결제가 끝나지 않았습니다. 다시 결제할 수 있습니다.";
+            self.note_error(&order.id, msg).await?;
+            return Err(module_error(Code::Conflict, msg));
+        }
+        Ok(())
     }
 
     /// 결제 창에서 돌아왔을 때의 승인.
@@ -777,7 +873,7 @@ impl PayModule {
         }
         match toss::confirm(&p.secret_key, payment_key, pg_order_id, amount).await {
             toss::Answer::Ok(pay) => {
-                self.reconcile(order, &pay).await?;
+                self.reconcile(order, &pay, "toss").await?;
                 Ok(())
             }
             toss::Answer::Refused { text, .. } => {
@@ -799,17 +895,29 @@ impl PayModule {
 
     /// 결제사에 다시 물어 맞춘다 (웹훅·`sync` 툴).
     async fn sync(&self, order: &OrderRow, payment_key: &str) -> Result<bool> {
-        let p = self.provider("toss").await?;
-        if p.secret_key.is_empty() {
-            return Err(Self::not_toss(order));
+        let id = order.provider.as_str();
+        if id != "toss" && id != "portone" {
+            return Err(module_error(
+                Code::Conflict,
+                format!("결제사로 결제한 주문이 아닙니다: {}", order.id),
+            ));
         }
-        match toss::lookup(&p.secret_key, payment_key).await {
-            toss::Answer::Ok(pay) => self.reconcile(order, &pay).await,
-            toss::Answer::Refused { text, .. } => Err(module_error(
+        let p = self.provider(id).await?;
+        if p.secret_key.is_empty() {
+            return Err(Self::not_pg(order, pg_name(id)));
+        }
+        let answer = if id == "toss" {
+            toss::lookup(&p.secret_key, payment_key).await
+        } else {
+            portone::lookup(&p.conf("store_id"), &p.secret_key, payment_key).await
+        };
+        match answer {
+            pg::Answer::Ok(pay) => self.reconcile(order, &pay, id).await,
+            pg::Answer::Refused { text, .. } => Err(module_error(
                 Code::External,
                 format!("결제사 조회가 거절됐습니다: {text}"),
             )),
-            toss::Answer::Unreachable(e) => Err(module_error(
+            pg::Answer::Unreachable(e) => Err(module_error(
                 Code::External,
                 format!("결제사에 닿지 못했습니다: {e}"),
             )),
@@ -840,6 +948,22 @@ impl PayModule {
         if amount < 1 || amount > left {
             return Err(bad(format!("환불 금액은 1~{left}원입니다.")));
         }
+        if order.provider == "portone" {
+            let waiting = sqlx::query_scalar!(
+                r#"SELECT COUNT(*) AS "n!: i64" FROM mod_pay_refund WHERE order_id = ? AND status = 'requested'"#,
+                order.id
+            )
+            .fetch_one(self.db.read_pool())
+            .await
+            .map_err(Error::internal)?;
+            if waiting > 0 {
+                return Err(module_error(
+                    Code::Conflict,
+                    "결제사가 아직 앞선 취소를 처리하고 있습니다. 끝난 뒤 다시 환불하세요.",
+                )
+                .next(format!("maru pay sync --id {}", order.id)));
+            }
+        }
         let refund_id = clock::new_id();
         let now = clock::now();
         sqlx::query!(
@@ -861,34 +985,59 @@ impl PayModule {
             PARTIAL
         };
         // 무통장 입금은 운영자가 직접 돌려준다. 여기서는 기록만 한다.
-        let outcome = if order.provider == "toss" {
-            let p = self.provider("toss").await?;
-            let key = order.payment_key.clone().unwrap_or_default();
-            let partial = (amount != left).then_some(amount);
-            match toss::cancel(&p.secret_key, &key, &reason, partial, &refund_id).await {
-                toss::Answer::Ok(pay) if pay.payment_key == key => Ok(()),
-                toss::Answer::Ok(_) => Err("결제사가 다른 결제를 돌려줬습니다".to_owned()),
-                toss::Answer::Refused { text, .. } => Err(text),
-                toss::Answer::Unreachable(e) => Err(e),
+        let outcome: std::result::Result<bool, String> = match order.provider.as_str() {
+            "toss" => {
+                let p = self.provider("toss").await?;
+                let key = order.payment_key.clone().unwrap_or_default();
+                let partial = (amount != left).then_some(amount);
+                match toss::cancel(&p.secret_key, &key, &reason, partial, &refund_id).await {
+                    toss::Answer::Ok(pay) if pay.payment_key == key => Ok(true),
+                    toss::Answer::Ok(_) => Err("결제사가 다른 결제를 돌려줬습니다".to_owned()),
+                    toss::Answer::Refused { text, .. } => Err(text),
+                    toss::Answer::Unreachable(e) => Err(e),
+                }
             }
-        } else {
-            Ok(())
+            "portone" => {
+                let p = self.provider("portone").await?;
+                let key = order.payment_key.clone().unwrap_or_default();
+                let partial = (amount != left).then_some(amount);
+                portone::cancel(&p.secret_key, &key, &reason, partial, left)
+                    .await
+                    .map(|c| c == portone::Cancel::Done)
+            }
+            _ => Ok(true),
         };
         let done_at = clock::now();
-        if let Err(e) = outcome {
-            sqlx::query!(
-                "UPDATE mod_pay_refund SET status = 'failed', error = ?, done_at = ? WHERE id = ?",
-                e,
-                done_at,
-                refund_id
-            )
-            .execute(self.db.write_pool())
-            .await
-            .map_err(Error::internal)?;
-            return Err(
-                module_error(Code::External, format!("환불하지 못했습니다: {e}"))
-                    .next(format!("maru pay order --id {}", order.id)),
-            );
+        let done_now = match outcome {
+            Ok(d) => d,
+            Err(e) => {
+                sqlx::query!(
+                    "UPDATE mod_pay_refund SET status = 'failed', error = ?, done_at = ? WHERE id = ?",
+                    e,
+                    done_at,
+                    refund_id
+                )
+                .execute(self.db.write_pool())
+                .await
+                .map_err(Error::internal)?;
+                return Err(
+                    module_error(Code::External, format!("환불하지 못했습니다: {e}"))
+                        .next(format!("maru pay order --id {}", order.id)),
+                );
+            }
+        };
+        let manual = order.provider == "bank";
+        if !done_now {
+            // 결제사가 접수만 했다. 끝나면 웹훅(또는 sync)으로 주문과 이 기록이 함께 바뀐다.
+            return Ok(json!({
+                "refund_id": refund_id,
+                "amount": amount,
+                "status": order.status,
+                "requested": true,
+                "manual": false,
+                "note": "결제사가 취소를 접수했습니다. 끝나면 주문 상태가 바뀝니다.",
+                "next": format!("maru pay sync --id {}", order.id),
+            }));
         }
         sqlx::query!(
             "UPDATE mod_pay_refund SET status = 'done', done_at = ? WHERE id = ?",
@@ -908,8 +1057,8 @@ impl PayModule {
             "refund_id": refund_id,
             "amount": amount,
             "status": status,
-            "manual": order.provider != "toss",
-            "note": if order.provider == "toss" { "" } else { "무통장 입금은 운영자가 직접 돌려주어야 합니다." },
+            "manual": manual,
+            "note": if manual { "무통장 입금은 운영자가 직접 돌려주어야 합니다." } else { "" },
         }))
     }
 
@@ -984,6 +1133,7 @@ impl PayModule {
         let enabled = i.enabled.unwrap_or(old.enabled);
         let mut config = old.config.clone();
         let (mut client_key, mut secret_key) = (old.client_key.clone(), old.secret_key.clone());
+        let mut live = false;
         match old.id.as_str() {
             "bank" => {
                 for (k, v, max) in [
@@ -996,36 +1146,58 @@ impl PayModule {
                     }
                 }
             }
-            _ => {
+            id => {
                 if let Some(k) = &i.client_key {
                     client_key = k.trim().to_owned();
                 }
                 if let Some(k) = &i.secret_key {
                     secret_key = k.trim().to_owned();
                 }
-                if !client_key.is_empty() || !secret_key.is_empty() {
-                    let live = toss::check_keys(&client_key, &secret_key).map_err(bad)?;
-                    if live {
-                        let missing = settings::site(ctx).await?.business.missing();
-                        if !missing.is_empty() {
-                            return Err(module_error(
-                                Code::Conflict,
-                                format!(
-                                    "운영 키(live_)를 넣기 전에 사업자 정보를 채우세요(전자상거래법 제10조): {}",
-                                    missing.join(", ")
-                                ),
-                            )
-                            .next("maru site set --business-name <상호> --business-owner <대표자> --business-address <주소> --business-phone <전화> --business-email <전자우편> --business-reg-no <사업자등록번호> --business-hosting <호스팅 제공자>"));
-                        }
+                if id == "portone" {
+                    if let Some(s) = &i.store_id {
+                        config.insert("store_id".into(), json!(s.trim()));
                     }
-                    if live && !ctx.site_url.starts_with("https://") {
-                        return Err(module_error(
-                            Code::Conflict,
-                            "운영 키(live_)는 사이트 주소가 https 일 때만 넣습니다. 결제사 웹훅과 돌아오는 주소가 공개 https 여야 합니다.",
-                        )
-                        .next("maru expose"));
+                    if let Some(m) = &i.mode {
+                        let m = m.trim();
+                        if m != "test" && m != "live" {
+                            return Err(bad("mode 는 test(시험 채널) 또는 live(운영 채널)입니다."));
+                        }
+                        config.insert("mode".into(), json!(m));
                     }
                 }
+                let store = config
+                    .get("store_id")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_owned();
+                if !client_key.is_empty() || !secret_key.is_empty() || !store.is_empty() {
+                    live = if id == "portone" {
+                        portone::check_keys(&store, &client_key, &secret_key).map_err(bad)?;
+                        config.get("mode").and_then(Value::as_str) != Some("test")
+                    } else {
+                        toss::check_keys(&client_key, &secret_key).map_err(bad)?
+                    };
+                }
+            }
+        }
+        if live {
+            let missing = settings::site(ctx).await?.business.missing();
+            if !missing.is_empty() {
+                return Err(module_error(
+                    Code::Conflict,
+                    format!(
+                        "운영 키(live_)·운영 채널을 넣기 전에 사업자 정보를 채우세요(전자상거래법 제10조): {}",
+                        missing.join(", ")
+                    ),
+                )
+                .next("maru site set --business-name <상호> --business-owner <대표자> --business-address <주소> --business-phone <전화> --business-email <전자우편> --business-reg-no <사업자등록번호> --business-hosting <호스팅 제공자>"));
+            }
+            if !ctx.site_url.starts_with("https://") {
+                return Err(module_error(
+                    Code::Conflict,
+                    "운영 키(live_)·운영 채널은 사이트 주소가 https 일 때만 넣습니다. 결제사 웹훅과 돌아오는 주소가 공개 https 여야 합니다. 시험 채널이면 --mode test 를 붙이세요.",
+                )
+                .next("maru expose"));
             }
         }
         let row = ProviderRow {
@@ -1036,10 +1208,12 @@ impl PayModule {
             config,
         };
         if enabled && !row.usable() {
-            return Err(bad(if row.id == "bank" {
-                "무통장 입금을 켜려면 은행(bank)과 계좌(account)가 있어야 합니다."
-            } else {
-                "토스페이먼츠를 켜려면 클라이언트 키와 시크릿 키가 있어야 합니다."
+            return Err(bad(match row.id.as_str() {
+                "bank" => "무통장 입금을 켜려면 은행(bank)과 계좌(account)가 있어야 합니다.",
+                "portone" => {
+                    "PortOne 을 켜려면 상점 아이디(store_id)·채널 키(client_key)·API 시크릿(secret_key)이 있어야 합니다."
+                }
+                _ => "토스페이먼츠를 켜려면 클라이언트 키와 시크릿 키가 있어야 합니다.",
             }));
         }
         let config_text = Value::Object(row.config.clone()).to_string();
@@ -1106,21 +1280,22 @@ impl PayModule {
     }
 
     /// 토스 결제 창을 열 때마다 새 결제사 주문 번호를 매긴다(지난 창으로는 승인되지 않게).
-    async fn begin_toss(&self, order: &OrderRow) -> Result<String> {
-        if !self.provider("toss").await?.usable() {
+    async fn begin_pg(&self, order: &OrderRow, provider: &str) -> Result<String> {
+        if !self.provider(provider).await?.usable() {
             return Err(module_error(
                 Code::Conflict,
-                "토스페이먼츠 결제를 쓰지 않습니다.",
+                format!("{} 결제를 쓰지 않습니다.", pg_name(provider)),
             ));
         }
         let attempts = order.attempts + 1;
         let pg = format!("{}-{attempts}", order.id);
         let now = clock::now();
         let done = sqlx::query!(
-            "UPDATE mod_pay_order SET pg_order_id = ?, attempts = ?, provider = 'toss', updated_at = ?
+            "UPDATE mod_pay_order SET pg_order_id = ?, attempts = ?, provider = ?, updated_at = ?
              WHERE id = ? AND status = 'pending'",
             pg,
             attempts,
+            provider,
             now,
             order.id
         )
@@ -1156,13 +1331,19 @@ impl Checkout for PayModule {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct ProviderSetInput {
-    /// bank 또는 toss
+    /// bank, toss, portone
     provider: String,
     enabled: Option<bool>,
-    /// 토스: 결제위젯 연동 클라이언트 키 (test_gck_… / live_gck_…)
+    /// 토스: 결제위젯 연동 클라이언트 키 (test_gck_… / live_gck_…). PortOne: 채널 키 (channel-key-…)
     client_key: Option<String>,
-    /// 토스: 결제위젯 연동 시크릿 키 (test_gsk_… / live_gsk_…). 저장 뒤에는 끝 네 글자만 보인다
+    /// 토스: 결제위젯 연동 시크릿 키 (test_gsk_… / live_gsk_…). PortOne: V2 API 시크릿. 저장 뒤에는 끝 네 글자만 보인다
     secret_key: Option<String>,
+    /// PortOne: 상점 아이디 (store-…)
+    #[serde(default)]
+    store_id: Option<String>,
+    /// PortOne: test(시험 채널) 또는 live(운영 채널). 키로는 알 수 없어 사용자에게 묻는다. 적지 않으면 운영으로 본다
+    #[serde(default)]
+    mode: Option<String>,
     /// 무통장: 은행 이름
     bank: Option<String>,
     /// 무통장: 계좌 번호
@@ -1241,6 +1422,9 @@ impl Module for PayModule {
                 .route("/o/{id}/toss", post(toss_form))
                 .route("/return/toss", get(toss_return))
                 .route("/webhook/toss", post(toss_webhook))
+                .route("/o/{id}/portone", post(portone_form))
+                .route("/return/portone", get(portone_return))
+                .route("/webhook/portone", post(portone_webhook))
                 .route("/checkout.js", get(checkout_js))
                 .route("/button/{key}", post(button::submit))
                 .route("/", get(admin::page))
@@ -1260,6 +1444,10 @@ impl Module for PayModule {
                 include_str!("../templates/order.html"),
             ),
             ("mod/pay/toss.html", include_str!("../templates/toss.html")),
+            (
+                "mod/pay/portone.html",
+                include_str!("../templates/portone.html"),
+            ),
             (
                 "mod/pay/pay_button.html",
                 include_str!("../templates/pay_button.html"),
@@ -1285,13 +1473,13 @@ impl Module for PayModule {
         vec![
             ToolDef {
                 name: "provider_list",
-                description: "결제 방법(무통장·토스페이먼츠) 설정. 비밀 키는 끝 네 글자만",
+                description: "결제 방법(무통장·토스페이먼츠·PortOne) 설정. 비밀 키는 끝 네 글자만",
                 input_schema: schema_of::<Empty>(),
                 permission: admin,
             },
             ToolDef {
                 name: "provider_set",
-                description: "결제 방법을 켜고 끄거나 계좌·키를 넣는다. 운영 키(live_)는 https 사이트에서만",
+                description: "결제 방법을 켜고 끄거나 계좌·키를 넣는다. 운영 키(live_)·PortOne 운영 채널은 https 사이트와 사업자 정보가 있어야",
                 input_schema: schema_of::<ProviderSetInput>(),
                 permission: admin,
             },
@@ -1315,7 +1503,7 @@ impl Module for PayModule {
             },
             ToolDef {
                 name: "sync",
-                description: "결제사에 다시 물어 주문 상태를 맞춘다(토스페이먼츠 주문)",
+                description: "결제사에 다시 물어 주문 상태를 맞춘다(토스페이먼츠·PortOne 주문)",
                 input_schema: schema_of::<IdInput>(),
                 permission: admin,
             },
@@ -1327,7 +1515,7 @@ impl Module for PayModule {
             },
             ToolDef {
                 name: "refund",
-                description: "환불한다(전액 또는 일부, 사유 필수). 사람만. 토스페이먼츠는 결제사에 취소를 보낸다",
+                description: "환불한다(전액 또는 일부, 사유 필수). 사람만. 토스페이먼츠·PortOne 은 결제사에 취소를 보낸다",
                 input_schema: schema_of::<RefundInput>(),
                 permission: admin,
             },
@@ -1379,7 +1567,7 @@ impl Module for PayModule {
             "sync" => {
                 let i: IdInput = parse(input)?;
                 let o = self.fresh(&i.id).await?;
-                let key = o.payment_key.clone().ok_or_else(|| {
+                let key = o.pg_key().ok_or_else(|| {
                     module_error(Code::Conflict, "아직 결제사로 결제하지 않은 주문입니다.")
                 })?;
                 let changed = self.sync(&o, &key).await?;
@@ -1535,6 +1723,7 @@ async fn order_view(
         .find(|p| p.id == "bank" && p.usable())
         .map(|p| json!({ "bank": p.conf("bank"), "account": p.conf("account"), "holder": p.conf("holder") }));
     let toss = providers.iter().any(|p| p.id == "toss" && p.usable());
+    let portone = providers.iter().any(|p| p.id == "portone" && p.usable());
     json!({
         "noindex": true,
         "o": {
@@ -1558,6 +1747,7 @@ async fn order_view(
         "k": key,
         "bank": bank,
         "toss": toss,
+        "portone": portone,
         "fail": fail,
         "payable": o.status == PENDING,
     })
@@ -1662,7 +1852,7 @@ async fn toss_form(
         Ok(o) => o,
         Err(e) => return state.host.error(&e).await,
     };
-    let pg = match module.begin_toss(&o).await {
+    let pg = match module.begin_pg(&o, "toss").await {
         Ok(pg) => pg,
         Err(e) => return state.host.error(&e).await,
     };
@@ -1799,6 +1989,163 @@ async fn toss_webhook(
         return ok();
     };
     match module.sync(&o, key).await {
+        Err(e) if e.code() == Code::External => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+        Err(e) => {
+            tracing::warn!(order = %o.id, error = %e.message(), "결제 알림을 맞추지 못함");
+            ok()
+        }
+        Ok(_) => ok(),
+    }
+}
+
+/// PortOne 결제 창. SDK 가 PortOne(portone.io·iamport.co)에 묻고, 고른 PG사가 제 스크립트·창을 이 화면에 띄우므로
+/// (PG사마다 주소가 다르다) 스크립트·연결·창은 https 출처를 넓게 연다. 인라인 스크립트와 http 는 막는다.
+const PORTONE_CSP: &str = "default-src 'self'; img-src 'self' https: data:; \
+    style-src 'self' 'unsafe-inline' https:; \
+    script-src 'self' https:; \
+    connect-src 'self' https:; \
+    frame-src https:; \
+    object-src 'none'; base-uri 'self'; frame-ancestors 'self'";
+
+async fn portone_form(
+    State(state): State<ModuleState>,
+    Extension(module): Extension<Arc<PayModule>>,
+    Path(id): Path<String>,
+    headers: HeaderMap,
+    Form(f): Form<KeyForm>,
+) -> Response {
+    if !state.host.same_origin(&headers) {
+        return state
+            .host
+            .error(&module_error(
+                Code::Forbidden,
+                "이 사이트에서 보낸 폼이 아닙니다.",
+            ))
+            .await;
+    }
+    let o = match order_for_viewer(&module, &id, &f.k).await {
+        Ok(o) => o,
+        Err(e) => return state.host.error(&e).await,
+    };
+    let pg = match module.begin_pg(&o, "portone").await {
+        Ok(pg) => pg,
+        Err(e) => return state.host.error(&e).await,
+    };
+    let p = match module.provider("portone").await {
+        Ok(p) => p,
+        Err(e) => return state.host.error(&e).await,
+    };
+    let base = state.ctx.site_url.trim_end_matches('/');
+    let redirect = format!(
+        "{base}{}",
+        urls::with_query(
+            &format!("{HOME}/return/portone"),
+            &[("o", &o.id), ("k", &f.k)]
+        )
+    );
+    let back = format!(
+        "{base}{}",
+        urls::with_query(&format!("{HOME}/o/{}", o.id), &[("k", &f.k)])
+    );
+    let v = json!({
+        "noindex": true,
+        "sdk": portone::SDK,
+        "pay": {
+            "store_id": p.conf("store_id"),
+            "channel_key": p.client_key,
+            "payment_id": pg,
+            "order_name": o.name,
+            "amount": o.amount,
+            "redirect_url": redirect,
+            "customer_name": o.buyer_name,
+            "customer_email": o.buyer_email,
+            "customer_phone": o.buyer_phone,
+        },
+        "o": { "id": o.id, "name": o.name, "amount": o.amount, "amount_text": won(o.amount) },
+        "back": back,
+    });
+    let mut res = no_store(state.host.page("mod/pay/portone.html", "결제", v).await);
+    res.headers_mut().insert(
+        header::CONTENT_SECURITY_POLICY,
+        HeaderValue::from_static(PORTONE_CSP),
+    );
+    res
+}
+
+#[derive(Debug, Deserialize)]
+struct PortOneReturn {
+    #[serde(default)]
+    o: String,
+    #[serde(default)]
+    k: String,
+    #[serde(default, rename = "paymentId")]
+    payment_id: String,
+    /// 실패하면 붙는다
+    #[serde(default)]
+    code: String,
+    #[serde(default)]
+    message: String,
+}
+
+async fn portone_return(
+    State(state): State<ModuleState>,
+    Extension(module): Extension<Arc<PayModule>>,
+    Query(q): Query<PortOneReturn>,
+) -> Response {
+    let o = match order_for_viewer(&module, &q.o, &q.k).await {
+        Ok(o) => o,
+        Err(e) => return state.host.error(&e).await,
+    };
+    // 실패·취소로 돌아왔다. 결제사 문장은 바깥 값이라 잘라서 이스케이프해 그린다.
+    if !q.code.is_empty() {
+        let text: String = if q.message.is_empty() {
+            "결제를 마치지 못했습니다. 다시 결제할 수 있습니다.".to_owned()
+        } else {
+            q.message.chars().take(200).collect()
+        };
+        let v = order_view(&state.ctx, &module, &o, &q.k, Some(text)).await;
+        return no_store(state.host.page("mod/pay/order.html", "주문", v).await);
+    }
+    if let Err(e) = module.confirm_portone(&o, q.payment_id.trim()).await {
+        let o = module.order_row(&o.id).await.ok().flatten().unwrap_or(o);
+        let v = order_view(&state.ctx, &module, &o, &q.k, Some(e.message())).await;
+        let page = state.host.page("mod/pay/order.html", "주문", v).await;
+        return no_store((StatusCode::CONFLICT, page).into_response());
+    }
+    let target = if o.return_to.is_empty() {
+        urls::with_query(&format!("{HOME}/o/{}", o.id), &[("k", &q.k)])
+    } else {
+        o.return_to.clone()
+    };
+    Redirect::to(&target).into_response()
+}
+
+/// PortOne 웹훅. 본문에서 paymentId 만 꺼내 조회 API 로 다시 묻는다. 결제사가 다시 보내도록 닿지 못했을 때만 500.
+async fn portone_webhook(
+    Extension(module): Extension<Arc<PayModule>>,
+    body: axum::body::Bytes,
+) -> Response {
+    let ok = || StatusCode::OK.into_response();
+    let Ok(v) = serde_json::from_slice::<Value>(&body) else {
+        return ok();
+    };
+    // 거래 알림만 본다(Transaction.Paid·Cancelled·PartialCancelled·Failed …). 모르는 type 은 넘긴다.
+    if !v["type"]
+        .as_str()
+        .is_some_and(|t| t.starts_with("Transaction."))
+    {
+        return ok();
+    }
+    let Some(pg) = v["data"]["paymentId"].as_str() else {
+        return ok();
+    };
+    let Ok(Some(o)) = module.order_for_pg(pg).await else {
+        return ok();
+    };
+    if o.provider != "portone" {
+        return ok();
+    }
+    match module.sync(&o, pg).await {
         Err(e) if e.code() == Code::External => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
         Err(e) => {
             tracing::warn!(order = %o.id, error = %e.message(), "결제 알림을 맞추지 못함");

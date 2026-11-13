@@ -776,3 +776,13 @@
 "옵션 이름 (예: 크기)" = "Option name (e.g. Size)"
 "옵션 값 (쉼표로 나눔)" = "Option values (comma separated)"
 "팝니다" = "For sale"
+
+# PortOne (ADR-0171)
+"카드로 결제" = "Pay by card"
+"상점 아이디" = "Store ID"
+"채널 키" = "Channel key"
+"API 시크릿" = "API secret"
+"채널 종류" = "Channel type"
+"시험 채널" = "Test channel"
+"운영 채널" = "Live channel"
+"PortOne 관리자 콘솔의 V2 연동 값을 넣습니다. 운영 채널은 https 사이트와 사업자 정보가 있어야 넣을 수 있습니다. 관리자 콘솔 웹훅 주소(버전 2024-04-25):" = "Enter the V2 integration values from the PortOne console. A live channel needs an https site and business details. Webhook URL for the console (version 2024-04-25):"

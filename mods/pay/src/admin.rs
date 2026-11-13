@@ -136,7 +136,7 @@ impl PayModule {
                 "last_error": o.last_error,
                 "can_mark_paid": o.status == AWAITING && o.provider == "bank",
                 "can_refund": o.status == PAID || o.status == PARTIAL,
-                "can_sync": o.provider == "toss" && o.payment_key.is_some(),
+                "can_sync": o.pg_key().is_some(),
                 "refunds": refunds,
             }));
         }
@@ -287,7 +287,7 @@ pub async fn sync(
     }
     let done = async {
         let o = module.fresh(&id).await?;
-        let key = o.payment_key.clone().ok_or_else(|| {
+        let key = o.pg_key().ok_or_else(|| {
             module_error(Code::Conflict, "아직 결제사로 결제하지 않은 주문입니다.")
         })?;
         module.sync(&o, &key).await
@@ -309,6 +309,10 @@ pub struct ProviderForm {
     #[serde(default)]
     secret_key: String,
     #[serde(default)]
+    store_id: String,
+    #[serde(default)]
+    mode: String,
+    #[serde(default)]
     bank: String,
     #[serde(default)]
     account: String,
@@ -327,15 +331,18 @@ pub async fn provider(
         Ok(a) => a,
         Err(r) => return *r,
     };
-    let toss = id == "toss";
+    let bank = id == "bank";
+    let portone = id == "portone";
     let input = ProviderSetInput {
         provider: id,
         enabled: Some(f.enabled.is_some()),
-        client_key: toss.then(|| f.client_key.clone()),
-        secret_key: (toss && !f.secret_key.trim().is_empty()).then(|| f.secret_key.clone()),
-        bank: (!toss).then(|| f.bank.clone()),
-        account: (!toss).then(|| f.account.clone()),
-        holder: (!toss).then(|| f.holder.clone()),
+        client_key: (!bank).then(|| f.client_key.clone()),
+        secret_key: (!bank && !f.secret_key.trim().is_empty()).then(|| f.secret_key.clone()),
+        store_id: portone.then(|| f.store_id.clone()),
+        mode: (portone && !f.mode.is_empty()).then(|| f.mode.clone()),
+        bank: bank.then(|| f.bank.clone()),
+        account: bank.then(|| f.account.clone()),
+        holder: bank.then(|| f.holder.clone()),
     };
     match module.provider_set(&state.ctx, &actor, input).await {
         Ok(_) => back("provider"),

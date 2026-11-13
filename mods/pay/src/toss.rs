@@ -5,27 +5,21 @@
 //! - 승인 `POST /v1/payments/confirm`, 조회 `GET /v1/payments/{paymentKey}`,
 //!   취소 `POST /v1/payments/{paymentKey}/cancel`.
 
+use crate::pg::{Payment, State, path_part};
 use maru_storage::fetch::{PayClient, basic_auth};
 use serde_json::{Value, json};
 
+pub use crate::pg::Answer;
+
 const API: &str = "https://api.tosspayments.com";
-/// 시험용으로 결제사 주소를 바꾼다. 이 컴퓨터 안의 http 주소만 받는다(운영에서 돈을 엉뚱한 곳에 묻지 않게).
+/// 시험용으로 결제사 주소를 바꾼다 (`pg::api_base`).
 const API_ENV: &str = "MARU_PAY_TOSS_API";
 
 /// 브라우저 SDK 주소 (공식 예제).
 pub const SDK: &str = "https://js.tosspayments.com/v2/standard";
 
 pub fn api_base() -> String {
-    match std::env::var(API_ENV) {
-        Ok(v)
-            if v.starts_with("http://127.0.0.1:")
-                || v.starts_with("http://localhost:")
-                || v.starts_with("http://[::1]:") =>
-        {
-            v.trim_end_matches('/').to_owned()
-        }
-        _ => API.to_owned(),
-    }
+    crate::pg::api_base(API_ENV, API)
 }
 
 /// 키 한 쌍이 맞는지 본다. `live` 인지 돌려준다.
@@ -56,18 +50,16 @@ pub fn check_keys(client_key: &str, secret_key: &str) -> Result<bool, String> {
     Ok(live)
 }
 
-/// 결제사가 알려 준 결제 하나. 필요한 칸만 읽는다.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Payment {
-    pub payment_key: String,
-    pub order_id: String,
-    /// READY, IN_PROGRESS, WAITING_FOR_DEPOSIT, DONE, CANCELED, PARTIAL_CANCELED, ABORTED, EXPIRED
-    pub status: String,
-    pub total: i64,
-    /// 취소하고 남은 금액
-    pub balance: i64,
-    pub method: String,
-    pub secret: Option<String>,
+/// 토스 상태: READY, IN_PROGRESS, WAITING_FOR_DEPOSIT, DONE, CANCELED, PARTIAL_CANCELED, ABORTED, EXPIRED
+fn state(s: &str) -> State {
+    match s {
+        "DONE" => State::Paid,
+        "WAITING_FOR_DEPOSIT" => State::WaitingDeposit,
+        "CANCELED" => State::Cancelled,
+        "PARTIAL_CANCELED" => State::PartialCancelled,
+        "EXPIRED" => State::Expired,
+        _ => State::Other,
+    }
 }
 
 pub fn parse_payment(v: &Value) -> Option<Payment> {
@@ -76,7 +68,7 @@ pub fn parse_payment(v: &Value) -> Option<Payment> {
     Some(Payment {
         payment_key: s("paymentKey")?,
         order_id: s("orderId")?,
-        status: s("status")?,
+        state: state(&s("status")?),
         total,
         balance: v
             .get("balanceAmount")
@@ -96,14 +88,6 @@ fn refusal(status: u16, v: &Value) -> String {
         .take(300)
         .collect();
     text
-}
-
-/// 결제사 응답. 닿지 못했으면 `Unreachable`, 거절했으면 `Refused`.
-#[derive(Debug)]
-pub enum Answer {
-    Ok(Payment),
-    Refused { code: String, text: String },
-    Unreachable(String),
 }
 
 fn answer(res: Result<(u16, Value), String>) -> Answer {
@@ -190,14 +174,6 @@ pub async fn cancel(
     )
 }
 
-/// paymentKey 를 주소 한 마디로. 결제사 값이지만 웹훅 본문에서 오므로 주소를 바꾸는 글자는 뺀다.
-fn path_part(s: &str) -> String {
-    s.chars()
-        .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_'))
-        .take(200)
-        .collect()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -220,12 +196,8 @@ mod tests {
         }))
         .unwrap();
         assert_eq!(p.balance, 5000);
+        assert_eq!(p.state, State::Paid);
         assert_eq!(p.secret, None);
         assert!(parse_payment(&json!({ "paymentKey": "pk1" })).is_none());
-    }
-
-    #[test]
-    fn payment_key_cannot_change_the_path() {
-        assert_eq!(path_part("../v1/x?y=1"), "v1xy1");
     }
 }

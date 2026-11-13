@@ -71,12 +71,18 @@
       </form>
     </details>
     {% for p in providers %}<details class="pay-box"{% if not p.usable %} open{% endif %}>
-      <summary>{% if p.provider == "toss" %}{{ "토스페이먼츠"|t }}{% else %}{{ "무통장 입금"|t }}{% endif %} · {% if p.usable %}{{ "켜짐"|t }}{% if p.live %} ({{ "운영 키"|t }}){% elif p.provider == "toss" %} ({{ "테스트 키"|t }}){% endif %}{% else %}{{ "꺼짐"|t }}{% endif %}</summary>
+      <summary>{% if p.provider == "toss" %}{{ "토스페이먼츠"|t }}{% elif p.provider == "portone" %}PortOne{% else %}{{ "무통장 입금"|t }}{% endif %} · {% if p.usable %}{{ "켜짐"|t }}{% if p.live %} ({{ "운영 키"|t }}){% elif p.provider != "bank" %} ({{ "테스트 키"|t }}){% endif %}{% else %}{{ "꺼짐"|t }}{% endif %}</summary>
       <form method="post" action="/m/pay/admin/provider/{{ p.provider }}" class="pay-grid">
         {% if p.provider == "toss" %}
         <label for="pt-client">{{ "클라이언트 키"|t }}</label><input id="pt-client" name="client_key" value="{{ p.client_key }}" placeholder="test_gck_…" autocomplete="off" spellcheck="false">
         <label for="pt-secret">{{ "시크릿 키"|t }}</label><input id="pt-secret" name="secret_key" type="password" autocomplete="new-password" placeholder="{% if p.secret_hint %}{{ p.secret_hint }} {{ "(비우면 그대로)"|t }}{% else %}test_gsk_…{% endif %}">
         <p class="hint">{{ "결제위젯 연동 키를 넣습니다. 운영 키(live_)는 https 사이트와 사업자 정보가 있어야 넣을 수 있습니다. 결제사 관리자 화면의 웹훅 주소:"|t }} <code>{{ p.webhook_url }}</code></p>
+        {% elif p.provider == "portone" %}
+        <label for="po-store">{{ "상점 아이디"|t }}</label><input id="po-store" name="store_id" value="{{ p.config.store_id }}" placeholder="store-…" autocomplete="off" spellcheck="false">
+        <label for="po-channel">{{ "채널 키"|t }}</label><input id="po-channel" name="client_key" value="{{ p.client_key }}" placeholder="channel-key-…" autocomplete="off" spellcheck="false">
+        <label for="po-secret">{{ "API 시크릿"|t }}</label><input id="po-secret" name="secret_key" type="password" autocomplete="new-password" placeholder="{% if p.secret_hint %}{{ p.secret_hint }} {{ "(비우면 그대로)"|t }}{% else %}V2 API Secret{% endif %}">
+        <label for="po-mode">{{ "채널 종류"|t }}</label><select id="po-mode" name="mode"><option value="test"{% if p.config.mode == "test" %} selected{% endif %}>{{ "시험 채널"|t }}</option><option value="live"{% if p.config.mode != "test" %} selected{% endif %}>{{ "운영 채널"|t }}</option></select>
+        <p class="hint">{{ "PortOne 관리자 콘솔의 V2 연동 값을 넣습니다. 운영 채널은 https 사이트와 사업자 정보가 있어야 넣을 수 있습니다. 관리자 콘솔 웹훅 주소(버전 2024-04-25):"|t }} <code>{{ p.webhook_url }}</code></p>
         {% else %}
         <label for="pb-bank">{{ "은행"|t }}</label><input id="pb-bank" name="bank" value="{{ p.config.bank }}" maxlength="30">
         <label for="pb-account">{{ "계좌 번호"|t }}</label><input id="pb-account" name="account" value="{{ p.config.account }}" maxlength="40" inputmode="numeric">
