@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{# 쇼핑 관리 (ADR-0170). 모듈 관리 권한이 있는 운영자만 본다. 구매자 정보는 바깥 사람이 쓴 값이라 이스케이프해 그린다.
+   취소는 사람만 누른다(에이전트 토큰은 서비스가 거절한다). 결제 금액 환불은 결제 관리에서 한다. #}
+{% block main_class %}wrap wide{% endblock %}
+{% block main %}
+<section class="account me pay-admin shop-admin" aria-labelledby="sa-title">
+  <h1 id="sa-title">{{ "쇼핑 관리"|t }}</h1>
+  {% if done %}<p class="form-notice" role="status">{{ done }}</p>{% endif %}
+  {% if error %}<p class="form-error" role="alert">{{ error }}</p>{% endif %}
+  {% if not products %}<p class="hint pay-admin-warn">{{ "파는 상품이 없습니다. 아래 「상품」에서 하나 만드세요."|t }}</p>{% endif %}
+
+  <nav class="pay-tabs" aria-label="{{ "주문 상태"|t }}">{% for t in tabs %}<a href="{{ t.url }}"{% if t.current %} aria-current="page"{% endif %}>{{ t.label }}</a>{% endfor %}</nav>
+  {% if orders %}
+  <ul class="pay-orders">
+    {% for o in orders %}<li class="pay-row is-{{ o.status }}">
+      <div class="pay-row-main">
+        <p class="pay-row-name"><code>{{ o.id }}</code> <span class="badge">{{ o.status_label }}</span>{% if o.short %} <span class="badge">{{ "재고 모자람"|t }}</span>{% endif %}</p>
+        <p class="pay-row-amount">{{ o.total_text }}{% if o.refunded %} · {{ "환불함"|t }}{% endif %}</p>
+      </div>
+      <dl class="forms-values">
+        <dt>{{ "상품"|t }}</dt><dd>{% for it in o.items %}{{ it.name }}{% if it.option %} ({{ it.option }}){% endif %} × {{ it.qty }}{% if not loop.last %}, {% endif %}{% endfor %}</dd>
+        <dt>{{ "받는 분"|t }}</dt><dd>{{ o.buyer.name or "-" }}{% if o.buyer.phone %} · {{ o.buyer.phone }}{% endif %}{% if o.buyer.email %} · {{ o.buyer.email }}{% endif %}</dd>
+        <dt>{{ "주소"|t }}</dt><dd>{% if o.buyer.zip %}({{ o.buyer.zip }}) {% endif %}{{ o.buyer.address }} {{ o.buyer.address2 }}</dd>
+        {% if o.buyer.memo %}<dt>{{ "배송 메모"|t }}</dt><dd>{{ o.buyer.memo }}</dd>{% endif %}
+        {% if o.tracking %}<dt>{{ "운송장"|t }}</dt><dd>{{ o.carrier }} <code>{{ o.tracking }}</code></dd>{% endif %}
+        {% if o.cancel_reason %}<dt>{{ "취소 사유"|t }}</dt><dd>{{ o.cancel_reason }}</dd>{% endif %}
+        {% if o.pay_order_id %}<dt>{{ "결제 주문"|t }}</dt><dd><code>{{ o.pay_order_id }}</code></dd>{% endif %}
+      </dl>
+      {% if o.refund_needed %}<p class="hint pay-admin-warn">{% if o.short %}{{ "결제는 끝났지만 재고가 모자랍니다. 재고를 채우거나 취소하고 환불하세요."|t }}{% else %}{{ "결제한 주문이 취소됐습니다."|t }}{% endif %} <a href="/m/pay?status=paid">{{ "결제 관리에서 환불하기"|t }}</a></p>{% endif %}
+      {% if o.can_prepare or o.can_ship or o.can_deliver or o.can_cancel %}<div class="pay-row-actions">
+        {% if o.can_prepare %}<form method="post" action="/m/shop/admin/o/{{ o.id }}/status"><input type="hidden" name="tab" value="{{ status }}"><input type="hidden" name="to" value="preparing"><button type="submit">{{ "상품 준비 중"|t }}</button></form>{% endif %}
+        {% if o.can_ship %}<details class="pay-refund">
+          <summary>{{ "발송"|t }}</summary>
+          <form method="post" action="/m/shop/admin/o/{{ o.id }}/status" class="pay-refund-form">
+            <input type="hidden" name="tab" value="{{ status }}"><input type="hidden" name="to" value="shipped">
+            <label for="ss-{{ o.id }}-carrier">{{ "택배사"|t }}</label>
+            <input id="ss-{{ o.id }}-carrier" name="carrier" required maxlength="30">
+            <label for="ss-{{ o.id }}-tracking">{{ "운송장 번호"|t }}</label>
+            <input id="ss-{{ o.id }}-tracking" name="tracking" required maxlength="40" inputmode="numeric">
+            <button type="submit">{{ "발송 알리기"|t }}</button>
+          </form>
+        </details>{% endif %}
+        {% if o.can_deliver %}<form method="post" action="/m/shop/admin/o/{{ o.id }}/status"><input type="hidden" name="tab" value="{{ status }}"><input type="hidden" name="to" value="delivered"><button type="submit">{{ "배송 완료"|t }}</button></form>{% endif %}
+        {% if o.can_cancel %}<details class="pay-refund">
+          <summary>{{ "취소"|t }}</summary>
+          <form method="post" action="/m/shop/admin/o/{{ o.id }}/cancel" class="pay-refund-form">
+            <input type="hidden" name="tab" value="{{ status }}">
+            <label for="sc-{{ o.id }}-reason">{{ "사유 (구매자에게 갑니다)"|t }}</label>
+            <input id="sc-{{ o.id }}-reason" name="reason" required maxlength="200">
+            <button type="submit">{{ "주문 취소"|t }}</button>
+          </form>
+        </details>{% endif %}
+      </div>{% endif %}
+    </li>{% endfor %}
+  </ul>
+  {% else %}<p class="muted">{{ "이 상태의 주문이 없습니다."|t }}</p>{% endif %}
+
+  <h2>{{ "상품"|t }} <span class="count">{{ products|length }}</span></h2>
+  <p class="hint">{{ "배송비"|t }} {{ conf.shipping_fee }}{% if conf.free_over %} · {{ conf.free_over }} {{ "이상 무료"|t }}{% endif %}</p>
+  <ul class="pay-orders">
+    {% for f in products %}<li class="pay-row{% if not f.enabled %} is-canceled{% endif %}">
+      <details class="pay-refund">
+        <summary>{{ f.name }} · {{ f.price_text }} · {% if f.stock is none %}{{ "재고 무제한"|t }}{% else %}{{ "재고"|t }} {{ f.stock }}{% endif %}{% if not f.enabled %} · {{ "숨김"|t }}{% endif %}</summary>
+        {% include "mod/shop/_product_form.html" %}
+      </details>
+    </li>{% endfor %}
+  </ul>
+  <h3>{{ "새 상품"|t }}</h3>
+  {% with f = none %}{% include "mod/shop/_product_form.html" %}{% endwith %}
+</section>
+{% endblock %}

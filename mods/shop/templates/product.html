@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{# 상품 화면 (ADR-0170). 담을 때 가격·재고·옵션은 서버가 다시 읽는다. 설명은 글자 그대로(이스케이프) 줄바꿈만 살린다. #}
+{% block main_class %}wrap wide{% endblock %}
+{% block main %}
+<article class="shop-product" aria-labelledby="sp-title">
+  <div class="shop-product-media">
+    {% if p.image %}<img src="{{ p.image }}" alt="{{ p.name }}">{% else %}<span class="shop-card-blank" aria-hidden="true"></span>{% endif %}
+  </div>
+  <div class="shop-product-body">
+    <p class="shop-links"><a href="/m/shop">{{ "모든 상품"|t }}</a> · <a href="/m/shop/cart">{{ "장바구니"|t }}</a></p>
+    <h1 id="sp-title">{{ p.name }}</h1>
+    <p class="shop-product-price">{{ p.price_text }}</p>
+    {% if error %}<p class="form-error" role="alert">{{ error }}</p>{% endif %}
+    {% if p.sold_out %}<p class="muted"><span class="badge">{{ "품절"|t }}</span> {{ "다시 들어오면 담을 수 있습니다."|t }}</p>
+    {% else %}
+    <form class="cf shop-add" method="post" action="/m/shop/cart">
+      <input type="hidden" name="do" value="add">
+      <input type="hidden" name="product" value="{{ p.id }}">
+      {% if p.options %}<div class="cf-field">
+        <label for="sp-option">{% if p.option_label %}{{ p.option_label }}{% else %}{{ "옵션"|t }}{% endif %}</label>
+        <select id="sp-option" name="option" required>
+          <option value="">{{ "고르세요"|t }}</option>
+          {% for o in p.options %}<option value="{{ o }}"{% if option == o %} selected{% endif %}>{{ o }}</option>{% endfor %}
+        </select>
+      </div>{% endif %}
+      <div class="cf-field">
+        <label for="sp-qty">{{ "수량"|t }}</label>
+        <input id="sp-qty" name="qty" type="number" min="1" max="{% if p.stock is not none and p.stock < 99 %}{{ p.stock }}{% else %}99{% endif %}" value="1" required inputmode="numeric">
+        {% if p.stock is not none and p.stock <= 5 %}<p class="hint">{{ "남은 수량"|t }} {{ p.stock }}</p>{% endif %}
+      </div>
+      <p class="sec-actions"><button class="sec-btn sec-btn--main" type="submit">{{ "장바구니에 담기"|t }}</button></p>
+    </form>
+    {% endif %}
+    {% if description %}<div class="shop-product-text">{% for line in description %}<p>{{ line }}</p>{% endfor %}</div>{% endif %}
+  </div>
+</article>
+{% endblock %}

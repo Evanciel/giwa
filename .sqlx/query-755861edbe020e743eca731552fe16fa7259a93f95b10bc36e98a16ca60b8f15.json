@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO mod_shop_cart (id, key_hash, member_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "755861edbe020e743eca731552fe16fa7259a93f95b10bc36e98a16ca60b8f15"
+}

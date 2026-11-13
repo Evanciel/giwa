@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE mod_shop_cart SET updated_at = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "171b558422a34d8f8d42589ce1d64d0cffe43dd275863fa8c9f57a2ecaea4f66"
+}

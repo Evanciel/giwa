@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO mod_shop_order (id, status, cart_id, subtotal, shipping, total, name, email, phone, zip,\n                 address, address2, memo, member_id, created_at, updated_at)\n             VALUES (?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 15
+    },
+    "nullable": []
+  },
+  "hash": "393c2a45ef16dae6377a3a113064e7e49a5af6a6687965709457d5aaa201f0ee"
+}

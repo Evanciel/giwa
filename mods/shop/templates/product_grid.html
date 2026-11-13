@@ -1,0 +1,13 @@
+{# 상품 목록 위젯 (ADR-0170). 카드를 누르면 상품 화면. 재고·가격은 상품 화면과 장바구니에서 서버가 다시 읽는다. #}
+{% with g = w.data %}
+{% if g.products %}
+<ul class="shop-grid">
+  {% for p in g.products %}<li><a class="shop-card" href="{{ p.url }}">
+    {% if p.image %}<img src="{{ p.image }}" alt="{{ p.name }}" loading="lazy" decoding="async">{% else %}<span class="shop-card-blank" aria-hidden="true"></span>{% endif %}
+    <span class="shop-card-name">{{ p.name }}</span>
+    <span class="shop-card-price">{% if p.sold_out %}<span class="badge">{{ "품절"|t }}</span> {% endif %}{{ p.price_text }}</span>
+  </a></li>{% endfor %}
+</ul>
+<p class="sec-actions"><a class="sec-btn" href="{{ g.home }}">{{ g.label }}</a></p>
+{% else %}<p class="muted">{{ "아직 파는 상품이 없습니다."|t }}</p>{% endif %}
+{% endwith %}

@@ -1503,6 +1503,7 @@ dependencies = [
  "maru-mod-reaction",
  "maru-mod-report",
  "maru-mod-scrap",
+ "maru-mod-shop",
  "maru-mod-social",
  "maru-mod-webhook",
  "maru-modules",
@@ -1750,6 +1751,22 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+]
+
+[[package]]
+name = "maru-mod-shop"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "axum",
+ "maru-core",
+ "maru-modules",
+ "maru-storage",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tracing",
 ]
 
 [[package]]

@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT COUNT(*) AS \"n!: i64\" FROM mod_shop_order\n               WHERE paid_at IS NOT NULL AND refunded = 0\n                 AND (status IN ('canceled', 'expired') OR (short = 1 AND status = 'paid'))",
+  "describe": {
+    "columns": [
+      {
+        "name": "n!: i64",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e4924cadd0e4f68732bcb5cfe2d47b3c60d58f251b79abe78f99003779b8b665"
+}

@@ -1,0 +1,8 @@
+{# 주문 내용 상자 (주문 화면·주문 조회가 같이 쓴다). #}
+<dl class="pay-summary">
+  <dt>{{ "상태"|t }}</dt><dd><span class="badge">{{ o.status_label }}</span></dd>
+  {% for it in o.items %}<dt>{{ it.name }}{% if it.option %} ({{ it.option }}){% endif %} × {{ it.qty }}</dt><dd>{{ it.amount_text }}</dd>{% endfor %}
+  <dt>{{ "배송비"|t }}</dt><dd>{{ o.shipping_text }}</dd>
+  <dt>{{ "결제 금액"|t }}</dt><dd><strong>{{ o.total_text }}</strong></dd>
+  {% if o.tracking %}<dt>{{ "운송장"|t }}</dt><dd>{{ o.carrier }} <code>{{ o.tracking }}</code></dd>{% endif %}
+</dl>

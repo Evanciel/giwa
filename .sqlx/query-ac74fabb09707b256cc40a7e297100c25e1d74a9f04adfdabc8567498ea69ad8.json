@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM mod_shop_cart_item WHERE cart_id = ? AND product_id = ? AND option = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "ac74fabb09707b256cc40a7e297100c25e1d74a9f04adfdabc8567498ea69ad8"
+}

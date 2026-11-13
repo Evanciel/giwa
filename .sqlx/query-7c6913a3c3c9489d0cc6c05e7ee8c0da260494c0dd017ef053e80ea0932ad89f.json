@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE mod_shop_cart_item SET qty = ? WHERE cart_id = ? AND product_id = ? AND option = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "7c6913a3c3c9489d0cc6c05e7ee8c0da260494c0dd017ef053e80ea0932ad89f"
+}

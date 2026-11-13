@@ -1,0 +1,14 @@
+{# 상품 폼 (관리 화면). f 가 없으면 새 상품. #}
+<form method="post" action="/m/shop/admin/product" class="cf shop-product-form">
+  <div class="cf-field"><label>{{ "상품 id (영문, 주소에 씁니다)"|t }} <input name="id" required maxlength="40" pattern="[a-z0-9\-]+" value="{% if f %}{{ f.id }}{% endif %}"{% if f %} readonly{% endif %}></label></div>
+  <div class="cf-field"><label>{{ "이름"|t }} <input name="name" required maxlength="80" value="{% if f %}{{ f.name }}{% endif %}"></label></div>
+  <div class="cf-field"><label>{{ "가격(원)"|t }} <input name="price" required inputmode="numeric" value="{% if f %}{{ f.price }}{% endif %}"></label></div>
+  <div class="cf-field"><label>{{ "재고 (비우면 무제한)"|t }} <input name="stock" inputmode="numeric" value="{% if f and f.stock is not none %}{{ f.stock }}{% endif %}"></label></div>
+  <div class="cf-field"><label>{{ "사진 주소 (/media/…)"|t }} <input name="image" maxlength="500" value="{% if f %}{{ f.image }}{% endif %}"></label></div>
+  <div class="cf-field"><label>{{ "옵션 이름 (예: 크기)"|t }} <input name="option_label" maxlength="20" value="{% if f %}{{ f.option_label }}{% endif %}"></label></div>
+  <div class="cf-field"><label>{{ "옵션 값 (쉼표로 나눔)"|t }} <input name="options" maxlength="600" value="{% if f %}{{ f.options|join(",") }}{% endif %}"></label></div>
+  <div class="cf-field"><label>{{ "설명"|t }} <textarea name="description" rows="3" maxlength="2000">{% if f %}{{ f.description }}{% endif %}</textarea></label></div>
+  <div class="cf-field"><label>{{ "순서"|t }} <input name="position" inputmode="numeric" value="{% if f %}{{ f.position }}{% else %}0{% endif %}"></label></div>
+  <label class="cf-check"><input type="checkbox" name="enabled" value="1"{% if not f or f.enabled %} checked{% endif %}> {{ "팝니다"|t }}</label>
+  <p><button type="submit">{{ "저장"|t }}</button></p>
+</form>

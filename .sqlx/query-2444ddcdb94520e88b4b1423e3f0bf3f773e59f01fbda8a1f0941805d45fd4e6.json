@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT product_id, name, option, price, qty FROM mod_shop_order_item WHERE order_id = ? ORDER BY line",
+  "describe": {
+    "columns": [
+      {
+        "name": "product_id",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_order_item",
+            "name": "product_id"
+          }
+        }
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_order_item",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "name": "option",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_order_item",
+            "name": "option"
+          }
+        }
+      },
+      {
+        "name": "price",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_order_item",
+            "name": "price"
+          }
+        }
+      },
+      {
+        "name": "qty",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_order_item",
+            "name": "qty"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "2444ddcdb94520e88b4b1423e3f0bf3f773e59f01fbda8a1f0941805d45fd4e6"
+}

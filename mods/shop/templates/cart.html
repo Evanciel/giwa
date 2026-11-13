@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{# 장바구니 (ADR-0170). 가격·재고는 지금 상품에서 읽은 값이다. #}
+{% block main_class %}wrap account-wrap{% endblock %}
+{% block main %}
+<section class="account shop-cart" aria-labelledby="sc-title">
+  <h1 id="sc-title">{{ "장바구니"|t }}</h1>
+  {% if lines %}
+  <ul class="shop-lines">
+    {% for l in lines %}<li class="shop-line">
+      <a href="{{ l.url }}" class="shop-line-name">{{ l.name }}{% if l.option %} <span class="muted">({{ l.option }})</span>{% endif %}</a>
+      <span class="shop-line-price">{{ l.price_text }}</span>
+      <form method="post" action="/m/shop/cart" class="shop-qty">
+        <input type="hidden" name="do" value="set"><input type="hidden" name="product" value="{{ l.product_id }}"><input type="hidden" name="option" value="{{ l.option }}">
+        <label class="visually-hidden" for="q-{{ loop.index }}">{{ "수량"|t }}</label>
+        <input id="q-{{ loop.index }}" name="qty" type="number" min="0" max="99" value="{{ l.qty }}" inputmode="numeric">
+        <button type="submit">{{ "바꾸기"|t }}</button>
+      </form>
+      <form method="post" action="/m/shop/cart" class="shop-qty">
+        <input type="hidden" name="do" value="set"><input type="hidden" name="product" value="{{ l.product_id }}"><input type="hidden" name="option" value="{{ l.option }}"><input type="hidden" name="qty" value="0">
+        <button type="submit">{{ "빼기"|t }}</button>
+      </form>
+      <strong class="shop-line-amount">{{ l.amount_text }}</strong>
+      {% if l.problem %}<p class="form-error">{{ l.problem }}</p>{% endif %}
+    </li>{% endfor %}
+  </ul>
+  <dl class="pay-summary">
+    <dt>{{ "상품 합계"|t }}</dt><dd>{{ quote.subtotal_text }}</dd>
+    <dt>{{ "배송비"|t }}</dt><dd>{{ quote.shipping_text }}</dd>
+    <dt>{{ "결제 금액"|t }}</dt><dd><strong>{{ quote.total_text }}</strong></dd>
+  </dl>
+  {% if quote.to_free %}<p class="hint">{{ quote.to_free }} {{ "더 담으면 배송비가 무료입니다."|t }}</p>{% endif %}
+  {% if blocked %}<p class="hint">{{ "품절·재고 부족인 상품을 빼거나 수량을 줄이면 주문할 수 있습니다."|t }}</p>
+  {% else %}<p class="sec-actions"><a class="sec-btn sec-btn--main" href="/m/shop/checkout">{{ "주문하기"|t }}</a></p>{% endif %}
+  {% else %}
+  <p class="muted">{{ "장바구니가 비었습니다."|t }}</p>
+  {% endif %}
+  <p><a href="/m/shop">{{ "계속 둘러보기"|t }}</a></p>
+</section>
+{% endblock %}

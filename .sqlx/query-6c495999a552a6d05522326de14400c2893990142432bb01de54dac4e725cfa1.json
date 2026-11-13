@@ -1,0 +1,134 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id!\", name, description, price, stock, image, option_label, options, enabled, position\n               FROM mod_shop_product WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_product",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_product",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "name": "description",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_product",
+            "name": "description"
+          }
+        }
+      },
+      {
+        "name": "price",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_product",
+            "name": "price"
+          }
+        }
+      },
+      {
+        "name": "stock",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_product",
+            "name": "stock"
+          }
+        }
+      },
+      {
+        "name": "image",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_product",
+            "name": "image"
+          }
+        }
+      },
+      {
+        "name": "option_label",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_product",
+            "name": "option_label"
+          }
+        }
+      },
+      {
+        "name": "options",
+        "ordinal": 7,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_product",
+            "name": "options"
+          }
+        }
+      },
+      {
+        "name": "enabled",
+        "ordinal": 8,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_product",
+            "name": "enabled"
+          }
+        }
+      },
+      {
+        "name": "position",
+        "ordinal": 9,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_product",
+            "name": "position"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "6c495999a552a6d05522326de14400c2893990142432bb01de54dac4e725cfa1"
+}

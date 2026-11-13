@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE mod_shop_product SET stock = stock + ? WHERE id = ? AND stock IS NOT NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "5643bcee8e065d586997eeaf628177760af1dddf0eb14d4254f908cd70bd2fb4"
+}

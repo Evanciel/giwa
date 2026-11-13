@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE mod_shop_order SET status = ?, stock_taken = ?, short = ?, paid_at = ?, shipped_at = ?,\n                 delivered_at = ?, carrier = COALESCE(?, carrier), tracking = COALESCE(?, tracking),\n                 cancel_reason = COALESCE(?, cancel_reason), updated_at = ?\n             WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 11
+    },
+    "nullable": []
+  },
+  "hash": "9fe3add00f20c9f61abe5aecd36506e94604065fe3f157c633ecf7d988dde928"
+}

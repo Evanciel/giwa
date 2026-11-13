@@ -1536,6 +1536,37 @@ body:is(:has(main.page-blocks), :has(main.wide), :has(.with-sidebar), :has(.docs
 .booking-service-form { padding-top: calc(var(--space) * 2); border-top: 1px solid var(--border); }
 .pay-row.is-canceled, .pay-row.is-expired { opacity: .7; }
 
+/* 쇼핑 (ADR-0170) */
+.shop-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: calc(var(--space) * 1); }
+.shop-links { margin: 0 0 calc(var(--space) * 1.5); font-size: var(--fs-sm); color: var(--muted); }
+.shop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), 1fr)); gap: calc(var(--space) * 2); margin: calc(var(--space) * 2) 0; padding: 0; list-style: none; }
+.region-main > .widget:has(.shop-grid) { grid-column: 1 / -1; }
+.shop-card { display: grid; gap: calc(var(--space) * .75); color: inherit; text-decoration: none; }
+.shop-card img, .shop-card-blank, .shop-product-media img, .shop-product-media .shop-card-blank { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--radius-md); background: color-mix(in srgb, var(--muted) 12%, var(--surface)); }
+.shop-card:hover img { opacity: .92; }
+.shop-card-name { font-weight: 650; }
+.shop-card:hover .shop-card-name { color: var(--primary); }
+.shop-card-price { font-variant-numeric: tabular-nums; color: var(--muted); }
+.shop-product { display: grid; gap: calc(var(--space) * 4); }
+@media (min-width: 52rem) { .shop-product { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; } }
+.shop-product h1 { margin: 0 0 calc(var(--space) * 1); }
+.shop-product-price { margin: 0 0 calc(var(--space) * 2); font-size: 1.35rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.shop-add select, .shop-add input[type="number"] { max-width: 12rem; }
+.shop-product-text { margin-top: calc(var(--space) * 3); padding-top: calc(var(--space) * 2); border-top: 1px solid var(--border); }
+.shop-product-text p { margin: 0 0 calc(var(--space) * 1); }
+.shop-lines { display: grid; gap: calc(var(--space) * 1.5); margin: calc(var(--space) * 2) 0; padding: 0; list-style: none; }
+.shop-line { display: flex; flex-wrap: wrap; align-items: center; gap: calc(var(--space) * 1) calc(var(--space) * 1.5); padding-bottom: calc(var(--space) * 1.5); border-bottom: 1px solid var(--border); }
+.shop-line-name { flex: 1 1 12rem; font-weight: 600; }
+.shop-line-price, .shop-line-amount { font-variant-numeric: tabular-nums; }
+.shop-line-price { color: var(--muted); font-size: var(--fs-sm); }
+.shop-line-amount { margin-left: auto; }
+.shop-line .form-error { flex-basis: 100%; margin: 0; }
+.shop-lines--plain .shop-line { padding-bottom: calc(var(--space) * 1); }
+.shop-qty { display: inline-flex; gap: calc(var(--space) * .5); align-items: center; margin: 0; }
+.shop-qty input { width: 4.5rem; padding: calc(var(--space) * .5) calc(var(--space) * .75); font: inherit; color: var(--fg); background: var(--surface); border: 1px solid var(--muted); border-radius: min(var(--radius-sm), 12px); }
+.shop-qty button { padding: calc(var(--space) * .5) calc(var(--space) * 1); font: inherit; font-size: var(--fs-sm); color: var(--fg); background: var(--surface); border: 1px solid var(--border); border-radius: min(var(--radius-sm), 12px); cursor: pointer; }
+.shop-product-form { padding-top: calc(var(--space) * 2); }
+
 /* 첫 화면의 카드 묶음은 한 칸에 세로로 쌓지 않고 한 줄을 다 쓴다. */
 .region-main > .widget:has(.widget-cards) { grid-column: 1 / -1; }
 .region-main > .widget:has(.map-box) { grid-column: 1 / -1; }

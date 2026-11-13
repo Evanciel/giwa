@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{# 주문 조회 (ADR-0170). 주문 번호와 주문할 때 적은 전자우편이 맞아야 보인다. 로그인한 회원은 자기 주문 목록을 본다. #}
+{% block main_class %}wrap account-wrap{% endblock %}
+{% block main %}
+<section class="account shop-cart" aria-labelledby="sl-title">
+  <h1 id="sl-title">{{ "주문 조회"|t }}</h1>
+  {% if error %}<p class="form-error" role="alert">{{ error }}</p>{% endif %}
+  {% if found %}{% with o = found %}
+  {% include "mod/shop/_order_box.html" %}
+  <dl class="forms-values">
+    <dt>{{ "받는 분"|t }}</dt><dd>{{ o.buyer.name }}</dd>
+    <dt>{{ "주소"|t }}</dt><dd>{% if o.buyer.zip %}({{ o.buyer.zip }}) {% endif %}{{ o.buyer.address }} {{ o.buyer.address2 }}</dd>
+    {% if o.cancel_reason %}<dt>{{ "취소 사유"|t }}</dt><dd>{{ o.cancel_reason }}</dd>{% endif %}
+  </dl>
+  {% endwith %}{% endif %}
+  <form class="cf" method="post" action="/m/shop/lookup">
+    <div class="cf-field">
+      <label for="sl-id">{{ "주문 번호"|t }}</label>
+      <input id="sl-id" name="id" required maxlength="40" value="{{ id }}" autocomplete="off">
+    </div>
+    <div class="cf-field">
+      <label for="sl-email">{{ "전자우편"|t }}</label>
+      <input id="sl-email" name="email" type="email" required maxlength="254" value="{{ email }}" autocomplete="email">
+    </div>
+    <p class="sec-actions"><button class="sec-btn" type="submit">{{ "조회"|t }}</button></p>
+  </form>
+  {% if mine %}<h2>{{ "내 주문"|t }}</h2>
+  <ul class="shop-lines shop-lines--plain">{% for m in mine %}<li class="shop-line"><a class="shop-line-name" href="{{ m.url }}"><code>{{ m.id }}</code></a> <span class="badge">{{ m.status_label }}</span> <strong class="shop-line-amount">{{ m.total_text }}</strong></li>{% endfor %}</ul>{% endif %}
+</section>
+{% endblock %}

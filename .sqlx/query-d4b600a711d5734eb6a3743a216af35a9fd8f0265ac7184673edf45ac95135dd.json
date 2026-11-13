@@ -1,0 +1,326 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id!\", status, pay_order_id, cart_id, subtotal, shipping, total, stock_taken, short,\n                      refunded, name, email, phone, zip, address, address2, memo, member_id, carrier, tracking,\n                      cancel_reason, paid_at, shipped_at, delivered_at, created_at, updated_at\n               FROM mod_shop_order WHERE status = 'pending' AND created_at < ? LIMIT 200",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_order",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "status",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_order",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "name": "pay_order_id",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_order",
+            "name": "pay_order_id"
+          }
+        }
+      },
+      {
+        "name": "cart_id",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_order",
+            "name": "cart_id"
+          }
+        }
+      },
+      {
+        "name": "subtotal",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_order",
+            "name": "subtotal"
+          }
+        }
+      },
+      {
+        "name": "shipping",
+        "ordinal": 5,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_order",
+            "name": "shipping"
+          }
+        }
+      },
+      {
+        "name": "total",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_order",
+            "name": "total"
+          }
+        }
+      },
+      {
+        "name": "stock_taken",
+        "ordinal": 7,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_order",
+            "name": "stock_taken"
+          }
+        }
+      },
+      {
+        "name": "short",
+        "ordinal": 8,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_order",
+            "name": "short"
+          }
+        }
+      },
+      {
+        "name": "refunded",
+        "ordinal": 9,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_order",
+            "name": "refunded"
+          }
+        }
+      },
+      {
+        "name": "name",
+        "ordinal": 10,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_order",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "name": "email",
+        "ordinal": 11,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_order",
+            "name": "email"
+          }
+        }
+      },
+      {
+        "name": "phone",
+        "ordinal": 12,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_order",
+            "name": "phone"
+          }
+        }
+      },
+      {
+        "name": "zip",
+        "ordinal": 13,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_order",
+            "name": "zip"
+          }
+        }
+      },
+      {
+        "name": "address",
+        "ordinal": 14,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_order",
+            "name": "address"
+          }
+        }
+      },
+      {
+        "name": "address2",
+        "ordinal": 15,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_order",
+            "name": "address2"
+          }
+        }
+      },
+      {
+        "name": "memo",
+        "ordinal": 16,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_order",
+            "name": "memo"
+          }
+        }
+      },
+      {
+        "name": "member_id",
+        "ordinal": 17,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_order",
+            "name": "member_id"
+          }
+        }
+      },
+      {
+        "name": "carrier",
+        "ordinal": 18,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_order",
+            "name": "carrier"
+          }
+        }
+      },
+      {
+        "name": "tracking",
+        "ordinal": 19,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_order",
+            "name": "tracking"
+          }
+        }
+      },
+      {
+        "name": "cancel_reason",
+        "ordinal": 20,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_order",
+            "name": "cancel_reason"
+          }
+        }
+      },
+      {
+        "name": "paid_at",
+        "ordinal": 21,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_order",
+            "name": "paid_at"
+          }
+        }
+      },
+      {
+        "name": "shipped_at",
+        "ordinal": 22,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_order",
+            "name": "shipped_at"
+          }
+        }
+      },
+      {
+        "name": "delivered_at",
+        "ordinal": 23,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_order",
+            "name": "delivered_at"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 24,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_order",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "name": "updated_at",
+        "ordinal": 25,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_order",
+            "name": "updated_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "d4b600a711d5734eb6a3743a216af35a9fd8f0265ac7184673edf45ac95135dd"
+}

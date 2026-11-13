@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO mod_shop_order_item (order_id, line, product_id, name, option, price, qty)\n                 VALUES (?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "805ae6af9f488dec0bfcbbff98cf363dea042e521906c13d4a15ad005fdfa89c"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE mod_shop_order SET refunded = 1 WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "024bf84f7b20a6519c14ae9123f1ac1ba23abd563e29e1c39da826b3d0ff4d11"
+}

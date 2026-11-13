@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO mod_shop_product (id, name, description, price, stock, image, option_label, options,\n                 enabled, position, created_at, updated_at)\n             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)\n             ON CONFLICT (id) DO UPDATE SET name = excluded.name, description = excluded.description,\n                 price = excluded.price, stock = excluded.stock, image = excluded.image,\n                 option_label = excluded.option_label, options = excluded.options, enabled = excluded.enabled,\n                 position = excluded.position, updated_at = excluded.updated_at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 12
+    },
+    "nullable": []
+  },
+  "hash": "7a23b13ecebdcfcfc123d51c60c76f3c0be269c132722c5b48b79da8b04bda1e"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO mod_shop_cart_item (cart_id, product_id, option, qty, added_at) VALUES (?, ?, ?, ?, ?)\n             ON CONFLICT (cart_id, product_id, option) DO UPDATE SET qty = excluded.qty",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "deea44b404a10aaea4a242d6d631e6f2ca1a917d11c6e03389b71aad620362c0"
+}

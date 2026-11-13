@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE mod_shop_order SET name = '', email = '', phone = '', zip = '', address = '', address2 = '',\n                 memo = '', member_id = NULL\n             WHERE created_at < ? AND (name != '' OR email != '' OR phone != '' OR address != '' OR member_id IS NOT NULL)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "331cfed86cc18ea306127a7e0412a4ae6d57bb04fd2f42f918ee2b728767cd47"
+}

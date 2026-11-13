@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{# 주문서 (ADR-0170). 금액은 서버가 장바구니와 지금 상품 가격으로 다시 계산한다. 보낸 값은 이스케이프해 다시 채운다. #}
+{% block main_class %}wrap account-wrap{% endblock %}
+{% block main %}
+<section class="account shop-cart" aria-labelledby="co-title">
+  <h1 id="co-title">{{ "주문서"|t }}</h1>
+  {% if error %}<p class="form-error" role="alert">{{ error }}</p>{% endif %}
+  <ul class="shop-lines shop-lines--plain">
+    {% for l in lines %}<li class="shop-line"><span class="shop-line-name">{{ l.name }}{% if l.option %} <span class="muted">({{ l.option }})</span>{% endif %} × {{ l.qty }}</span><strong class="shop-line-amount">{{ l.amount_text }}</strong>{% if l.problem %}<p class="form-error">{{ l.problem }}</p>{% endif %}</li>{% endfor %}
+  </ul>
+  <dl class="pay-summary">
+    <dt>{{ "상품 합계"|t }}</dt><dd>{{ quote.subtotal_text }}</dd>
+    <dt>{{ "배송비"|t }}</dt><dd>{{ quote.shipping_text }}</dd>
+    <dt>{{ "결제 금액"|t }}</dt><dd><strong>{{ quote.total_text }}</strong></dd>
+  </dl>
+  {% if lines and not blocked %}
+  <form class="cf" method="post" action="/m/shop/checkout">
+    <h2 class="booking-step">{{ "받는 분"|t }}</h2>
+    <div class="cf-field">
+      <label for="co-name">{{ "이름"|t }}</label>
+      <input id="co-name" name="name" required maxlength="60" autocomplete="name" value="{{ values.name }}">
+    </div>
+    <div class="cf-field">
+      <label for="co-email">{{ "전자우편"|t }}</label>
+      <input id="co-email" name="email" type="email" required maxlength="254" autocomplete="email" value="{{ values.email }}">
+      <p class="hint">{{ "주문 확인과 배송 알림을 이 주소로 보냅니다."|t }}</p>
+    </div>
+    {% if ask_phone %}<div class="cf-field">
+      <label for="co-phone">{{ "전화"|t }}</label>
+      <input id="co-phone" name="phone" type="tel" inputmode="tel" required maxlength="20" autocomplete="tel" value="{{ values.phone }}">
+    </div>{% endif %}
+    <div class="cf-field">
+      <label for="co-zip">{{ "우편번호"|t }} <span class="cf-optional">{{ "(선택)"|t }}</span></label>
+      <input id="co-zip" name="zip" inputmode="numeric" maxlength="7" autocomplete="postal-code" value="{{ values.zip }}">
+    </div>
+    <div class="cf-field">
+      <label for="co-address">{{ "주소"|t }}</label>
+      <input id="co-address" name="address" required maxlength="200" autocomplete="address-line1" value="{{ values.address }}">
+    </div>
+    <div class="cf-field">
+      <label for="co-address2">{{ "상세 주소"|t }} <span class="cf-optional">{{ "(선택)"|t }}</span></label>
+      <input id="co-address2" name="address2" maxlength="100" autocomplete="address-line2" value="{{ values.address2 }}">
+    </div>
+    <div class="cf-field">
+      <label for="co-memo">{{ "배송 메모"|t }} <span class="cf-optional">{{ "(선택)"|t }}</span></label>
+      <textarea id="co-memo" name="memo" rows="2" maxlength="300">{{ values.memo }}</textarea>
+    </div>
+    <div class="cf-trap" aria-hidden="true"><label>{{ "비워 두세요"|t }} <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+    <div class="cf-consent">
+      <label class="cf-check"><input type="checkbox" name="agree" value="1" required{% if values.agree %} checked{% endif %}> {{ "주문 내용을 확인했고 결제와 개인정보 수집에 동의합니다"|t }}</label>
+      <p class="hint">{{ "주문 처리와 배송을 위해 이름·전자우편·전화·주소를 받고, 전자상거래법에 따라 5년 동안 보관합니다."|t }}{% if policy %} <a href="{{ policy }}">{{ "교환·환불 규정 보기"|t }}</a>{% endif %}</p>
+    </div>
+    <p class="sec-actions"><button class="sec-btn sec-btn--main" type="submit">{{ quote.total_text }} {{ "결제하기"|t }}</button></p>
+  </form>
+  {% endif %}
+  <p><a href="/m/shop/cart">{{ "장바구니로 돌아가기"|t }}</a></p>
+</section>
+{% endblock %}

@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT stock FROM mod_shop_product WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "stock",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "mod_shop_product",
+            "name": "stock"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "61fd40ec88aecb7db75dfd971463b4bc742b1b670caa145efa845581524bc8c4"
+}

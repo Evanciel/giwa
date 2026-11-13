@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM mod_shop_cart WHERE updated_at < ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "8ff0d6c20cc12b750f8f17eb560fe6d67da4b6a79636c246ba59ec85970487b1"
+}
