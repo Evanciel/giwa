@@ -382,6 +382,7 @@ fn field_label(k: &str) -> String {
         "share_image" => "공유 그림",
         "indexnow" => "검색엔진에 바로 알리기",
         "pwa" => "홈 화면에 추가",
+        "business" => "사업자 정보",
         "posts_per_page" => "한 쪽 글 수",
         "toc_min_headings" => "목차 소제목 수",
         "home_page" => "첫 화면 페이지",

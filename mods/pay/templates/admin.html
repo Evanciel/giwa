@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{# 결제 관리 (ADR-0167). 모듈 관리 권한이 있는 운영자만 본다. 구매자 정보는 바깥 사람이 쓴 값이라 이스케이프해 그린다.
+   입금 확인·환불은 사람만 누른다(에이전트 토큰은 서비스가 거절한다). #}
+{% block main_class %}wrap wide{% endblock %}
+{% block main %}
+<section class="account me pay-admin" aria-labelledby="pay-admin-title">
+  <h1 id="pay-admin-title">{{ "결제 관리"|t }}{% if total %} <span class="count">{{ total }}</span>{% endif %}</h1>
+  {% if done %}<p class="form-notice" role="status">{{ done }}</p>{% endif %}
+  {% if error %}<p class="form-error" role="alert">{{ error }}</p>{% endif %}
+  {% if missing %}<p class="hint pay-admin-warn">{{ "사업자 정보가 비어 있습니다:"|t }} {{ missing|join(", ") }}. {{ "돈을 받는 사이트는 바닥글에 보여야 하고, 운영 키를 넣으려면 모두 채워야 합니다."|t }} <a href="/admin/settings#set-business">{{ "사업자 정보 채우기"|t }}</a></p>{% endif %}
+
+  {% if created %}<div class="pay-created" role="status">
+    <p><strong>{{ created.name }}</strong> · {{ created.amount_text }}</p>
+    <p>{{ "결제 요청 링크를 만들었습니다. 이 주소는 지금 한 번만 보이니 복사해 구매자에게 보내세요."|t }}</p>
+    <p><input class="pay-created-url" readonly value="{{ created.url }}" aria-label="{{ "결제 요청 링크"|t }}"></p>
+  </div>{% endif %}
+
+  <nav class="post-actions" aria-label="{{ "주문 상태"|t }}">
+    <a href="/m/pay"{% if not status %} aria-current="page"{% endif %}>{{ "전체"|t }}</a>
+    {% for t in tabs %}<a href="/m/pay?status={{ t.id }}"{% if status == t.id %} aria-current="page"{% endif %}>{{ t.label }}</a>{% endfor %}
+  </nav>
+
+  {% if items %}
+  <ul class="pay-orders">
+    {% for o in items %}<li class="pay-row is-{{ o.status }}">
+      <div class="pay-row-main">
+        <p class="pay-row-name"><strong>{{ o.name }}</strong> <span class="badge">{{ o.status_label }}</span></p>
+        <p class="pay-row-amount">{{ o.amount_text }}{% if o.refunded %} <span class="hint">({{ "환불"|t }} {{ o.refunded_text }})</span>{% endif %}</p>
+      </div>
+      <dl class="forms-values">
+        <dt>{{ "구매자"|t }}</dt><dd>{{ o.buyer_name or "-" }}{% if o.buyer_email %} · {{ o.buyer_email }}{% endif %}{% if o.buyer_phone %} · {{ o.buyer_phone }}{% endif %}</dd>
+        {% if o.method %}<dt>{{ "결제 방법"|t }}</dt><dd>{{ o.method }}{% if o.depositor %} ({{ "입금자"|t }} {{ o.depositor }}){% endif %}</dd>{% endif %}
+        <dt>{{ "주문한 때"|t }}</dt><dd>{{ o.created }}{% if o.paid %} · {{ "결제"|t }} {{ o.paid }}{% elif o.status == "pending" or o.status == "awaiting_deposit" %} · {{ "기한"|t }} {{ o.expires }}{% endif %}</dd>
+        <dt>{{ "주문 번호"|t }}</dt><dd><code>{{ o.id }}</code>{% if o.owner != "pay" %} · {{ o.owner }}{% endif %}</dd>
+        {% if o.last_error %}<dt>{{ "마지막 오류"|t }}</dt><dd class="pay-error">{{ o.last_error }}</dd>{% endif %}
+        {% for r in o.refunds %}<dt>{{ "환불"|t }}</dt><dd>{{ r.amount_text }} · {{ r.reason }} · {{ r.at }}{% if r.status == "failed" %} · <span class="pay-error">{{ "실패"|t }}: {{ r.error }}</span>{% endif %}</dd>{% endfor %}
+      </dl>
+      {% if o.can_mark_paid or o.can_refund or o.can_sync %}<div class="pay-row-actions">
+        {% if o.can_mark_paid %}<form method="post" action="/m/pay/admin/{{ o.id }}/paid"><button type="submit">{{ "입금 확인"|t }}</button></form>{% endif %}
+        {% if o.can_sync %}<form method="post" action="/m/pay/admin/{{ o.id }}/sync"><button type="submit">{{ "결제사에 다시 묻기"|t }}</button></form>{% endif %}
+        {% if o.can_refund %}<details class="pay-refund">
+          <summary>{{ "환불"|t }}</summary>
+          <form method="post" action="/m/pay/admin/{{ o.id }}/refund" class="pay-refund-form">
+            <label for="rf-{{ o.id }}-amount">{{ "금액(원)"|t }}</label>
+            <input id="rf-{{ o.id }}-amount" name="amount" inputmode="numeric" placeholder="{{ o.left }}" aria-describedby="rf-{{ o.id }}-hint">
+            <p class="hint" id="rf-{{ o.id }}-hint">{{ "비우면 남은 금액 전부"|t }} ({{ o.left_text }}){% if o.provider == "bank" %}. {{ "무통장 입금은 기록만 남깁니다. 돈은 직접 돌려주세요."|t }}{% endif %}</p>
+            <label for="rf-{{ o.id }}-reason">{{ "사유"|t }}</label>
+            <input id="rf-{{ o.id }}-reason" name="reason" required maxlength="200">
+            <button type="submit">{{ "환불하기"|t }}</button>
+          </form>
+        </details>{% endif %}
+      </div>{% endif %}
+    </li>{% endfor %}
+  </ul>
+  {% else %}<p class="muted">{{ "주문이 없습니다."|t }}</p>{% endif %}
+  {% if prev or next %}<nav class="pagination" aria-label="{{ "쪽"|t }}">
+    {% if prev %}<a href="{{ base }}{% if status %}&{% else %}?{% endif %}page={{ prev }}" rel="prev">{{ "이전"|t }}</a>{% endif %}
+    {% if next %}<a href="{{ base }}{% if status %}&{% else %}?{% endif %}page={{ next }}" rel="next">{{ "다음"|t }}</a>{% endif %}
+  </nav>{% endif %}
+
+  <div class="pay-admin-tools">
+    <details class="pay-box">
+      <summary>{{ "결제 요청 링크 만들기"|t }}</summary>
+      <form method="post" action="/m/pay/admin/new" class="pay-grid">
+        <label for="pn-name">{{ "주문 이름"|t }}</label><input id="pn-name" name="name" required maxlength="100">
+        <label for="pn-amount">{{ "금액(원)"|t }}</label><input id="pn-amount" name="amount" inputmode="numeric" required>
+        <label for="pn-buyer">{{ "구매자 이름"|t }} <span class="cf-optional">{{ "(선택)"|t }}</span></label><input id="pn-buyer" name="buyer_name" maxlength="60">
+        <label for="pn-email">{{ "구매자 전자우편"|t }} <span class="cf-optional">{{ "(선택)"|t }}</span></label><input id="pn-email" name="buyer_email" type="email" maxlength="254">
+        <label for="pn-phone">{{ "구매자 전화"|t }} <span class="cf-optional">{{ "(선택)"|t }}</span></label><input id="pn-phone" name="buyer_phone" type="tel" maxlength="20">
+        <p><button type="submit">{{ "링크 만들기"|t }}</button></p>
+      </form>
+    </details>
+    {% for p in providers %}<details class="pay-box"{% if not p.usable %} open{% endif %}>
+      <summary>{% if p.provider == "toss" %}{{ "토스페이먼츠"|t }}{% else %}{{ "무통장 입금"|t }}{% endif %} · {% if p.usable %}{{ "켜짐"|t }}{% if p.live %} ({{ "운영 키"|t }}){% elif p.provider == "toss" %} ({{ "테스트 키"|t }}){% endif %}{% else %}{{ "꺼짐"|t }}{% endif %}</summary>
+      <form method="post" action="/m/pay/admin/provider/{{ p.provider }}" class="pay-grid">
+        {% if p.provider == "toss" %}
+        <label for="pt-client">{{ "클라이언트 키"|t }}</label><input id="pt-client" name="client_key" value="{{ p.client_key }}" placeholder="test_gck_…" autocomplete="off" spellcheck="false">
+        <label for="pt-secret">{{ "시크릿 키"|t }}</label><input id="pt-secret" name="secret_key" type="password" autocomplete="new-password" placeholder="{% if p.secret_hint %}{{ p.secret_hint }} {{ "(비우면 그대로)"|t }}{% else %}test_gsk_…{% endif %}">
+        <p class="hint">{{ "결제위젯 연동 키를 넣습니다. 운영 키(live_)는 https 사이트와 사업자 정보가 있어야 넣을 수 있습니다. 결제사 관리자 화면의 웹훅 주소:"|t }} <code>{{ p.webhook_url }}</code></p>
+        {% else %}
+        <label for="pb-bank">{{ "은행"|t }}</label><input id="pb-bank" name="bank" value="{{ p.config.bank }}" maxlength="30">
+        <label for="pb-account">{{ "계좌 번호"|t }}</label><input id="pb-account" name="account" value="{{ p.config.account }}" maxlength="40" inputmode="numeric">
+        <label for="pb-holder">{{ "예금주"|t }}</label><input id="pb-holder" name="holder" value="{{ p.config.holder }}" maxlength="40">
+        {% endif %}
+        <label class="cf-check"><input type="checkbox" name="enabled" value="1"{% if p.enabled %} checked{% endif %}> {{ "이 결제 방법을 씁니다"|t }}</label>
+        <p><button type="submit">{{ "저장"|t }}</button></p>
+      </form>
+    </details>{% endfor %}
+  </div>
+</section>
+{% endblock %}

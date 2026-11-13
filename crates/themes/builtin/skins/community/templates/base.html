@@ -105,6 +105,7 @@
   {% if widgets.footer or editing %}<div class="region region-footer"{% if editing %} data-maru-region="footer"{% endif %}><div class="cm-inner">{% for w in widgets.footer %}{% include "_widget.html" %}{% endfor %}</div></div>{% endif %}
   <div class="cm-inner">
     {% if site.menus and site.menus.footer %}<nav class="footer-nav" aria-label="{{ "하단 메뉴"|t }}"{{ edit_part("menu.footer") }}>{% with items = site.menus.footer, menu_loc = "footer" %}{% include "_menu.html" %}{% endwith %}</nav>{% endif %}
+    {% if site.business %}{% include "_business.html" %}{% endif %}
     <p id="page-end"><strong{{ edit_part("name") }}{{ edit_site("name") }}>{{ site.name }}</strong> · <a href="{{ site.rss_url }}">RSS</a></p>
   </div>
 </footer>

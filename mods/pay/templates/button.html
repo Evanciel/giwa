@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{# 결제 단추를 다시 확인하는 화면 (ADR-0167). 보낸 값은 바깥 값이라 이스케이프해 다시 채운다. #}
+{% block main_class %}wrap account-wrap{% endblock %}
+{% block main %}
+<section class="account pay-order" aria-labelledby="pb-title">
+  <h1 id="pb-title">{{ "다시 확인해 주세요"|t }}</h1>
+  {% include "mod/pay/_button_form.html" %}
+</section>
+{% endblock %}

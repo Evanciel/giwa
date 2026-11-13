@@ -1,0 +1,11 @@
+{# 사업자 정보 (ADR-0167). 전자상거래법 제10조·제13조: 상호·대표자·주소·전화·전자우편·사업자등록번호·통신판매업 신고번호·호스팅 제공자. #}
+{% with b = site.business %}<address class="biz-info" aria-label="{{ "사업자 정보"|t }}">
+  <span><strong>{{ b.name }}</strong></span>
+  {% if b.owner %}<span>{{ "대표"|t }} {{ b.owner }}</span>{% endif %}
+  {% if b.reg_no %}<span>{{ "사업자등록번호"|t }} {{ b.reg_no }}</span>{% endif %}
+  {% if b.sales_no %}<span>{{ "통신판매업 신고"|t }} {{ b.sales_no }}</span>{% endif %}
+  {% if b.address %}<span>{{ b.address }}</span>{% endif %}
+  {% if b.phone %}<span>{{ "전화"|t }} <a href="tel:{{ b.phone|replace(" ", "") }}">{{ b.phone }}</a></span>{% endif %}
+  {% if b.email %}<span><a href="mailto:{{ b.email }}">{{ b.email }}</a></span>{% endif %}
+  {% if b.hosting %}<span>{{ "호스팅"|t }} {{ b.hosting }}</span>{% endif %}
+</address>{% endwith %}

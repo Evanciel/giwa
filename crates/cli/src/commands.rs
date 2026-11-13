@@ -1176,10 +1176,15 @@ async fn page_inner(ctx: &Ctx, actor: &Actor, cmd: PageCmd) -> Out {
                 .as_deref()
                 .map(maru_themes::starter)
                 .transpose()?;
-            let layout = if starter.is_some() && args.layout == "default" {
-                "blocks".to_owned()
-            } else {
-                args.layout
+            // 틀이 정한 모양(블록 페이지·글 페이지)을 따르되, 직접 준 본문·배치가 먼저다 (ADR-0167)
+            let shaped = starter.as_ref().map(|s| s.page("", ""));
+            let layout = match &shaped {
+                Some(p) if args.layout == "default" => p.layout.clone(),
+                _ => args.layout,
+            };
+            let body_md = match &starter {
+                Some(s) if body_md.is_empty() => s.page("", &args.title).body_md,
+                _ => body_md,
             };
             let input = pages::NewPage {
                 slug: args.slug,
@@ -1870,6 +1875,14 @@ async fn site(g: &Global, cmd: SiteCmd) -> Out {
                 share_image: args.share_image,
                 indexnow: args.indexnow,
                 pwa: args.pwa,
+                business_name: args.business_name,
+                business_owner: args.business_owner,
+                business_address: args.business_address,
+                business_phone: args.business_phone,
+                business_email: args.business_email,
+                business_reg_no: args.business_reg_no,
+                business_sales_no: args.business_sales_no,
+                business_hosting: args.business_hosting,
             };
             settings::update(&ctx, &actor, patch).await
         }

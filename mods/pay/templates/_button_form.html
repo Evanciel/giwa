@@ -1,0 +1,33 @@
+{# 결제 단추 폼 (ADR-0167). b 는 button::view 값이다. 금액은 서버가 정하고, 「금액 직접」일 때만 최소~최대 안에서 받는다. #}
+<form class="cf pay-button" method="post" action="{{ b.action }}">
+  <div class="pay-button-head">
+    <p class="pay-button-name">{{ b.name }}</p>
+    {% if not b.custom %}<p class="pay-button-price">{{ b.amount_text }}</p>{% endif %}
+  </div>
+  {% if b.note %}<p class="cf-intro">{{ b.note }}</p>{% endif %}
+  {% if b.error %}<p class="form-error" role="alert">{{ b.error }}</p>{% endif %}
+  {% if b.custom %}<div class="cf-field">
+    <label for="pb-{{ b.key }}-amount">{{ "금액(원)"|t }}</label>
+    <input id="pb-{{ b.key }}-amount" name="amount" inputmode="numeric" pattern="[0-9,]*" required value="{{ b.values.amount }}" aria-describedby="pb-{{ b.key }}-range">
+    <p class="hint" id="pb-{{ b.key }}-range">{{ b.min_text }} ~ {{ b.max_text }}</p>
+  </div>{% endif %}
+  <div class="cf-field">
+    <label for="pb-{{ b.key }}-name">{{ "이름"|t }}</label>
+    <input id="pb-{{ b.key }}-name" name="buyer_name" required maxlength="60" autocomplete="name" value="{{ b.values.buyer_name }}">
+  </div>
+  <div class="cf-field">
+    <label for="pb-{{ b.key }}-email">{{ "전자우편"|t }}</label>
+    <input id="pb-{{ b.key }}-email" name="buyer_email" type="email" required maxlength="254" autocomplete="email" value="{{ b.values.buyer_email }}">
+    <p class="hint">{{ "결제 확인 편지를 이 주소로 보냅니다."|t }}</p>
+  </div>
+  {% if b.ask_phone %}<div class="cf-field">
+    <label for="pb-{{ b.key }}-phone">{{ "전화"|t }} <span class="cf-optional">{{ "(선택)"|t }}</span></label>
+    <input id="pb-{{ b.key }}-phone" name="buyer_phone" type="tel" inputmode="tel" maxlength="20" autocomplete="tel" value="{{ b.values.buyer_phone }}">
+  </div>{% endif %}
+  <div class="cf-trap" aria-hidden="true"><label>{{ "비워 두세요"|t }} <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+  <div class="cf-consent">
+    <label class="cf-check"><input type="checkbox" name="agree" value="1" required{% if b.values.agree %} checked{% endif %}> {{ "주문 내용을 확인했고 결제와 개인정보 수집에 동의합니다"|t }}</label>
+    <p class="hint">{% if b.ask_phone %}{{ "주문 처리와 확인 편지를 위해 이름·전자우편·전화를 받고, 전자상거래법에 따라 5년 동안 보관합니다."|t }}{% else %}{{ "주문 처리와 확인 편지를 위해 이름·전자우편을 받고, 전자상거래법에 따라 5년 동안 보관합니다."|t }}{% endif %}{% if b.policy %} <a href="{{ b.policy }}">{{ "환불 규정 보기"|t }}</a>{% endif %}</p>
+  </div>
+  <p class="sec-actions"><button class="sec-btn sec-btn--main" type="submit">{{ b.label }}</button></p>
+</form>

@@ -547,7 +547,12 @@ pub struct Starter {
     pub label: String,
     #[serde(default)]
     pub description: String,
+    #[serde(default)]
     pub blocks: Vec<StarterBlock>,
+    /// 글로 된 틀(이용약관·환불 규정, ADR-0167). 있으면 블록 대신 이 본문으로 보통 페이지를 만든다.
+    /// `{title}` 은 페이지 이름이 된다
+    #[serde(default)]
+    pub body_md: String,
 }
 
 /// 틀의 블록 하나. 놓일 곳(`scope`)은 만들 페이지로 정해진다.
@@ -594,15 +599,22 @@ impl Starter {
     }
 }
 
-/// 틀로 만들 새 초안 페이지의 입력. 섹션 블록을 그리는 `blocks` 모양으로 만든다.
-pub fn starter_page(slug: &str, title: &str) -> NewPage {
-    NewPage {
-        slug: slug.to_owned(),
-        title: title.to_owned(),
-        body_md: String::new(),
-        layout: "blocks".into(),
-        sort_order: 0,
-        parent: None,
+impl Starter {
+    /// 이 틀로 만들 새 초안 페이지의 입력. 블록 틀은 섹션 블록을 그리는 `blocks` 모양, 글 틀은 보통 페이지.
+    pub fn page(&self, slug: &str, title: &str) -> NewPage {
+        let (body_md, layout) = if self.body_md.is_empty() {
+            (String::new(), "blocks")
+        } else {
+            (self.body_md.replace(TITLE_SLOT, title), "default")
+        };
+        NewPage {
+            slug: slug.to_owned(),
+            title: title.to_owned(),
+            body_md,
+            layout: layout.into(),
+            sort_order: 0,
+            parent: None,
+        }
     }
 }
 

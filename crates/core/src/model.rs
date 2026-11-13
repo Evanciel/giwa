@@ -816,6 +816,87 @@ pub struct SiteSettings {
     /// 홈 화면에 추가 (ADR-0162): 앱 정보(`/manifest.webmanifest`)와 오프라인 안내만 담는 서비스 워커를 둔다
     #[serde(default = "default_true")]
     pub pwa: bool,
+    /// 사업자 정보 (ADR-0167). 상호를 채우면 모든 테마 바닥글에 나온다(전자상거래법 제10조·제13조)
+    #[serde(default)]
+    pub business: BusinessInfo,
+}
+
+/// 사업자 정보 (ADR-0167). 돈을 받는 사이트는 첫 화면에 보여야 한다(전자상거래법 제10조·제13조).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct BusinessInfo {
+    /// 상호
+    #[serde(default)]
+    pub name: String,
+    /// 대표자 성명
+    #[serde(default)]
+    pub owner: String,
+    /// 영업소 주소
+    #[serde(default)]
+    pub address: String,
+    #[serde(default)]
+    pub phone: String,
+    #[serde(default)]
+    pub email: String,
+    /// 사업자등록번호 (숫자 10자리, 000-00-00000 모양으로 저장한다)
+    #[serde(default)]
+    pub reg_no: String,
+    /// 통신판매업 신고번호 (예: 제2026-서울강남-0000호). 면제 사업자는 비운다
+    #[serde(default)]
+    pub sales_no: String,
+    /// 호스팅 제공자 상호. 직접 운영하면 자기 상호
+    #[serde(default)]
+    pub hosting: String,
+}
+
+impl BusinessInfo {
+    /// 칸 `(키, 이름)`. 화면·CLI·검사가 같은 순서를 쓴다.
+    pub const FIELDS: [(&str, &str); 8] = [
+        ("name", "상호"),
+        ("owner", "대표자"),
+        ("address", "주소"),
+        ("phone", "전화"),
+        ("email", "전자우편"),
+        ("reg_no", "사업자등록번호"),
+        ("sales_no", "통신판매업 신고번호"),
+        ("hosting", "호스팅 제공자"),
+    ];
+
+    pub fn get(&self, key: &str) -> &str {
+        match key {
+            "name" => &self.name,
+            "owner" => &self.owner,
+            "address" => &self.address,
+            "phone" => &self.phone,
+            "email" => &self.email,
+            "reg_no" => &self.reg_no,
+            "sales_no" => &self.sales_no,
+            "hosting" => &self.hosting,
+            _ => "",
+        }
+    }
+
+    pub fn set(&mut self, key: &str, value: String) {
+        match key {
+            "name" => self.name = value,
+            "owner" => self.owner = value,
+            "address" => self.address = value,
+            "phone" => self.phone = value,
+            "email" => self.email = value,
+            "reg_no" => self.reg_no = value,
+            "sales_no" => self.sales_no = value,
+            "hosting" => self.hosting = value,
+            _ => {}
+        }
+    }
+
+    /// 돈을 받기 전에 채워야 하는데 빈 칸의 이름. 통신판매업 신고번호는 면제가 있어 묻지 않는다.
+    pub fn missing(&self) -> Vec<&'static str> {
+        Self::FIELDS
+            .iter()
+            .filter(|(k, _)| *k != "sales_no" && self.get(k).is_empty())
+            .map(|(_, label)| *label)
+            .collect()
+    }
 }
 
 /// 내장 스킨 `(id, 이름)`. 스킨은 머리글·메뉴·몸통 배치만 바꾸고 안의 화면은 기본 테마를 같이 쓴다.
@@ -927,6 +1008,7 @@ impl Default for SiteSettings {
             share_image: String::new(),
             indexnow: true,
             pwa: true,
+            business: BusinessInfo::default(),
         }
     }
 }

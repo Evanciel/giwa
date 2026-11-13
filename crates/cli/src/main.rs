@@ -1059,7 +1059,7 @@ pub struct PageNewArgs {
     /// 같은 슬러그가 있으면 만들지 않고 그 페이지를 돌려준다
     #[arg(long)]
     pub if_not_exists: bool,
-    /// 새 페이지 틀: blank, about, service, contact. 섹션 블록 모양으로 만들고 틀의 블록도 놓는다
+    /// 새 페이지 틀: blank, about, service, contact, terms(이용약관), refund(환불 규정). 블록 틀은 섹션 블록 모양으로, 약관 틀은 본문 글로 만든다
     /// (새로 만들 때만, ADR-0149)
     #[arg(long)]
     pub starter: Option<String>,
@@ -1382,6 +1382,30 @@ pub struct SiteSetArgs {
     /// 휴대폰 홈 화면에 추가(앱 정보·오프라인 안내 서비스 워커)를 둘지 (true/false)
     #[arg(long)]
     pub pwa: Option<bool>,
+    /// 사업자 정보: 상호. 빈 값이면 지운다 (ADR-0167)
+    #[arg(long)]
+    pub business_name: Option<String>,
+    /// 사업자 정보: 대표자 성명. 빈 값이면 지운다 (ADR-0167)
+    #[arg(long)]
+    pub business_owner: Option<String>,
+    /// 사업자 정보: 영업소 주소. 빈 값이면 지운다 (ADR-0167)
+    #[arg(long)]
+    pub business_address: Option<String>,
+    /// 사업자 정보: 전화. 빈 값이면 지운다 (ADR-0167)
+    #[arg(long)]
+    pub business_phone: Option<String>,
+    /// 사업자 정보: 전자우편. 빈 값이면 지운다 (ADR-0167)
+    #[arg(long)]
+    pub business_email: Option<String>,
+    /// 사업자 정보: 사업자등록번호 숫자 10자리. 빈 값이면 지운다 (ADR-0167)
+    #[arg(long)]
+    pub business_reg_no: Option<String>,
+    /// 사업자 정보: 통신판매업 신고번호. 면제면 비운다. 빈 값이면 지운다 (ADR-0167)
+    #[arg(long)]
+    pub business_sales_no: Option<String>,
+    /// 사업자 정보: 호스팅 제공자 상호. 직접 운영하면 자기 상호. 빈 값이면 지운다 (ADR-0167)
+    #[arg(long)]
+    pub business_hosting: Option<String>,
     /// 회원 가입: off(받지 않음), open(누구나)
     #[arg(long)]
     pub signup: Option<String>,

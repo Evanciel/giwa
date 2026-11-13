@@ -128,6 +128,8 @@ async fn site_value(state: &AppState, s: &SiteSettings) -> Value {
         "share_image": s.share_image,
         // 홈 화면에 추가 (ADR-0162): 앱 정보·서비스 워커를 둘지
         "pwa": s.pwa,
+        // 사업자 정보 (ADR-0167): 상호가 있으면 바닥글에 보인다
+        "business": if s.business.name.is_empty() { serde_json::Value::Null } else { serde_json::json!(s.business) },
         // 휴대폰 주소창 색 (ADR-0162)
         "theme_color": design::tokens(&state.ctx).await.map(|t| t.color.primary).unwrap_or_default(),
         "google_verification": s.google_verification,

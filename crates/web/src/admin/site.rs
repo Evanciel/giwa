@@ -1279,6 +1279,22 @@ struct SettingsForm {
     indexnow: Option<String>,
     #[serde(default)]
     pwa: Option<String>,
+    #[serde(default)]
+    business_name: String,
+    #[serde(default)]
+    business_owner: String,
+    #[serde(default)]
+    business_address: String,
+    #[serde(default)]
+    business_phone: String,
+    #[serde(default)]
+    business_email: String,
+    #[serde(default)]
+    business_reg_no: String,
+    #[serde(default)]
+    business_sales_no: String,
+    #[serde(default)]
+    business_hosting: String,
 }
 
 fn on(b: bool) -> Option<String> {
@@ -1317,6 +1333,14 @@ impl SettingsForm {
             share_image: s.share_image.clone(),
             indexnow: on(s.indexnow),
             pwa: on(s.pwa),
+            business_name: s.business.name.clone(),
+            business_owner: s.business.owner.clone(),
+            business_address: s.business.address.clone(),
+            business_phone: s.business.phone.clone(),
+            business_email: s.business.email.clone(),
+            business_reg_no: s.business.reg_no.clone(),
+            business_sales_no: s.business.sales_no.clone(),
+            business_hosting: s.business.hosting.clone(),
         }
     }
 
@@ -1388,6 +1412,38 @@ impl SettingsForm {
             share_image: changed(self.share_image.trim().to_owned(), now.share_image.clone()),
             indexnow: changed(self.indexnow.is_some(), now.indexnow),
             pwa: changed(self.pwa.is_some(), now.pwa),
+            business_name: changed(
+                self.business_name.trim().to_owned(),
+                now.business.name.clone(),
+            ),
+            business_owner: changed(
+                self.business_owner.trim().to_owned(),
+                now.business.owner.clone(),
+            ),
+            business_address: changed(
+                self.business_address.trim().to_owned(),
+                now.business.address.clone(),
+            ),
+            business_phone: changed(
+                self.business_phone.trim().to_owned(),
+                now.business.phone.clone(),
+            ),
+            business_email: changed(
+                self.business_email.trim().to_owned(),
+                now.business.email.clone(),
+            ),
+            business_reg_no: changed(
+                self.business_reg_no.trim().to_owned(),
+                now.business.reg_no.clone(),
+            ),
+            business_sales_no: changed(
+                self.business_sales_no.trim().to_owned(),
+                now.business.sales_no.clone(),
+            ),
+            business_hosting: changed(
+                self.business_hosting.trim().to_owned(),
+                now.business.hosting.clone(),
+            ),
         })
     }
 }

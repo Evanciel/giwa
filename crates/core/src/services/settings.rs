@@ -8,7 +8,7 @@ use crate::actor::{Actor, Permission};
 use crate::audit::Target;
 use crate::clock;
 use crate::error::{Code, Error, Result};
-use crate::model::{CaptchaMode, SKINS, SignupMode, SiteSettings};
+use crate::model::{BusinessInfo, CaptchaMode, SKINS, SignupMode, SiteSettings};
 use crate::services::{moderation, required_text, retention, signals};
 use crate::store::{Ctx, Tx};
 
@@ -93,6 +93,97 @@ pub struct SettingsPatch {
     /// 휴대폰 홈 화면에 추가할 수 있게 앱 정보·서비스 워커를 둘지 (ADR-0162)
     #[serde(default)]
     pub pwa: Option<bool>,
+    /// 사업자 정보 칸 (ADR-0167). 빈 글이면 그 칸을 지운다
+    #[serde(default)]
+    pub business_name: Option<String>,
+    #[serde(default)]
+    pub business_owner: Option<String>,
+    #[serde(default)]
+    pub business_address: Option<String>,
+    #[serde(default)]
+    pub business_phone: Option<String>,
+    #[serde(default)]
+    pub business_email: Option<String>,
+    /// 사업자등록번호 숫자 10자리
+    #[serde(default)]
+    pub business_reg_no: Option<String>,
+    /// 통신판매업 신고번호
+    #[serde(default)]
+    pub business_sales_no: Option<String>,
+    #[serde(default)]
+    pub business_hosting: Option<String>,
+}
+
+impl SettingsPatch {
+    /// 사업자 정보 칸 `(키, 값)`. 키는 [`BusinessInfo::FIELDS`] 와 같다.
+    fn business(&self) -> [(&'static str, &Option<String>); 8] {
+        [
+            ("name", &self.business_name),
+            ("owner", &self.business_owner),
+            ("address", &self.business_address),
+            ("phone", &self.business_phone),
+            ("email", &self.business_email),
+            ("reg_no", &self.business_reg_no),
+            ("sales_no", &self.business_sales_no),
+            ("hosting", &self.business_hosting),
+        ]
+    }
+}
+
+/// 사업자 정보 한 칸을 검사해 저장할 모양으로. 빈 값은 그대로(지움).
+pub fn check_business(key: &str, value: &str) -> Result<String> {
+    let v = value.trim();
+    let label = BusinessInfo::FIELDS
+        .iter()
+        .find(|(k, _)| *k == key)
+        .map_or(key, |(_, l)| *l);
+    let fail = |detail: &str| {
+        Error::new(Code::Validation)
+            .with_message("error.business_field")
+            .arg("field", label)
+            .arg("detail", detail)
+            .arg("value", v.chars().take(40).collect::<String>())
+    };
+    if v.is_empty() {
+        return Ok(String::new());
+    }
+    let max = if key == "address" { 200 } else { 100 };
+    if v.chars().count() > max || v.chars().any(char::is_control) {
+        return Err(fail(&format!("{max}자 이하 한 줄로 적습니다")));
+    }
+    match key {
+        "reg_no" => {
+            let d: String = v.chars().filter(char::is_ascii_digit).collect();
+            if d.len() != 10
+                || v.chars()
+                    .any(|c| !c.is_ascii_digit() && c != '-' && c != ' ')
+            {
+                return Err(fail("숫자 10자리입니다"));
+            }
+            Ok(format!("{}-{}-{}", &d[..3], &d[3..5], &d[5..]))
+        }
+        "email" => {
+            let ok = v
+                .split_once('@')
+                .is_some_and(|(l, d)| !l.is_empty() && d.contains('.') && !d.contains('@'))
+                && !v.contains(char::is_whitespace);
+            if !ok {
+                return Err(fail("전자우편 주소 모양이 아닙니다"));
+            }
+            Ok(v.to_owned())
+        }
+        "phone" => {
+            let digits = v.chars().filter(char::is_ascii_digit).count();
+            if !(8..=12).contains(&digits)
+                || v.chars()
+                    .any(|c| !c.is_ascii_digit() && !matches!(c, '-' | ' ' | '(' | ')'))
+            {
+                return Err(fail("숫자와 - 로 된 전화번호입니다"));
+            }
+            Ok(v.to_owned())
+        }
+        _ => Ok(v.to_owned()),
+    }
 }
 
 /// 공유 그림 주소로 쓸 수 있는가. 사이트 미디어 경로나 https 주소, 공백·따옴표·꺾쇠 없이 500자까지.
@@ -340,8 +431,22 @@ pub async fn update(ctx: &Ctx, actor: &Actor, patch: SettingsPatch) -> Result<Si
         }
     }
 
+    let mut business = Vec::new();
+    for (key, v) in patch.business() {
+        if let Some(v) = v {
+            business.push((key, check_business(key, v)?));
+        }
+    }
+
     let mut tx = Tx::begin(ctx).await?;
     let before = from_pairs(tx.settings().await?);
+    if !business.is_empty() {
+        let mut b = before.business.clone();
+        for (key, v) in business {
+            b.set(key, v);
+        }
+        changes.push(("business", json!(b)));
+    }
     let mut after_value = serde_json::to_value(&before).map_err(Error::internal)?;
     for (k, v) in &changes {
         after_value[*k] = v.clone();
@@ -391,5 +496,30 @@ mod tests {
         // 타입이 틀린 값이 있으면 전체 기본값으로 (화면이 깨지지 않게)
         let s = from_pairs(vec![("site.tz_offset_min".into(), json!("x"))]);
         assert_eq!(s, SiteSettings::default());
+    }
+
+    #[test]
+    fn business_fields_are_checked_and_shaped() {
+        assert_eq!(
+            check_business("reg_no", "1234567890").unwrap(),
+            "123-45-67890"
+        );
+        assert_eq!(
+            check_business("reg_no", " 123-45-67890 ").unwrap(),
+            "123-45-67890"
+        );
+        assert!(check_business("reg_no", "12345").is_err());
+        assert!(check_business("email", "a b@c.d").is_err());
+        assert!(check_business("phone", "02-000-0000").is_ok());
+        assert!(check_business("phone", "전화").is_err());
+        assert!(check_business("name", "줄\n바꿈").is_err());
+        assert_eq!(check_business("name", "  ").unwrap(), "");
+        let mut b = BusinessInfo::default();
+        assert_eq!(b.missing().len(), 7);
+        for (k, _) in BusinessInfo::FIELDS {
+            b.set(k, "x".into());
+        }
+        b.sales_no.clear();
+        assert!(b.missing().is_empty());
     }
 }

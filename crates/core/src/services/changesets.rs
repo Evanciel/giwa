@@ -549,9 +549,12 @@ fn restore_values(changed: &Map<String, Value>, before: &Value) -> Result<Map<St
         if value.is_null() {
             continue;
         }
-        let old = before
-            .get(key)
-            .ok_or_else(|| Error::internal(format!("되돌릴 칸이 없다: {key}")))?;
+        // 사업자 정보는 입력이 칸마다(`business_name`), 저장은 묶음(`business.name`) (ADR-0167)
+        let old = match key.strip_prefix("business_") {
+            Some(field) => before.get("business").and_then(|b| b.get(field)),
+            None => before.get(key),
+        }
+        .ok_or_else(|| Error::internal(format!("되돌릴 칸이 없다: {key}")))?;
         // 금칙어처럼 입력은 글자, 저장은 목록인 칸
         let old = match (old, value) {
             (Value::Array(list), Value::String(_)) => Value::String(
@@ -834,8 +837,20 @@ mod tests {
         let patch = serde_json::to_value(settings::SettingsPatch::default()).unwrap();
         let before = serde_json::to_value(crate::model::SiteSettings::default()).unwrap();
         for key in patch.as_object().unwrap().keys() {
-            assert!(before.get(key).is_some(), "{key}");
+            let found = match key.strip_prefix("business_") {
+                Some(f) => before["business"].get(f).is_some(),
+                None => before.get(key).is_some(),
+            };
+            assert!(found, "{key}");
         }
+        let out = restore_values(
+            json!({ "business_reg_no": "999-99-99999" })
+                .as_object()
+                .unwrap(),
+            &json!({ "business": { "reg_no": "123-45-67890" } }),
+        )
+        .unwrap();
+        assert_eq!(out["business_reg_no"], "123-45-67890");
     }
 
     #[test]

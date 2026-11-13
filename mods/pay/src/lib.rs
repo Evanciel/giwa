@@ -7,6 +7,9 @@
 //! - 환불·입금 확인은 사람(운영자·로컬 CLI)만 한다. 에이전트는 보기와 결제 요청 만들기까지 (원칙 4).
 //! - 다른 모듈은 [`maru_modules::checkout::Checkout`] 으로 주문을 맡기고 감사 기록 `pay.paid`·`pay.refunded` 를 받는다.
 
+mod admin;
+mod button;
+mod letter;
 pub mod toss;
 
 use std::sync::Arc;
@@ -19,7 +22,8 @@ use axum::routing::{get, post};
 use axum::{Extension, Router};
 use maru_core::actor::{Actor, ActorKind, Permission};
 use maru_core::audit::{AuditRecord, Target};
-use maru_core::model::Signal;
+use maru_core::model::{AuditEvent, Signal};
+use maru_core::services::widgets::WidgetType;
 use maru_core::services::{auth, settings, tokens};
 use maru_core::store::ModuleMigration;
 use maru_core::urls;
@@ -36,7 +40,8 @@ static MANIFEST: Manifest = Manifest {
     name: "결제",
     version: env!("CARGO_PKG_VERSION"),
     description: "주문·결제·환불. 무통장 입금과 토스페이먼츠를 붙입니다.",
-    events: &[],
+    // 결제 확인 편지 (ADR-0167)
+    events: &["pay.paid", "pay.awaiting_deposit", "pay.refunded"],
 };
 
 const HOME: &str = "/m/pay";
@@ -998,6 +1003,19 @@ impl PayModule {
                 }
                 if !client_key.is_empty() || !secret_key.is_empty() {
                     let live = toss::check_keys(&client_key, &secret_key).map_err(bad)?;
+                    if live {
+                        let missing = settings::site(ctx).await?.business.missing();
+                        if !missing.is_empty() {
+                            return Err(module_error(
+                                Code::Conflict,
+                                format!(
+                                    "운영 키(live_)를 넣기 전에 사업자 정보를 채우세요(전자상거래법 제10조): {}",
+                                    missing.join(", ")
+                                ),
+                            )
+                            .next("maru site set --business-name <상호> --business-owner <대표자> --business-address <주소> --business-phone <전화> --business-email <전자우편> --business-reg-no <사업자등록번호> --business-hosting <호스팅 제공자>"));
+                        }
+                    }
                     if live && !ctx.site_url.starts_with("https://") {
                         return Err(module_error(
                             Code::Conflict,
@@ -1212,6 +1230,13 @@ impl Module for PayModule {
                 .route("/return/toss", get(toss_return))
                 .route("/webhook/toss", post(toss_webhook))
                 .route("/checkout.js", get(checkout_js))
+                .route("/button/{key}", post(button::submit))
+                .route("/", get(admin::page))
+                .route("/admin/new", post(admin::new_link))
+                .route("/admin/provider/{id}", post(admin::provider))
+                .route("/admin/{id}/paid", post(admin::mark_paid))
+                .route("/admin/{id}/refund", post(admin::refund))
+                .route("/admin/{id}/sync", post(admin::sync))
                 .layer(Extension(Arc::new(self.clone()))),
         )
     }
@@ -1223,6 +1248,22 @@ impl Module for PayModule {
                 include_str!("../templates/order.html"),
             ),
             ("mod/pay/toss.html", include_str!("../templates/toss.html")),
+            (
+                "mod/pay/pay_button.html",
+                include_str!("../templates/pay_button.html"),
+            ),
+            (
+                "mod/pay/_button_form.html",
+                include_str!("../templates/_button_form.html"),
+            ),
+            (
+                "mod/pay/button.html",
+                include_str!("../templates/button.html"),
+            ),
+            (
+                "mod/pay/admin.html",
+                include_str!("../templates/admin.html"),
+            ),
         ]
     }
 
@@ -1361,6 +1402,35 @@ impl Module for PayModule {
         .map_err(Error::internal)?
         .rows_affected();
         Ok(expired + wiped)
+    }
+
+    async fn on_event(&self, ctx: &Ctx, ev: &AuditEvent) -> Result<()> {
+        self.send_letter(ctx, ev).await
+    }
+
+    fn admin_url(&self) -> Option<&'static str> {
+        Some(HOME)
+    }
+
+    fn widget_types(&self) -> Vec<WidgetType> {
+        vec![WidgetType {
+            id: button::KIND,
+            name: "결제 단추",
+            description: "상담비·수강료·후원처럼 정한 금액(또는 구매자가 적는 금액)을 받는 단추. 이름·전자우편을 받아 주문을 만들고 결제 화면으로 보낸다",
+            config_schema: schema_of::<button::ButtonWidget>(),
+        }]
+    }
+
+    async fn check_widget(&self, _ctx: &Ctx, _kind: &str, config: Value) -> Result<Value> {
+        let c: button::ButtonWidget =
+            serde_json::from_value(config).map_err(|e| bad(format!("결제 단추 설정: {e}")))?;
+        serde_json::to_value(button::check(c)?).map_err(Error::internal)
+    }
+
+    async fn widget_view(&self, _ctx: &Ctx, _kind: &str, config: &Value) -> Result<Value> {
+        let c: button::ButtonWidget =
+            serde_json::from_value(config.clone()).map_err(Error::internal)?;
+        Ok(button::view(&c, &Default::default(), None))
     }
 
     async fn signals(&self, _ctx: &Ctx, actor: &Actor) -> Result<Vec<Signal>> {

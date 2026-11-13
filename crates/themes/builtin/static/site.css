@@ -433,6 +433,10 @@ img.sticker { display: inline-block; width: 6rem; height: 6rem; margin: 0 .125re
 .site-footer p { margin: 0; font-size: var(--fs-sm); }
 .site-footer a { color: var(--muted); }
 .footer-nav { margin-bottom: calc(var(--space) * 1.5); }
+/* 사업자 정보 (ADR-0167): 칸 사이를 가는 세로줄로 나눠 한두 줄에 담는다 */
+.biz-info { display: flex; flex-wrap: wrap; gap: calc(var(--space) * .25) 0; margin: 0 0 calc(var(--space) * 1.5); font-style: normal; font-size: var(--fs-xs, .8125rem); line-height: 1.7; color: var(--muted); word-break: keep-all; }
+.biz-info span:not(:last-child)::after { content: ""; display: inline-block; width: 1px; height: .7em; margin: 0 calc(var(--space) * 1); background: var(--border); vertical-align: -.05em; }
+.biz-info strong { color: var(--fg); font-weight: 600; }
 
 /* 오류 */
 .error { padding-block: calc(var(--space) * 8); }
@@ -1453,6 +1457,46 @@ body:is(:has(main.page-blocks), :has(main.wide), :has(.with-sidebar), :has(.docs
 .forms-values { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: calc(var(--space) * .5) calc(var(--space) * 2); margin: calc(var(--space) * 1) 0; }
 .forms-values dt { color: var(--muted); font-size: var(--fs-sm); }
 .forms-values dd { margin: 0; white-space: pre-wrap; }
+/* 결제 모듈 (ADR-0166·0167): 주문 화면·결제 단추·결제 관리 */
+.pay-order h1 { margin-bottom: calc(var(--space) * 2); }
+.pay-summary { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: calc(var(--space) * 1) calc(var(--space) * 3); margin: 0 0 calc(var(--space) * 3); padding: calc(var(--space) * 2.5); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
+.pay-summary dt { color: var(--muted); font-size: var(--fs-sm); align-self: center; }
+.pay-summary dd { margin: 0; font-variant-numeric: tabular-nums; }
+.pay-summary dd strong { font-size: 1.35rem; letter-spacing: -.01em; }
+.pay-methods { display: grid; gap: calc(var(--space) * 2); margin-block: calc(var(--space) * 3); }
+.pay-methods .button.primary, .pay-methods button { width: 100%; padding: calc(var(--space) * 1.75); font: inherit; font-weight: 650; border-radius: min(var(--radius-sm), 12px); cursor: pointer; }
+.pay-methods .button.primary { background: var(--primary); border: 1px solid var(--primary); color: var(--bg); }
+.pay-methods .button.primary:hover { background: var(--fg); border-color: var(--fg); }
+.pay-bank-form { display: grid; gap: calc(var(--space) * 1); padding-top: calc(var(--space) * 2); border-top: 1px solid var(--border); }
+.pay-bank-form label { font-size: var(--fs-sm); color: var(--muted); }
+.pay-bank-form input, .pay-grid input:not([type="checkbox"]), .pay-refund-form input, .pay-created-url { width: 100%; padding: calc(var(--space) * 1.25); font: inherit; color: var(--fg); background: var(--surface); border: 1px solid var(--muted); border-radius: min(var(--radius-sm), 12px); }
+.pay-bank-form button, .pay-grid button, .pay-refund-form button, .pay-row-actions button { padding: calc(var(--space) * 1) calc(var(--space) * 2); font: inherit; font-weight: 600; color: var(--fg); background: var(--surface); border: 1px solid var(--fg); border-radius: min(var(--radius-sm), 12px); cursor: pointer; }
+.pay-bank { margin-block: calc(var(--space) * 3); padding: calc(var(--space) * 2.5); border-radius: var(--radius-md); background: color-mix(in srgb, var(--primary) 7%, var(--surface)); }
+.pay-bank h2 { margin: 0 0 calc(var(--space) * 1); font-size: 1rem; }
+.pay-bank p { margin: calc(var(--space) * .5) 0 0; }
+.pay-button { padding: calc(var(--space) * 3); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
+.pay-button-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: calc(var(--space) * 1) calc(var(--space) * 2); }
+.pay-button-name { margin: 0; font-size: 1.15rem; font-weight: 700; }
+.pay-button-price { margin: 0; font-size: 1.35rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--primary); }
+.pay-admin-warn { padding: calc(var(--space) * 1.5) calc(var(--space) * 2); border-left: 3px solid #b54708; background: var(--surface); }
+.pay-created { margin-block: calc(var(--space) * 2); padding: calc(var(--space) * 2); border: 1px solid var(--primary); border-radius: var(--radius-md); }
+.pay-created p { margin: 0 0 calc(var(--space) * 1); }
+.pay-orders { list-style: none; margin: calc(var(--space) * 2) 0; padding: 0; border-top: 1px solid var(--border); }
+.pay-row { padding-block: calc(var(--space) * 2.5); border-bottom: 1px solid var(--border); }
+.pay-row-main { display: flex; flex-wrap: wrap; justify-content: space-between; gap: calc(var(--space) * 1) calc(var(--space) * 2); }
+.pay-row-main p { margin: 0; }
+.pay-row-amount { font-weight: 700; font-variant-numeric: tabular-nums; }
+.pay-row.is-expired, .pay-row.is-refunded { opacity: .7; }
+.pay-row-actions { display: flex; flex-wrap: wrap; align-items: flex-start; gap: calc(var(--space) * 1); }
+.pay-refund summary, .pay-box summary { cursor: pointer; font-weight: 600; }
+.pay-refund[open] { flex-basis: 100%; }
+.pay-refund-form, .pay-grid { display: grid; gap: calc(var(--space) * 1); max-width: 30rem; margin-top: calc(var(--space) * 1.5); }
+.pay-refund-form label, .pay-grid > label:not(.cf-check) { font-size: var(--fs-sm); color: var(--muted); margin-top: calc(var(--space) * .5); }
+.pay-refund-form .hint, .pay-grid .hint { margin: 0; font-size: var(--fs-sm); color: var(--muted); }
+.pay-grid p { margin: calc(var(--space) * 1) 0 0; }
+.pay-admin-tools { display: grid; gap: calc(var(--space) * 1.5); margin-top: calc(var(--space) * 4); }
+.pay-box { padding: calc(var(--space) * 2); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
+.pay-error { color: #b42318; }
 
 /* 첫 화면의 카드 묶음은 한 칸에 세로로 쌓지 않고 한 줄을 다 쓴다. */
 .region-main > .widget:has(.widget-cards) { grid-column: 1 / -1; }

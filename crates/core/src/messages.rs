@@ -419,6 +419,7 @@ fn lookup_ko(key: &str) -> Option<&'static str> {
         "error.share_image" => {
             "공유 그림은 /media/ 로 시작하는 사이트 그림 주소나 https:// 주소입니다 (받은 값 {value}). 비우면 사이트 색으로 그린 그림을 씁니다."
         }
+        "error.business_field" => "사업자 정보 {field}: {detail} (받은 값 {value})",
         "signal.comment_burst" => "댓글이 몰립니다: 「{title}」에 지난 1시간 댓글 {count}개",
         "error.widget_popup_region" => {
             "팝업은 popup 영역에만, popup 영역에는 팝업만 놓을 수 있습니다 (종류 {kind}, 영역 {region})."

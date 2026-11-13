@@ -196,6 +196,9 @@
 .cm-footer a { color: inherit; }
 .cm-footer .footer-nav a { color: inherit; }
 .cm-footer .footer-nav a:hover { color: #fff; }
+.cm-footer .biz-info { margin: calc(var(--space) * 1.5) 0 0; color: inherit; opacity: .85; }
+.cm-footer .biz-info strong { color: inherit; }
+.cm-footer .biz-info span:not(:last-child)::after { background: currentColor; opacity: .35; }
 .cm-footer .region-footer { padding-bottom: calc(var(--space) * 3); }
 
 /* 휴대폰 머리글 (GAP Q13, ADR-0098): 메뉴 단추 · 이름 · 검색 단추가 위에 붙고, 메뉴 줄 대신 서랍,

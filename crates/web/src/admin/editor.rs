@@ -1066,7 +1066,7 @@ async fn new_page(
     let page = pages::create(
         &state.ctx,
         &who.actor,
-        pages::starter_page(&input.slug, &input.title),
+        starter.page(&input.slug, &input.title),
     )
     .await?;
     let screen = EditScreen::Page(page.slug.clone()).id();

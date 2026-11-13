@@ -367,6 +367,7 @@ pub(crate) fn lookup(key: &str) -> Option<&'static str> {
         "error.share_image" => {
             "The share image is a site image path starting with /media/ or an https:// address (got {value}). Leave it empty to use the picture drawn in the site color."
         }
+        "error.business_field" => "Business info {field}: {detail} (got {value})",
         "signal.comment_burst" => {
             "Comments are piling up: {count} comments on \"{title}\" in the last hour"
         }

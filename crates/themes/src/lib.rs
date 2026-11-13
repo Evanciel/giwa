@@ -1050,11 +1050,20 @@ mod tests {
         assert!(all.iter().any(|s| s.id == "blank"));
         for s in &all {
             let ws = s.widgets("소개", "회사 소개");
+            // 글로 된 틀(약관 등, ADR-0167)은 블록 없이 본문만 준다
+            if !s.body_md.is_empty() {
+                assert!(ws.is_empty(), "{}", s.id);
+                let page = s.page("terms", "이용약관");
+                assert_eq!(page.layout, "default");
+                assert!(!page.body_md.contains("{title}"), "{}", s.id);
+                continue;
+            }
             assert!(!ws.is_empty(), "{}", s.id);
             assert!(ws.iter().all(|w| w.scope == "page:소개"));
             assert_eq!(ws[0].config["title"], "회사 소개", "{}", s.id);
         }
         assert!(starter("about").is_ok());
+        assert!(starter("terms").is_ok() && starter("refund").is_ok());
         assert!(starter("nope").is_err());
     }
 
