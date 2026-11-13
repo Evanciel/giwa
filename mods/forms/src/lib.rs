@@ -104,6 +104,9 @@ pub struct FormWidget {
     /// 띠 색: plain, soft, strong
     #[serde(default = "plain")]
     pub tone: String,
+    /// 구역 이름(영문 소문자·숫자·-). 주면 `id="s-<anchor>"` 가 붙어 `/#s-<anchor>` 링크로 내려온다
+    #[serde(default)]
+    pub anchor: String,
 }
 
 fn contact() -> String {
@@ -172,6 +175,18 @@ fn check_widget_config(mut c: FormWidget) -> Result<FormWidget> {
     }
     if !["plain", "soft", "strong"].contains(&c.tone.as_str()) {
         return Err(bad("tone 은 plain·soft·strong 입니다."));
+    }
+    c.anchor = c.anchor.trim().to_ascii_lowercase();
+    if !c.anchor.is_empty()
+        && (c.anchor.len() > 40
+            || !c
+                .anchor
+                .chars()
+                .all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '-'))
+    {
+        return Err(bad(
+            "구역 이름(anchor)은 영문 소문자·숫자·- 로 40자까지입니다.",
+        ));
     }
     if c.fields.is_empty() {
         c.fields = default_fields();
@@ -533,6 +548,7 @@ impl FormsModule {
         json!({
             "section": true,
             "tone": c.tone,
+            "anchor": (!c.anchor.is_empty()).then(|| c.anchor.clone()),
             "form": c.form,
             "action": format!("{HOME}/submit/{}", c.form),
             "intro": c.intro,

@@ -49,6 +49,8 @@ const HOME: &str = "/m/pay";
 const DEFAULT_EXPIRES_MINUTES: i64 = 7 * 24 * 60;
 const MAX_EXPIRES_MINUTES: i64 = 30 * 24 * 60;
 const MIN_EXPIRES_MINUTES: i64 = 5;
+/// 무통장 입금은 은행에 다녀올 시간이 있어야 하니 고른 때부터 사흘은 기다린다(ADR-0168).
+const BANK_DEPOSIT_MINUTES: i64 = 3 * 24 * 60;
 const MAX_AMOUNT: i64 = 100_000_000;
 /// 전자상거래법상 대금 결제 기록 보존 5년. 지나면 구매자 정보를 지운다.
 const KEEP_DAYS: i64 = 5 * 365 + 2;
@@ -1090,6 +1092,16 @@ impl PayModule {
             ..Change::default()
         };
         self.apply(&Actor::anonymous([]), order, ch).await?;
+        // 결제 단추 주문은 한 시간 안에 결제 방법을 고르게 했다. 입금 기한은 늘리기만 한다.
+        let until = clock::minutes_later(BANK_DEPOSIT_MINUTES);
+        sqlx::query!(
+            "UPDATE mod_pay_order SET expires_at = MAX(expires_at, ?) WHERE id = ? AND status = 'awaiting_deposit'",
+            until,
+            order.id
+        )
+        .execute(self.db.write_pool())
+        .await
+        .map_err(Error::internal)?;
         Ok(())
     }
 

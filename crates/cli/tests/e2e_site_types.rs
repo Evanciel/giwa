@@ -10,7 +10,7 @@ use std::process::{Child, Command, Stdio};
 use serde_json::Value;
 
 const BIN: &str = env!("CARGO_BIN_EXE_maru");
-const TYPES: [&str; 20] = [
+const TYPES: [&str; 21] = [
     "docs",
     "cafe",
     "company",
@@ -31,6 +31,7 @@ const TYPES: [&str; 20] = [
     "club",
     "linkbio",
     "office",
+    "studio",
 ];
 
 struct Server(Child);

@@ -192,6 +192,18 @@ fn business_info_button_admin_and_letters() {
     maru(data, &["init", "--no-samples", "--preset", "blog", "--yes"]);
     maru(data, &["module", "enable", "pay"]);
 
+    // 에이전트는 공통 칸을 명령 뒤에 붙이기 쉽다. 모듈 툴도 --data 를 어디서나 읽는다.
+    let out = Command::new(BIN)
+        .args(["pay", "provider_list", "--json", "--data"])
+        .arg(data)
+        .current_dir(tmp.path())
+        .env_remove("MARU_DATA")
+        .output()
+        .unwrap();
+    let v: Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(v["ok"], true, "{v}");
+    assert!(v["data"]["providers"].is_array(), "{v}");
+
     // 운영 키는 사업자 정보가 비어 있으면 받지 않고, 빈 칸과 다음 명령을 알려 준다.
     let live = [
         "pay",
@@ -305,7 +317,7 @@ fn business_info_button_admin_and_letters() {
             "--scope",
             "home",
             "--config",
-            r#"{"key":"consult","name":"첫 상담 30분","amount":30000,"ask_phone":true,"policy":"/refund","return_to":"/"}"#,
+            r#"{"key":"consult","name":"첫 상담 30분","amount":30000,"ask_phone":true,"policy":"/refund","return_to":"/","anchor":"pay"}"#,
         ],
     );
     assert_eq!(fixed["config"]["key"], "consult");
@@ -349,6 +361,8 @@ fn business_info_button_admin_and_letters() {
     assert!(home.body.contains("123-45-67890"));
     assert!(home.body.contains("시험상점"));
     assert!(home.body.contains(r#"action="/m/pay/button/consult""#));
+    // 구역 이름을 주면 첫 인상 단추가 /#s-pay 로 그 자리에 내려온다.
+    assert!(home.body.contains(r#"id="s-pay""#), "{}", home.body);
     assert!(home.body.contains("30,000원"));
     assert!(home.body.contains(r#"href="/refund""#));
     assert!(home.body.contains("후원하기"));
@@ -423,6 +437,15 @@ fn business_info_button_admin_and_letters() {
         &form(&[("k", &k), ("depositor", "구매자시험")]),
     );
     assert_eq!(res.status, 303, "{}", res.body);
+    // 단추 주문은 한 시간 안에 결제 방법을 고르게 하지만, 무통장 입금은 사흘을 기다린다.
+    let o = maru(data, &["pay", "order", "--id", &id]);
+    let rfc = &time::format_description::well_known::Rfc3339;
+    let expires =
+        time::OffsetDateTime::parse(o["order"]["expires_at"].as_str().unwrap(), rfc).unwrap();
+    assert!(
+        expires > time::OffsetDateTime::now_utc() + time::Duration::days(2),
+        "{o}"
+    );
     maru(data, &["module", "deliver"]);
     let m = mails(data);
     assert_eq!(m.len(), 1, "{m:?}");

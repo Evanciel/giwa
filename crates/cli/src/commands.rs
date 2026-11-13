@@ -2796,10 +2796,10 @@ async fn changeset_cmd(g: &Global, cmd: ChangesetCmd) -> Out {
                     )?,
                     (None, None) => Vec::new(),
                 };
-                changesets::create(&ctx, &actor, &title, ops).await?
+                changesets::create(&ctx, &actor, Some(&sandbox), &title, ops).await?
             }
             ChangesetCmd::Add { id, op } => {
-                changesets::add(&ctx, &actor, &id, changeset_ops(&op)?).await?
+                changesets::add(&ctx, &actor, Some(&sandbox), &id, changeset_ops(&op)?).await?
             }
             ChangesetCmd::List { status, limit } => {
                 let status = match status.as_deref() {

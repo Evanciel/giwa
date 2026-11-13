@@ -11,6 +11,7 @@ use maru_core::clock;
 use maru_core::model::{Changeset, ChangesetStatus};
 use maru_core::services::changesets;
 use maru_core::{Code, Error};
+use maru_modules::Registry;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -44,7 +45,7 @@ fn who_name(cs: &Changeset) -> &'static str {
 }
 
 /// 연산 하나를 사람이 읽는 말로. 값은 사용자·에이전트가 넣은 데이터다.
-fn op_view(op: &Value) -> Value {
+fn op_view(op: &Value, modules: &Registry) -> Value {
     let name = op["op"].as_str().unwrap_or_default();
     let label = match name {
         "board.create" => "게시판 만들기",
@@ -65,16 +66,16 @@ fn op_view(op: &Value) -> Value {
         "widget.remove" => "위젯 빼기",
         "module.enable" => "모듈 켜기",
         "module.disable" => "모듈 끄기",
-        "preset.step" => return step_view(op),
+        "preset.step" => return step_view(op, modules),
         _ => name,
     };
     let target = match name {
         // 위젯 id 대신 무엇을 놓고 무엇을 고쳤는지 (화면 편집기 묶음, ADR-0138).
-        "widget.place" => {
-            maru_core::services::widgets::kind_name(op["kind"].as_str().unwrap_or_default())
-                .to_owned()
-        }
+        "widget.place" => widget_name(modules, op["kind"].as_str().unwrap_or_default()),
         "widget.configure" => widget_patch_text(&op["patch"]),
+        "module.enable" | "module.disable" => {
+            module_name(modules, op["id"].as_str().unwrap_or_default())
+        }
         _ => ["slug", "location", "id"]
             .iter()
             .find_map(|k| op[*k].as_str())
@@ -86,6 +87,27 @@ fn op_view(op: &Value) -> Value {
         "target": target,
         "json": serde_json::to_string_pretty(op).unwrap_or_default(),
     })
+}
+
+/// 모듈 id 대신 이름: 「결제 (pay)」. 이 바이너리에 없는 모듈이면 id 그대로.
+fn module_name(modules: &Registry, id: &str) -> String {
+    match modules.get(id) {
+        Some(m) => format!("{} ({id})", m.manifest().name),
+        None => id.to_owned(),
+    }
+}
+
+/// 위젯 종류 이름. 코어 위젯이 아니면 모듈이 내놓은 종류에서 찾는다.
+fn widget_name(modules: &Registry, kind: &str) -> String {
+    let core = maru_core::services::widgets::kind_name(kind);
+    if core != kind {
+        return core.to_owned();
+    }
+    modules
+        .iter()
+        .flat_map(|m| m.widget_types())
+        .find(|t| t.id == kind)
+        .map_or_else(|| kind.to_owned(), |t| t.name.to_owned())
 }
 
 /// 위젯 고치기에서 바뀐 칸을 사람 말로: 「순서 · 숨기기」.
@@ -114,13 +136,13 @@ fn widget_patch_text(patch: &Value) -> String {
 }
 
 /// 테마(프리셋)의 한 단계. 모두 「없으면 만든다」라서 이미 있는 것은 건드리지 않는다.
-fn step_view(op: &Value) -> Value {
+fn step_view(op: &Value, modules: &Registry) -> Value {
     let step = &op["step"];
     let name = |k: &str| step[k].as_str().unwrap_or_default().to_owned();
     let (label, target) = match step["op"].as_str().unwrap_or_default() {
         "board.ensure" => ("게시판 갖추기", name("name")),
         "page.ensure" => ("페이지 갖추기", name("title")),
-        "module.ensure" => ("기능 켜기", name("id")),
+        "module.ensure" => ("기능 켜기", module_name(modules, &name("id"))),
         "menu.ensure" => ("메뉴가 비어 있으면 채우기", String::new()),
         "tokens.ensure" => ("스킨(색·모양) 입히기, 기본 색일 때만", String::new()),
         "settings.ensure" => ("기본값인 설정 채우기", String::new()),
@@ -140,7 +162,7 @@ fn step_view(op: &Value) -> Value {
     })
 }
 
-fn view(cs: &Changeset, tz: i32) -> Value {
+fn view(cs: &Changeset, tz: i32, modules: &Registry) -> Value {
     let date = |at: &str| clock::display_datetime(at, tz);
     json!({
         "id": cs.id,
@@ -153,7 +175,7 @@ fn view(cs: &Changeset, tz: i32) -> Value {
         "applied_at": cs.applied_at.as_deref().map(date),
         "reverted_at": cs.reverted_at.as_deref().map(date),
         "op_count": cs.ops.len(),
-        "ops": cs.ops.iter().map(op_view).collect::<Vec<_>>(),
+        "ops": cs.ops.iter().map(|op| op_view(op, modules)).collect::<Vec<_>>(),
         "can_preview": cs.status == ChangesetStatus::Preview,
         "can_apply": cs.status == ChangesetStatus::Preview && !cs.ops.is_empty(),
         "can_discard": cs.status == ChangesetStatus::Preview,
@@ -192,7 +214,7 @@ async fn list_page(State(state): State<AppState>, headers: HeaderMap) -> Respons
         Err(e) => return fail(&state, Some(&who), &e).await,
     };
     let tz = site_tz(&state).await;
-    let items: Vec<Value> = list.iter().map(|cs| view(cs, tz)).collect();
+    let items: Vec<Value> = list.iter().map(|cs| view(cs, tz, &state.modules)).collect();
     let ctx = merge(
         base(&state, Some(&who), "changesets").await,
         json!({ "items": items }),
@@ -217,7 +239,7 @@ async fn detail(
         json!({
             "notice": notice,
             "error": error,
-            "cs": view(&cs, site_tz(state).await),
+            "cs": view(&cs, site_tz(state).await, &state.modules),
             "approver": who.actor.has(Permission::SiteAdmin),
         }),
     );

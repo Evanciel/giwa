@@ -845,10 +845,10 @@ impl Server {
         fields.insert("op".to_owned(), json!(op));
         let ops = vec![Value::Object(fields)];
         let cs = match id {
-            Some(id) => changesets::add(&self.ctx, actor, &id, ops).await?,
+            Some(id) => changesets::add(&self.ctx, actor, self.sandbox().ok(), &id, ops).await?,
             None => {
                 let title = title.unwrap_or_else(|| format!("에이전트 변경: {tool}"));
-                changesets::create(&self.ctx, actor, &title, ops).await?
+                changesets::create(&self.ctx, actor, self.sandbox().ok(), &title, ops).await?
             }
         };
         self.handed_over(actor, &cs).await

@@ -1059,7 +1059,7 @@ pub struct PageNewArgs {
     /// 같은 슬러그가 있으면 만들지 않고 그 페이지를 돌려준다
     #[arg(long)]
     pub if_not_exists: bool,
-    /// 새 페이지 틀: blank, about, service, contact, terms(이용약관), refund(환불 규정). 블록 틀은 섹션 블록 모양으로, 약관 틀은 본문 글로 만든다
+    /// 새 페이지 틀: blank, about, service, contact, terms(이용약관), refund(환불 규정), privacy(개인정보처리방침). 블록 틀은 섹션 블록 모양으로, 약관 틀은 본문 글로 만든다
     /// (새로 만들 때만, ADR-0149)
     #[arg(long)]
     pub starter: Option<String>,
@@ -1585,18 +1585,29 @@ fn main() -> ExitCode {
 
     // 사용법 오류도 JSON으로 내야 하므로 파싱 전에 --json 여부를 본다.
     let json = std::env::args_os().any(|a| a == "--json");
-    let cli = match Cli::try_parse() {
+    let mut cli = match Cli::try_parse() {
         Ok(cli) => cli,
         Err(e) => return output::clap_error(e, json),
     };
     // 모든 명령은 비대화형이다. 확인이 필요한 명령은 묻지 않고 `--yes` 가 없으면 다음 명령을 안내한다.
-    // 모듈 툴 명령은 clap 이 뒤쪽 인자를 읽지 않으므로 --json 을 여기서 살린다.
+    // 모듈 툴 명령은 clap 이 뒤쪽 인자를 읽지 않으므로 공통 칸(--data·--json·--yes·--quiet)을 여기서 살린다.
+    let mut data = cli.data;
+    let (mut yes, mut quiet) = (cli.yes, cli.quiet);
     let external = matches!(cli.command, Some(Command::External(_)));
+    if let Some(Command::External(args)) = &mut cli.command {
+        let (found, rest) = take_data_arg(std::mem::take(args));
+        if let Some(d) = found {
+            data = d;
+        }
+        yes |= rest.iter().any(|a| a == "--yes");
+        quiet |= rest.iter().any(|a| a == "--quiet");
+        *args = rest;
+    }
     let g = Global {
-        data: cli.data,
+        data,
         json: cli.json || (external && json),
-        yes: cli.yes,
-        quiet: cli.quiet,
+        yes,
+        quiet,
     };
     let Some(command) = cli.command else {
         return output::error(
@@ -1614,4 +1625,38 @@ fn main() -> ExitCode {
         Err(e) => return output::error(&Error::internal(e), g.json),
     };
     runtime.block_on(commands::run(&g, command))
+}
+
+/// 모듈 툴 인자에서 `--data <dir>`·`--data=<dir>` 를 꺼낸다. 에이전트는 공통 칸을 명령 뒤에 붙이기 쉽다.
+fn take_data_arg(args: Vec<String>) -> (Option<PathBuf>, Vec<String>) {
+    let mut found = None;
+    let mut rest = Vec::with_capacity(args.len());
+    let mut it = args.into_iter();
+    while let Some(a) = it.next() {
+        if a == "--data" {
+            found = it.next().map(PathBuf::from);
+        } else if let Some(v) = a.strip_prefix("--data=") {
+            found = Some(PathBuf::from(v));
+        } else {
+            rest.push(a);
+        }
+    }
+    (found, rest)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn module_tool_takes_data_from_anywhere() {
+        let args = |v: &[&str]| v.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>();
+        let (d, rest) = take_data_arg(args(&["pay", "orders", "--data", "x/y", "--json"]));
+        assert_eq!(d, Some(PathBuf::from("x/y")));
+        assert_eq!(rest, args(&["pay", "orders", "--json"]));
+        let (d, rest) = take_data_arg(args(&["pay", "--data=z", "orders"]));
+        assert_eq!(d, Some(PathBuf::from("z")));
+        assert_eq!(rest, args(&["pay", "orders"]));
+        assert_eq!(take_data_arg(args(&["pay", "orders"])).0, None);
+    }
 }

@@ -190,8 +190,31 @@ fn checked(actor: &Actor, ops: &[Value]) -> Result<Vec<ChangeOp>> {
     Ok(parsed)
 }
 
+/// 만들거나 더할 때 사본에서 미리 돌려 본다. 틀린 연산이 미리보기 주소로 사람에게 가기 전에
+/// 몇 번째 연산이 왜 틀렸는지 부른 쪽(에이전트)에게 돌려준다. 미리보기와 같이 운영자 권한으로 돈다.
+async fn rehearse(ctx: &Ctx, sandbox: Option<&dyn Sandbox>, ops: &[ChangeOp]) -> Result<()> {
+    let Some(sandbox) = sandbox else {
+        return Ok(());
+    };
+    if ops.is_empty() {
+        return Ok(());
+    }
+    let key = format!("check-{}", clock::new_id());
+    let copy = sandbox.open(ctx, &key).await?;
+    let res = run_all(&copy, &Actor::local(), ops).await;
+    sandbox.close(&key).await;
+    res
+}
+
 /// 새 changeset 을 만든다. 연산은 비어 있어도 된다(`add` 로 더한다).
-pub async fn create(ctx: &Ctx, actor: &Actor, title: &str, ops: Vec<Value>) -> Result<Changeset> {
+/// `sandbox` 를 주면 저장하기 전에 사본에서 돌려 보고, 실패하면 저장하지 않는다.
+pub async fn create(
+    ctx: &Ctx,
+    actor: &Actor,
+    sandbox: Option<&dyn Sandbox>,
+    title: &str,
+    ops: Vec<Value>,
+) -> Result<Changeset> {
     require_view(actor)?;
     let title = title.trim();
     if title.is_empty() || title.chars().count() > 200 {
@@ -200,7 +223,8 @@ pub async fn create(ctx: &Ctx, actor: &Actor, title: &str, ops: Vec<Value>) -> R
     if ops.len() > MAX_OPS {
         return Err(bad_op(format!("연산은 {MAX_OPS}개까지입니다")));
     }
-    checked(actor, &ops)?;
+    let parsed = checked(actor, &ops)?;
+    rehearse(ctx, sandbox, &parsed).await?;
     let (actor_type, actor_id) = actor.audit_identity();
     let cs = Changeset {
         id: clock::new_id(),
@@ -238,14 +262,22 @@ pub async fn create_from_preset(ctx: &Ctx, actor: &Actor, preset: &Preset) -> Re
     create(
         ctx,
         actor,
+        None,
         &format!("프리셋 적용: {}", preset.name),
         to_values(&ops)?,
     )
     .await
 }
 
-/// 아직 적용 전인 changeset 에 연산을 더한다.
-pub async fn add(ctx: &Ctx, actor: &Actor, id: &str, ops: Vec<Value>) -> Result<Changeset> {
+/// 아직 적용 전인 changeset 에 연산을 더한다. `sandbox` 를 주면 앞의 연산과 함께 돌려 보고,
+/// 실패하면 더하지 않는다.
+pub async fn add(
+    ctx: &Ctx,
+    actor: &Actor,
+    sandbox: Option<&dyn Sandbox>,
+    id: &str,
+    ops: Vec<Value>,
+) -> Result<Changeset> {
     require_view(actor)?;
     let mut cs = get(ctx, actor, id).await?;
     if cs.status != ChangesetStatus::Preview {
@@ -255,7 +287,10 @@ pub async fn add(ctx: &Ctx, actor: &Actor, id: &str, ops: Vec<Value>) -> Result<
         return Err(bad_op(format!("연산은 {MAX_OPS}개까지입니다")));
     }
     checked(actor, &ops)?;
-    cs.ops.extend(ops.iter().cloned());
+    let mut all = cs.ops.clone();
+    all.extend(ops.iter().cloned());
+    rehearse(ctx, sandbox, &parse_ops(&all)?).await?;
+    cs.ops = all;
     cs.error = None;
     let mut tx = Tx::begin(ctx).await?;
     tx.save_changeset(&cs).await?;

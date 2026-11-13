@@ -59,6 +59,16 @@ pub struct ButtonWidget {
     /// 결제를 마친 뒤 돌아갈 사이트 안 주소. 비우면 주문 화면
     #[serde(default)]
     pub return_to: String,
+    /// 구역 이름(영문 소문자·숫자·-). 주면 `id="s-<anchor>"` 가 붙어 `/#s-<anchor>` 링크로 내려온다
+    #[serde(default)]
+    pub anchor: String,
+    /// 띠 색: plain, soft, strong
+    #[serde(default = "plain")]
+    pub tone: String,
+}
+
+fn plain() -> String {
+    "plain".into()
 }
 
 fn key_ok(k: &str) -> bool {
@@ -84,6 +94,15 @@ pub fn check(mut c: ButtonWidget) -> Result<ButtonWidget> {
     c.note = text("설명", &c.note, 0, 300)?;
     c.policy = local_path(&c.policy)?;
     c.return_to = local_path(&c.return_to)?;
+    c.anchor = c.anchor.trim().to_ascii_lowercase();
+    if !c.anchor.is_empty() && !key_ok(&c.anchor) {
+        return Err(bad(
+            "구역 이름(anchor)은 영문 소문자·숫자·- 로 40자까지입니다.",
+        ));
+    }
+    if !["plain", "soft", "strong"].contains(&c.tone.as_str()) {
+        return Err(bad("tone 은 plain·soft·strong 입니다."));
+    }
     if c.amount == 0 {
         if c.min < 1 {
             c.min = 1000;
@@ -110,6 +129,9 @@ pub fn check(mut c: ButtonWidget) -> Result<ButtonWidget> {
 pub fn view(c: &ButtonWidget, sent: &BTreeMap<String, String>, error: Option<String>) -> Value {
     let v = |k: &str| sent.get(k).cloned().unwrap_or_default();
     json!({
+        "section": true,
+        "tone": c.tone,
+        "anchor": (!c.anchor.is_empty()).then(|| c.anchor.clone()),
         "key": c.key,
         "name": c.name,
         "note": c.note,
@@ -291,6 +313,8 @@ mod tests {
             ask_phone: false,
             policy: String::new(),
             return_to: String::new(),
+            anchor: String::new(),
+            tone: plain(),
         }
     }
 
@@ -308,5 +332,11 @@ mod tests {
         let mut away = widget(1000);
         away.return_to = "//evil.example".into();
         assert!(check(away).is_err());
+        let mut jump = widget(1000);
+        jump.anchor = " Pay ".into();
+        assert_eq!(check(jump).unwrap().anchor, "pay");
+        let mut bad_jump = widget(1000);
+        bad_jump.anchor = "결제".into();
+        assert!(check(bad_jump).is_err());
     }
 }

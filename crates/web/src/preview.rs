@@ -40,7 +40,11 @@ const BAND_CSS: &str = ".maru-preview-band{position:sticky;top:0;z-index:9999;di
 flex-wrap:wrap;gap:.25rem .75rem;align-items:center;padding:.5rem 1rem;background:#1f2933;\
 color:#fff;font:600 .875rem/1.5 system-ui,sans-serif}.maru-preview-band strong{color:#ffd166}\
 .maru-preview-band span{font-weight:400;min-width:0;overflow-wrap:anywhere}\
-.maru-preview-band span{margin-right:auto}.maru-preview-band a{color:#fff;text-decoration:underline}\n@media (max-width:640px){.maru-preview-band{position:static}}";
+.maru-preview-band span{margin-right:auto}.maru-preview-band a{color:#fff;text-decoration:underline}\n@media (max-width:640px){.maru-preview-band{position:static}}\n\
+.maru-preview-stop{font:16px/1.7 system-ui,sans-serif;max-width:36rem;margin:4rem auto;padding:0 1rem;\
+color:#222;word-break:keep-all}.maru-preview-stop h1{font-size:1.4rem}\
+.maru-preview-stop .why{padding:.8rem 1rem;border-left:3px solid #b42318;background:#fdf3f2}\
+.maru-preview-stop a{color:inherit;margin-right:1rem}";
 
 struct Open {
     id: String,
@@ -195,11 +199,22 @@ async fn exit(State(state): State<AppState>) -> Response {
     with_cleared_cookie(&state, Redirect::to("/").into_response())
 }
 
-fn plain(status: StatusCode, message: String) -> Response {
+/// 미리보기에서 멈춘 이유를 사람이 읽는 작은 화면으로. 묶음 목록과 사이트로 돌아가는 길을 둔다.
+fn plain(status: StatusCode, heading: &str, message: String) -> Response {
+    let html = format!(
+        "<!doctype html><html lang=\"ko\"><head><meta charset=\"utf-8\">\
+         <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\
+         <title>{heading}</title><link rel=\"stylesheet\" href=\"/__preview/band.css\">\
+         </head><body class=\"maru-preview-stop\">\
+         <h1>{heading}</h1><p class=\"why\">{}</p>\
+         <p><a href=\"/admin/changesets\">변경 묶음 목록</a><a href=\"/__preview/exit\">사이트로 돌아가기</a></p>\
+         </body></html>",
+        escape(&message)
+    );
     (
         status,
-        [(header::CONTENT_TYPE, "text/plain; charset=utf-8")],
-        message,
+        [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
+        html,
     )
         .into_response()
 }
@@ -207,7 +222,7 @@ fn plain(status: StatusCode, message: String) -> Response {
 fn refused(e: &Error) -> Response {
     let status =
         StatusCode::from_u16(e.code().http_status()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
-    plain(status, e.message())
+    plain(status, "미리보기를 열 수 없습니다", e.message())
 }
 
 #[derive(Deserialize)]
@@ -281,6 +296,7 @@ pub(crate) async fn mode(State(state): State<AppState>, mut req: Request, next: 
     if !matches!(*req.method(), Method::GET | Method::HEAD) {
         return plain(
             StatusCode::FORBIDDEN,
+            "미리보기 중입니다",
             "미리보기 중에는 글쓰기·로그인 같은 일을 할 수 없습니다. 위쪽 띠에서 미리보기를 끝내세요."
                 .to_owned(),
         );
@@ -363,7 +379,13 @@ async fn mark(res: Response, cs: &Changeset) -> Response {
     }
     let bytes = match to_bytes(body, MAX_HTML).await {
         Ok(bytes) => bytes,
-        Err(e) => return plain(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+        Err(e) => {
+            return plain(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "미리보기를 열 수 없습니다",
+                e.to_string(),
+            );
+        }
     };
     parts.headers.remove(header::CONTENT_LENGTH);
     let out = insert_band(&String::from_utf8_lossy(&bytes), &band(cs));

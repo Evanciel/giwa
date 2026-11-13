@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE mod_pay_order SET expires_at = MAX(expires_at, ?) WHERE id = ? AND status = 'awaiting_deposit'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "2c3a2148da91a8e249f75bb5d474613ca7f7dfe0d2d89d81389c3c3321ad045f"
+}

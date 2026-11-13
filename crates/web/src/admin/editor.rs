@@ -1274,7 +1274,7 @@ async fn publish(
     }
     let label = screen_label(&state, &who, &screen).await;
     let count = ops.len();
-    let cs = change::create(ctx, actor, &format!("화면 편집: {label}"), ops).await?;
+    let cs = change::create(ctx, actor, None, &format!("화면 편집: {label}"), ops).await?;
     let sandbox = state.sandbox()?;
     let applied = change::apply(ctx, actor, sandbox.as_ref(), &cs.id).await;
     state.close_preview(&cs.id).await;

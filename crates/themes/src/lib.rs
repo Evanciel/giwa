@@ -1063,7 +1063,9 @@ mod tests {
             assert_eq!(ws[0].config["title"], "회사 소개", "{}", s.id);
         }
         assert!(starter("about").is_ok());
-        assert!(starter("terms").is_ok() && starter("refund").is_ok());
+        assert!(
+            starter("terms").is_ok() && starter("refund").is_ok() && starter("privacy").is_ok()
+        );
         assert!(starter("nope").is_err());
     }
 

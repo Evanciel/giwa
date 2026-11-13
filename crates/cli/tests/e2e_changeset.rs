@@ -262,14 +262,55 @@ fn 고치기_지우기를_되돌리면_처음_값이다() {
 fn 중간_연산이_틀리면_사이트는_그대로이고_고쳐서_다시_적용한다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = init(tmp.path());
-    let boards_before = board_slugs(&data);
+    // 담을 때 사본에서 돌려 보아, 틀린 연산은 저장하지 않고 몇 번째인지 바로 알려 준다.
+    let listed = |data: &Path| {
+        maru(data, &["changeset", "list"])["items"]
+            .as_array()
+            .unwrap()
+            .len()
+    };
+    let count_before = listed(&data);
+    let text = json!([
+        { "op": "board.create", "slug": "first", "name": "첫째" },
+        { "op": "board.delete", "slug": "no-such-board" }
+    ])
+    .to_string();
+    let rejected = run(
+        &data,
+        &["changeset", "new", "--title", "시험 변경", "--ops", &text],
+    );
+    assert_eq!(rejected["ok"], false, "{rejected}");
+    assert!(
+        rejected["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("2번째"),
+        "{rejected}"
+    );
+    assert_eq!(listed(&data), count_before, "틀린 묶음은 남지 않는다");
+
+    // 담은 뒤에 사이트가 바뀌어 적용할 때 틀리게 된 경우.
+    maru(
+        &data,
+        &[
+            "board",
+            "create",
+            "gone",
+            "--name",
+            "곧 지울 판",
+            "--kind",
+            "forum",
+        ],
+    );
     let id = new_changeset(
         &data,
         &json!([
             { "op": "board.create", "slug": "first", "name": "첫째" },
-            { "op": "board.delete", "slug": "no-such-board" }
+            { "op": "board.delete", "slug": "gone" }
         ]),
     );
+    maru(&data, &["board", "delete", "gone"]);
+    let boards_before = board_slugs(&data);
 
     let v = run(&data, &["changeset", "apply", &id]);
     assert_eq!(v["ok"], false, "{v}");
@@ -530,18 +571,40 @@ fn 미리보기는_사본만_보여_주고_적용하면_끝난다() {
 fn 틀린_묶음은_미리보기_때_어디가_틀렸는지_알려_준다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = init(tmp.path());
-    let id = new_changeset(
+    // 담을 때는 맞았는데 그 뒤에 사이트가 바뀌어 틀리게 된 묶음.
+    maru(
         &data,
-        &json!([{ "op": "board.delete", "slug": "no-such-board" }]),
+        &[
+            "board",
+            "create",
+            "gone",
+            "--name",
+            "곧 지울 판",
+            "--kind",
+            "forum",
+        ],
     );
+    let id = new_changeset(&data, &json!([{ "op": "board.delete", "slug": "gone" }]));
+    maru(&data, &["board", "delete", "gone"]);
     let (_server, bind) = start_server(&data);
     let url = maru(&data, &["changeset", "preview-url", &id])["url"]
         .as_str()
         .unwrap()
         .to_owned();
-    let (status, _, body) = request(&bind, "GET", &path_of(&url), "");
+    let (status, head, body) = request(&bind, "GET", &path_of(&url), "");
     assert_eq!(status, 404, "{body}");
     assert!(body.contains("1번째"), "{body}");
+    // 맨 글자가 아니라 까닭과 돌아갈 길이 있는 화면. 꾸밈은 CSP 에 맞게 바깥 파일.
+    assert!(
+        head.to_lowercase().contains("content-type: text/html"),
+        "{head}"
+    );
+    assert!(body.contains("미리보기를 열 수 없습니다"), "{body}");
+    assert!(
+        body.contains("/admin/changesets") && body.contains("/__preview/band.css"),
+        "{body}"
+    );
+    assert!(!body.contains("<style"), "{body}");
 }
 
 #[test]

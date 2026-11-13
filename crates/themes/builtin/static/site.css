@@ -1475,6 +1475,7 @@ body:is(:has(main.page-blocks), :has(main.wide), :has(.with-sidebar), :has(.docs
 .pay-bank h2 { margin: 0 0 calc(var(--space) * 1); font-size: 1rem; }
 .pay-bank p { margin: calc(var(--space) * .5) 0 0; }
 .pay-button { padding: calc(var(--space) * 3); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
+.sec-pay_button .pay-button { max-width: 40rem; }
 .pay-button-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: calc(var(--space) * 1) calc(var(--space) * 2); }
 .pay-button-name { margin: 0; font-size: 1.15rem; font-weight: 700; }
 .pay-button-price { margin: 0; font-size: 1.35rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--primary); }

@@ -76,6 +76,7 @@ async fn 실제_적용에서_실패하면_앞_연산을_되돌려_처음으로_�
     let cs = changesets::create(
         &e.ctx,
         &local,
+        None,
         "부딪히는 묶음",
         vec![
             json!({ "op": "board.create", "slug": "fresh", "name": "새 판", "kind": "forum" }),
@@ -113,6 +114,7 @@ async fn 사본은_실제_사이트에_닿지_않는다() {
     let cs = changesets::create(
         &e.ctx,
         &local,
+        None,
         "미리보기",
         vec![json!({ "op": "board.create", "slug": "only-copy", "name": "사본", "kind": "forum" })],
     )
@@ -146,7 +148,7 @@ async fn 토큰은_담을_수_있어도_승인_없이_적용하지_못한다() {
     // 스코프가 모자라면 담지도 못한다.
     let reader = Actor::agent("t1".into(), &[Scope::Read], None);
     assert_eq!(
-        changesets::create(&e.ctx, &reader, "읽기만", vec![op.clone()])
+        changesets::create(&e.ctx, &reader, None, "읽기만", vec![op.clone()])
             .await
             .unwrap_err()
             .code(),
@@ -154,7 +156,7 @@ async fn 토큰은_담을_수_있어도_승인_없이_적용하지_못한다() {
     );
 
     let agent = Actor::agent("t2".into(), &[Scope::Read, Scope::Structure], None);
-    let cs = changesets::create(&e.ctx, &agent, "구조", vec![op.clone()])
+    let cs = changesets::create(&e.ctx, &agent, None, "구조", vec![op.clone()])
         .await
         .unwrap();
     assert_eq!(cs.actor_type, "agent");
@@ -183,6 +185,7 @@ async fn 토큰은_담을_수_있어도_승인_없이_적용하지_못한다() {
     let second = changesets::create(
         &e.ctx,
         &editor,
+        None,
         "편집자",
         vec![json!({ "op": "board.create", "slug": "by-editor", "name": "편집", "kind": "forum" })],
     )
@@ -202,7 +205,7 @@ async fn 토큰은_담을_수_있어도_승인_없이_적용하지_못한다() {
 async fn 미리보기_토큰은_한_번만_쓴다() {
     let e = env().await;
     let local = Actor::local();
-    let cs = changesets::create(&e.ctx, &local, "미리보기", Vec::new())
+    let cs = changesets::create(&e.ctx, &local, None, "미리보기", Vec::new())
         .await
         .unwrap();
     let link = changesets::preview_link(&e.ctx, &local, &cs.id)

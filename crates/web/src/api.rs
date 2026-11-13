@@ -1169,7 +1169,14 @@ async fn create_changeset(
     let Json(body) = body.map_err(bad_json)?;
     Ok(ok(
         StatusCode::CREATED,
-        changesets::create(&state.ctx, &actor, &body.title, body.ops).await?,
+        changesets::create(
+            &state.ctx,
+            &actor,
+            state.sandbox().ok().as_deref(),
+            &body.title,
+            body.ops,
+        )
+        .await?,
     ))
 }
 
@@ -1199,7 +1206,14 @@ async fn add_changeset_ops(
     let Json(body) = body.map_err(bad_json)?;
     Ok(ok(
         StatusCode::OK,
-        changesets::add(&state.ctx, &actor, &id, body.ops).await?,
+        changesets::add(
+            &state.ctx,
+            &actor,
+            state.sandbox().ok().as_deref(),
+            &id,
+            body.ops,
+        )
+        .await?,
     ))
 }
 
