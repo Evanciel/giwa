@@ -1,0 +1,101 @@
+{% extends "_base.html" %}
+{% block title %}미디어{% endblock %}
+{% block content %}
+<div class="heading-row">
+  <h1>미디어 <span class="count">{{ total }}</span></h1>
+  {% if can_edit %}
+  <div class="actions">
+    <button type="button" class="secondary" data-media-open="image" data-csrf="{{ csrf }}">그림 올리기</button>
+    <button type="button" class="secondary" data-media-open="video" data-csrf="{{ csrf }}">동영상 올리기</button>
+  </div>
+  {% endif %}
+</div>
+<p class="lead">올린 그림·동영상을 한곳에서 봅니다. 「쓰는 곳」은 글·페이지·위젯·설정·내 블록·기능 표에서 이 파일 주소를 찾아 셉니다. 쓰는 곳이 있는 파일은 지우기 전에 한 번 더 묻습니다.</p>
+
+<nav class="filter-chips" aria-label="종류">
+  {% for k in kinds %}<a href="{{ k.href }}"{% if k.on %} aria-current="true"{% endif %}>{{ k.label }}</a>{% endfor %}
+</nav>
+<form method="get" action="/admin/media" class="media-search" role="search">
+  {% if kind %}<input type="hidden" name="kind" value="{{ kind }}">{% endif %}
+  <label for="media-q" class="sr-only">찾기</label>
+  <input id="media-q" name="q" value="{{ q }}" placeholder="대체 텍스트·파일 이름으로 찾기" maxlength="100">
+  <label class="check"><input type="checkbox" name="unused" value="1"{% if unused %} checked{% endif %}> 안 쓰는 것만</label>
+  <button type="submit" class="secondary">찾기</button>
+  {% if q or unused %}<a class="clear" href="/admin/media{% if kind %}?kind={{ kind }}{% endif %}">조건 지우기</a>{% endif %}
+</form>
+
+{% if items %}
+<ul class="media-grid">
+{% for m in items %}
+  <li class="media-card" id="m-{{ m.id }}">
+    <a class="media-thumb" href="{{ m.url }}" target="_blank" rel="noopener">
+      {% if m.video %}
+      <video src="{{ m.url }}#t=0.5" preload="metadata" muted playsinline width="320" height="200" aria-label="{{ m.alt or m.name }}"></video>
+      <span class="badge">동영상</span>
+      {% else %}
+      <img src="{{ m.thumb }}" alt="{{ m.alt or '' }}" loading="lazy" width="320" height="200">
+      {% endif %}
+    </a>
+    <p class="media-meta"><code>{{ m.name }}</code> · {% if not m.video %}{{ m.width }}×{{ m.height }} · {% endif %}{{ m.size }} · {{ m.date }}</p>
+    <p class="media-url"><input readonly value="{{ m.url }}" aria-label="{{ m.name }} 주소" data-select-all> <button type="button" class="link" data-copy="{{ m.url }}">주소 복사</button></p>
+    {% if m.uses %}
+    <details class="media-uses">
+      <summary>쓰는 곳 {{ m.uses }}곳</summary>
+      <ul>
+      {% for u in m.used_in %}
+        <li>{{ u.place }} · {% if u.href %}<a href="{{ u.href }}">{{ u.label }}</a>{% else %}{{ u.label }}{% endif %}</li>
+      {% endfor %}
+      </ul>
+    </details>
+    {% else %}
+    <p class="media-uses none">쓰는 곳 없음</p>
+    {% endif %}
+    {% if can_edit %}
+    <form method="post" action="/admin/media/{{ m.id }}/alt" class="media-alt">
+      <input type="hidden" name="_csrf" value="{{ csrf }}">
+      <input type="hidden" name="back" value="{{ base_query }}page={{ page }}">
+      <label for="alt-{{ m.id }}">{% if m.video %}동영상 설명{% else %}대체 텍스트{% endif %}</label>
+      <span class="media-alt-row">
+        <input id="alt-{{ m.id }}" name="alt" value="{{ m.alt or '' }}" maxlength="300" placeholder="{% if m.video %}무엇을 보여 주는 영상인지{% else %}그림에 무엇이 있는지{% endif %}">
+        <button type="submit" class="secondary">저장</button>
+      </span>
+      {% if not m.alt and not m.video %}<span class="hint">비어 있으면 화면 읽기 프로그램이 그림을 설명하지 못합니다.</span>{% endif %}
+    </form>
+    {% endif %}
+    {% if can_delete %}
+    {% if m.uses %}
+    <details class="media-delete">
+      <summary>지우기</summary>
+      <p class="hint">이 파일을 {{ m.uses }}곳에서 씁니다. 지우면 그곳의 {% if m.video %}동영상{% else %}그림{% endif %}이 깨집니다. 되돌릴 수 없습니다.</p>
+      <form method="post" action="/admin/media/{{ m.id }}/delete">
+        <input type="hidden" name="_csrf" value="{{ csrf }}">
+        <input type="hidden" name="force" value="1">
+        <input type="hidden" name="back" value="{{ base_query }}page={{ page }}">
+        <button type="submit" class="warn">그래도 지우기</button>
+      </form>
+    </details>
+    {% else %}
+    <form method="post" action="/admin/media/{{ m.id }}/delete" class="media-delete">
+      <input type="hidden" name="_csrf" value="{{ csrf }}">
+      <input type="hidden" name="back" value="{{ base_query }}page={{ page }}">
+      <button type="submit" class="warn link">지우기</button>
+    </form>
+    {% endif %}
+    {% endif %}
+  </li>
+{% endfor %}
+</ul>
+{% if pages > 1 %}
+<nav class="pager" aria-label="쪽">
+  {% if page > 1 %}<a href="{{ base_query }}page={{ page - 1 }}">이전</a>{% endif %}
+  <span>{{ page }} / {{ pages }}</span>
+  {% if page < pages %}<a href="{{ base_query }}page={{ page + 1 }}">다음</a>{% endif %}
+</nav>
+{% endif %}
+{% elif q or unused %}
+<p class="empty">조건에 맞는 파일이 없습니다.</p>
+{% else %}
+<p class="empty">아직 올린 그림·동영상이 없습니다. 위의 「그림 올리기」로 시작하세요.</p>
+{% endif %}
+{% endblock %}
+{% block scripts %}<script src="/admin/assets/media-picker.js" defer></script><script src="/admin/assets/media-library.js" defer></script>{% endblock %}

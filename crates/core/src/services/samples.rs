@@ -305,8 +305,8 @@ pub(crate) async fn remove(
     tx.put_setting(KEY, &v, &clock::now()).await?;
     tx.commit().await?;
     for id in media_ids {
-        // 다른 글이 같은 그림을 쓰면 깨지므로 예시 그림만 지운다. 이미 지워졌으면 넘어간다.
-        if media::delete(ctx, actor, &id).await.is_ok() {
+        // 예시 글은 이미 지웠다. 사람이 이 그림을 다른 곳에 썼으면 쓰는 곳이 남아 지우지 않는다 (ADR-0172).
+        if media::delete(ctx, actor, &id, false).await.is_ok() {
             out.media_removed += 1;
         }
     }

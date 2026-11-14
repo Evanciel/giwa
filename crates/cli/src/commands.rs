@@ -2220,25 +2220,56 @@ async fn media_cmd(g: &Global, cmd: MediaCmd) -> Out {
             page,
             per_page,
             kind,
+            q,
+            unused,
         } => {
             let req = PageReq::new(page, per_page);
-            let list = match kind.as_deref() {
-                Some("video") => media::list_of(&ctx, &actor, media::MediaKind::Video, req).await?,
-                Some(_) => media::list_of(&ctx, &actor, media::MediaKind::Image, req).await?,
-                None => media::list(&ctx, &actor, req).await?,
-            };
-            let mut human = format!("미디어 {}개", list.total);
-            for m in &list.items {
-                human.push_str(&format!(
-                    "\n{}  {}x{}  {}  {}",
-                    m.id,
-                    m.width,
-                    m.height,
-                    m.url,
-                    m.alt_text.as_deref().unwrap_or("(대체 텍스트 없음)")
-                ));
+            if q.is_some() || unused {
+                let query = media::LibraryQuery {
+                    kind: kind.as_deref().map(|k| {
+                        if k == "video" {
+                            media::MediaKind::Video
+                        } else {
+                            media::MediaKind::Image
+                        }
+                    }),
+                    q,
+                    unused,
+                };
+                let list = media::library(&ctx, &actor, &query, req).await?;
+                let mut human = format!("미디어 {}개", list.total);
+                for i in &list.items {
+                    human.push_str(&format!(
+                        "
+{}  {}  쓰는 곳 {}  {}",
+                        i.media.id,
+                        i.media.url,
+                        i.uses,
+                        i.media.alt_text.as_deref().unwrap_or("(대체 텍스트 없음)")
+                    ));
+                }
+                Ok((to_value(&list)?, human))
+            } else {
+                let list = match kind.as_deref() {
+                    Some("video") => {
+                        media::list_of(&ctx, &actor, media::MediaKind::Video, req).await?
+                    }
+                    Some(_) => media::list_of(&ctx, &actor, media::MediaKind::Image, req).await?,
+                    None => media::list(&ctx, &actor, req).await?,
+                };
+                let mut human = format!("미디어 {}개", list.total);
+                for m in &list.items {
+                    human.push_str(&format!(
+                        "\n{}  {}x{}  {}  {}",
+                        m.id,
+                        m.width,
+                        m.height,
+                        m.url,
+                        m.alt_text.as_deref().unwrap_or("(대체 텍스트 없음)")
+                    ));
+                }
+                Ok((to_value(&list)?, human))
             }
-            Ok((to_value(&list)?, human))
         }
         MediaCmd::Show { id } => {
             let m = media::get(&ctx, &actor, &id).await?;
@@ -2251,8 +2282,22 @@ async fn media_cmd(g: &Global, cmd: MediaCmd) -> Out {
             let m = media::update(&ctx, &actor, &id, patch).await?;
             media_out(&m, "대체 텍스트를 바꿨습니다")
         }
-        MediaCmd::Delete { id } => {
-            let m = media::delete(&ctx, &actor, &id).await?;
+        MediaCmd::Usage { id } => {
+            let uses = media::usage(&ctx, &actor, &id).await?;
+            let mut human = format!("쓰는 곳 {}곳", uses.len());
+            for u in &uses {
+                human.push_str(&format!(
+                    "
+{}  {}  {}",
+                    u.place,
+                    u.id,
+                    u.label.as_deref().unwrap_or("")
+                ));
+            }
+            Ok((to_value(&uses)?, human))
+        }
+        MediaCmd::Delete { id, force } => {
+            let m = media::delete(&ctx, &actor, &id, force).await?;
             media_out(&m, "지웠습니다")
         }
         MediaCmd::Transform { id, rotate, crop } => {

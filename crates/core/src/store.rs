@@ -34,6 +34,15 @@ pub struct CommentQuery<'a> {
     pub board_ids: Option<&'a [String]>,
 }
 
+/// `texts_containing` 의 한 줄 (ADR-0172). `id` 는 그 행의 `id` 칸(없으면 rowid), `label` 은 제목·이름 같은 칸.
+#[derive(Debug, Clone)]
+pub struct TextHit {
+    pub table: String,
+    pub id: String,
+    pub label: Option<String>,
+    pub text: String,
+}
+
 /// 위키 게시판의 공개 문서 한 장 (GAP C13).
 #[derive(Debug, Clone)]
 pub struct WikiPage {
@@ -449,6 +458,9 @@ pub trait Store: Send + Sync {
     /// MIME 이 `prefix` 로 시작하는 것만 (`image/`·`video/`, ADR-0161).
     async fn list_media_of(&self, prefix: &str, limit: i64, offset: i64) -> Result<Vec<Media>>;
     async fn count_media_of(&self, prefix: &str) -> Result<i64>;
+    /// 글자 칸에 `needle` 이 들어 있는 행 (미디어를 쓰는 곳 찾기, ADR-0172). 표와 칸은 DB 에 있는 것을
+    /// 모두 본다(모듈 표 포함). 기록용 표(감사·리비전·통계·검색 색인)와 미디어 표 자신은 보지 않는다.
+    async fn texts_containing(&self, needle: &str) -> Result<Vec<TextHit>>;
     /// 예약 시각이 지났고 아직 공개되지 않은 글 ID (오래된 예약부터).
     async fn due_posts(&self, now: &str, limit: i64) -> Result<Vec<String>>;
 

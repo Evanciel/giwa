@@ -727,9 +727,17 @@ pub enum MediaCmd {
         /// image 또는 video 만 본다
         #[arg(long, value_parser = ["image", "video"])]
         kind: Option<String>,
+        /// 대체 텍스트·파일 이름·ID 에 이 글자가 든 것만 (쓰는 곳 수가 함께 나온다)
+        #[arg(long)]
+        q: Option<String>,
+        /// 어디서도 쓰지 않는 것만 (쓰는 곳 수가 함께 나온다)
+        #[arg(long)]
+        unused: bool,
     },
     /// 미디어 하나
     Show { id: String },
+    /// 이 미디어를 쓰는 곳 (글·페이지·위젯·설정·내 블록·모듈 표)
+    Usage { id: String },
     /// 대체 텍스트를 바꾼다. 빈 문자열이면 지운다
     Alt { id: String, text: String },
     /// 돌리거나 잘라 새 미디어로 둔다. 원본은 그대로 남는다. 먼저 돌리고, 돌린 사진 기준으로 자른다
@@ -742,8 +750,13 @@ pub enum MediaCmd {
         #[arg(long)]
         crop: Option<String>,
     },
-    /// 기록과 파일을 지운다. 본문에서 쓰던 곳은 깨진다
-    Delete { id: String },
+    /// 기록과 파일을 지운다. 쓰는 곳이 있으면 거절한다 (`--force` 면 지우고 그곳의 그림은 깨진다)
+    Delete {
+        id: String,
+        /// 쓰는 곳이 있어도 지운다
+        #[arg(long)]
+        force: bool,
+    },
 }
 
 #[derive(Debug, Subcommand)]

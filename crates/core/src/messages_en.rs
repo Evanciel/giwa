@@ -245,6 +245,7 @@ pub(crate) fn lookup(key: &str) -> Option<&'static str> {
         "error.file_content" => "The file content does not match its extension ({ext}): {name}",
         "error.file_name" => "The file name is empty ({max} characters at most).",
         "error.media_not_found" => "Media `{id}` was not found.",
+        "error.media_in_use" => "Media `{id}` is used in {count} places. Deleting it breaks them.",
         "error.media_type" => "Only image files (jpg, png, gif, webp) can be uploaded: {name}",
         "error.media_too_large" => "The file is too large. Upload {max}MB or less.",
         "error.not_wiki" => "Board \"{board}\" is not a wiki. Change the board kind to wiki.",

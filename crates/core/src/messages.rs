@@ -295,6 +295,9 @@ fn lookup_ko(key: &str) -> Option<&'static str> {
         "error.file_content" => "파일 내용이 확장자({ext})와 맞지 않습니다: {name}",
         "error.file_name" => "파일 이름이 비었습니다 (최대 {max}자).",
         "error.media_not_found" => "`{id}` 미디어를 찾을 수 없습니다.",
+        "error.media_in_use" => {
+            "`{id}` 미디어를 {count}곳에서 씁니다. 지우면 그곳의 그림이 깨집니다."
+        }
         "error.media_type" => "이미지 파일(jpg, png, gif, webp)만 올릴 수 있습니다: {name}",
         "error.media_too_large" => "파일이 너무 큽니다. {max}MB 이하만 올릴 수 있습니다.",
         "error.not_wiki" => {

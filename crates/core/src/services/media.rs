@@ -320,6 +320,167 @@ pub async fn list_of(
     })
 }
 
+// ---- 보관함·쓰는 곳 (G7 #14 Media Manager, ADR-0172) ----
+// 쓰는 곳은 따로 적어 두지 않고 그때그때 DB 의 글자 칸에서 `/media/…` 주소를 찾는다. 적어 두면 글·위젯·설정·
+// 모듈마다 고칠 때 갱신해야 하고 빠뜨리면 틀린다. 작은 사이트 기준으로 표를 한 번씩 훑는 값이 싸다.
+
+/// 미디어 한 건을 쓰는 곳. `place` 는 `post`·`page`·`widget`·`setting`·`saved_block`·`editor_draft`,
+/// 그 밖의 표(모듈 표 등)는 표 이름 그대로다.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+pub struct MediaUse {
+    pub place: String,
+    pub id: String,
+    pub label: Option<String>,
+}
+
+/// 보관함 한 칸: 미디어와 쓰는 곳.
+#[derive(Debug, Clone, Serialize, JsonSchema)]
+pub struct LibraryItem {
+    #[serde(flatten)]
+    pub media: Media,
+    /// 쓰는 곳 수 (`used_in` 의 길이)
+    pub uses: usize,
+    pub used_in: Vec<MediaUse>,
+}
+
+/// 보관함 조건. 비어 있으면 거르지 않는다.
+#[derive(Debug, Clone, Default, Deserialize, JsonSchema)]
+pub struct LibraryQuery {
+    /// image 또는 video 만
+    #[serde(default)]
+    pub kind: Option<MediaKind>,
+    /// 대체 텍스트·파일 이름·ID 에 들어 있는 글자
+    #[serde(default)]
+    pub q: Option<String>,
+    /// 어디서도 쓰지 않는 것만
+    #[serde(default)]
+    pub unused: bool,
+}
+
+fn place_of(table: &str) -> &str {
+    match table {
+        "posts" => "post",
+        "pages" => "page",
+        "widgets" => "widget",
+        "site_settings" => "setting",
+        "saved_blocks" => "saved_block",
+        "editor_drafts" => "editor_draft",
+        other => other,
+    }
+}
+
+/// 글자 속 `/media/2026/11/<id>.jpg`·축소본 `<id>-640.jpg` 의 ID 들. 주소 앞에 사이트 주소가 붙어도 된다.
+pub(crate) fn ids_in(text: &str) -> Vec<&str> {
+    let mut out = Vec::new();
+    for (at, _) in text.match_indices("/media/") {
+        let rest = &text[at + "/media/".len()..];
+        let end = rest
+            .find(|c: char| !(c.is_ascii_alphanumeric() || matches!(c, '/' | '.' | '-' | '_')))
+            .unwrap_or(rest.len());
+        let file = rest[..end].rsplit('/').next().unwrap_or("");
+        let Some((stem, _)) = file.split_once('.') else {
+            continue;
+        };
+        let stem = match stem.rsplit_once('-') {
+            Some((s, w)) if !w.is_empty() && w.bytes().all(|b| b.is_ascii_digit()) => s,
+            _ => stem,
+        };
+        if !stem.is_empty()
+            && stem.bytes().all(|b| b.is_ascii_alphanumeric())
+            && !out.contains(&stem)
+        {
+            out.push(stem);
+        }
+    }
+    out
+}
+
+/// 미디어 ID → 쓰는 곳 (한 행은 한 번만).
+async fn uses_of(ctx: &Ctx) -> Result<HashMap<String, Vec<MediaUse>>> {
+    let mut map: HashMap<String, Vec<MediaUse>> = HashMap::new();
+    for hit in ctx.store.texts_containing("/media/").await? {
+        for id in ids_in(&hit.text) {
+            let u = MediaUse {
+                place: place_of(&hit.table).to_owned(),
+                id: hit.id.clone(),
+                label: hit.label.clone().filter(|l| !l.is_empty()),
+            };
+            let list = map.entry(id.to_owned()).or_default();
+            if !list.contains(&u) {
+                list.push(u);
+            }
+        }
+    }
+    Ok(map)
+}
+
+/// 이 미디어를 쓰는 곳.
+pub async fn usage(ctx: &Ctx, actor: &Actor, id: &str) -> Result<Vec<MediaUse>> {
+    actor.require(Permission::PostUpload)?;
+    ctx.store
+        .media_by_id(id)
+        .await?
+        .ok_or_else(|| not_found(id))?;
+    Ok(uses_of(ctx).await?.remove(id).unwrap_or_default())
+}
+
+/// 보관함 목록 (최근 것부터, 쓰는 곳 수와 함께).
+pub async fn library(
+    ctx: &Ctx,
+    actor: &Actor,
+    query: &LibraryQuery,
+    page: PageReq,
+) -> Result<Listing<LibraryItem>> {
+    actor.require(Permission::PostUpload)?;
+    let mut uses = uses_of(ctx).await?;
+    let q = query
+        .q
+        .as_deref()
+        .map(|s| s.trim().to_lowercase())
+        .filter(|s| !s.is_empty());
+    let prefix = query.kind.map(|k| match k {
+        MediaKind::Image => "image/",
+        MediaKind::Video => "video/",
+    });
+    let all: Vec<LibraryItem> = ctx
+        .store
+        .list_media(i64::MAX, 0)
+        .await?
+        .into_iter()
+        .filter(|m| prefix.is_none_or(|p| m.mime.starts_with(p)))
+        .filter(|m| {
+            q.as_deref().is_none_or(|q| {
+                m.id.to_lowercase().contains(q)
+                    || m.path.to_lowercase().contains(q)
+                    || m.alt_text
+                        .as_deref()
+                        .is_some_and(|a| a.to_lowercase().contains(q))
+            })
+        })
+        .map(|m| {
+            let used_in = uses.remove(&m.id).unwrap_or_default();
+            LibraryItem {
+                uses: used_in.len(),
+                used_in,
+                media: m,
+            }
+        })
+        .filter(|i| !query.unused || i.uses == 0)
+        .collect();
+    let total = all.len() as i64;
+    let items = all
+        .into_iter()
+        .skip(page.offset().max(0) as usize)
+        .take(page.limit().max(0) as usize)
+        .collect();
+    Ok(Listing {
+        items,
+        total,
+        page: page.page,
+        per_page: page.per_page,
+    })
+}
+
 // ---- 동영상 (ADR-0161) ----
 // 다시 인코딩하지 않는다(서버에 코덱을 두지 않는다). 확장자와 파일 머리 모양이 둘 다 맞아야 받는다.
 // 큰 파일은 요청 한 번의 상한·시간 제한에 걸리므로 조각으로 나눠 올린다: begin → append(여러 번) → finish.
@@ -600,9 +761,20 @@ pub async fn update(ctx: &Ctx, actor: &Actor, id: &str, patch: MediaPatch) -> Re
     Ok(after)
 }
 
-/// 기록과 파일을 지운다. 본문에서 이 이미지를 쓰던 곳은 깨진다.
-pub async fn delete(ctx: &Ctx, actor: &Actor, id: &str) -> Result<Media> {
+/// 기록과 파일을 지운다. 쓰는 곳이 있으면 `force` 일 때만 지운다(그곳의 그림은 깨진다, ADR-0172).
+pub async fn delete(ctx: &Ctx, actor: &Actor, id: &str, force: bool) -> Result<Media> {
     actor.require(Permission::PostModerate)?;
+    if !force {
+        let uses = uses_of(ctx).await?.remove(id).unwrap_or_default();
+        if !uses.is_empty() {
+            return Err(Error::new(Code::Conflict)
+                .with_message("error.media_in_use")
+                .arg("id", id.to_owned())
+                .arg("count", uses.len().to_string())
+                .next(format!("maru media usage {id}"))
+                .next(format!("maru media delete {id} --force")));
+        }
+    }
     let mut tx = Tx::begin(ctx).await?;
     let before = tx.media_by_id(id).await?.ok_or_else(|| not_found(id))?;
     tx.delete_media(id).await?;
@@ -898,5 +1070,14 @@ mod tests {
             Some("고양이")
         );
         assert!(alt(Some("가".repeat(ALT_MAX + 1))).is_err());
+    }
+
+    #[test]
+    fn media_ids_are_found_in_any_text() {
+        let md = "![고양이](/media/2026/11/abc123.jpg) 다시 ![](/media/2026/11/abc123-640.jpg)\n\
+                  {\"image\":\"https://ex.test/media/2026/10/Zz9.webp\"} /media/x/ /media/2026/11/no_ext \
+                  /media/2026/11/bad-id.jpg";
+        assert_eq!(ids_in(md), vec!["abc123", "Zz9"]);
+        assert!(ids_in("미디어 없음").is_empty());
     }
 }

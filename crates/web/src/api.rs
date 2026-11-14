@@ -123,6 +123,7 @@ pub fn routes() -> Router<AppState> {
             "/media/{id}",
             get(get_media).patch(update_media).delete(delete_media),
         )
+        .route("/media/{id}/usage", get(media_usage))
         .route("/media/{id}/transform", post(transform_media))
         .route("/media/videos", post(begin_video))
         .route(
@@ -1010,6 +1011,21 @@ struct MediaListQuery {
     per_page: Option<u32>,
     /// image | video. 없으면 둘 다
     kind: Option<media::MediaKind>,
+    /// 대체 텍스트·파일 이름·ID 검색. 주면 쓰는 곳 수(`uses`)가 함께 온다 (ADR-0172)
+    q: Option<String>,
+    /// true 면 어디서도 쓰지 않는 것만. 쓰는 곳 수가 함께 온다
+    #[serde(default)]
+    unused: bool,
+    /// true 면 걸러내지 않고 쓰는 곳 수만 함께 받는다
+    #[serde(default)]
+    uses: bool,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct MediaDeleteQuery {
+    /// 쓰는 곳이 있어도 지운다
+    #[serde(default)]
+    force: bool,
 }
 
 async fn list_media(
@@ -1018,6 +1034,17 @@ async fn list_media(
     Query(q): Query<MediaListQuery>,
 ) -> Result<Response, ApiError> {
     let page = PageReq::new(q.page.unwrap_or(1), q.per_page.unwrap_or(20));
+    if q.q.is_some() || q.unused || q.uses {
+        let query = media::LibraryQuery {
+            kind: q.kind,
+            q: q.q,
+            unused: q.unused,
+        };
+        return Ok(ok(
+            StatusCode::OK,
+            media::library(&state.ctx, &actor, &query, page).await?,
+        ));
+    }
     Ok(ok(
         StatusCode::OK,
         match q.kind {
@@ -1067,10 +1094,22 @@ async fn delete_media(
     State(state): State<AppState>,
     ApiActor(actor): ApiActor,
     Path(id): Path<String>,
+    Query(q): Query<MediaDeleteQuery>,
 ) -> Result<Response, ApiError> {
     Ok(ok(
         StatusCode::OK,
-        media::delete(&state.ctx, &actor, &id).await?,
+        media::delete(&state.ctx, &actor, &id, q.force).await?,
+    ))
+}
+
+async fn media_usage(
+    State(state): State<AppState>,
+    ApiActor(actor): ApiActor,
+    Path(id): Path<String>,
+) -> Result<Response, ApiError> {
+    Ok(ok(
+        StatusCode::OK,
+        media::usage(&state.ctx, &actor, &id).await?,
     ))
 }
 

@@ -35,6 +35,7 @@ mod audit;
 mod changesets;
 mod dashboard;
 mod editor;
+mod library;
 mod modules;
 mod site;
 mod widgets;
@@ -60,7 +61,10 @@ pub fn routes() -> Router<AppState> {
         .route("/admin/posts/{id}/lock", post(lock_post))
         .route("/admin/posts/{id}", get(edit_form).post(save))
         .route("/admin/posts/{id}/{action}", post(action))
-        .route("/admin/media", post(upload).layer(crate::upload_limit()))
+        .route(
+            "/admin/media",
+            get(library::page).post(upload).layer(crate::upload_limit()),
+        )
         .route("/admin/media/videos", post(video_begin))
         .route(
             "/admin/media/videos/{id}",
@@ -96,6 +100,7 @@ pub fn routes() -> Router<AppState> {
         .merge(modules::routes())
         .merge(widgets::routes())
         .merge(audit::routes())
+        .merge(library::routes())
         .layer(middleware::map_response(admin_headers))
         // 화면 편집기는 캔버스 iframe 을 담으므로 자기 머리글을 쓴다 (ADR-0138).
         .merge(editor::routes())

@@ -117,7 +117,7 @@ async fn upload_list_update_delete_with_files_and_audit() {
     // 같은 값이면 감사 기록이 늘지 않는다.
     media::update(&e.ctx, &local, &m.id, patch).await.unwrap();
 
-    media::delete(&e.ctx, &local, &m.id).await.unwrap();
+    media::delete(&e.ctx, &local, &m.id, false).await.unwrap();
     assert!(files_under(&e.dir.media_dir()).is_empty());
     let err = media::get(&e.ctx, &local, &m.id).await.unwrap_err();
     assert_eq!(err.code(), Code::NotFound);
@@ -151,7 +151,9 @@ async fn permissions_follow_scopes() {
         .await
         .unwrap();
     assert!(m.variants.is_empty());
-    let err = media::delete(&e.ctx, &agent, &m.id).await.unwrap_err();
+    let err = media::delete(&e.ctx, &agent, &m.id, false)
+        .await
+        .unwrap_err();
     assert_eq!(err.code(), Code::Forbidden);
 
     let reader = Actor::agent("t2".into(), &[Scope::Read], None);

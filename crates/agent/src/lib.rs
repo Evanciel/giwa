@@ -265,9 +265,25 @@ struct ModerateInput {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-struct PageInput {
+struct MediaListInput {
     #[serde(default)]
     page: Option<u32>,
+    /// image 또는 video 만
+    #[serde(default)]
+    kind: Option<media::MediaKind>,
+    /// 대체 텍스트·파일 이름·ID 에 든 글자
+    #[serde(default)]
+    q: Option<String>,
+    /// 어디서도 쓰지 않는 것만
+    #[serde(default)]
+    unused: bool,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct MediaIdInput {
+    /// 미디어 ID (`list_media` 의 결과)
+    id: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -682,11 +698,19 @@ const SPECS: &[Spec] = &[
     },
     Spec {
         name: "list_media",
-        description: "올린 이미지·동영상 목록을 본다. List uploaded images and videos.",
+        description: "올린 이미지·동영상 목록을 본다. 항목마다 쓰는 곳 수(uses)가 있고 unused 로 안 쓰는 것만 볼 수 있다. List uploaded images and videos with usage counts.",
         permission: Permission::PostUpload,
         read_only: true,
         untrusted: false,
-        schema: schema_of::<PageInput>,
+        schema: schema_of::<MediaListInput>,
+    },
+    Spec {
+        name: "media_usage",
+        description: "이 미디어를 쓰는 글·페이지·위젯·설정·모듈 표를 본다. 지우기 전에 확인한다. Where a media item is used.",
+        permission: Permission::PostUpload,
+        read_only: true,
+        untrusted: false,
+        schema: schema_of::<MediaIdInput>,
     },
     Spec {
         name: "upload_media",
@@ -1081,9 +1105,18 @@ impl Server {
                 to_value(posts::submit(ctx, actor, &i.id).await?)
             }
             "list_media" => {
-                let i: PageInput = input(args)?;
+                let i: MediaListInput = input(args)?;
                 let page = PageReq::new(i.page.unwrap_or(1), 50);
-                to_value(media::list(ctx, actor, page).await?)
+                let query = media::LibraryQuery {
+                    kind: i.kind,
+                    q: i.q,
+                    unused: i.unused,
+                };
+                to_value(media::library(ctx, actor, &query, page).await?)
+            }
+            "media_usage" => {
+                let i: MediaIdInput = input(args)?;
+                to_value(media::usage(ctx, actor, &i.id).await?)
             }
             "set_alt_text" => {
                 let i: AltTextInput = input(args)?;

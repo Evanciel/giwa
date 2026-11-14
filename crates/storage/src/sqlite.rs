@@ -15,7 +15,7 @@ use maru_core::model::{
 };
 use maru_core::store::{
     AuditFilter, CommentQuery, LiteralSearchQuery, MenuRow, ModuleMigration, PopularQuery,
-    PostFilter, PublishedQuery, SearchQuery, SearchRef, Store, WikiPage, WriteTx,
+    PostFilter, PublishedQuery, SearchQuery, SearchRef, Store, TextHit, WikiPage, WriteTx,
 };
 use maru_core::{Code, Error, Result, clock, slug, urls};
 use serde_json::Value;
@@ -1876,6 +1876,10 @@ impl Store for SqliteStore {
             .fetch_one(&self.db.read)
             .await
             .map_err(db_error)
+    }
+
+    async fn texts_containing(&self, needle: &str) -> Result<Vec<TextHit>> {
+        texts_containing(&self.db.read, needle).await
     }
 
     async fn categories_of_board(&self, board_id: &str) -> Result<Vec<Category>> {
@@ -3966,6 +3970,78 @@ fn variants_json(m: &Media) -> Result<String> {
         })
         .collect();
     json(&stored)
+}
+
+/// 쓰는 곳 찾기에서 보지 않는 표. 기록이거나 미디어 자신이다 (ADR-0172).
+const TEXT_SCAN_SKIP: [&str; 3] = ["media", "audit_log", "revisions"];
+/// 행 이름으로 보일 칸 (앞의 것부터).
+const TEXT_SCAN_LABELS: [&str; 6] = ["title", "name", "label", "slug", "key", "kind"];
+
+/// 표·칸 이름은 `sqlite_master`·`pragma_table_info` 에서만 오고 겹따옴표로 감싼다. 찾는 글자는 바인딩한다.
+/// 표 목록이 DB 에 따라 달라서 컴파일 타임 검증 매크로를 쓸 수 없다 (backup.rs 와 같은 예외).
+async fn texts_containing(db: &sqlx::SqlitePool, needle: &str) -> Result<Vec<TextHit>> {
+    fn quoted(name: &str) -> String {
+        format!("\"{}\"", name.replace('"', "\"\""))
+    }
+    let tables: Vec<String> = sqlx::query_scalar(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND sql NOT LIKE 'CREATE VIRTUAL%'
+         AND name NOT LIKE 'sqlite%' AND substr(name, 1, 1) <> '_' ORDER BY name",
+    )
+    .fetch_all(db)
+    .await
+    .map_err(db_error)?;
+    let mut hits = Vec::new();
+    for table in tables {
+        if TEXT_SCAN_SKIP.contains(&table.as_str())
+            || table.starts_with("stat_")
+            || table.contains("fts")
+        {
+            continue;
+        }
+        let cols: Vec<(String, String, i64)> =
+            sqlx::query_as("SELECT name, upper(type), pk FROM pragma_table_info(?) ORDER BY cid")
+                .bind(&table)
+                .fetch_all(db)
+                .await
+                .map_err(db_error)?;
+        let has = |n: &str| cols.iter().any(|(c, _, _)| c == n);
+        // WITHOUT ROWID 표는 rowid 가 없으므로 기본 키 첫 칸을 쓴다.
+        let id_col = if has("id") {
+            quoted("id")
+        } else if let Some((c, _, _)) = cols.iter().find(|(_, _, pk)| *pk == 1) {
+            quoted(c)
+        } else {
+            "rowid".to_owned()
+        };
+        let label_col = TEXT_SCAN_LABELS
+            .iter()
+            .find(|n| has(n))
+            .map(|n| quoted(n))
+            .unwrap_or_else(|| "NULL".to_owned());
+        for (col, ty, _) in &cols {
+            if ty != "TEXT" || col == "id" {
+                continue;
+            }
+            let sql = format!(
+                "SELECT CAST({id_col} AS TEXT), CAST({label_col} AS TEXT), {c} FROM {t} WHERE instr({c}, ?) > 0",
+                c = quoted(col),
+                t = quoted(&table),
+            );
+            let rows: Vec<(Option<String>, Option<String>, String)> =
+                sqlx::query_as(sqlx::AssertSqlSafe(sql))
+                    .bind(needle)
+                    .fetch_all(db)
+                    .await
+                    .map_err(db_error)?;
+            hits.extend(rows.into_iter().map(|(id, label, text)| TextHit {
+                table: table.clone(),
+                id: id.unwrap_or_default(),
+                label,
+                text,
+            }));
+        }
+    }
+    Ok(hits)
 }
 
 async fn media_by_id<'e>(e: impl SqliteExecutor<'e>, id: &str) -> Result<Option<Media>> {

@@ -170,6 +170,7 @@ maru changeset preview-url <id> --json
 - 내 블록 보관함: `maru widget saved list|save <종류> --name <이름> --config <JSON>|delete <id>`(REST `/api/v1/saved-blocks`, MCP `list_saved_blocks`·`save_block`). 방문자에게 보이지 않아 바로 저장됩니다. 화면에 넣을 때는 변경 묶음의 `widget.place` 입니다.
 - 페이지 설정: `maru page edit <주소> --description <검색 설명> --share-image </media/… 또는 https> --noindex true|false`(REST `PATCH /api/v1/pages/{slug}`). 비우면 본문 앞부분·사이트 공유 그림을 씁니다. 화면 편집기 「페이지 설정」·「기록」과 같은 서비스입니다.
 - 동영상: `maru media upload <파일.mp4|webm>`(200MB 이하, 다시 인코딩하지 않음). 큰 파일은 REST 나눠 올리기 `POST /api/v1/media/videos {"filename"}` → `PUT /api/v1/media/videos/{id}?offset=<받은 크기>`(조각 8MB 이하, 같은 조각을 다시 보내도 안전, 빈틈은 409) → `POST …/{id}/finish {"filename","alt"}`. 목록은 `maru media list --kind video`(REST `?kind=video`). 글에서는 `::video[/media/….mp4]{loop muted autoplay}`(저절로 재생은 소리를 끕니다), 동영상 섹션은 `{"url":"/media/….mp4","loop_muted":true}`.
+- 미디어 보관함: 지우기 전에 `maru media usage <id>` 로 쓰는 곳을 봅니다. `maru media delete <id>` 는 쓰는 곳이 있으면 거절하고(CONFLICT), 사용자가 그래도 지우라고 하면 `--force`. 안 쓰는 것만 `maru media list --unused`, 찾기 `--q <글자>`. 사람은 관리 화면 「미디어」(`/admin/media`)에서 같은 일을 합니다.
 - 휴대폰 홈 화면에 추가: 기본으로 켜져 있습니다(`/manifest.webmanifest`, 사이트 색 아이콘 `/icon-192.png`·`/icon-512.png`·`/icon.svg`, 서비스 워커 `/sw.js` 는 오프라인 안내 `/offline` 과 스타일만 담음). 끄기: `maru site set --pwa false`(REST `PATCH /api/v1/settings {"pwa":false}`). 아이콘 무늬·색은 사이트 이름과 주 색에서 정해집니다.
 
 ### 지도와 카카오톡
