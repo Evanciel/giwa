@@ -1,6 +1,6 @@
 [package]
-name = "maru-mod-kakao"
-description = "Maru 공식 모듈: 카카오톡 공유와 채널"
+name = "giwa-mod-kakao"
+description = "Giwa 공식 모듈: 카카오톡 공유와 채널"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,8 +11,8 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
-maru-core.workspace = true
-maru-modules.workspace = true
+giwa-core.workspace = true
+giwa-modules.workspace = true
 async-trait.workspace = true
 schemars.workspace = true
 serde.workspace = true

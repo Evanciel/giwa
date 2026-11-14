@@ -9,7 +9,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 const PEN: &[u8] = include_bytes!("../../themes/builtin/static/fonts/maru-pen-1.woff2");
 const OFL: &str = include_str!("../../themes/builtin/static/fonts/OFL.txt");
 
@@ -23,20 +23,20 @@ impl Drop for Server {
 }
 
 /// `--json` 응답 전체(`ok` 포함).
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let out = Command::new(BIN)
         .arg("--data")
         .arg(data)
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
 fn ok(data: &Path, args: &[&str]) -> Value {
-    let v = maru(data, args);
+    let v = giwa(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
 }
@@ -111,19 +111,19 @@ fn admin_session(data: &Path, bind: &str) -> (String, String) {
     let link = ok(data, &["login-link"]);
     let link_path = path_of(link["url"].as_str().unwrap());
     let page = http(bind, "GET", &link_path, &[], b"");
-    let pre = page.cookie("maru_csrf").unwrap();
+    let pre = page.cookie("giwa_csrf").unwrap();
     let res = http(
         bind,
         "POST",
         &link_path,
         &[
             ("Content-Type", "application/x-www-form-urlencoded"),
-            ("Cookie", &format!("maru_csrf={pre}")),
+            ("Cookie", &format!("giwa_csrf={pre}")),
         ],
         format!("_csrf={pre}").as_bytes(),
     );
     assert_eq!(res.status, 303, "{}", res.text());
-    let cookie = format!("maru_session={}", res.cookie("maru_session").unwrap());
+    let cookie = format!("giwa_session={}", res.cookie("giwa_session").unwrap());
     let page = http(bind, "GET", "/admin/fonts", &[("Cookie", &cookie)], b"");
     assert_eq!(page.status, 200);
     (cookie, page.csrf_field())
@@ -204,7 +204,7 @@ fn uploaded_font_flows_from_cli_to_public_pages_and_back() {
     ];
 
     // 배포 권리 확인(--yes)이 없으면 거절하고 다음 명령을 알려 준다. 빈 서체도 남지 않는다.
-    let refused = maru(&data, &base);
+    let refused = giwa(&data, &base);
     assert_eq!(refused["ok"], false, "{refused}");
     assert_eq!(refused["error"]["code"], "VALIDATION");
     assert!(refused.to_string().contains("--yes"), "{refused}");
@@ -223,7 +223,7 @@ fn uploaded_font_flows_from_cli_to_public_pages_and_back() {
     // 글꼴이 아닌 파일
     let fake = tmp.path().join("가짜.ttf");
     std::fs::write(&fake, b"<svg onload=alert(1)>").unwrap();
-    let bad = maru(
+    let bad = giwa(
         &data,
         &[
             "font",
@@ -288,7 +288,7 @@ fn uploaded_font_flows_from_cli_to_public_pages_and_back() {
     for path in [
         "/fonts/company-gothic/nope.woff2",
         "/fonts/Company/x.woff2",
-        "/fonts/company-gothic/..%2F..%2Fmaru.db",
+        "/fonts/company-gothic/..%2F..%2Fgiwa.db",
     ] {
         assert_eq!(http(&bind, "GET", path, &[], b"").status, 404, "{path}");
     }
@@ -328,19 +328,19 @@ fn uploaded_font_flows_from_cli_to_public_pages_and_back() {
         tokens.contains("--font-body: \"maru-u-company-gothic\", "),
         "{tokens}"
     );
-    let missing = maru(
+    let missing = giwa(
         &data,
         &["design", "set", "--set", "font.heading=no-such-font"],
     );
     assert_eq!(missing["error"]["code"], "VALIDATION", "{missing}");
 
     // 토큰이 쓰는 동안은 지울 수 없다 → 되돌리고 지운다. 글은 깨지지 않는다.
-    let in_use = maru(&data, &["font", "remove", "company-gothic"]);
+    let in_use = giwa(&data, &["font", "remove", "company-gothic"]);
     assert_eq!(in_use["error"]["code"], "CONFLICT", "{in_use}");
     assert!(
         in_use
             .to_string()
-            .contains("maru design set --set font.body=Pretendard")
+            .contains("giwa design set --set font.body=Pretendard")
     );
     ok(&data, &["design", "set", "--set", "font.body=Pretendard"]);
     let removed = ok(&data, &["font", "remove", "company-gothic"]);

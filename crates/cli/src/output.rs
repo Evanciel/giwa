@@ -3,8 +3,8 @@
 use std::io::Write;
 use std::process::ExitCode;
 
-use maru_core::output::{Failure, Success};
-use maru_core::{Code, Error};
+use giwa_core::output::{Failure, Success};
+use giwa_core::{Code, Error};
 use serde::Serialize;
 
 pub fn success<T: Serialize>(data: T, json: bool, human: impl FnOnce(&T) -> String) -> ExitCode {
@@ -55,7 +55,7 @@ pub fn clap_error(e: clap::Error, json: bool) -> ExitCode {
         .with_message("error.usage_detail")
         .arg("detail", detail)
         .with_hint("hint.usage")
-        .next("maru --help");
+        .next("giwa --help");
     error(&err, json)
 }
 

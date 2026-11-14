@@ -6,14 +6,14 @@ use std::path::Path;
 use std::sync::Arc;
 
 use flate2::read::GzDecoder;
-use maru_core::actor::Actor;
-use maru_core::services::backups::{self, NewBackup};
-use maru_core::services::boards::{self, NewBoard};
-use maru_core::services::posts::{self, NewPost};
-use maru_core::services::tokens::{self, NewToken};
-use maru_core::{Code, Ctx};
-use maru_storage::backup::{self, FsArchiver};
-use maru_storage::{DataDir, Db, FsBlobs, SqliteStore};
+use giwa_core::actor::Actor;
+use giwa_core::services::backups::{self, NewBackup};
+use giwa_core::services::boards::{self, NewBoard};
+use giwa_core::services::posts::{self, NewPost};
+use giwa_core::services::tokens::{self, NewToken};
+use giwa_core::{Code, Ctx};
+use giwa_storage::backup::{self, FsArchiver};
+use giwa_storage::{DataDir, Db, FsBlobs, SqliteStore};
 
 async fn open(dir: &DataDir) -> (Db, Ctx) {
     let db = Db::open(&dir.db_path(), true).await.unwrap();
@@ -22,7 +22,7 @@ async fn open(dir: &DataDir) -> (Db, Ctx) {
         store: Arc::new(SqliteStore::new(db.clone())),
         blobs: Arc::new(FsBlobs::new(dir.media_dir())),
         site_url: "http://127.0.0.1:8080".into(),
-        extensions: maru_core::store::no_extensions(),
+        extensions: giwa_core::store::no_extensions(),
     };
     (db, ctx)
 }
@@ -101,11 +101,11 @@ async fn count_in_backup(path: &Path, table: &str) -> i64 {
     let mut tar = tar::Archive::new(GzDecoder::new(File::open(path).unwrap()));
     for e in tar.entries().unwrap() {
         let mut e = e.unwrap();
-        if e.path().unwrap().to_string_lossy() == "maru.db" {
-            e.unpack(out.path().join("maru.db")).unwrap();
+        if e.path().unwrap().to_string_lossy() == "giwa.db" {
+            e.unpack(out.path().join("giwa.db")).unwrap();
         }
     }
-    let db = Db::open(&out.path().join("maru.db"), false).await.unwrap();
+    let db = Db::open(&out.path().join("giwa.db"), false).await.unwrap();
     let n: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT count(*) FROM {table}")))
         .fetch_one(db.read_pool())
         .await
@@ -129,7 +129,7 @@ async fn backup_copies_db_and_strips_secrets_on_request() {
         .await
         .unwrap();
     assert!(full.secrets);
-    assert!(full.name.starts_with("maru-") && full.name.ends_with(".tar.gz"));
+    assert!(full.name.starts_with("giwa-") && full.name.ends_with(".tar.gz"));
     let bare = backups::create(&ctx, &local, &archiver, NewBackup { no_secrets: true })
         .await
         .unwrap();
@@ -142,7 +142,7 @@ async fn backup_copies_db_and_strips_secrets_on_request() {
     let full_path = backups::file(&local, &archiver, &full.name).await.unwrap();
     let names = entries(&full_path);
     assert_eq!(names[0], "manifest.json", "{names:?}");
-    for want in ["maru.db", "media/a.txt"] {
+    for want in ["giwa.db", "media/a.txt"] {
         assert!(names.iter().any(|n| n == want), "{want} 없음: {names:?}");
     }
     assert!(
@@ -156,7 +156,7 @@ async fn backup_copies_db_and_strips_secrets_on_request() {
     assert_eq!(count_in_backup(&bare_path, "posts").await, 1);
 
     // 이름 검사·없는 파일·권한
-    let err = backups::file(&local, &archiver, "../maru.db")
+    let err = backups::file(&local, &archiver, "../giwa.db")
         .await
         .unwrap_err();
     assert_eq!(err.code(), Code::NotFound);
@@ -164,7 +164,7 @@ async fn backup_copies_db_and_strips_secrets_on_request() {
         .await
         .unwrap_err();
     assert_eq!(err.code(), Code::NotFound);
-    let agent = Actor::agent("t".into(), &[maru_core::actor::Scope::Admin], None);
+    let agent = Actor::agent("t".into(), &[giwa_core::actor::Scope::Admin], None);
     let err = backups::list(&agent, &archiver).await.unwrap_err();
     assert_eq!(err.code(), Code::Forbidden, "에이전트는 백업을 못 다룬다");
 
@@ -202,7 +202,7 @@ async fn restore_brings_back_data_and_keeps_previous() {
     assert!(report.manifest.secrets);
     assert!(report.previous.starts_with(dir.backups_dir()));
     assert!(
-        report.previous.join("maru.db").exists(),
+        report.previous.join("giwa.db").exists(),
         "이전 DB 를 옮겨 둔다"
     );
     assert!(path.exists(), "백업 파일은 그대로");
@@ -238,7 +238,7 @@ async fn restore_rejects_foreign_archives() {
     };
     let manifest = |schema: i64| {
         serde_json::json!({
-            "format": 1, "maru_version": "9.9.9", "schema": schema,
+            "format": 1, "giwa_version": "9.9.9", "schema": schema,
             "created_at": "2026-11-04T00:00:00Z", "secrets": true
         })
         .to_string()
@@ -252,7 +252,7 @@ async fn restore_rejects_foreign_archives() {
     let err = backup::restore(&dir, &stray).await.unwrap_err();
     assert_eq!(err.code(), Code::Validation, "{err}");
 
-    let no_manifest = make("nomani.tar.gz", &[("maru.db", b"x")]);
+    let no_manifest = make("nomani.tar.gz", &[("giwa.db", b"x")]);
     assert_eq!(
         backup::restore(&dir, &no_manifest)
             .await
@@ -265,7 +265,7 @@ async fn restore_rejects_foreign_archives() {
         "newer.tar.gz",
         &[
             ("manifest.json", &manifest(99_999_999_999_999)),
-            ("maru.db", b"x"),
+            ("giwa.db", b"x"),
         ],
     );
     let err = backup::restore(&dir, &newer).await.unwrap_err();

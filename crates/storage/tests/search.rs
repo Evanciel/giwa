@@ -3,16 +3,16 @@
 
 use std::sync::Arc;
 
-use maru_core::actor::{Actor, Scope};
-use maru_core::model::{BoardPolicy, PageReq, Post};
-use maru_core::search::Range;
-use maru_core::services::anonymous_actor;
-use maru_core::services::boards::{self, NewBoard};
-use maru_core::services::pages::{self, NewPage};
-use maru_core::services::posts::{self, NewPost, PostPatch};
-use maru_core::services::search::{self, HitKind, SearchInput, Sort};
-use maru_core::{Code, Ctx};
-use maru_storage::{DataDir, Db, FsBlobs, SqliteStore};
+use giwa_core::actor::{Actor, Scope};
+use giwa_core::model::{BoardPolicy, PageReq, Post};
+use giwa_core::search::Range;
+use giwa_core::services::anonymous_actor;
+use giwa_core::services::boards::{self, NewBoard};
+use giwa_core::services::pages::{self, NewPage};
+use giwa_core::services::posts::{self, NewPost, PostPatch};
+use giwa_core::services::search::{self, HitKind, SearchInput, Sort};
+use giwa_core::{Code, Ctx};
+use giwa_storage::{DataDir, Db, FsBlobs, SqliteStore};
 
 struct Env {
     _tmp: tempfile::TempDir,
@@ -30,7 +30,7 @@ async fn env() -> Env {
         store: Arc::new(SqliteStore::new(db.clone())),
         blobs: Arc::new(FsBlobs::new(dir.media_dir())),
         site_url: "http://127.0.0.1:8080".into(),
-        extensions: maru_core::store::no_extensions(),
+        extensions: giwa_core::store::no_extensions(),
     };
     for (slug, read) in [("blog", None), ("notes", None), ("members", Some("member"))] {
         boards::create(
@@ -380,7 +380,7 @@ async fn odd_input_is_a_validation_error_not_a_crash() {
     e.db.close().await;
 }
 
-/// 글 1만 개 다시 만들기 시간·파일 크기 (ADR-0050 기록용). `cargo test -p maru-storage --test search -- --ignored --nocapture`
+/// 글 1만 개 다시 만들기 시간·파일 크기 (ADR-0050 기록용). `cargo test -p giwa-storage --test search -- --ignored --nocapture`
 #[tokio::test]
 #[ignore]
 async fn reindex_ten_thousand_posts() {

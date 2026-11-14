@@ -5,10 +5,10 @@
 
 use std::collections::HashMap;
 
-use maru_core::directives;
-use maru_core::model::SiteSettings;
-use maru_core::services::{media, sections};
-use maru_core::{Ctx, Result, clock, markdown};
+use giwa_core::directives;
+use giwa_core::model::SiteSettings;
+use giwa_core::services::{media, sections};
+use giwa_core::{Ctx, Result, clock, markdown};
 use serde_json::{Value, json};
 
 /// 마크다운을 받는 칸. 그려서 `<칸>_html` 로 둔다.

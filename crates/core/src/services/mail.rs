@@ -107,7 +107,7 @@ pub async fn queue_test(ctx: &Ctx, actor: &Actor, to: &str) -> Result<String> {
         return Err(Error::new(Code::Validation)
             .with_message("error.mail_to")
             .arg("value", to)
-            .next("maru mail test --to you@example.test"));
+            .next("giwa mail test --to you@example.test"));
     }
     let site = crate::services::settings::site(ctx).await?;
     let key = format!("test:{}:{}", to.to_lowercase(), window());
@@ -153,7 +153,7 @@ pub async fn get(ctx: &Ctx, actor: &Actor, id: &str) -> Result<MailOut> {
         Error::new(Code::NotFound)
             .with_message("error.mail_not_found")
             .arg("id", id)
-            .next("maru mail list")
+            .next("giwa mail list")
     })
 }
 

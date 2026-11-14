@@ -70,7 +70,7 @@ mod tests {
     #[test]
     fn only_local_test_servers_replace_the_api() {
         assert_eq!(
-            api_base("MARU_PAY_TEST_UNSET_ENV", "https://api.example.com"),
+            api_base("GIWA_PAY_TEST_UNSET_ENV", "https://api.example.com"),
             "https://api.example.com"
         );
     }

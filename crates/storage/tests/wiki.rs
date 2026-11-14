@@ -4,13 +4,13 @@
 
 use std::sync::Arc;
 
-use maru_core::actor::Actor;
-use maru_core::markdown;
-use maru_core::services::boards::{self, NewBoard};
-use maru_core::services::posts::{self, NewPost};
-use maru_core::services::wiki;
-use maru_core::{Code, Ctx};
-use maru_storage::{DataDir, Db, FsBlobs, SqliteStore};
+use giwa_core::actor::Actor;
+use giwa_core::markdown;
+use giwa_core::services::boards::{self, NewBoard};
+use giwa_core::services::posts::{self, NewPost};
+use giwa_core::services::wiki;
+use giwa_core::{Code, Ctx};
+use giwa_storage::{DataDir, Db, FsBlobs, SqliteStore};
 
 struct Env {
     _tmp: tempfile::TempDir,
@@ -27,7 +27,7 @@ async fn env() -> Env {
         store: Arc::new(SqliteStore::new(db.clone())),
         blobs: Arc::new(FsBlobs::new(dir.media_dir())),
         site_url: "http://127.0.0.1:8080".into(),
-        extensions: maru_core::store::no_extensions(),
+        extensions: giwa_core::store::no_extensions(),
     };
     for (slug, kind) in [("wiki", "wiki"), ("free", "free")] {
         boards::create(

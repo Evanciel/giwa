@@ -1,10 +1,10 @@
 //! 관리 화면 (`/admin`). 사람 로그인 세션으로만 들어온다.
 //!
-//! 글 작성·발행은 REST·CLI 와 같은 `maru_core::services` 를 부른다. 이 파일은 폼을 서비스 입력으로
+//! 글 작성·발행은 REST·CLI 와 같은 `giwa_core::services` 를 부른다. 이 파일은 폼을 서비스 입력으로
 //! 바꾸고 결과를 화면으로 돌려줄 뿐이다.
 //!
-//! - 세션 쿠키 `maru_session`: `HttpOnly; SameSite=Lax; Path=/`, `site_url` 이 https 면 `Secure`.
-//! - 로그인 전 폼(비밀번호, 로그인 링크)은 `maru_csrf` 쿠키와 숨은 필드를 비교한다.
+//! - 세션 쿠키 `giwa_session`: `HttpOnly; SameSite=Lax; Path=/`, `site_url` 이 https 면 `Secure`.
+//! - 로그인 전 폼(비밀번호, 로그인 링크)은 `giwa_csrf` 쿠키와 숨은 필드를 비교한다.
 //! - 로그인 뒤 폼은 세션에 묶인 CSRF 값과 비교한다. 둘 다 상수 시간 비교.
 
 use axum::Json;
@@ -15,15 +15,15 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::routing::{get, post, put};
 use axum::{Router, middleware};
-use maru_core::actor::{Actor, AuthorType, Permission};
-use maru_core::clock;
-use maru_core::model::{Board, PageReq, Post, PostStatus};
-use maru_core::output::Success;
-use maru_core::services::auth::{self, NewSession, SignedIn};
-use maru_core::services::posts::{self, NewPost, PostPatch};
-use maru_core::services::{boards, categories, design, files, fonts, media, settings, templates};
-use maru_core::urls::{self, Target};
-use maru_core::{Code, Error};
+use giwa_core::actor::{Actor, AuthorType, Permission};
+use giwa_core::clock;
+use giwa_core::model::{Board, PageReq, Post, PostStatus};
+use giwa_core::output::Success;
+use giwa_core::services::auth::{self, NewSession, SignedIn};
+use giwa_core::services::posts::{self, NewPost, PostPatch};
+use giwa_core::services::{boards, categories, design, files, fonts, media, settings, templates};
+use giwa_core::urls::{self, Target};
+use giwa_core::{Code, Error};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -40,8 +40,8 @@ mod modules;
 mod site;
 mod widgets;
 
-pub(crate) const SESSION_COOKIE: &str = "maru_session";
-const CSRF_COOKIE: &str = "maru_csrf";
+pub(crate) const SESSION_COOKIE: &str = "giwa_session";
+const CSRF_COOKIE: &str = "giwa_csrf";
 
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -288,7 +288,7 @@ fn render(state: &AppState, status: StatusCode, name: &str, ctx: &Value) -> Resp
     match state.admin.render(name, ctx) {
         Ok(html) => (status, Html(html)).into_response(),
         Err(e) => {
-            let id = maru_core::clock::new_id();
+            let id = giwa_core::clock::new_id();
             tracing::error!(request_id = %id, error = ?e, "관리 화면 렌더 실패");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -319,7 +319,7 @@ async fn fail(state: &AppState, who: Option<&SignedIn>, err: &Error) -> Response
     let status =
         StatusCode::from_u16(err.code().http_status()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
     if err.code() == Code::Internal {
-        let id = maru_core::clock::new_id();
+        let id = giwa_core::clock::new_id();
         tracing::error!(request_id = %id, error = ?err, "관리 화면 내부 오류");
         return message(
             state,
@@ -457,7 +457,7 @@ async fn link_invalid(state: &AppState) -> Response {
         StatusCode::UNAUTHORIZED,
         "링크를 쓸 수 없습니다",
         "로그인 링크가 만료됐거나 이미 쓰였습니다. 새 링크를 받으세요.",
-        Some("maru login-link"),
+        Some("giwa login-link"),
     )
     .await
 }
@@ -634,8 +634,8 @@ async fn comments_page(
     headers: HeaderMap,
     Query(q): Query<CommentsQuery>,
 ) -> Response {
-    use maru_core::model::CommentStatus;
-    use maru_core::services::comments;
+    use giwa_core::model::CommentStatus;
+    use giwa_core::services::comments;
     let who = match require(&state, &headers, "/admin/comments").await {
         Ok(w) => w,
         Err(r) => return *r,
@@ -692,7 +692,7 @@ async fn comments_page(
             "is_guest": c.is_guest,
             "image": c.image,
             "body": c.body,
-            "date": maru_core::clock::display_date(&c.created_at, tz),
+            "date": giwa_core::clock::display_date(&c.created_at, tz),
             "post_title": post.as_ref().map(|p| p.title.clone()).unwrap_or_default(),
             "board_name": board.as_ref().map(|b| b.name.clone()).unwrap_or_default(),
             "url": url,
@@ -745,7 +745,7 @@ async fn comment_action(
     Path((id, action)): Path<(String, String)>,
     Form(f): Form<CommentActionForm>,
 ) -> Response {
-    use maru_core::services::comments::{self, Moderation};
+    use giwa_core::services::comments::{self, Moderation};
     let who = match require(&state, &headers, "/admin/comments").await {
         Ok(w) => w,
         Err(r) => return *r,
@@ -872,7 +872,7 @@ async fn posts_page(
         // 잘못된 검색어는 오류 화면 대신 목록 위에 알린다.
         Err(e) if e.code() == Code::Validation && !search.is_empty() => {
             search_error = Some(e.message());
-            maru_core::model::Listing {
+            giwa_core::model::Listing {
                 items: vec![],
                 total: 0,
                 page: page.page,
@@ -1013,7 +1013,7 @@ async fn schedule_value(state: &AppState, f: &PostForm) -> Result<Option<String>
         "unschedule" => Ok(Some(String::new())),
         "schedule" => {
             let tz = settings::site(&state.ctx).await?.tz_offset_min;
-            maru_core::clock::from_local_input(&f.scheduled_at, tz)
+            giwa_core::clock::from_local_input(&f.scheduled_at, tz)
                 .map(Some)
                 .ok_or_else(|| Error::new(Code::Validation).with_message("error.schedule_pick"))
         }
@@ -1953,7 +1953,7 @@ mod tests {
         let mut h = HeaderMap::new();
         h.insert(
             header::COOKIE,
-            HeaderValue::from_static("a=1; maru_session_x=no; maru_session=yes"),
+            HeaderValue::from_static("a=1; maru_session_x=no; giwa_session=yes"),
         );
         assert_eq!(cookie(&h, SESSION_COOKIE).as_deref(), Some("yes"));
         assert_eq!(cookie(&h, CSRF_COOKIE), None);
@@ -2206,7 +2206,7 @@ async fn backups_page(
     headers: HeaderMap,
     Query(q): Query<BackupsQuery>,
 ) -> Response {
-    use maru_core::services::backups;
+    use giwa_core::services::backups;
     let who = match require(&state, &headers, "/admin/backups").await {
         Ok(w) => w,
         Err(r) => return *r,
@@ -2266,7 +2266,7 @@ async fn backup_create(
     headers: HeaderMap,
     Form(form): Form<BackupForm>,
 ) -> Response {
-    use maru_core::services::backups::{self, NewBackup};
+    use giwa_core::services::backups::{self, NewBackup};
     let who = match require_post(&state, &headers, &form.csrf).await {
         Ok(w) => w,
         Err(r) => return *r,
@@ -2296,7 +2296,7 @@ async fn backup_download(
     headers: HeaderMap,
     Path(name): Path<String>,
 ) -> Response {
-    use maru_core::services::backups;
+    use giwa_core::services::backups;
     let who = match require(&state, &headers, "/admin/backups").await {
         Ok(w) => w,
         Err(r) => return *r,
@@ -2321,7 +2321,7 @@ async fn backup_delete(
     Path(name): Path<String>,
     Form(form): Form<BackupForm>,
 ) -> Response {
-    use maru_core::services::backups;
+    use giwa_core::services::backups;
     let who = match require_post(&state, &headers, &form.csrf).await {
         Ok(w) => w,
         Err(r) => return *r,
@@ -2348,7 +2348,7 @@ async fn stats_page(
     headers: HeaderMap,
     Query(q): Query<StatsPageQuery>,
 ) -> Response {
-    use maru_core::services::stats;
+    use giwa_core::services::stats;
     let who = match require(&state, &headers, "/admin/stats").await {
         Ok(w) => w,
         Err(r) => return *r,
@@ -2379,7 +2379,7 @@ async fn stats_csv(
     headers: HeaderMap,
     Query(q): Query<StatsPageQuery>,
 ) -> Response {
-    use maru_core::services::stats;
+    use giwa_core::services::stats;
     let who = match require(&state, &headers, "/admin/stats").await {
         Ok(w) => w,
         Err(r) => return *r,

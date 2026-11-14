@@ -4,10 +4,10 @@
 use axum::extract::{Form, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Redirect, Response};
-use maru_core::actor::Permission;
-use maru_core::model::{CommentStatus, PageReq, PostStatus, SiteSettings};
-use maru_core::services::auth::SignedIn;
-use maru_core::services::{
+use giwa_core::actor::Permission;
+use giwa_core::model::{CommentStatus, PageReq, PostStatus, SiteSettings};
+use giwa_core::services::auth::SignedIn;
+use giwa_core::services::{
     boards, comments, design, members, posts, samples, settings, signals, stats,
 };
 use serde::Deserialize;

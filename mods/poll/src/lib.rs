@@ -13,20 +13,20 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
 use axum::{Extension, Router};
-use maru_core::actor::{Actor, Permission};
-use maru_core::audit::{AuditRecord, Target};
-use maru_core::fields::FieldDef;
-use maru_core::model::{AuditEvent, Post};
-use maru_core::services::{posts, settings};
-use maru_core::store::ModuleMigration;
-use maru_core::urls::{self, Target as UrlTarget};
-use maru_core::{Code, Ctx, Error, Result, clock};
-use maru_modules::service::settings_of;
-use maru_modules::{
+use giwa_core::actor::{Actor, Permission};
+use giwa_core::audit::{AuditRecord, Target};
+use giwa_core::fields::FieldDef;
+use giwa_core::model::{AuditEvent, Post};
+use giwa_core::services::{posts, settings};
+use giwa_core::store::ModuleMigration;
+use giwa_core::urls::{self, Target as UrlTarget};
+use giwa_core::{Code, Ctx, Error, Result, clock};
+use giwa_modules::service::settings_of;
+use giwa_modules::{
     Manifest, Module, ModuleState, POST_FOOTER, SlotContent, SlotView, ToolDef, module_error,
     schema_of,
 };
-use maru_storage::Db;
+use giwa_storage::Db;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
@@ -293,7 +293,7 @@ impl PollModule {
             Target::new("post", &post.id),
             json!({ "poll": id, "question": question, "options": labels, "multiple": multiple }),
         );
-        maru_storage::sqlite::insert_audit(&mut tx, &audit).await?;
+        giwa_storage::sqlite::insert_audit(&mut tx, &audit).await?;
         tx.commit().await.map_err(Error::internal)?;
         Ok(id)
     }
@@ -368,7 +368,7 @@ impl PollModule {
             Target::new("post", post_id),
             json!({ "poll": poll.id, "count": chosen.len() }),
         );
-        maru_storage::sqlite::insert_audit(&mut tx, &audit).await?;
+        giwa_storage::sqlite::insert_audit(&mut tx, &audit).await?;
         tx.commit().await.map_err(Error::internal)?;
         Ok(url)
     }
@@ -400,7 +400,7 @@ impl PollModule {
             Target::new("post", &post.id),
             json!({}),
         );
-        maru_storage::sqlite::insert_audit(&mut tx, &audit).await?;
+        giwa_storage::sqlite::insert_audit(&mut tx, &audit).await?;
         tx.commit().await.map_err(Error::internal)
     }
 
@@ -431,7 +431,7 @@ impl PollModule {
             Target::new("post", &post.id),
             json!({ "poll": poll.id, "question": poll.question }),
         );
-        maru_storage::sqlite::insert_audit(&mut tx, &audit).await?;
+        giwa_storage::sqlite::insert_audit(&mut tx, &audit).await?;
         tx.commit().await.map_err(Error::internal)
     }
 
@@ -635,7 +635,7 @@ impl Module for PollModule {
                 self.remove(ctx, actor, &input.post).await?;
                 Ok(json!({ "deleted": input.post }))
             }
-            other => Err(maru_modules::tool_not_found(MANIFEST.id, other)),
+            other => Err(giwa_modules::tool_not_found(MANIFEST.id, other)),
         }
     }
 

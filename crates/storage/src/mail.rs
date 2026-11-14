@@ -1,7 +1,7 @@
 //! 보낼 편지함 `mail_outbox` (GAP S5, ADR-0051). 쌓기는 회원 쓰기와 같은 트랜잭션, 배달은 서버가 따로 한다.
 
-use maru_core::model::{MailOut, MailStatus};
-use maru_core::{Error, Result};
+use giwa_core::model::{MailOut, MailStatus};
+use giwa_core::{Error, Result};
 use sqlx::{Sqlite, SqliteExecutor, Transaction};
 
 use crate::sqlite::db_error;

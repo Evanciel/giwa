@@ -9,7 +9,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 
 struct Server(Child);
 
@@ -27,12 +27,12 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -126,7 +126,7 @@ fn titles(v: &Value) -> Vec<String> {
 fn search_finds_hangul_and_every_path_agrees() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    let init = maru(
+    let init = giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
@@ -136,7 +136,7 @@ fn search_finds_hangul_and_every_path_agrees() {
     let new = |args: &[&str]| {
         let mut all = vec!["post", "new", "--publish"];
         all.extend_from_slice(args);
-        maru(&data, &all)
+        giwa(&data, &all)
     };
     new(&[
         "--title",
@@ -165,33 +165,33 @@ fn search_finds_hangul_and_every_path_agrees() {
         "비밀본문유니콘",
         "--secret",
     ]);
-    maru(
+    giwa(
         &data,
         &["post", "new", "--title", "초안 유니콘", "--slug", "draft"],
     );
 
     // CLI: 손님 기준 공개 검색
-    let cli = maru(&data, &["search", "유니콘"]);
+    let cli = giwa(&data, &["search", "유니콘"]);
     let mut cli_titles = titles(&cli);
     cli_titles.sort();
     assert_eq!(cli_titles, ["가을 메모", "유니콘 여행기"]);
     assert_eq!(titles(&cli)[0], "유니콘 여행기", "제목 일치가 먼저");
     assert_eq!(
-        titles(&maru(&data, &["search", "무지개"])),
+        titles(&giwa(&data, &["search", "무지개"])),
         ["유니콘 여행기"]
     );
-    assert_eq!(titles(&maru(&data, &["search", "길"])), ["유니콘 여행기"]);
+    assert_eq!(titles(&giwa(&data, &["search", "길"])), ["유니콘 여행기"]);
     assert_eq!(
-        titles(&maru(&data, &["search", "기념품", "--in", "tag"])),
+        titles(&giwa(&data, &["search", "기념품", "--in", "tag"])),
         ["가을 메모"]
     );
     assert_eq!(
-        titles(&maru(&data, &["search", "유니콘 -인형"])),
+        titles(&giwa(&data, &["search", "유니콘 -인형"])),
         ["유니콘 여행기"]
     );
-    assert!(titles(&maru(&data, &["search", "비밀본문유니콘"])).is_empty());
+    assert!(titles(&giwa(&data, &["search", "비밀본문유니콘"])).is_empty());
     // 관리 목록 검색은 초안·비밀글까지
-    let admin = maru(&data, &["post", "list", "--q", "유니콘"]);
+    let admin = giwa(&data, &["post", "list", "--q", "유니콘"]);
     assert_eq!(admin["total"], 4);
     // 잘못된 옵션·빈 검색어는 다음 명령과 함께 실패
     let bad = run(&data, &["search", "유니콘", "--in", "everywhere"]);
@@ -199,10 +199,10 @@ fn search_finds_hangul_and_every_path_agrees() {
     assert_eq!(bad["error"]["code"], "VALIDATION");
     let usage = run(&data, &["search"]);
     assert_eq!(usage["ok"], false);
-    assert!(usage["error"]["next"].to_string().contains("maru search"));
+    assert!(usage["error"]["next"].to_string().contains("giwa search"));
     // 다시 만들기는 멱등
-    let a = maru(&data, &["search", "reindex"]);
-    let b = maru(&data, &["search", "reindex"]);
+    let a = giwa(&data, &["search", "reindex"]);
+    let b = giwa(&data, &["search", "reindex"]);
     assert_eq!(a, b);
 
     let (_server, bind) = start_server(&data);
@@ -288,7 +288,7 @@ fn search_finds_hangul_and_every_path_agrees() {
     let long = get(&bind, &format!("/search?q={}", enc(&"가".repeat(300))), &[]);
     assert!(long.body.contains("class=\"search-error\""));
     // 머리글 검색 칸 숨김 설정 (`/search` 는 그대로 열린다)
-    maru(&data, &["site", "set", "--show-search", "false"]);
+    giwa(&data, &["site", "set", "--show-search", "false"]);
     let home = get(&bind, "/", &[]);
     assert!(!home.body.contains("class=\"site-search\""));
     assert_eq!(get(&bind, &format!("/search?q={q}"), &[]).status, 200);

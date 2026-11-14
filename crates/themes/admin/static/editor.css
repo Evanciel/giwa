@@ -1,4 +1,4 @@
-/* Maru 글 에디터. admin.css 의 색 변수를 쓴다. */
+/* Giwa 글 에디터. admin.css 의 색 변수를 쓴다. */
 .me {
   position: relative;
   border: 1px solid var(--border);
@@ -332,7 +332,7 @@
 .me-chars-close { margin-top: .375rem; font-size: .85rem; }
 
 
-/* ---- Maru 확장 문법 (ADR-0034): 강조 상자·정렬·글자 꾸밈 ----
+/* ---- Giwa 확장 문법 (ADR-0034): 강조 상자·정렬·글자 꾸밈 ----
    색은 본문 글자색(--fg)과 섞어 밝은·어두운 화면 모두에서 대비를 유지한다. */
 .tc-red { color: color-mix(in srgb, #d0342c 80%, var(--fg)); }
 .tc-orange { color: color-mix(in srgb, #d9630b 80%, var(--fg)); }
@@ -373,12 +373,12 @@
 .fs-xlarge { font-size: 1.6em; line-height: 1.3; }
 /* 서체 (ADR-0047). 내장 폰트는 나눔 폰트(OFL)를 줄여 이름을 바꾼 것이다(THIRD_PARTY.md).
    그 서체를 쓴 글자가 있을 때만 브라우저가 받는다. 손글씨는 같은 크기에서 작아 보여 키운다. */
-@font-face { font-family: "Maru Serif"; src: url("/assets/fonts/maru-serif-1.woff2") format("woff2"); font-display: swap; }
-@font-face { font-family: "Maru Pen"; src: url("/assets/fonts/maru-pen-1.woff2") format("woff2"); font-display: swap; size-adjust: 125%; }
-@font-face { font-family: "Maru Brush"; src: url("/assets/fonts/maru-brush-1.woff2") format("woff2"); font-display: swap; size-adjust: 120%; }
-.ff-serif { font-family: "Maru Serif", "Noto Serif KR", AppleMyungjo, Batang, "바탕", serif; }
-.ff-pen { font-family: "Maru Pen", sans-serif; }
-.ff-brush { font-family: "Maru Brush", sans-serif; }
+@font-face { font-family: "Giwa Serif"; src: url("/assets/fonts/maru-serif-1.woff2") format("woff2"); font-display: swap; }
+@font-face { font-family: "Giwa Pen"; src: url("/assets/fonts/maru-pen-1.woff2") format("woff2"); font-display: swap; size-adjust: 125%; }
+@font-face { font-family: "Giwa Brush"; src: url("/assets/fonts/maru-brush-1.woff2") format("woff2"); font-display: swap; size-adjust: 120%; }
+.ff-serif { font-family: "Giwa Serif", "Noto Serif KR", AppleMyungjo, Batang, "바탕", serif; }
+.ff-pen { font-family: "Giwa Pen", sans-serif; }
+.ff-brush { font-family: "Giwa Brush", sans-serif; }
 .ff-mono { font-family: var(--font-mono, D2Coding, ui-monospace, Consolas, monospace); }
 .align-center { text-align: center; }
 .align-right { text-align: right; }

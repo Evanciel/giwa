@@ -9,7 +9,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 
 struct Server(Child);
 
@@ -20,14 +20,14 @@ impl Drop for Server {
     }
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let out = Command::new(BIN)
         .arg("--data")
         .arg(data)
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     let v: Value = serde_json::from_str(stdout.trim()).unwrap_or_else(|e| {
         panic!(
@@ -109,12 +109,12 @@ fn path_of(url: &str) -> String {
 }
 
 fn init(data: &Path) {
-    maru(data, &["init", "--no-samples", "--preset", "blog", "--yes"]);
+    giwa(data, &["init", "--no-samples", "--preset", "blog", "--yes"]);
 }
 
 /// 사이트 구조를 고칠 수 있는 토큰.
 fn structure_token(data: &Path) -> String {
-    let v = maru(
+    let v = giwa(
         data,
         &[
             "token",
@@ -143,7 +143,7 @@ fn headings_get_anchors_and_toc_follows_site_setting() {
     init(&data);
     let token = structure_token(&data);
     let body = "도입\n\n## 준비물\n\n### 여권 & 비자\n\n## 준비물\n\n코드: `## 아님`\n";
-    let post = maru(
+    let post = giwa(
         &data,
         &[
             "post",
@@ -158,7 +158,7 @@ fn headings_get_anchors_and_toc_follows_site_setting() {
         ],
     );
     let post_path = path_of(post["url"].as_str().unwrap());
-    let page = maru(
+    let page = giwa(
         &data,
         &[
             "page",
@@ -192,7 +192,7 @@ fn headings_get_anchors_and_toc_follows_site_setting() {
     assert!(html.contains("<h2 id=\"h-하는-일\">"), "{html}");
 
     // 2. CLI 로 기준 2 → 페이지에도 목차
-    let s = maru(&data, &["site", "set", "--toc-min-headings", "2"]);
+    let s = giwa(&data, &["site", "set", "--toc-min-headings", "2"]);
     assert_eq!(s["toc_min_headings"], 2);
     let html = http(&bind, "GET", &page_path, &[]).text();
     assert_eq!(toc_items(&html), Some(2), "{html}");
@@ -212,7 +212,7 @@ fn headings_get_anchors_and_toc_follows_site_setting() {
     assert_eq!(res.status, 201, "{}", res.text());
     let staged: Value = serde_json::from_str(&res.text()).unwrap();
     let id = staged["data"]["id"].as_str().unwrap();
-    maru(&data, &["changeset", "apply", id]);
+    giwa(&data, &["changeset", "apply", id]);
     let html = http(&bind, "GET", &post_path, &[]).text();
     assert_eq!(toc_items(&html), None);
     assert!(html.contains("<h2 id=\"h-준비물\">"), "{html}");
@@ -228,7 +228,7 @@ fn public_pages_answer_conditional_requests() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("site");
     init(&data);
-    let post = maru(
+    let post = giwa(
         &data,
         &[
             "post",
@@ -271,7 +271,7 @@ fn public_pages_answer_conditional_requests() {
     );
 
     // 3. 글을 고치면 같은 ETag 로 물어도 새 본문
-    maru(&data, &["post", "edit", &id, "--body", "고친 본문"]);
+    giwa(&data, &["post", "edit", &id, "--body", "고친 본문"]);
     let changed = http(&bind, "GET", &path, &[("If-None-Match", &tag)]);
     assert_eq!(changed.status, 200);
     assert!(changed.text().contains("고친 본문"));
@@ -298,7 +298,7 @@ fn details_box_renders_as_faq_on_public_page() {
     let data = tmp.path().join("site");
     init(&data);
     let body = ":::details\n환불은 **언제** 되나요?\n\n결제 후 7일 안에 됩니다.\n:::\n\n:::details\n배송은 며칠?\n\n이틀\n:::\n";
-    let page = maru(
+    let page = giwa(
         &data,
         &[
             "page",

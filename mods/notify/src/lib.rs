@@ -12,21 +12,21 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
 use axum::{Extension, Json, Router};
-use maru_core::actor::{Actor, Permission};
-use maru_core::audit::{AuditRecord, Target};
-use maru_core::fields::FieldDef;
-use maru_core::model::{AuditEvent, CommentStatus, MailOut, MailStatus, MemberStatus};
-use maru_core::model::{Member, Post, PostStatus};
-use maru_core::services::{auth, mail, posts, settings};
-use maru_core::store::ModuleMigration;
-use maru_core::urls::{self, Target as UrlTarget};
-use maru_core::{Code, Ctx, Error, Result, clock};
-use maru_modules::service::settings_of;
-use maru_modules::{
+use giwa_core::actor::{Actor, Permission};
+use giwa_core::audit::{AuditRecord, Target};
+use giwa_core::fields::FieldDef;
+use giwa_core::model::{AuditEvent, CommentStatus, MailOut, MailStatus, MemberStatus};
+use giwa_core::model::{Member, Post, PostStatus};
+use giwa_core::services::{auth, mail, posts, settings};
+use giwa_core::store::ModuleMigration;
+use giwa_core::urls::{self, Target as UrlTarget};
+use giwa_core::{Code, Ctx, Error, Result, clock};
+use giwa_modules::service::settings_of;
+use giwa_modules::{
     ACCOUNT_BAR, ME_SECTIONS, Manifest, Module, ModuleState, SlotContent, SlotView, ToolDef,
     module_error, schema_of,
 };
-use maru_storage::Db;
+use giwa_storage::Db;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
@@ -339,7 +339,7 @@ impl NotifyModule {
                 created_at: at.clone(),
                 sent_at: None,
             };
-            maru_storage::mail::queue(&mut tx, &out).await?;
+            giwa_storage::mail::queue(&mut tx, &out).await?;
             let audit = audit_of(
                 &Actor::local(),
                 "notify.mail",
@@ -347,7 +347,7 @@ impl NotifyModule {
                 &member.id,
                 json!({ "kind": kind, "source": note.source }),
             );
-            maru_storage::sqlite::insert_audit(&mut tx, &audit).await?;
+            giwa_storage::sqlite::insert_audit(&mut tx, &audit).await?;
         }
         tx.commit().await.map_err(Error::internal)
     }
@@ -570,7 +570,7 @@ impl NotifyModule {
             .await
             .map_err(Error::internal)?;
             let audit = audit_of(actor, "notify.read", "notify_item", id, json!({}));
-            maru_storage::sqlite::insert_audit(&mut tx, &audit).await?;
+            giwa_storage::sqlite::insert_audit(&mut tx, &audit).await?;
         }
         tx.commit().await.map_err(Error::internal)?;
         Ok(item)
@@ -601,7 +601,7 @@ impl NotifyModule {
                 member_id,
                 json!({ "count": n }),
             );
-            maru_storage::sqlite::insert_audit(&mut tx, &audit).await?;
+            giwa_storage::sqlite::insert_audit(&mut tx, &audit).await?;
         }
         tx.commit().await.map_err(Error::internal)?;
         Ok(n)
@@ -631,7 +631,7 @@ impl NotifyModule {
             member_id,
             json!({ "mail": on }),
         );
-        maru_storage::sqlite::insert_audit(&mut tx, &audit).await?;
+        giwa_storage::sqlite::insert_audit(&mut tx, &audit).await?;
         tx.commit().await.map_err(Error::internal)
     }
 
@@ -775,7 +775,7 @@ impl Module for NotifyModule {
                 self.set_mail(actor, member, input.mail).await?;
                 Ok(json!({ "mail": input.mail }))
             }
-            other => Err(maru_modules::tool_not_found(MANIFEST.id, other)),
+            other => Err(giwa_modules::tool_not_found(MANIFEST.id, other)),
         }
     }
 

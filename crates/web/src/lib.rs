@@ -1,6 +1,6 @@
-//! Maru 공개 사이트, REST API, 관리 화면
+//! Giwa 공개 사이트, REST API, 관리 화면
 //!
-//! 모든 핸들러는 `maru_core::services` 만 부른다. 권한 판단은 서비스 레이어가 한다.
+//! 모든 핸들러는 `giwa_core::services` 만 부른다. 권한 판단은 서비스 레이어가 한다.
 
 mod account;
 mod admin;
@@ -32,20 +32,20 @@ use axum::extract::{ConnectInfo, Request, State};
 use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, header};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
-use maru_core::Actor;
-use maru_core::actor::Permission;
-use maru_core::model::Media;
-use maru_core::services::backups::Archiver;
-use maru_core::services::changesets::Sandbox;
-use maru_core::services::indexnow::{self, IndexNowSender};
-use maru_core::services::links::{self, LinkFetcher};
-use maru_core::services::mail::{self, Mailer};
-use maru_core::services::stats::{self, StatCounter};
-use maru_core::services::views::{self, ViewCounter};
-use maru_core::services::{auth, fonts, media, posts, retention, signals};
-use maru_core::{Code, Ctx, Error, Result};
-use maru_modules::Registry;
-use maru_themes::{Admin, Theme};
+use giwa_core::Actor;
+use giwa_core::actor::Permission;
+use giwa_core::model::Media;
+use giwa_core::services::backups::Archiver;
+use giwa_core::services::changesets::Sandbox;
+use giwa_core::services::indexnow::{self, IndexNowSender};
+use giwa_core::services::links::{self, LinkFetcher};
+use giwa_core::services::mail::{self, Mailer};
+use giwa_core::services::stats::{self, StatCounter};
+use giwa_core::services::views::{self, ViewCounter};
+use giwa_core::services::{auth, fonts, media, posts, retention, signals};
+use giwa_core::{Code, Ctx, Error, Result};
+use giwa_modules::Registry;
+use giwa_themes::{Admin, Theme};
 use tokio::net::TcpListener;
 use tokio::sync::Semaphore;
 use tower_http::limit::RequestBodyLimitLayer;
@@ -326,7 +326,7 @@ pub async fn serve(
     )
     .with_graceful_shutdown(shutdown)
     .await
-    .map_err(maru_core::Error::internal);
+    .map_err(giwa_core::Error::internal);
     purge.abort();
     scheduled.abort();
     counted.abort();
@@ -349,7 +349,7 @@ async fn modules_loop(state: AppState) {
     let mut tick = tokio::time::interval(MODULES_EVERY);
     loop {
         tick.tick().await;
-        match maru_modules::delivery::deliver_once(&state.ctx, &state.modules).await {
+        match giwa_modules::delivery::deliver_once(&state.ctx, &state.modules).await {
             Ok(0) => {}
             Ok(n) => tracing::debug!(events = n, "모듈 이벤트 배달"),
             Err(e) => tracing::warn!(error = ?e, "모듈 이벤트 배달 실패, 다음 주기에 다시 시도"),
@@ -464,7 +464,7 @@ async fn moved_pages(State(state): State<AppState>, req: Request, next: Next) ->
     if res.status() != StatusCode::NOT_FOUND || !matches!(method, Method::GET | Method::HEAD) {
         return res;
     }
-    let Ok(Some(mut to)) = maru_core::services::redirects::resolve(&state.ctx, &path).await else {
+    let Ok(Some(mut to)) = giwa_core::services::redirects::resolve(&state.ctx, &path).await else {
         return res;
     };
     if let Some(q) = query.filter(|_| !to.contains('?')) {
@@ -616,12 +616,12 @@ pub(crate) async fn upload_media(
         .upload_gate
         .acquire()
         .await
-        .map_err(maru_core::Error::internal)?;
+        .map_err(giwa_core::Error::internal)?;
     let ctx = state.ctx.clone();
     let handle = tokio::runtime::Handle::current();
     tokio::task::spawn_blocking(move || handle.block_on(media::upload(&ctx, &actor, input)))
         .await
-        .map_err(maru_core::Error::internal)?
+        .map_err(giwa_core::Error::internal)?
 }
 
 /// 사진 돌리기·자르기 (GAP E23). 업로드처럼 CPU 를 써서 같은 문을 지난다.
@@ -635,12 +635,12 @@ pub(crate) async fn transform_media(
         .upload_gate
         .acquire()
         .await
-        .map_err(maru_core::Error::internal)?;
+        .map_err(giwa_core::Error::internal)?;
     let ctx = state.ctx.clone();
     let handle = tokio::runtime::Handle::current();
     tokio::task::spawn_blocking(move || handle.block_on(media::transform(&ctx, &actor, &id, t)))
         .await
-        .map_err(maru_core::Error::internal)?
+        .map_err(giwa_core::Error::internal)?
 }
 
 /// 그림·첨부 업로드 경로의 상한. 요청 머리(Content-Length)만 보고도 413 으로 막고(tower-http),

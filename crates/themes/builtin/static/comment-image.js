@@ -2,14 +2,14 @@
 // 스크립트가 없으면 칸이 숨은 채로 남고 댓글은 그대로 된다.
 (function () {
   // 영어 사이트 문구 (ADR-0134). `<html lang>` 을 보고, 표에 없으면 한국어 그대로. {n} 은 값 자리.
-  var MARU_EN = document.documentElement.lang.indexOf("en") === 0 ? {
+  var GIWA_EN = document.documentElement.lang.indexOf("en") === 0 ? {
     "{n} 올리는 중…": "Uploading {n}…",
     "그림을 붙였습니다. 댓글을 보내면 함께 올라갑니다.": "Image attached. It is posted with your comment.",
     "그림을 뺐습니다.": "Image removed.",
     "올리지 못했습니다.": "Upload failed.",
     "올리지 못했습니다. 연결을 확인하세요.": "Upload failed. Check your connection.",
   } : null;
-  function T(s, n) { return ((MARU_EN && MARU_EN[s]) || s).replace("{n}", n); }
+  function T(s, n) { return ((GIWA_EN && GIWA_EN[s]) || s).replace("{n}", n); }
   document.querySelectorAll("[data-comment-image]").forEach(function (box) {
     var hidden = box.querySelector('input[name="image"]');
     var file = box.querySelector('input[type="file"]');

@@ -1,7 +1,7 @@
 //! 내 블록 `saved_blocks` (ADR-0159). 화면 편집기 보관함.
 
-use maru_core::model::SavedBlock;
-use maru_core::{Error, Result};
+use giwa_core::model::SavedBlock;
+use giwa_core::{Error, Result};
 use sqlx::SqliteExecutor;
 
 use crate::sqlite::db_error;

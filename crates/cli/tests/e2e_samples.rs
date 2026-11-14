@@ -10,7 +10,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 
 struct Server(Child);
 
@@ -27,14 +27,14 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .arg(data)
         .args(args)
         .arg("--json")
-        .env_remove("MARU_TOKEN")
+        .env_remove("GIWA_TOKEN")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -79,7 +79,7 @@ fn get(bind: &str, path: &str) -> (u16, String) {
 }
 
 fn post_id(data: &Path, board: &str, title: &str) -> String {
-    let list = maru(data, &["post", "list", "--board", board]);
+    let list = giwa(data, &["post", "list", "--board", board]);
     items(&list)
         .into_iter()
         .find(|p| p["title"] == title)
@@ -93,12 +93,12 @@ fn post_id(data: &Path, board: &str, title: &str) -> String {
 fn 예시_글이_첫_화면을_채우고_고치지_않은_것만_한_번에_지워진다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("site");
-    maru(&data, &["init", "--preset", "shop", "--yes"]);
+    giwa(&data, &["init", "--preset", "shop", "--yes"]);
 
-    let s = maru(&data, &["sample", "status"]);
+    let s = giwa(&data, &["sample", "status"]);
     assert_eq!(s["posts"], 17, "{s}");
     assert_eq!(s["untouched"], 17, "{s}");
-    let media = maru(&data, &["media", "list"]);
+    let media = giwa(&data, &["media", "list"]);
     assert_eq!(media["total"], 13, "상품 8·이야기 3·후기 2 그림: {media}");
 
     {
@@ -122,11 +122,11 @@ fn 예시_글이_첫_화면을_채우고_고치지_않은_것만_한_번에_지�
     }
 
     let linen = post_id(&data, "products", "린넨 셔츠 오트밀");
-    maru(
+    giwa(
         &data,
         &["post", "edit", &linen, "--title", "린넨 셔츠 우리 가게"],
     );
-    let s = maru(&data, &["sample", "status"]);
+    let s = giwa(&data, &["sample", "status"]);
     assert_eq!(
         (s["posts"].clone(), s["untouched"].clone()),
         (17.into(), 16.into())
@@ -139,30 +139,30 @@ fn 예시_글이_첫_화면을_채우고_고치지_않은_것만_한_번에_지�
     );
     assert!(refused["error"]["next"].to_string().contains("--yes"));
 
-    let r = maru(&data, &["sample", "clear", "--yes"]);
+    let r = giwa(&data, &["sample", "clear", "--yes"]);
     assert_eq!(r["removed"], 16, "{r}");
     assert_eq!(r["kept"], 1, "{r}");
     assert_eq!(r["media_removed"], 12, "고친 글의 그림은 남긴다: {r}");
-    let left = maru(&data, &["post", "list"]);
+    let left = giwa(&data, &["post", "list"]);
     assert_eq!(left["total"], 1, "{left}");
-    assert_eq!(maru(&data, &["media", "list"])["total"], 1);
-    assert_eq!(maru(&data, &["sample", "status"])["posts"], 0);
+    assert_eq!(giwa(&data, &["media", "list"])["total"], 1);
+    assert_eq!(giwa(&data, &["sample", "status"])["posts"], 0);
 
     // 지운 뒤 사이트 종류를 다시 적용해도 예시가 돌아오지 않는다.
-    maru(&data, &["init", "--preset", "shop", "--yes"]);
-    assert_eq!(maru(&data, &["post", "list"])["total"], 1);
-    assert_eq!(maru(&data, &["sample", "status"])["posts"], 0);
+    giwa(&data, &["init", "--preset", "shop", "--yes"]);
+    assert_eq!(giwa(&data, &["post", "list"])["total"], 1);
+    assert_eq!(giwa(&data, &["sample", "status"])["posts"], 0);
 }
 
 #[test]
 fn 변경_묶음으로_넣은_예시는_되돌리면_게시판과_함께_빠진다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("site");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    assert_eq!(maru(&data, &["post", "list"])["total"], 0);
+    assert_eq!(giwa(&data, &["post", "list"])["total"], 0);
 
     let ops = r#"[
       {"op":"preset.step","step":{"op":"board.ensure","slug":"trial","name":"시험 게시판","kind":"gallery"}},
@@ -171,27 +171,27 @@ fn 변경_묶음으로_넣은_예시는_되돌리면_게시판과_함께_빠진�
         {"title":"예시 둘","image":"landscape"}
       ]}}
     ]"#;
-    let cs = maru(
+    let cs = giwa(
         &data,
         &["changeset", "new", "--title", "예시 시험", "--ops", ops],
     );
     let id = cs["id"].as_str().unwrap().to_owned();
-    maru(&data, &["changeset", "apply", &id, "--yes"]);
+    giwa(&data, &["changeset", "apply", &id, "--yes"]);
     assert_eq!(
-        maru(&data, &["post", "list", "--board", "trial"])["total"],
+        giwa(&data, &["post", "list", "--board", "trial"])["total"],
         2
     );
-    assert_eq!(maru(&data, &["sample", "status"])["posts"], 2);
-    assert_eq!(maru(&data, &["media", "list"])["total"], 2);
+    assert_eq!(giwa(&data, &["sample", "status"])["posts"], 2);
+    assert_eq!(giwa(&data, &["media", "list"])["total"], 2);
 
-    maru(&data, &["changeset", "revert", &id, "--yes"]);
-    let boards = maru(&data, &["board", "list"]);
+    giwa(&data, &["changeset", "revert", &id, "--yes"]);
+    let boards = giwa(&data, &["board", "list"]);
     assert!(
         !items(&boards).iter().any(|b| b["slug"] == "trial"),
         "예시 글이 있어도 게시판까지 되돌린다: {boards}"
     );
-    assert_eq!(maru(&data, &["sample", "status"])["posts"], 0);
-    assert_eq!(maru(&data, &["media", "list"])["total"], 0);
+    assert_eq!(giwa(&data, &["sample", "status"])["posts"], 0);
+    assert_eq!(giwa(&data, &["media", "list"])["total"], 0);
 
     // 사본에서 그린 그림은 사본과 함께 지워져 미디어 폴더에 남지 않는다.
     let previews = data.join("previews");

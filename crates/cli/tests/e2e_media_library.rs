@@ -10,7 +10,7 @@ use std::process::{Child, Command, Stdio};
 use image::{DynamicImage, ImageFormat, Rgb, RgbImage};
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 
 struct Server(Child);
 
@@ -21,14 +21,14 @@ impl Drop for Server {
     }
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let out = Command::new(BIN)
         .arg("--data")
         .arg(data)
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
@@ -132,22 +132,22 @@ fn path_of(url: &str) -> String {
 
 /// 로그인 링크로 세션을 받고, 글쓰기 화면에서 세션 CSRF 값을 읽는다.
 fn admin_session(data: &Path, bind: &str) -> (String, String) {
-    let link = maru(data, &["login-link"]);
+    let link = giwa(data, &["login-link"]);
     let link_path = path_of(link["data"]["url"].as_str().unwrap());
     let page = http(bind, "GET", &link_path, &[], b"");
-    let pre = page.cookie("maru_csrf").unwrap();
+    let pre = page.cookie("giwa_csrf").unwrap();
     let res = http(
         bind,
         "POST",
         &link_path,
         &[
             ("Content-Type", "application/x-www-form-urlencoded"),
-            ("Cookie", &format!("maru_csrf={pre}")),
+            ("Cookie", &format!("giwa_csrf={pre}")),
         ],
         format!("_csrf={pre}").as_bytes(),
     );
     assert_eq!(res.status, 303, "{}", res.text());
-    let cookie = format!("maru_session={}", res.cookie("maru_session").unwrap());
+    let cookie = format!("giwa_session={}", res.cookie("giwa_session").unwrap());
     let edit = http(bind, "GET", "/admin/posts/new", &[("Cookie", &cookie)], b"");
     assert_eq!(edit.status, 200);
     (cookie, edit.csrf_field())
@@ -156,7 +156,7 @@ fn admin_session(data: &Path, bind: &str) -> (String, String) {
 fn upload(data: &Path, dir: &Path, name: &str, alt: &str) -> Value {
     let file = dir.join(name);
     std::fs::write(&file, jpeg(900, 500)).unwrap();
-    let up = maru(
+    let up = giwa(
         data,
         &["media", "upload", file.to_str().unwrap(), "--alt", alt],
     );
@@ -182,7 +182,7 @@ fn form(bind: &str, path: &str, cookie: &str, body: &str) -> Res {
 fn library_finds_uses_and_guards_delete() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    let init = maru(&data, &["init", "--no-samples", "--yes"]);
+    let init = giwa(&data, &["init", "--no-samples", "--yes"]);
     let token = init["data"]["token"]["secret"].as_str().unwrap().to_owned();
     let bearer = format!("Bearer {token}");
 
@@ -197,7 +197,7 @@ fn library_finds_uses_and_guards_delete() {
     // 글은 원본 주소, 페이지는 축소본 주소로 쓴다. 축소본도 같은 미디어를 쓰는 곳이다.
     let a_url = a["url"].as_str().unwrap();
     let b_small = b["variants"][0]["url"].as_str().unwrap();
-    let post = maru(
+    let post = giwa(
         &data,
         &[
             "post",
@@ -213,7 +213,7 @@ fn library_finds_uses_and_guards_delete() {
         ],
     );
     assert_eq!(post["ok"], true, "{post}");
-    let page = maru(
+    let page = giwa(
         &data,
         &[
             "page",
@@ -228,33 +228,33 @@ fn library_finds_uses_and_guards_delete() {
     assert_eq!(page["ok"], true, "{page}");
 
     // CLI: 쓰는 곳, 안 쓰는 것만, 찾기
-    let uses = maru(&data, &["media", "usage", &a_id]);
+    let uses = giwa(&data, &["media", "usage", &a_id]);
     assert_eq!(uses["ok"], true, "{uses}");
     assert_eq!(uses["data"].as_array().unwrap().len(), 1, "{uses}");
     assert_eq!(uses["data"][0]["place"], "post");
     assert_eq!(uses["data"][0]["label"], "가을");
-    let uses = maru(&data, &["media", "usage", &b_id]);
+    let uses = giwa(&data, &["media", "usage", &b_id]);
     assert_eq!(uses["data"][0]["place"], "page", "{uses}");
-    let unused = maru(&data, &["media", "list", "--unused"]);
+    let unused = giwa(&data, &["media", "list", "--unused"]);
     assert_eq!(unused["data"]["total"], 1, "{unused}");
     assert_eq!(unused["data"]["items"][0]["id"], c_id.as_str());
-    let found = maru(&data, &["media", "list", "--q", "노란"]);
+    let found = giwa(&data, &["media", "list", "--q", "노란"]);
     assert_eq!(found["data"]["total"], 1, "{found}");
     assert_eq!(found["data"]["items"][0]["uses"], 1);
     assert_eq!(found["data"]["items"][0]["used_in"][0]["place"], "post");
 
     // CLI: 쓰는 곳이 있으면 거절하고 다음 명령을 알려 준다. --force 면 지운다.
-    let refused = maru(&data, &["media", "delete", &a_id]);
+    let refused = giwa(&data, &["media", "delete", &a_id]);
     assert_eq!(refused["ok"], false, "{refused}");
     assert_eq!(refused["error"]["code"], "CONFLICT", "{refused}");
     assert!(
         refused
             .to_string()
-            .contains(&format!("maru media delete {a_id} --force")),
+            .contains(&format!("giwa media delete {a_id} --force")),
         "{refused}"
     );
-    assert_eq!(maru(&data, &["media", "show", &a_id])["ok"], true);
-    let forced = maru(&data, &["media", "delete", &a_id, "--force"]);
+    assert_eq!(giwa(&data, &["media", "show", &a_id])["ok"], true);
+    let forced = giwa(&data, &["media", "delete", &a_id, "--force"]);
     assert_eq!(forced["ok"], true, "{forced}");
 
     let (_server, bind) = start_server(&data);
@@ -323,7 +323,7 @@ fn library_finds_uses_and_guards_delete() {
         Some("/admin/media?done=alt")
     );
     assert_eq!(
-        maru(&data, &["media", "show", &c_id])["data"]["alt_text"],
+        giwa(&data, &["media", "show", &c_id])["data"]["alt_text"],
         "새 설명"
     );
 
@@ -335,7 +335,7 @@ fn library_finds_uses_and_guards_delete() {
         "_csrf=wrong",
     );
     assert_ne!(res.status, 303);
-    assert_eq!(maru(&data, &["media", "show", &c_id])["ok"], true);
+    assert_eq!(giwa(&data, &["media", "show", &c_id])["ok"], true);
 
     // 쓰는 곳이 있으면 force 없이는 409 와 이유
     let res = form(
@@ -357,7 +357,7 @@ fn library_finds_uses_and_guards_delete() {
         res.header("location").as_deref(),
         Some("/admin/media?kind=image&done=deleted")
     );
-    assert_eq!(maru(&data, &["media", "show", &b_id])["ok"], false);
+    assert_eq!(giwa(&data, &["media", "show", &b_id])["ok"], false);
     let res = form(
         &bind,
         &format!("/admin/media/{c_id}/delete"),
@@ -365,5 +365,5 @@ fn library_finds_uses_and_guards_delete() {
         &format!("_csrf={csrf}"),
     );
     assert_eq!(res.status, 303, "{}", res.text());
-    assert_eq!(maru(&data, &["media", "list"])["data"]["total"], 0);
+    assert_eq!(giwa(&data, &["media", "list"])["data"]["total"], 0);
 }

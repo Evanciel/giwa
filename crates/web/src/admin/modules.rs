@@ -7,8 +7,8 @@ use axum::extract::{Form, Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
-use maru_core::{Code, Error};
-use maru_modules::service;
+use giwa_core::{Code, Error};
+use giwa_modules::service;
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
 

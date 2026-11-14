@@ -12,15 +12,15 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::middleware;
 use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
-use maru_core::actor::Permission;
-use maru_core::clock;
-use maru_core::model::{CaptchaMode, CommentStatus, PageReq, PostStatus, SignupMode};
-use maru_core::services::auth::{self, Login, SignedIn};
-use maru_core::services::members::{self, ProfilePatch, SignupInput};
-use maru_core::services::{captcha, comments, posts, settings, totp};
-use maru_core::urls::{self, Target};
-use maru_core::{Code, Error};
-use maru_themes::tr;
+use giwa_core::actor::Permission;
+use giwa_core::clock;
+use giwa_core::model::{CaptchaMode, CommentStatus, PageReq, PostStatus, SignupMode};
+use giwa_core::services::auth::{self, Login, SignedIn};
+use giwa_core::services::members::{self, ProfilePatch, SignupInput};
+use giwa_core::services::{captcha, comments, posts, settings, totp};
+use giwa_core::urls::{self, Target};
+use giwa_core::{Code, Error};
+use giwa_themes::tr;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -31,7 +31,7 @@ use crate::admin::{
 };
 
 /// 코드를 기다리는 로그인의 값. 주소에 넣지 않고 5분짜리 쿠키로만 건넨다.
-const TOTP_COOKIE: &str = "maru_totp";
+const TOTP_COOKIE: &str = "giwa_totp";
 
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -82,7 +82,7 @@ async fn page(
     // 로그인·가입 화면에는 모듈의 다른 로그인 방법 (GAP M15)
     let slots = if matches!(account["view"].as_str(), Some("login" | "signup")) {
         let next = account["next"].as_str().unwrap_or_default();
-        account["next_query"] = json!(maru_core::urls::with_query("", &[("next", next)]));
+        account["next_query"] = json!(giwa_core::urls::with_query("", &[("next", next)]));
         crate::modules::login_slots(state).await
     } else {
         json!({})
@@ -888,7 +888,7 @@ async fn me_page_with(
             "signature": state.ctx.store.member_signature(&who.member.id).await.ok().flatten().unwrap_or_default(),
             "max_signature": members::MAX_SIGNATURE_CHARS,
             "max_signature_lines": members::MAX_SIGNATURE_LINES,
-            "profile_url": maru_core::urls::path(&maru_core::urls::Target::Member { name: &who.member.display_name }),
+            "profile_url": giwa_core::urls::path(&giwa_core::urls::Target::Member { name: &who.member.display_name }),
             "joined": clock::display_date(&who.member.created_at, site.tz_offset_min),
             "is_owner": who.actor.has(Permission::SiteAdmin),
             // 소셜 로그인으로만 가입한 회원은 비밀번호가 없다 (ADR-0114)
@@ -949,7 +949,7 @@ async fn my_comments(
     who: &SignedIn,
     tz: i32,
     page: PageReq,
-) -> Option<(Vec<Value>, maru_core::model::Listing<comments::MyComment>)> {
+) -> Option<(Vec<Value>, giwa_core::model::Listing<comments::MyComment>)> {
     let list = comments::mine(&state.ctx, &who.actor, page).await.ok()?;
     let items = list
         .items

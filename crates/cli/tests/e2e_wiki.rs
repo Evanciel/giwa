@@ -1,6 +1,6 @@
 //! GAP C13 위키 (ADR-0078). 실제 바이너리·실제 포트·실제 DB 파일로 위키 게시판의 `[[문서]]` 링크,
 //! 아직 없는 문서의 만들기 링크(제목이 채워진 글쓰기 화면), 역링크, 게시판의 필요한 문서·외톨이 문서,
-//! `maru wiki`·`GET /api/v1/boards/{slug}/wiki` 를 본다.
+//! `giwa wiki`·`GET /api/v1/boards/{slug}/wiki` 를 본다.
 #![allow(clippy::expect_used, clippy::unwrap_used)]
 
 use std::io::{BufRead, BufReader, Read, Write};
@@ -10,7 +10,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 
 struct Server(Child);
 
@@ -28,12 +28,12 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -83,11 +83,11 @@ fn http(bind: &str, path: &str, headers: &[(&str, &str)]) -> Res {
 fn wiki_board_links_backlinks_and_index() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    let b = maru(
+    let b = giwa(
         &data,
         &[
             "board",
@@ -105,7 +105,7 @@ fn wiki_board_links_backlinks_and_index() {
         ("주인공", "hero", "[[대문]]으로 돌아가기"),
         ("외딴 섬", "island", "아무도 모르는 곳"),
     ] {
-        maru(
+        giwa(
             &data,
             &[
                 "post",
@@ -122,7 +122,7 @@ fn wiki_board_links_backlinks_and_index() {
             ],
         );
     }
-    let idx = maru(&data, &["wiki", "wiki"]);
+    let idx = giwa(&data, &["wiki", "wiki"]);
     assert_eq!(idx["pages"], 3);
     assert_eq!(idx["wanted"][0]["title"], "마을");
     assert_eq!(idx["orphans"][0]["title"], "외딴 섬");
@@ -167,7 +167,7 @@ fn wiki_board_links_backlinks_and_index() {
     assert!(href.starts_with("/write/wiki?title="), "{href}");
 
     // REST
-    let token = maru(
+    let token = giwa(
         &data,
         &["token", "create", "--name", "읽기", "--scope", "read"],
     );

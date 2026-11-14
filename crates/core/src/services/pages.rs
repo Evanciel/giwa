@@ -89,14 +89,14 @@ async fn parent_id(tx: &mut Tx, this: Option<&str>, parent: &str) -> Result<Opti
             return Err(Error::new(Code::Validation)
                 .with_message("error.page_parent_cycle")
                 .arg("slug", parent.trim())
-                .next("maru page list"));
+                .next("giwa page list"));
         }
         depth += 1;
         if depth > MAX_DEPTH {
             return Err(Error::new(Code::Validation)
                 .with_message("error.page_parent_deep")
                 .arg("max", MAX_DEPTH.to_string())
-                .next("maru page list"));
+                .next("giwa page list"));
         }
         at = match &p.parent_id {
             Some(id) => tx.page_by_id(id).await?,
@@ -141,7 +141,7 @@ async fn create_inner(
         return Err(Error::new(Code::Conflict)
             .with_message("error.page_exists")
             .arg("slug", slug.clone())
-            .next(format!("maru page edit {slug}")));
+            .next(format!("giwa page edit {slug}")));
     }
     let parent = match &input.parent {
         Some(p) => parent_id(&mut tx, None, p).await?,
@@ -539,7 +539,7 @@ fn check_body(body: String) -> Result<String> {
 
 // ---- 새 페이지 틀 (ADR-0149) ----
 
-/// 새 페이지 틀. 목록은 테마가 준다(`maru_themes::starters`). 화면 편집기·CLI·MCP 가 같은 틀을 쓴다.
+/// 새 페이지 틀. 목록은 테마가 준다(`giwa_themes::starters`). 화면 편집기·CLI·MCP 가 같은 틀을 쓴다.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Starter {
@@ -633,7 +633,7 @@ pub(crate) fn not_found(slug: &str) -> Error {
     Error::new(Code::NotFound)
         .with_message("error.page_not_found")
         .arg("slug", slug)
-        .next("maru page list")
+        .next("giwa page list")
 }
 
 fn bad_transition(page: &Page, to: PageStatus) -> Error {

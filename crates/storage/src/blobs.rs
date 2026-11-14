@@ -1,10 +1,10 @@
-//! `maru_core::blobs::Blobs` 의 파일 시스템 구현. 뿌리는 데이터 디렉터리의 `media/`.
+//! `giwa_core::blobs::Blobs` 의 파일 시스템 구현. 뿌리는 데이터 디렉터리의 `media/`.
 
 use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;
-use maru_core::blobs::{Blobs, valid_path};
-use maru_core::{Code, Error, Result, clock};
+use giwa_core::blobs::{Blobs, valid_path};
+use giwa_core::{Code, Error, Result, clock};
 
 #[derive(Debug, Clone)]
 pub struct FsBlobs {

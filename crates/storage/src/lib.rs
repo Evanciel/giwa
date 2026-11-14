@@ -1,4 +1,4 @@
-//! Maru SQLite 저장소 구현
+//! Giwa SQLite 저장소 구현
 
 pub mod backup;
 pub mod blobs;
@@ -20,8 +20,8 @@ pub mod tls;
 
 use std::sync::Arc;
 
-use maru_core::config::Config;
-use maru_core::{Ctx, Result};
+use giwa_core::config::Config;
+use giwa_core::{Ctx, Result};
 
 pub use blobs::FsBlobs;
 pub use data_dir::DataDir;
@@ -40,7 +40,7 @@ pub async fn open(dir: &DataDir) -> Result<(Ctx, Config, Db)> {
         store: Arc::new(SqliteStore::new(db.clone())),
         blobs: Arc::new(FsBlobs::new(dir.media_dir())),
         site_url: config.site_url.clone(),
-        extensions: maru_core::store::no_extensions(),
+        extensions: giwa_core::store::no_extensions(),
     };
     Ok((ctx, config, db))
 }

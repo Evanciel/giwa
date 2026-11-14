@@ -1,11 +1,11 @@
-//! 공식 모듈 목록과 `maru module …`, `maru <모듈> <툴> --칸 값` (ADR-0066).
+//! 공식 모듈 목록과 `giwa module …`, `giwa <모듈> <툴> --칸 값` (ADR-0066).
 
 use std::sync::Arc;
 
-use maru_core::{Code, Error, Result};
-use maru_modules::delivery::deliver_once;
-use maru_modules::{Module, Registry, service};
-use maru_storage::Db;
+use giwa_core::{Code, Error, Result};
+use giwa_modules::delivery::deliver_once;
+use giwa_modules::{Module, Registry, service};
+use giwa_storage::Db;
 use serde_json::{Map, Number, Value, json};
 
 use crate::commands::{Out, actor, open};
@@ -14,28 +14,28 @@ use crate::{Global, ModuleCmd};
 /// 이 바이너리에 든 모듈. 새 공식 모듈은 여기와 [`IDS`] 에 더한다.
 pub(crate) fn registry(db: &Db) -> Result<Arc<Registry>> {
     // 예약·쇼핑은 결제 모듈 크레이트를 모르고 `Checkout` 으로만 주문을 맡긴다 (ADR-0166).
-    let pay = Arc::new(maru_mod_pay::PayModule::new(db.clone()));
+    let pay = Arc::new(giwa_mod_pay::PayModule::new(db.clone()));
     let modules: Vec<Arc<dyn Module>> = vec![
-        Arc::new(maru_mod_point::PointModule::new(db.clone())),
-        Arc::new(maru_mod_reaction::ReactionModule::new(db.clone())),
-        Arc::new(maru_mod_scrap::ScrapModule::new(db.clone())),
-        Arc::new(maru_mod_notify::NotifyModule::new(db.clone())),
-        Arc::new(maru_mod_message::MessageModule::new(db.clone())),
-        Arc::new(maru_mod_poll::PollModule::new(db.clone())),
-        Arc::new(maru_mod_report::ReportModule::new(db.clone())),
-        Arc::new(maru_mod_ads::AdsModule::new()),
-        Arc::new(maru_mod_consult::ConsultModule::new()),
-        Arc::new(maru_mod_map::MapModule::new()),
-        Arc::new(maru_mod_kakao::KakaoModule::new()),
-        Arc::new(maru_mod_webhook::WebhookModule::new(db.clone())?),
-        Arc::new(maru_mod_social::SocialModule::new(db.clone())),
-        Arc::new(maru_mod_forms::FormsModule::new(db.clone())),
+        Arc::new(giwa_mod_point::PointModule::new(db.clone())),
+        Arc::new(giwa_mod_reaction::ReactionModule::new(db.clone())),
+        Arc::new(giwa_mod_scrap::ScrapModule::new(db.clone())),
+        Arc::new(giwa_mod_notify::NotifyModule::new(db.clone())),
+        Arc::new(giwa_mod_message::MessageModule::new(db.clone())),
+        Arc::new(giwa_mod_poll::PollModule::new(db.clone())),
+        Arc::new(giwa_mod_report::ReportModule::new(db.clone())),
+        Arc::new(giwa_mod_ads::AdsModule::new()),
+        Arc::new(giwa_mod_consult::ConsultModule::new()),
+        Arc::new(giwa_mod_map::MapModule::new()),
+        Arc::new(giwa_mod_kakao::KakaoModule::new()),
+        Arc::new(giwa_mod_webhook::WebhookModule::new(db.clone())?),
+        Arc::new(giwa_mod_social::SocialModule::new(db.clone())),
+        Arc::new(giwa_mod_forms::FormsModule::new(db.clone())),
         pay.clone(),
-        Arc::new(maru_mod_booking::BookingModule::new(
+        Arc::new(giwa_mod_booking::BookingModule::new(
             db.clone(),
             pay.clone(),
         )),
-        Arc::new(maru_mod_shop::ShopModule::new(db.clone(), pay)),
+        Arc::new(giwa_mod_shop::ShopModule::new(db.clone(), pay)),
     ];
     Ok(Arc::new(Registry::new(modules)?))
 }
@@ -95,7 +95,7 @@ pub(crate) async fn module_cmd(g: &Global, cmd: ModuleCmd) -> Out {
                     return Err(Error::new(Code::Validation)
                         .with_message("error.module_remove_confirm")
                         .arg("id", id.clone())
-                        .next(format!("maru module remove {id} --purge --yes")));
+                        .next(format!("giwa module remove {id} --purge --yes")));
                 }
                 let r = service::remove(&ctx, &who, reg, &id).await?;
                 let human = format!(
@@ -148,14 +148,14 @@ pub(crate) async fn module_cmd(g: &Global, cmd: ModuleCmd) -> Out {
     res
 }
 
-/// `maru <모듈> <툴> --칸 값`. 입력 모양은 툴의 JSON Schema 를 따른다.
+/// `giwa <모듈> <툴> --칸 값`. 입력 모양은 툴의 JSON Schema 를 따른다.
 pub(crate) async fn external(g: &Global, args: Vec<String>) -> Out {
     let mut args = args
         .into_iter()
         .filter(|a| !matches!(a.as_str(), "--json" | "--yes" | "--quiet"));
     let id = args.next().unwrap_or_default();
     if !IDS.contains(&id.as_str()) {
-        return Err(usage(format!("모르는 명령입니다: {id}")).next("maru --help"));
+        return Err(usage(format!("모르는 명령입니다: {id}")).next("giwa --help"));
     }
     let (ctx, _config, db) = open(g).await?;
     let res = async {

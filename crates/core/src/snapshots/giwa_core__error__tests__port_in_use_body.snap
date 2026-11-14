@@ -7,6 +7,6 @@ expression: err.body(None)
   "message": "8080 포트를 다른 프로그램이 사용 중입니다.",
   "hint": "다른 포트로 실행하세요.",
   "next": [
-    "maru serve --bind 127.0.0.1:8081"
+    "giwa serve --bind 127.0.0.1:8081"
   ]
 }

@@ -10,7 +10,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 /// 테스트 전용 값. 실제 비밀번호가 아니다.
 const PASSWORD: &str = "test-pass-1234";
 
@@ -30,12 +30,12 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -134,8 +134,8 @@ fn form(pairs: &[(&str, &str)]) -> String {
 
 fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
     let page = http(bind, "GET", "/signup", &[], "");
-    let pre = page.cookie("maru_csrf").unwrap();
-    let cookie = format!("maru_csrf={pre}");
+    let pre = page.cookie("giwa_csrf").unwrap();
+    let cookie = format!("giwa_csrf={pre}");
     let res = http(
         bind,
         "POST",
@@ -163,25 +163,25 @@ fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
         ]),
     );
     let s = res
-        .cookie("maru_session")
+        .cookie("giwa_session")
         .unwrap_or_else(|| panic!("로그인 실패 {}: {}", res.status, res.body));
-    format!("maru_session={s}")
+    format!("giwa_session={s}")
 }
 
 #[test]
 fn community_preset_skin_and_account_bar() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("커뮤니티");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "community", "--yes"],
     );
 
     // 프리셋: 스킨·도배 방지·게시판·메뉴·위젯
-    let site = maru(&data, &["site", "show"]);
+    let site = giwa(&data, &["site", "show"]);
     assert_eq!(site["skin"], "community", "{site}");
     assert_eq!(site["flood_seconds"], 15);
-    let boards = maru(&data, &["board", "list"]);
+    let boards = giwa(&data, &["board", "list"]);
     let slugs: Vec<&str> = boards
         .as_array()
         .unwrap()
@@ -191,22 +191,22 @@ fn community_preset_skin_and_account_bar() {
     for s in ["notice", "free", "qna", "photo", "forum", "tips", "market"] {
         assert!(slugs.contains(&s), "{s} 없음: {slugs:?}");
     }
-    let widgets = maru(&data, &["widget", "list"]);
+    let widgets = giwa(&data, &["widget", "list"]);
     let count = widgets.as_array().unwrap().len();
     // 전체 최신·인기 탭, 게시판 판 6개, 곁가지 3개 (ADR-0140)
     assert_eq!(count, 10, "{widgets}");
 
     // 다시 적용해도 늘지 않는다. 사용자가 바꾼 설정은 덮어쓰지 않는다.
-    maru(&data, &["site", "set", "--flood-seconds", "30"]);
-    maru(
+    giwa(&data, &["site", "set", "--flood-seconds", "30"]);
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "community", "--yes"],
     );
     assert_eq!(
-        maru(&data, &["widget", "list"]).as_array().unwrap().len(),
+        giwa(&data, &["widget", "list"]).as_array().unwrap().len(),
         count
     );
-    assert_eq!(maru(&data, &["site", "show"])["flood_seconds"], 30);
+    assert_eq!(giwa(&data, &["site", "show"])["flood_seconds"], 30);
 
     // 모르는 스킨은 가능한 값을 알려 준다.
     let bad = run(&data, &["site", "set", "--skin", "nope"]);
@@ -219,11 +219,11 @@ fn community_preset_skin_and_account_bar() {
         "{bad}"
     );
 
-    maru(&data, &["module", "enable", "notify"]);
-    maru(&data, &["module", "enable", "message"]);
-    maru(&data, &["module", "enable", "scrap"]);
-    maru(&data, &["module", "enable", "point"]);
-    maru(
+    giwa(&data, &["module", "enable", "notify"]);
+    giwa(&data, &["module", "enable", "message"]);
+    giwa(&data, &["module", "enable", "scrap"]);
+    giwa(&data, &["module", "enable", "point"]);
+    giwa(
         &data,
         &[
             "site",
@@ -309,7 +309,7 @@ fn community_preset_skin_and_account_bar() {
         "빈 자리는 그리지 않는다"
     );
     // 그룹 + 하위 게시판: 메뉴 줄엔 펼침 목록, 전체 메뉴엔 그룹마다 묶음
-    maru(
+    giwa(
         &data,
         &[
             "menu",
@@ -325,10 +325,10 @@ fn community_preset_skin_and_account_bar() {
             "커뮤니티>토론=board:forum",
         ],
     );
-    let menu = maru(&data, &["menu", "show", "quick"]);
+    let menu = giwa(&data, &["menu", "show", "quick"]);
     assert_eq!(menu.as_array().unwrap().len(), 4, "{menu}");
     // 이름 옆 자리(광고·배너)
-    maru(
+    giwa(
         &data,
         &[
             "widget",
@@ -381,7 +381,7 @@ fn community_preset_skin_and_account_bar() {
         ("sticky", "아래 안내"),
     ] {
         let config = format!(r#"{{"body":"{text}"}}"#);
-        maru(
+        giwa(
             &data,
             &[
                 "widget",
@@ -605,8 +605,8 @@ fn community_preset_skin_and_account_bar() {
     assert_eq!(v["hidden_members"].as_array().unwrap().len(), 0, "{v}");
 
     // 목록의 추천 수와 회원 이름 표지. 목록 HTML 은 모두에게 같다(손님이 봐도 같은 수).
-    maru(&data, &["module", "enable", "reaction"]);
-    let post = maru(
+    giwa(&data, &["module", "enable", "reaction"]);
+    let post = giwa(
         &data,
         &[
             "post",
@@ -674,7 +674,7 @@ fn community_preset_skin_and_account_bar() {
     assert!(board.body.contains(">추천 1<"), "{}", board.body);
 
     // 스킨을 되돌리면 기본 틀
-    maru(&data, &["site", "set", "--skin", "default"]);
+    giwa(&data, &["site", "set", "--skin", "default"]);
     let home = http(&bind, "GET", "/", &[], "");
     assert!(!home.body.contains("community.css"));
 }

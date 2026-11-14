@@ -13,8 +13,8 @@ use std::thread;
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
-const ALLOW: &str = "MARU_TEST_ALLOW_LOOPBACK_FETCH";
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
+const ALLOW: &str = "GIWA_TEST_ALLOW_LOOPBACK_FETCH";
 
 struct Server(Child);
 
@@ -33,16 +33,16 @@ fn run(data: &Path, args: &[&str], allow_loopback: bool) -> Value {
     } else {
         cmd.env_remove(ALLOW);
     }
-    let out = cmd.output().expect("maru 실행");
+    let out = cmd.output().expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
-    maru_env(data, args, false)
+fn giwa(data: &Path, args: &[&str]) -> Value {
+    giwa_env(data, args, false)
 }
 
-fn maru_env(data: &Path, args: &[&str], allow_loopback: bool) -> Value {
+fn giwa_env(data: &Path, args: &[&str], allow_loopback: bool) -> Value {
     let v = run(data, args, allow_loopback);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -152,13 +152,13 @@ fn status_of(list: &Value, url: &str) -> Value {
 fn link_cards_fill_after_fetch() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path();
-    maru(data, &["init", "--no-samples", "--preset", "blog", "--yes"]);
+    giwa(data, &["init", "--no-samples", "--preset", "blog", "--yes"]);
     let (port, hits) = fake_site();
     let page = format!("http://127.0.0.1:{port}/page");
     let missing = format!("http://127.0.0.1:{port}/missing");
     let sns = "https://x.com/someone/status/1";
     let body = format!("앞 글\n\n::link[{page}]\n\n::link[{missing}]\n\n::link[{sns}]\n\n뒤 글\n");
-    let post = maru(
+    let post = giwa(
         data,
         &[
             "post",
@@ -198,7 +198,7 @@ fn link_cards_fill_after_fetch() {
         );
         assert!(html.contains("rel=\"nofollow noopener\""), "{html}");
     }
-    let list = maru(data, &["link", "list"]);
+    let list = giwa(data, &["link", "list"]);
     assert_eq!(list["untrusted"], true);
     assert_eq!(list["items"].as_array().unwrap().len(), 2, "{list}");
     assert_eq!(status_of(&list, &page)["status"], "pending");
@@ -209,9 +209,9 @@ fn link_cards_fill_after_fetch() {
     );
 
     // 이 컴퓨터 주소는 막는다(사설 주소 차단)
-    let r = maru(data, &["link", "fetch"]);
+    let r = giwa(data, &["link", "fetch"]);
     assert_eq!(r["retry"], 2, "{r}");
-    let list = maru(data, &["link", "list"]);
+    let list = giwa(data, &["link", "list"]);
     let p = status_of(&list, &page);
     assert_eq!(p["status"], "pending");
     assert!(
@@ -224,12 +224,12 @@ fn link_cards_fill_after_fetch() {
     assert_eq!(hits.load(Ordering::SeqCst), 0);
 
     // 시험에서만 이 컴퓨터 주소를 열고 가져온다
-    let r = maru_env(data, &["link", "fetch"], true);
+    let r = giwa_env(data, &["link", "fetch"], true);
     assert_eq!(r["ok"], 1, "{r}");
     // 켜 둔 서버의 주기 작업이 위에서 한 번 더 시도했을 수 있어, 없는 주소는 재시도이거나 벌써 실패다.
     let left = r["retry"].as_u64().unwrap() + r["failed"].as_u64().unwrap();
     assert_eq!(left, 1, "{r}");
-    let list = maru(data, &["link", "list"]);
+    let list = giwa(data, &["link", "list"]);
     let p = status_of(&list, &page);
     assert_eq!(p["status"], "ok", "{p}");
     assert_eq!(p["title"], "링크 카드 <시험> 페이지");
@@ -240,11 +240,11 @@ fn link_cards_fill_after_fetch() {
     let m = status_of(&list, &missing);
     assert!(m["last_error"].as_str().unwrap().contains("404"), "{m}");
     // 세 번 실패하면 그만둔다
-    maru_env(data, &["link", "fetch"], true);
-    maru_env(data, &["link", "fetch"], true);
-    let list = maru(data, &["link", "list", "--status", "failed"]);
+    giwa_env(data, &["link", "fetch"], true);
+    giwa_env(data, &["link", "fetch"], true);
+    let list = giwa(data, &["link", "list", "--status", "failed"]);
     assert_eq!(list["items"][0]["url"], missing.as_str(), "{list}");
-    let audit = maru(data, &["audit", "list", "--action", "link.thumbnail"]);
+    let audit = giwa(data, &["audit", "list", "--action", "link.thumbnail"]);
     assert!(audit.to_string().contains(&page), "{audit}");
 
     // 다시 열면 가져온 정보로 채워진다. 남의 페이지 글자는 이스케이프된다
@@ -276,7 +276,7 @@ fn link_cards_fill_after_fetch() {
         let (status, _) = get(&bind, &image);
         assert_eq!(status, 200, "보관소 그림");
         // REST 도 같은 정보를 준다
-        let token = maru(
+        let token = giwa(
             data,
             &["token", "create", "--name", "읽기", "--scope", "draft"],
         );
@@ -298,7 +298,7 @@ fn link_cards_fill_after_fetch() {
     }
 
     // 다시 가져오기·끄기
-    let p = maru(data, &["link", "refresh", &page]);
+    let p = giwa(data, &["link", "refresh", &page]);
     assert_eq!(p["status"], "pending");
     let v = run(
         data,
@@ -306,8 +306,8 @@ fn link_cards_fill_after_fetch() {
         false,
     );
     assert_eq!(v["error"]["code"], "NOT_FOUND", "{v}");
-    maru(data, &["site", "set", "--link-cards", "false"]);
-    let r = maru_env(data, &["link", "fetch"], true);
+    giwa(data, &["site", "set", "--link-cards", "false"]);
+    let r = giwa_env(data, &["link", "fetch"], true);
     assert_eq!(r["ok"], 0, "{r}");
     let (_srv, bind) = start_server(data);
     let (_, html) = get(&bind, &path);

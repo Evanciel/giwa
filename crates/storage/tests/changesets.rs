@@ -5,13 +5,13 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use maru_core::actor::{Actor, Permission, Scope, rank};
-use maru_core::model::ChangesetStatus;
-use maru_core::services::boards::{self, NewBoard};
-use maru_core::services::changesets::{self, Sandbox};
-use maru_core::{Code, Ctx, Result};
-use maru_storage::sandbox::FsSandbox;
-use maru_storage::{DataDir, Db, FsBlobs, SqliteStore};
+use giwa_core::actor::{Actor, Permission, Scope, rank};
+use giwa_core::model::ChangesetStatus;
+use giwa_core::services::boards::{self, NewBoard};
+use giwa_core::services::changesets::{self, Sandbox};
+use giwa_core::{Code, Ctx, Result};
+use giwa_storage::sandbox::FsSandbox;
+use giwa_storage::{DataDir, Db, FsBlobs, SqliteStore};
 use serde_json::json;
 
 struct Env {
@@ -31,7 +31,7 @@ async fn env() -> Env {
         store: Arc::new(SqliteStore::new(db.clone())),
         blobs: Arc::new(FsBlobs::new(dir.media_dir())),
         site_url: "http://127.0.0.1:8080".into(),
-        extensions: maru_core::store::no_extensions(),
+        extensions: giwa_core::store::no_extensions(),
     };
     Env {
         _tmp: tmp,

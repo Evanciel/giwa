@@ -168,7 +168,7 @@ pub async fn write(ctx: &Ctx, actor: &Actor, input: BoardWrite) -> Result<Post> 
             return Err(Error::new(Code::Forbidden)
                 .with_message("error.post_agent_board")
                 .next(format!(
-                    "maru post new --board {} --title <제목>",
+                    "giwa post new --board {} --title <제목>",
                     board.slug
                 )));
         }

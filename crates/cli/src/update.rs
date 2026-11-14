@@ -1,6 +1,6 @@
-//! `maru update` (SPEC §10, ADR-0132). 새 판을 확인하고, `--yes` 를 주면 바이너리를 바꾼다.
+//! `giwa update` (SPEC §10, ADR-0132). 새 판을 확인하고, `--yes` 를 주면 바이너리를 바꾼다.
 //!
-//! 릴리스의 `VERSION`, `SHA256SUMS`, `maru-<대상>` 을 받는다. 체크섬이 맞고 받은 파일이 실행되어야 바꾼다.
+//! 릴리스의 `VERSION`, `SHA256SUMS`, `giwa-<대상>` 을 받는다. 체크섬이 맞고 받은 파일이 실행되어야 바꾼다.
 //! 서명은 아직 없다: 서명 키가 생기기 전까지 체크섬은 내려받는 중의 손상만 잡고, 릴리스 저장소가
 //! 뚫린 경우는 막지 못한다. 그 사실을 결과의 `signature_checked: false` 로 그대로 알린다.
 
@@ -8,14 +8,14 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
 
-use maru_core::{Code, Error, Result};
+use giwa_core::{Code, Error, Result};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 
 use crate::UpdateArgs;
 use crate::commands::Out;
 
-const DEFAULT_BASE: &str = "https://github.com/OWNER/maru/releases/latest/download";
+const DEFAULT_BASE: &str = "https://github.com/OWNER/giwa/releases/latest/download";
 const MAX_BINARY: usize = 200 * 1024 * 1024;
 const TIMEOUT: Duration = Duration::from_secs(600);
 
@@ -41,19 +41,19 @@ fn target() -> Option<&'static str> {
 
 fn asset_name(target: &str) -> String {
     let ext = if cfg!(windows) { ".exe" } else { "" };
-    format!("maru-{target}{ext}")
+    format!("giwa-{target}{ext}")
 }
 
 /// 받을 곳. 공개 저장소가 정해지기 전에는 기본 주소가 비어 있는 것과 같다.
 fn base_url(flag: Option<String>) -> Result<String> {
     let base = flag
-        .or_else(|| std::env::var("MARU_BASE_URL").ok())
+        .or_else(|| giwa_core::env::var("BASE_URL"))
         .unwrap_or_else(|| DEFAULT_BASE.to_owned());
     let base = base.trim().trim_end_matches('/').to_owned();
     if base.contains("/OWNER/") {
         return Err(fail(
             "이 판에는 공개 릴리스 주소가 정해져 있지 않습니다.",
-            "maru update --base-url https://<릴리스 주소>",
+            "giwa update --base-url https://<릴리스 주소>",
         ));
     }
     let loopback = ["http://127.0.0.1:", "http://localhost:", "http://[::1]:"]
@@ -62,7 +62,7 @@ fn base_url(flag: Option<String>) -> Result<String> {
     if !base.starts_with("https://") && !loopback {
         return Err(fail(
             "릴리스 주소는 https 여야 합니다.",
-            "maru update --base-url https://<릴리스 주소>",
+            "giwa update --base-url https://<릴리스 주소>",
         ));
     }
     Ok(base)
@@ -86,7 +86,7 @@ fn checksum_of(sums: &str, name: &str) -> Option<String> {
 }
 
 async fn fetch(client: &reqwest::Client, url: &str, limit: usize) -> Result<Vec<u8>> {
-    let failed = |e: String| fail(format!("{url} 를 받지 못했습니다: {e}"), "maru update");
+    let failed = |e: String| fail(format!("{url} 를 받지 못했습니다: {e}"), "giwa update");
     let mut res = client
         .get(url)
         .send()
@@ -105,12 +105,12 @@ async fn fetch(client: &reqwest::Client, url: &str, limit: usize) -> Result<Vec<
     Ok(body)
 }
 
-/// 받은 파일이 이 플랫폼에서 돌고 `maru` 인지 본다.
-fn runs_as_maru(path: &Path) -> bool {
+/// 받은 파일이 이 플랫폼에서 돌고 `giwa` 인지 본다.
+fn runs_as_giwa(path: &Path) -> bool {
     Command::new(path)
         .arg("--version")
         .output()
-        .is_ok_and(|o| o.status.success() && String::from_utf8_lossy(&o.stdout).contains("maru"))
+        .is_ok_and(|o| o.status.success() && String::from_utf8_lossy(&o.stdout).contains("giwa"))
 }
 
 fn sibling(exe: &Path, suffix: &str) -> PathBuf {
@@ -142,7 +142,7 @@ fn install(exe: &Path, new: &Path, binary: &[u8]) -> std::io::Result<Option<Path
         use std::os::unix::fs::PermissionsExt;
         std::fs::set_permissions(new, std::fs::Permissions::from_mode(0o755))?;
     }
-    if !runs_as_maru(new) {
+    if !runs_as_giwa(new) {
         return Ok(None);
     }
     swap(exe, new).map(Some)
@@ -151,10 +151,10 @@ fn install(exe: &Path, new: &Path, binary: &[u8]) -> std::io::Result<Option<Path
 pub(crate) async fn run(args: UpdateArgs) -> Out {
     let current = env!("CARGO_PKG_VERSION");
     let base = base_url(args.base_url)?;
-    maru_storage::tls::install_provider();
+    giwa_storage::tls::install_provider();
     let client = reqwest::Client::builder()
         .timeout(TIMEOUT)
-        .user_agent(concat!("maru/", env!("CARGO_PKG_VERSION")))
+        .user_agent(concat!("giwa/", env!("CARGO_PKG_VERSION")))
         .build()
         .map_err(Error::internal)?;
 
@@ -163,7 +163,7 @@ pub(crate) async fn run(args: UpdateArgs) -> Out {
     let (Some(have), Some(want)) = (parse_version(current), parse_version(&latest)) else {
         return Err(fail(
             format!("릴리스의 VERSION 을 읽지 못했습니다: {latest}"),
-            "maru update",
+            "giwa update",
         ));
     };
     if want <= have {
@@ -175,12 +175,12 @@ pub(crate) async fn run(args: UpdateArgs) -> Out {
     }
     if !args.yes {
         let human = format!(
-            "새 판이 있습니다: {current} -> {latest}\n바꾸려면: maru update --yes\n먼저 백업을 권합니다: maru backup"
+            "새 판이 있습니다: {current} -> {latest}\n바꾸려면: giwa update --yes\n먼저 백업을 권합니다: giwa backup"
         );
         return Ok((
             json!({
                 "current": current, "latest": latest, "update_available": true, "updated": false,
-                "next": ["maru backup", "maru update --yes"],
+                "next": ["giwa backup", "giwa update --yes"],
             }),
             human,
         ));
@@ -189,20 +189,20 @@ pub(crate) async fn run(args: UpdateArgs) -> Out {
     let target = target().ok_or_else(|| {
         fail(
             "이 플랫폼용 릴리스가 없습니다. 소스에서 빌드해 주세요.",
-            "cargo build --release -p maru-cli",
+            "cargo build --release -p giwa-cli",
         )
     })?;
     let name = asset_name(target);
     let sums_raw = fetch(&client, &format!("{base}/SHA256SUMS"), 64 * 1024).await?;
     let sums = String::from_utf8_lossy(&sums_raw);
     let want_sum = checksum_of(&sums, &name)
-        .ok_or_else(|| fail(format!("SHA256SUMS 에 {name} 이 없습니다."), "maru update"))?;
+        .ok_or_else(|| fail(format!("SHA256SUMS 에 {name} 이 없습니다."), "giwa update"))?;
     let binary = fetch(&client, &format!("{base}/{name}"), MAX_BINARY).await?;
     let got_sum = hex::encode(Sha256::digest(&binary));
     if got_sum != want_sum {
         return Err(fail(
             format!("{name} 의 체크섬이 맞지 않아 바꾸지 않았습니다."),
-            "maru update --yes",
+            "giwa update --yes",
         ));
     }
 
@@ -214,14 +214,14 @@ pub(crate) async fn run(args: UpdateArgs) -> Out {
             let _ = std::fs::remove_file(&new);
             return Err(fail(
                 "받은 바이너리가 이 컴퓨터에서 실행되지 않아 지금 판을 그대로 두었습니다.",
-                "maru doctor",
+                "giwa doctor",
             ));
         }
         Err(e) => {
             let _ = std::fs::remove_file(&new);
             return Err(fail(
                 format!("새 바이너리를 놓지 못해 지금 판을 그대로 두었습니다: {e}"),
-                "maru doctor",
+                "giwa doctor",
             ));
         }
     };
@@ -237,7 +237,7 @@ pub(crate) async fn run(args: UpdateArgs) -> Out {
             "sha256": got_sum,
             "signature_checked": false,
             "previous": previous,
-            "next": ["maru service stop", "maru service start"],
+            "next": ["giwa service stop", "giwa service start"],
         }),
         human,
     ))
@@ -261,11 +261,11 @@ mod tests {
     fn 체크섬은_이름이_같은_줄만_쓴다() {
         let a = "a".repeat(64);
         let b = "B".repeat(64);
-        let sums = format!("{a}  maru-x.zip\n{b} *maru-x\nshort maru-y\n");
-        assert_eq!(checksum_of(&sums, "maru-x.zip").unwrap(), a);
-        assert_eq!(checksum_of(&sums, "maru-x").unwrap(), "b".repeat(64));
-        assert_eq!(checksum_of(&sums, "maru-y"), None);
-        assert_eq!(checksum_of(&sums, "maru"), None);
+        let sums = format!("{a}  giwa-x.zip\n{b} *giwa-x\nshort giwa-y\n");
+        assert_eq!(checksum_of(&sums, "giwa-x.zip").unwrap(), a);
+        assert_eq!(checksum_of(&sums, "giwa-x").unwrap(), "b".repeat(64));
+        assert_eq!(checksum_of(&sums, "giwa-y"), None);
+        assert_eq!(checksum_of(&sums, "giwa"), None);
     }
 
     #[test]
@@ -291,9 +291,9 @@ mod tests {
     fn 지난번_판이_돌고_있어도_바꾼다() {
         use std::os::windows::fs::OpenOptionsExt;
         let dir = tempfile::tempdir().unwrap();
-        let exe = dir.path().join("maru.exe");
-        let new = dir.path().join("maru.exe.new");
-        let old = dir.path().join("maru.exe.old");
+        let exe = dir.path().join("giwa.exe");
+        let new = dir.path().join("giwa.exe.new");
+        let old = dir.path().join("giwa.exe.old");
         std::fs::write(&exe, "지금").unwrap();
         std::fs::write(&new, "새").unwrap();
         std::fs::write(&old, "지난번").unwrap();

@@ -4,18 +4,18 @@
 
 use std::sync::Arc;
 
-use maru_core::actor::{Actor, Permission, rank};
-use maru_core::diff::Op;
-use maru_core::model::{BoardPolicy, PostStatus};
-use maru_core::services::boards::{self, NewBoard};
-use maru_core::services::categories::{self, NewCategory};
-use maru_core::services::members::{self, SignupInput};
-use maru_core::services::posts::{
+use giwa_core::actor::{Actor, Permission, rank};
+use giwa_core::diff::Op;
+use giwa_core::model::{BoardPolicy, PostStatus};
+use giwa_core::services::boards::{self, NewBoard};
+use giwa_core::services::categories::{self, NewCategory};
+use giwa_core::services::members::{self, SignupInput};
+use giwa_core::services::posts::{
     self, BulkAction, BulkInput, CopyInput, MoveInput, NewPost, PostPatch,
 };
-use maru_core::services::settings::{self, SettingsPatch};
-use maru_core::{Code, Ctx};
-use maru_storage::{DataDir, Db, FsBlobs, SqliteStore};
+use giwa_core::services::settings::{self, SettingsPatch};
+use giwa_core::{Code, Ctx};
+use giwa_storage::{DataDir, Db, FsBlobs, SqliteStore};
 
 struct Env {
     _tmp: tempfile::TempDir,
@@ -33,7 +33,7 @@ async fn env() -> Env {
         store: Arc::new(SqliteStore::new(db.clone())),
         blobs: Arc::new(FsBlobs::new(dir.media_dir())),
         site_url: "http://127.0.0.1:8080".into(),
-        extensions: maru_core::store::no_extensions(),
+        extensions: giwa_core::store::no_extensions(),
     };
     let local = Actor::local();
     for (slug, kind, write) in [
@@ -257,7 +257,7 @@ async fn move_keeps_the_post_and_resolves_slug_and_category() {
     assert_eq!(moved.board_id, free.id);
     let (_, public) = posts::public_post(
         &e.ctx,
-        &maru_core::services::anonymous_actor(&e.ctx).await.unwrap(),
+        &giwa_core::services::anonymous_actor(&e.ctx).await.unwrap(),
         "free",
         "same-2",
     )

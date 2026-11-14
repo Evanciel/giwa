@@ -771,8 +771,8 @@ pub async fn delete(ctx: &Ctx, actor: &Actor, id: &str, force: bool) -> Result<M
                 .with_message("error.media_in_use")
                 .arg("id", id.to_owned())
                 .arg("count", uses.len().to_string())
-                .next(format!("maru media usage {id}"))
-                .next(format!("maru media delete {id} --force")));
+                .next(format!("giwa media usage {id}"))
+                .next(format!("giwa media delete {id} --force")));
         }
     }
     let mut tx = Tx::begin(ctx).await?;
@@ -797,7 +797,7 @@ fn not_found(id: &str) -> Error {
     Error::new(Code::NotFound)
         .with_message("error.media_not_found")
         .arg("id", id.to_owned())
-        .next("maru media list")
+        .next("giwa media list")
 }
 
 fn alt(value: Option<String>) -> Result<Option<String>> {

@@ -4,9 +4,9 @@
 //! 링크만 둔다. 누르면 어디로 무엇이 가는지를 단추 아래에 늘 적는다.
 
 use async_trait::async_trait;
-use maru_core::services::widgets::WidgetType;
-use maru_core::{Code, Ctx, Error, Result};
-use maru_modules::{Manifest, Module, module_error, schema_of};
+use giwa_core::services::widgets::WidgetType;
+use giwa_core::{Code, Ctx, Error, Result};
+use giwa_modules::{Manifest, Module, module_error, schema_of};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};

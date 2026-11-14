@@ -1,6 +1,6 @@
 [package]
-name = "maru-mod-webhook"
-description = "Maru 공식 모듈: 나가는 웹훅"
+name = "giwa-mod-webhook"
+description = "Giwa 공식 모듈: 나가는 웹훅"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,9 +11,9 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
-maru-core.workspace = true
-maru-modules.workspace = true
-maru-storage.workspace = true
+giwa-core.workspace = true
+giwa-modules.workspace = true
+giwa-storage.workspace = true
 async-trait.workspace = true
 hex.workspace = true
 hmac.workspace = true

@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 const CHROME: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130.0";
 const FIREFOX: &str = "Mozilla/5.0 (Windows NT 10.0; rv:131.0) Gecko/20100101 Firefox/131.0";
 const FIREFOX2: &str = "Mozilla/5.0 (X11; Linux x86_64; rv:132.0) Gecko/20100101 Firefox/132.0";
@@ -25,14 +25,14 @@ impl Drop for Server {
     }
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let out = Command::new(BIN)
         .arg("--data")
         .arg(data)
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     let v: Value =
         serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"));
@@ -105,8 +105,8 @@ fn sign_in(bind: &str, link_url: &str) -> String {
     let path = &rest[rest.find('/').unwrap()..];
     let page = http(bind, "GET", path, &[], "");
     assert_eq!(page.status, 200, "{}", page.body);
-    let csrf = page.cookie("maru_csrf").unwrap();
-    let cookie = format!("maru_csrf={csrf}");
+    let csrf = page.cookie("giwa_csrf").unwrap();
+    let cookie = format!("giwa_csrf={csrf}");
     let res = http(
         bind,
         "POST",
@@ -118,7 +118,7 @@ fn sign_in(bind: &str, link_url: &str) -> String {
         &format!("_csrf={csrf}"),
     );
     assert_eq!(res.status, 303, "{}", res.body);
-    res.cookie("maru_session").unwrap()
+    res.cookie("giwa_session").unwrap()
 }
 
 fn header<'a>(res: &'a Res, name: &str) -> Option<&'a str> {
@@ -132,21 +132,21 @@ fn header<'a>(res: &'a Res, name: &str) -> Option<&'a str> {
 fn stats_count_people_without_cookies_and_skip_bots_dnt_and_staff() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    let init = maru(
+    let init = giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
     // 기본 토큰(read, draft)은 통계를 못 본다. 운영 데이터라 publish 스코프가 필요하다(SPEC §9 운영).
     let reader = format!("Bearer {}", init["token"]["secret"].as_str().unwrap());
-    let ops = maru(
+    let ops = giwa(
         &data,
         &[
             "token", "create", "--name", "통계", "--scope", "read", "--scope", "publish",
         ],
     );
     let bearer = format!("Bearer {}", ops["secret"].as_str().unwrap());
-    let link = maru(&data, &["login-link"]);
-    maru(
+    let link = giwa(&data, &["login-link"]);
+    giwa(
         &data,
         &[
             "post",
@@ -159,7 +159,7 @@ fn stats_count_people_without_cookies_and_skip_bots_dnt_and_staff() {
         ],
     );
     // 프리셋의 소개 페이지는 초안으로 만들어진다. 조회수가 없어 본문이 그대로라 304 를 받는다.
-    maru(&data, &["page", "publish", "about"]);
+    giwa(&data, &["page", "publish", "about"]);
     let (_server, bind) = start_server(&data);
     let session = sign_in(&bind, link["url"].as_str().unwrap());
 
@@ -212,13 +212,13 @@ fn stats_count_people_without_cookies_and_skip_bots_dnt_and_staff() {
         200
     );
     assert_eq!(get("/b/nope", &[("User-Agent", FIREFOX2)]).status, 404);
-    let cookie = format!("maru_session={session}");
+    let cookie = format!("giwa_session={session}");
     get("/", &[("User-Agent", FIREFOX2), ("Cookie", &cookie)]);
 
     // 모은 수는 주기(20초)마다 DB 에 더해진다.
     let started = Instant::now();
     let s = loop {
-        let s = maru(&data, &["stats", "--days", "1"]);
+        let s = giwa(&data, &["stats", "--days", "1"]);
         if s["views"].as_i64().unwrap() >= 6 {
             break s;
         }
@@ -287,7 +287,7 @@ fn stats_count_people_without_cookies_and_skip_bots_dnt_and_staff() {
 
     // CLI CSV 파일
     let out = tmp.path().join("통계.csv");
-    maru(
+    giwa(
         &data,
         &["stats", "--days", "1", "--csv", out.to_str().unwrap()],
     );

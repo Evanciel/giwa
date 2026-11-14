@@ -3,7 +3,7 @@
 //! - `FileMailer`: 데이터 디렉터리 `mail/` 에 .eml 파일로 남긴다(기본값). 메일 프로그램으로 열 수
 //!   있는 RFC 5322 모양. 파일에는 1회용 링크가 들어 있으므로 데이터 디렉터리 밖으로 내보내지 않는다.
 //! - `SmtpMailer`: 설정 `[mail.smtp]` 의 서버로 보낸다. 비밀번호는 설정 파일이 아니라
-//!   `MARU_SMTP_PASSWORD` 또는 `secrets/smtp-password` 에서 읽는다.
+//!   `GIWA_SMTP_PASSWORD` 또는 `secrets/smtp-password` 에서 읽는다.
 
 use std::fs;
 use std::io::Write;
@@ -12,15 +12,15 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
+use giwa_core::config::{Config, MailTransport, SmtpConfig, SmtpSecurity};
+use giwa_core::model::MailOut;
+use giwa_core::services::mail::Mailer;
+use giwa_core::{Code, Error, Result};
 use lettre::message::Mailbox;
 use lettre::message::header::ContentType;
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::transport::smtp::extension::ClientId;
 use lettre::{AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};
-use maru_core::config::{Config, MailTransport, SmtpConfig, SmtpSecurity};
-use maru_core::model::MailOut;
-use maru_core::services::mail::Mailer;
-use maru_core::{Code, Error, Result};
 
 use crate::data_dir::DataDir;
 
@@ -133,7 +133,7 @@ impl SmtpMailer {
             Error::new(Code::Validation)
                 .with_message("error.mail_from")
                 .arg("value", from)
-                .next("maru mail setup --transport smtp --from noreply@your-domain.example …")
+                .next("giwa mail setup --transport smtp --from noreply@your-domain.example …")
         })?;
         let tls_err = |e: lettre::transport::smtp::Error| {
             Error::new(Code::Validation)
@@ -196,11 +196,11 @@ impl Mailer for SmtpMailer {
 }
 
 fn eml(from: &str, m: &MailOut) -> String {
-    let date = maru_core::clock::rfc2822(&m.created_at);
+    let date = giwa_core::clock::rfc2822(&m.created_at);
     let body = m.body.replace("\r\n", "\n").replace('\n', "\r\n");
     format!(
         "From: {from}\r\nTo: {to}\r\nSubject: =?UTF-8?B?{subject}?=\r\nDate: {date}\r\n\
-         Message-ID: <{id}@maru>\r\nMIME-Version: 1.0\r\n\
+         Message-ID: <{id}@giwa>\r\nMIME-Version: 1.0\r\n\
          Content-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n{body}",
         to = m.to_addr.replace(['\r', '\n'], ""),
         subject = base64(m.subject.replace(['\r', '\n'], " ").as_bytes()),

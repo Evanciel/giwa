@@ -9,7 +9,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 
 struct Server(Child);
 
@@ -20,14 +20,14 @@ impl Drop for Server {
     }
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let out = Command::new(BIN)
         .arg("--data")
         .arg(data)
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
@@ -109,12 +109,12 @@ fn png_size(bytes: &[u8]) -> (u32, u32) {
 fn home_screen_install_manifest_icons_and_worker() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "company", "--yes"],
     );
     let (_server, bind) = start_server(&data);
-    let primary = maru(&data, &["design", "show"])["data"]["color"]["primary"]
+    let primary = giwa(&data, &["design", "show"])["data"]["color"]["primary"]
         .as_str()
         .unwrap()
         .to_owned();
@@ -186,7 +186,7 @@ fn home_screen_install_manifest_icons_and_worker() {
 
     // 색을 바꾸면 아이콘·워커 판도 바뀐다.
     let icon_before = http(&bind, "GET", "/icon-192.png", &[], b"").body;
-    let set = maru(&data, &["design", "set", "--set", "color.primary=#8a2b4f"]);
+    let set = giwa(&data, &["design", "set", "--set", "color.primary=#8a2b4f"]);
     assert_eq!(set["ok"], true, "{set}");
     let icon_after = http(&bind, "GET", "/icon-192.png", &[], b"").body;
     assert_ne!(icon_before, icon_after);
@@ -198,7 +198,7 @@ fn home_screen_install_manifest_icons_and_worker() {
     assert_ne!(http(&bind, "GET", "/sw.js", &[], b"").text(), js);
 
     // 끄면 앱 정보·워커는 없는 주소, 머리에서도 빠진다. 아이콘은 남는다.
-    let off = maru(&data, &["site", "set", "--pwa", "false"]);
+    let off = giwa(&data, &["site", "set", "--pwa", "false"]);
     assert_eq!(off["ok"], true, "{off}");
     let home = http(&bind, "GET", "/", &[], b"").text();
     assert!(!home.contains("manifest.webmanifest"), "{home}");

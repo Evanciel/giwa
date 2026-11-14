@@ -44,7 +44,7 @@ const RESERVED_NAMES: [&str; 8] = [
     "admin",
     "administrator",
     "root",
-    "maru",
+    "giwa",
     "system",
     "탈퇴한 회원",
 ];
@@ -841,7 +841,7 @@ pub(crate) async fn find(ctx: &Ctx, who: &str) -> Result<Member> {
     found.ok_or_else(|| {
         Error::new(Code::NotFound)
             .with_message("error.member_not_found")
-            .next("maru member list")
+            .next("giwa member list")
     })
 }
 

@@ -3,12 +3,12 @@
 
 use std::sync::Arc;
 
-use maru_core::actor::{Actor, Permission, Scope, rank};
-use maru_core::services::audit_log::{self, AuditQuery};
-use maru_core::services::boards::{self, NewBoard};
-use maru_core::services::posts::{self, NewPost};
-use maru_core::{Code, Ctx};
-use maru_storage::{DataDir, Db, FsBlobs, SqliteStore};
+use giwa_core::actor::{Actor, Permission, Scope, rank};
+use giwa_core::services::audit_log::{self, AuditQuery};
+use giwa_core::services::boards::{self, NewBoard};
+use giwa_core::services::posts::{self, NewPost};
+use giwa_core::{Code, Ctx};
+use giwa_storage::{DataDir, Db, FsBlobs, SqliteStore};
 
 struct Env {
     _tmp: tempfile::TempDir,
@@ -27,7 +27,7 @@ async fn env() -> Env {
         store: Arc::new(SqliteStore::new(db.clone())),
         blobs: Arc::new(FsBlobs::new(dir.media_dir())),
         site_url: "http://127.0.0.1:8080".into(),
-        extensions: maru_core::store::no_extensions(),
+        extensions: giwa_core::store::no_extensions(),
     };
     let local = Actor::local();
     boards::create(
@@ -221,7 +221,7 @@ async fn bad_conditions_are_rejected() {
 #[tokio::test]
 async fn only_site_admins_read_the_log() {
     let e = env().await;
-    let guest = maru_core::services::anonymous_actor(&e.ctx).await.unwrap();
+    let guest = giwa_core::services::anonymous_actor(&e.ctx).await.unwrap();
     let err = audit_log::list(&e.ctx, &guest, &q()).await.unwrap_err();
     assert_eq!(err.code(), Code::Unauthorized);
     let editor = Actor::human(

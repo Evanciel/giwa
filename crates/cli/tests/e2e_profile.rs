@@ -9,7 +9,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 const FORM: (&str, &str) = ("Content-Type", "application/x-www-form-urlencoded");
 const PASSWORD: &str = "test-pass-1234";
 
@@ -29,12 +29,12 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -133,8 +133,8 @@ fn form(pairs: &[(&str, &str)]) -> String {
 
 fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
     let page = http(bind, "GET", "/signup", &[], "");
-    let pre = page.cookie("maru_csrf").unwrap();
-    let cookie = format!("maru_csrf={pre}");
+    let pre = page.cookie("giwa_csrf").unwrap();
+    let cookie = format!("giwa_csrf={pre}");
     let res = http(
         bind,
         "POST",
@@ -148,7 +148,7 @@ fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
             ("password2", PASSWORD),
         ]),
     );
-    if let Some(s) = res.cookie("maru_session") {
+    if let Some(s) = res.cookie("giwa_session") {
         return s;
     }
     let login = http(bind, "GET", "/login", &[("Cookie", &cookie)], "");
@@ -164,7 +164,7 @@ fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
             ("password", PASSWORD),
         ]),
     );
-    res.cookie("maru_session")
+    res.cookie("giwa_session")
         .unwrap_or_else(|| panic!("로그인 실패 {}: {}", res.status, res.body))
 }
 
@@ -221,11 +221,11 @@ fn save_profile(bind: &str, cookie: &str, name: &str, bio: &str) -> Res {
 fn public_profile_and_author_card() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    maru(
+    giwa(
         &data,
         &[
             "site",
@@ -239,21 +239,21 @@ fn public_profile_and_author_card() {
         ],
     );
     for (slug, name) in [("free", "자유"), ("vip", "회원방")] {
-        maru(
+        giwa(
             &data,
             &["board", "create", slug, "--name", name, "--kind", "free"],
         );
-        maru(&data, &["board", "update", slug, "--write-approval", "off"]);
+        giwa(&data, &["board", "update", slug, "--write-approval", "off"]);
     }
-    maru(&data, &["board", "update", "vip", "--read", "member"]);
+    giwa(&data, &["board", "update", "vip", "--read", "member"]);
     let (_server, bind) = start_server(&data);
 
     let moon = format!(
-        "maru_session={}",
+        "giwa_session={}",
         signup_and_login(&bind, "moon@example.test", "달빛이")
     );
     let sun = format!(
-        "maru_session={}",
+        "giwa_session={}",
         signup_and_login(&bind, "sun@example.test", "햇살이")
     );
     let open_url = write_post(&bind, &moon, "free", "모두가 보는 글");
@@ -388,14 +388,14 @@ fn public_profile_and_author_card() {
     assert_eq!(v["data"]["post_count"], 1);
     assert_eq!(v["data"]["untrusted"], true);
     assert!(v["data"].get("email").is_none());
-    let cli = maru(&data, &["member", "profile", "달빛이"]);
+    let cli = giwa(&data, &["member", "profile", "달빛이"]);
     assert_eq!(cli["post_count"], 2, "운영자는 회원방 글도 센다");
     assert_eq!(cli["bio"], "안녕하세요\n<b>굵게</b>");
     assert_eq!(cli["signature"], "달빛 서명\n<i>둘째 줄</i>");
     // 서명 칸이 없는 폼(옛 화면)은 서명을 건드리지 않는다.
     assert_eq!(save_profile(&bind, &moon, "달빛이", bio).status, 303);
     assert_eq!(
-        maru(&data, &["member", "profile", "달빛이"])["signature"],
+        giwa(&data, &["member", "profile", "달빛이"])["signature"],
         "달빛 서명\n<i>둘째 줄</i>"
     );
     let missing = run(&data, &["member", "profile", "없는사람"]);
@@ -414,14 +414,14 @@ fn public_profile_and_author_card() {
     );
 
     // 비활성 회원은 프로필도 카드도 없다.
-    maru(&data, &["member", "disable", "moon@example.test"]);
+    giwa(&data, &["member", "disable", "moon@example.test"]);
     assert_eq!(
         http(&bind, "GET", &format!("/u/{}", enc("달그림자")), &[], "").status,
         404
     );
     let post = http(&bind, "GET", &open_url, &[], "").body;
     assert!(!post.contains("class=\"author-card\""), "{post}");
-    maru(&data, &["member", "enable", "moon@example.test"]);
+    giwa(&data, &["member", "enable", "moon@example.test"]);
 
     // 탈퇴하면 자기소개가 지워진다.
     save_profile(&bind, &sun, "햇살이", "햇살 소개");
@@ -430,7 +430,7 @@ fn public_profile_and_author_card() {
         303
     );
     assert_eq!(
-        maru(&data, &["member", "profile", "햇살이"])["bio"],
+        giwa(&data, &["member", "profile", "햇살이"])["bio"],
         "햇살 소개"
     );
     let me = http(&bind, "GET", "/me", &[("Cookie", &sun)], "").csrf();
@@ -451,7 +451,7 @@ fn public_profile_and_author_card() {
         .build()
         .unwrap();
     let left: i64 = rt.block_on(async {
-        let db = maru_storage::Db::open(&data.join("maru.db"), false)
+        let db = giwa_storage::Db::open(&data.join("giwa.db"), false)
             .await
             .unwrap();
         let n = sqlx::query_scalar("SELECT count(*) FROM member_profiles")

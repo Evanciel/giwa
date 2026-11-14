@@ -4,16 +4,16 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use maru_core::actor::{Actor, Permission, rank};
-use maru_core::model::PageReq;
-use maru_core::services::board_posts::{self, BoardEdit, BoardWrite};
-use maru_core::services::boards::{self, BoardPatch, NewBoard};
-use maru_core::services::comments::{self, NewComment};
-use maru_core::services::members::{self, SignupInput};
-use maru_core::services::posts;
-use maru_core::services::settings::{self, SettingsPatch};
-use maru_core::{Code, Ctx};
-use maru_storage::{DataDir, Db, FsBlobs, SqliteStore};
+use giwa_core::actor::{Actor, Permission, rank};
+use giwa_core::model::PageReq;
+use giwa_core::services::board_posts::{self, BoardEdit, BoardWrite};
+use giwa_core::services::boards::{self, BoardPatch, NewBoard};
+use giwa_core::services::comments::{self, NewComment};
+use giwa_core::services::members::{self, SignupInput};
+use giwa_core::services::posts;
+use giwa_core::services::settings::{self, SettingsPatch};
+use giwa_core::{Code, Ctx};
+use giwa_storage::{DataDir, Db, FsBlobs, SqliteStore};
 
 struct Env {
     _tmp: tempfile::TempDir,
@@ -31,7 +31,7 @@ async fn env() -> Env {
         store: Arc::new(SqliteStore::new(db.clone())),
         blobs: Arc::new(FsBlobs::new(dir.media_dir())),
         site_url: "http://127.0.0.1:8080".into(),
-        extensions: maru_core::store::no_extensions(),
+        extensions: giwa_core::store::no_extensions(),
     };
     let local = Actor::local();
     for (slug, kind) in [("forum", "forum"), ("free", "free")] {
@@ -225,8 +225,8 @@ async fn approved_comment_and_reply_count_as_activity() {
         &local,
         "forum",
         BoardPatch {
-            policy: Some(maru_core::model::BoardPolicy {
-                comment_approval: maru_core::model::Approval::All,
+            policy: Some(giwa_core::model::BoardPolicy {
+                comment_approval: giwa_core::model::Approval::All,
                 reply: "member".into(),
                 ..current
             }),
@@ -338,7 +338,7 @@ async fn locked_post_refuses_everyone_but_moderators() {
     assert!(e.ctx.store.post_by_id(&q).await.unwrap().unwrap().is_locked);
     assert_eq!(audits(&e.db, "post.lock").await, 1);
 
-    let locked = |err: maru_core::Error| {
+    let locked = |err: giwa_core::Error| {
         assert_eq!(err.code(), Code::Forbidden);
         assert!(err.message().contains("잠긴 글"), "{}", err.message());
     };

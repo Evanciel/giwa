@@ -9,7 +9,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 
 struct Server(Child);
 
@@ -27,12 +27,12 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -67,7 +67,7 @@ fn get(bind: &str, path: &str) -> (u16, String) {
 }
 
 fn post(data: &Path, board: &str, title: &str) {
-    maru(
+    giwa(
         data,
         &[
             "post",
@@ -87,11 +87,11 @@ fn post(data: &Path, board: &str, title: &str) {
 fn post_tabs_group_lists_and_skip_unreadable_boards() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    maru(
+    giwa(
         &data,
         &[
             "board",
@@ -103,11 +103,11 @@ fn post_tabs_group_lists_and_skip_unreadable_boards() {
             "free",
         ],
     );
-    maru(&data, &["board", "update", "vip", "--read", "member"]);
+    giwa(&data, &["board", "update", "vip", "--read", "member"]);
     post(&data, "blog", "블로그 새 소식");
     post(&data, "vip", "회원만 읽는 소식");
 
-    let types = maru(&data, &["widget", "types"]);
+    let types = giwa(&data, &["widget", "types"]);
     assert!(
         types
             .as_array()
@@ -223,6 +223,6 @@ fn post_tabs_group_lists_and_skip_unreadable_boards() {
 
     // 끄면 사라진다.
     let id = w["data"]["id"].as_str().unwrap();
-    maru(&data, &["widget", "remove", id]);
+    giwa(&data, &["widget", "remove", id]);
     assert!(!get(bind, "/").1.contains("data-tabs"));
 }

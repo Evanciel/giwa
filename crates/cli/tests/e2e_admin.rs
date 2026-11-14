@@ -10,7 +10,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 const PASSWORD: &str = "시험용-비밀번호-1234";
 
 struct Server(Child);
@@ -22,14 +22,14 @@ impl Drop for Server {
     }
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let out = Command::new(BIN)
         .arg("--data")
         .arg(data)
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     let v: Value =
         serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"));
@@ -157,8 +157,8 @@ fn path_of(url: &str) -> String {
 fn sign_in_with_link(bind: &str, link_path: &str) -> String {
     let page = http(bind, "GET", link_path, &[], "");
     assert_eq!(page.status, 200, "{}", page.body);
-    let pre = page.cookie("maru_csrf").unwrap();
-    let cookie = format!("maru_csrf={pre}");
+    let pre = page.cookie("giwa_csrf").unwrap();
+    let cookie = format!("giwa_csrf={pre}");
     let res = http(
         bind,
         "POST",
@@ -167,7 +167,7 @@ fn sign_in_with_link(bind: &str, link_path: &str) -> String {
         &form(&[("_csrf", &pre)]),
     );
     assert_eq!(res.status, 303, "{}", res.body);
-    res.cookie("maru_session").unwrap()
+    res.cookie("giwa_session").unwrap()
 }
 
 fn db_scalar(data: &Path, sql: &'static str) -> i64 {
@@ -176,7 +176,7 @@ fn db_scalar(data: &Path, sql: &'static str) -> i64 {
         .build()
         .unwrap();
     rt.block_on(async {
-        let db = maru_storage::Db::open(&data.join("maru.db"), false)
+        let db = giwa_storage::Db::open(&data.join("giwa.db"), false)
             .await
             .unwrap();
         let v: i64 = sqlx::query_scalar(sql)
@@ -195,14 +195,14 @@ fn e2e2_link_password_post_logout_login() {
     let log = tmp.path().join("server.log");
 
     // init 이 운영자와 로그인 링크를 낸다. 다시 실행하면 새로 내지 않는다.
-    let init = maru(
+    let init = giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
     assert_eq!(init["owner"]["email"], "owner@localhost");
     assert_eq!(init["owner"]["created"], true);
     let first_link = init["login_link"]["url"].as_str().unwrap().to_owned();
-    let again = maru(
+    let again = giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
@@ -210,7 +210,7 @@ fn e2e2_link_password_post_logout_login() {
     assert!(again["owner"].is_null(), "{again}");
 
     // 새 링크를 받으면 이전 링크는 못 쓴다.
-    let link = maru(&data, &["login-link"]);
+    let link = giwa(&data, &["login-link"]);
     assert_eq!(link["email"], "owner@localhost");
     let link_path = path_of(link["url"].as_str().unwrap());
 
@@ -225,7 +225,7 @@ fn e2e2_link_password_post_logout_login() {
 
     let old = http(&bind, "GET", &path_of(&first_link), &[], "");
     assert_eq!(old.status, 401);
-    assert!(old.body.contains("maru login-link"));
+    assert!(old.body.contains("giwa login-link"));
 
     // 링크 확인 화면: 헤더와 CSRF 쿠키.
     let page = http(&bind, "GET", &link_path, &[], "");
@@ -241,8 +241,8 @@ fn e2e2_link_password_post_logout_login() {
             .unwrap()
             .contains("frame-ancestors 'none'")
     );
-    let pre = page.cookie("maru_csrf").unwrap();
-    let pre_cookie = format!("maru_csrf={pre}");
+    let pre = page.cookie("giwa_csrf").unwrap();
+    let pre_cookie = format!("giwa_csrf={pre}");
 
     // CSRF 없이, 엉뚱한 값으로는 거부. 링크는 그대로 살아 있다.
     let res = http(
@@ -276,7 +276,7 @@ fn e2e2_link_password_post_logout_login() {
     let set = res
         .cookies()
         .into_iter()
-        .find(|c| c.starts_with("maru_session="))
+        .find(|c| c.starts_with("giwa_session="))
         .unwrap();
     for attr in ["HttpOnly", "SameSite=Lax", "Path=/", "Max-Age=1209600"] {
         assert!(set.contains(attr), "{set}");
@@ -285,7 +285,7 @@ fn e2e2_link_password_post_logout_login() {
         !set.contains("Secure"),
         "http 에서는 Secure 를 붙이지 않는다: {set}"
     );
-    let link_session = res.cookie("maru_session").unwrap();
+    let link_session = res.cookie("giwa_session").unwrap();
 
     // 재사용 거부.
     let res = http(
@@ -298,7 +298,7 @@ fn e2e2_link_password_post_logout_login() {
     assert_eq!(res.status, 401);
 
     // 비밀번호 정하기.
-    let s1 = format!("maru_session={link_session}");
+    let s1 = format!("giwa_session={link_session}");
     let page = http(&bind, "GET", "/admin/password", &[("Cookie", &s1)], "");
     assert_eq!(page.status, 200);
     let csrf1 = page.csrf();
@@ -326,23 +326,23 @@ fn e2e2_link_password_post_logout_login() {
         ]),
     );
     assert_eq!(res.status, 303, "{}", res.body);
-    let session = res.cookie("maru_session").unwrap();
+    let session = res.cookie("giwa_session").unwrap();
     // 비밀번호를 바꾸면 이전 세션은 끊긴다.
     assert_eq!(
         http(&bind, "GET", "/admin", &[("Cookie", &s1)], "").status,
         303
     );
 
-    let s2 = format!("maru_session={session}");
+    let s2 = format!("giwa_session={session}");
     let home = http(&bind, "GET", "/admin?done=password", &[("Cookie", &s2)], "");
     assert_eq!(home.status, 200);
     assert!(home.body.contains("비밀번호를 저장했습니다"));
     let csrf2 = home.csrf();
 
     // 두 번째 세션 (다른 기기). 그 CSRF 값은 첫 세션에서 통하지 않는다.
-    let l2 = maru(&data, &["login-link"]);
+    let l2 = giwa(&data, &["login-link"]);
     let other_session = sign_in_with_link(&bind, &path_of(l2["url"].as_str().unwrap()));
-    let s3 = format!("maru_session={other_session}");
+    let s3 = format!("giwa_session={other_session}");
     let csrf3 = http(&bind, "GET", "/admin", &[("Cookie", &s3)], "").csrf();
     assert_ne!(csrf2, csrf3);
 
@@ -455,7 +455,7 @@ fn e2e2_link_password_post_logout_login() {
     assert!(
         res.cookies()
             .iter()
-            .any(|c| c.starts_with("maru_session=;") && c.contains("Max-Age=0"))
+            .any(|c| c.starts_with("giwa_session=;") && c.contains("Max-Age=0"))
     );
     assert_eq!(
         db_scalar(&data, "SELECT count(*) FROM sessions"),
@@ -473,8 +473,8 @@ fn e2e2_link_password_post_logout_login() {
 
     // 비밀번호로 다시 로그인. 틀린 비밀번호와 없는 계정은 같은 응답.
     let page = http(&bind, "GET", "/admin/login?next=/admin/posts/new", &[], "");
-    let pre = page.cookie("maru_csrf").unwrap();
-    let pc = format!("maru_csrf={pre}");
+    let pre = page.cookie("giwa_csrf").unwrap();
+    let pc = format!("giwa_csrf={pre}");
     let attempt = |email: &str, pw: &str, next: &str| {
         http(
             &bind,
@@ -522,11 +522,11 @@ fn e2e2_link_password_post_logout_login() {
 fn login_attempts_are_rate_limited_per_connection_address() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("site");
-    maru(&data, &["init", "--no-samples", "--yes"]);
+    giwa(&data, &["init", "--no-samples", "--yes"]);
     let (_server, bind) = start_server(&data, &tmp.path().join("server.log"));
     let page = http(&bind, "GET", "/admin/login", &[], "");
-    let pre = page.cookie("maru_csrf").unwrap();
-    let pc = format!("maru_csrf={pre}");
+    let pre = page.cookie("giwa_csrf").unwrap();
+    let pc = format!("giwa_csrf={pre}");
     let body = form(&[
         ("_csrf", &pre),
         ("email", "owner@localhost"),
@@ -570,9 +570,9 @@ fn login_link_points_at_the_running_server() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("site");
     let log = tmp.path().join("server.log");
-    maru(&data, &["init", "--no-samples", "--yes"]);
+    giwa(&data, &["init", "--no-samples", "--yes"]);
 
-    let off = maru(&data, &["login-link"]);
+    let off = giwa(&data, &["login-link"]);
     assert!(
         off["url"]
             .as_str()
@@ -584,10 +584,10 @@ fn login_link_points_at_the_running_server() {
     {
         // 설정(8080)과 다른 포트에서 돌면 그 주소를 찍고, 그 링크로 실제로 들어간다.
         let (_server, bind) = start_server(&data, &log);
-        let on = maru(&data, &["login-link"]);
+        let on = giwa(&data, &["login-link"]);
         let url = on["url"].as_str().unwrap();
         assert!(url.starts_with(&format!("http://{bind}/")), "{on} {bind}");
-        let cookie = format!("maru_session={}", sign_in_with_link(&bind, &path_of(url)));
+        let cookie = format!("giwa_session={}", sign_in_with_link(&bind, &path_of(url)));
         assert_eq!(
             http(&bind, "GET", "/admin", &[("Cookie", &cookie)], "").status,
             200
@@ -597,7 +597,7 @@ fn login_link_points_at_the_running_server() {
     // 강제 종료로 기록만 남아도 옛 주소를 믿지 않는다.
     let stale = data.join("server.json");
     assert!(stale.exists());
-    let after = maru(&data, &["login-link"]);
+    let after = giwa(&data, &["login-link"]);
     assert!(
         after["url"]
             .as_str()
@@ -611,13 +611,13 @@ fn login_link_points_at_the_running_server() {
 fn agent_token_cannot_issue_login_link() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("site");
-    let init = maru(&data, &["init", "--no-samples", "--yes"]);
+    let init = giwa(&data, &["init", "--no-samples", "--yes"]);
     let secret = init["token"]["secret"].as_str().unwrap();
     let out = Command::new(BIN)
         .arg("--data")
         .arg(&data)
         .args(["login-link", "--json"])
-        .env("MARU_TOKEN", secret)
+        .env("GIWA_TOKEN", secret)
         .output()
         .unwrap();
     let v: Value = serde_json::from_slice(&out.stdout).unwrap();
@@ -631,15 +631,15 @@ fn agent_token_cannot_issue_login_link() {
 fn publish_drawer_fields_reach_the_db() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("site");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    maru(&data, &["category", "add", "--board", "blog", "여행"]);
+    giwa(&data, &["category", "add", "--board", "blog", "여행"]);
     let (_server, bind) = start_server(&data, &tmp.path().join("serve.log"));
-    let link = maru(&data, &["login-link"]);
+    let link = giwa(&data, &["login-link"]);
     let session = sign_in_with_link(&bind, &path_of(link["url"].as_str().unwrap()));
-    let cookie = format!("maru_session={session}");
+    let cookie = format!("giwa_session={session}");
 
     let page = http(&bind, "GET", "/admin/posts/new", &[("Cookie", &cookie)], "");
     assert_eq!(page.status, 200);
@@ -677,7 +677,7 @@ fn publish_drawer_fields_reach_the_db() {
     );
     let edit_path = res.location().split('?').next().unwrap().to_owned();
     let id = edit_path.rsplit('/').next().unwrap().to_owned();
-    let p = maru(&data, &["post", "show", &id]);
+    let p = giwa(&data, &["post", "show", &id]);
     assert_eq!(p["status"], "published");
     assert!(p["category_id"].is_string(), "{p}");
     assert_eq!(p["tags"], serde_json::json!(["제주", "바다"]));
@@ -713,7 +713,7 @@ fn publish_drawer_fields_reach_the_db() {
         ]),
     );
     assert_eq!(res.status, 303, "{}", res.body);
-    let kept = maru(&data, &["post", "show", &id]);
+    let kept = giwa(&data, &["post", "show", &id]);
     assert_eq!(kept["tags"], p["tags"]);
     assert_eq!(kept["category_id"], p["category_id"]);
     assert_eq!(
@@ -740,7 +740,7 @@ fn publish_drawer_fields_reach_the_db() {
         "{}",
         res.location()
     );
-    assert_eq!(maru(&data, &["post", "show", &id])["status"], "hidden");
+    assert_eq!(giwa(&data, &["post", "show", &id])["status"], "hidden");
 
     // 서랍의 「새 분류」: CSRF 머리가 있어야 만든다
     let body = r#"{"board":"blog","name":"맛집"}"#;

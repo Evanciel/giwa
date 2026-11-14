@@ -13,13 +13,13 @@ use axum::middleware;
 use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use maru_core::Actor;
-use maru_core::output::Success;
-use maru_core::services::comments::{self, CommentRules, Editable, GuestAuthor, NewComment};
-use maru_core::services::{anonymous_actor, captcha, posts, settings};
-use maru_core::urls::{self, Target};
-use maru_core::{Code, Error};
-use maru_themes::tr;
+use giwa_core::Actor;
+use giwa_core::output::Success;
+use giwa_core::services::comments::{self, CommentRules, Editable, GuestAuthor, NewComment};
+use giwa_core::services::{anonymous_actor, captcha, posts, settings};
+use giwa_core::urls::{self, Target};
+use giwa_core::{Code, Error};
+use giwa_themes::tr;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -96,7 +96,7 @@ struct CommentForm {
 pub(crate) async fn viewer(
     state: &AppState,
     headers: &HeaderMap,
-) -> Result<(Actor, Option<maru_core::services::auth::SignedIn>), Error> {
+) -> Result<(Actor, Option<giwa_core::services::auth::SignedIn>), Error> {
     match current(state, headers).await? {
         Some(who) => Ok((who.actor.clone(), Some(who))),
         None => Ok((anonymous_actor(&state.ctx).await?, None)),
@@ -160,7 +160,7 @@ async fn create(
         }),
     };
     match comments::create(&state.ctx, &actor, input).await {
-        Ok(c) if c.status == maru_core::model::CommentStatus::Published => {
+        Ok(c) if c.status == giwa_core::model::CommentStatus::Published => {
             Redirect::to(&format!("{back}#comment-{}", c.id)).into_response()
         }
         Ok(_) => Redirect::to(&format!("{back}?comment=pending#comments")).into_response(),
@@ -526,7 +526,7 @@ async fn accept(
 
 fn csrf_ok(
     headers: &HeaderMap,
-    who: Option<&maru_core::services::auth::SignedIn>,
+    who: Option<&giwa_core::services::auth::SignedIn>,
     sent: &str,
 ) -> bool {
     match who {

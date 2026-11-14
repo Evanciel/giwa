@@ -1,6 +1,6 @@
 [package]
-name = "maru-modules"
-description = "Maru 모듈 시스템: 트레이트, 레지스트리, 생명주기, 이벤트 배달"
+name = "giwa-modules"
+description = "Giwa 모듈 시스템: 트레이트, 레지스트리, 생명주기, 이벤트 배달"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,7 +11,7 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
-maru-core.workspace = true
+giwa-core.workspace = true
 async-trait.workspace = true
 axum.workspace = true
 schemars.workspace = true

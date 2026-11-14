@@ -6,8 +6,8 @@
 use assert_cmd::Command;
 use predicates::prelude::*;
 
-fn maru() -> Command {
-    Command::cargo_bin("maru").expect("maru 바이너리")
+fn giwa() -> Command {
+    Command::cargo_bin("giwa").expect("giwa 바이너리")
 }
 
 fn json(out: &[u8]) -> serde_json::Value {
@@ -17,7 +17,7 @@ fn json(out: &[u8]) -> serde_json::Value {
 
 #[test]
 fn usage_error_is_json_with_exit_code_2() {
-    let out = maru().args(["--no-such-flag", "--json"]).assert().code(2);
+    let out = giwa().args(["--no-such-flag", "--json"]).assert().code(2);
     let v = json(&out.get_output().stdout);
     assert_eq!(v["ok"], false);
     assert_eq!(v["error"]["code"], "USAGE");
@@ -28,29 +28,29 @@ fn usage_error_is_json_with_exit_code_2() {
             .contains("--no-such-flag"),
         "{v}"
     );
-    assert_eq!(v["error"]["next"][0], "maru --help");
+    assert_eq!(v["error"]["next"][0], "giwa --help");
 }
 
 #[test]
 fn usage_error_human_goes_to_stderr() {
-    maru()
+    giwa()
         .arg("--no-such-flag")
         .assert()
         .code(2)
         .stdout(predicate::str::is_empty())
         .stderr(predicate::str::contains("오류 [USAGE]"))
-        .stderr(predicate::str::contains("다음: maru --help"));
+        .stderr(predicate::str::contains("다음: giwa --help"));
 }
 
 #[test]
 fn no_command_is_usage_error() {
-    let out = maru().arg("--json").assert().code(2);
+    let out = giwa().arg("--json").assert().code(2);
     assert_eq!(json(&out.get_output().stdout)["error"]["code"], "USAGE");
 }
 
 #[test]
 fn version_prints_crate_version() {
-    maru()
+    giwa()
         .arg("--version")
         .assert()
         .success()

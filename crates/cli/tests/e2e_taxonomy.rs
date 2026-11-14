@@ -9,7 +9,7 @@ use std::process::{Child, Command, Output, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 
 /// 테스트가 실패해도 서버 프로세스를 남기지 않는다.
 struct Server(Child);
@@ -25,9 +25,9 @@ fn run(data: &Path, args: &[&str], token: Option<&str>) -> Value {
     let mut cmd = Command::new(BIN);
     cmd.arg("--data").arg(data).args(args).arg("--json");
     if let Some(t) = token {
-        cmd.env("MARU_TOKEN", t);
+        cmd.env("GIWA_TOKEN", t);
     }
-    let out: Output = cmd.output().expect("maru 실행");
+    let out: Output = cmd.output().expect("giwa 실행");
     let stdout = String::from_utf8_lossy(&out.stdout);
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| {
         panic!(
@@ -37,7 +37,7 @@ fn run(data: &Path, args: &[&str], token: Option<&str>) -> Value {
     })
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args, None);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -112,19 +112,19 @@ fn encode(segment: &str) -> String {
 fn taxonomy_cli_and_rest_agree_and_secret_body_stays_private() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("site");
-    let init = maru(
+    let init = giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
     let token = init["token"]["secret"].as_str().unwrap().to_owned();
 
     // 분류: 두 번 만들어도 하나 (멱등)
-    let travel = maru(&data, &["category", "add", "--board", "blog", "제주 여행"]);
+    let travel = giwa(&data, &["category", "add", "--board", "blog", "제주 여행"]);
     assert_eq!(travel["slug"], "제주-여행");
-    let again = maru(&data, &["category", "add", "--board", "blog", "제주 여행"]);
+    let again = giwa(&data, &["category", "add", "--board", "blog", "제주 여행"]);
     assert_eq!(again["id"], travel["id"]);
-    maru(&data, &["category", "add", "--board", "blog", "맛집"]);
-    let moved = maru(
+    giwa(&data, &["category", "add", "--board", "blog", "맛집"]);
+    let moved = giwa(
         &data,
         &[
             "category", "move", "--board", "blog", "맛집", "--order", "-1",
@@ -150,12 +150,12 @@ fn taxonomy_cli_and_rest_agree_and_secret_body_stays_private() {
     let next = missing["error"]["next"].as_array().unwrap();
     assert!(
         next.iter()
-            .any(|c| c.as_str().unwrap().contains("maru category list")),
+            .any(|c| c.as_str().unwrap().contains("giwa category list")),
         "{missing}"
     );
 
     // 글: 분류·태그 / 공지 / 비밀
-    let trip = maru(
+    let trip = giwa(
         &data,
         &[
             "post",
@@ -175,7 +175,7 @@ fn taxonomy_cli_and_rest_agree_and_secret_body_stays_private() {
     );
     assert_eq!(trip["category_id"], travel["id"]);
     assert_eq!(trip["tags"], serde_json::json!(["등산", "제주"]));
-    let notice = maru(
+    let notice = giwa(
         &data,
         &[
             "post",
@@ -189,7 +189,7 @@ fn taxonomy_cli_and_rest_agree_and_secret_body_stays_private() {
         ],
     );
     assert_eq!(notice["is_notice"], true);
-    let secret = maru(
+    let secret = giwa(
         &data,
         &[
             "post",
@@ -239,14 +239,14 @@ fn taxonomy_cli_and_rest_agree_and_secret_body_stays_private() {
     // 분류 목록: REST 와 CLI 가 같은 답
     let (status, res) = http(&bind, "GET", "/api/v1/boards/blog/categories", None, "");
     assert_eq!(status, 200, "{res}");
-    let cli_list = maru(&data, &["category", "list", "--board", "blog"]);
+    let cli_list = giwa(&data, &["category", "list", "--board", "blog"]);
     assert_eq!(res["data"], cli_list);
     assert_eq!(cli_list[0]["slug"], "맛집", "순서가 작은 것이 앞");
 
     // 태그 목록: 비밀글은 세지 않는다. REST 와 CLI 가 같은 답
     let (status, res) = http(&bind, "GET", "/api/v1/tags", None, "");
     assert_eq!(status, 200, "{res}");
-    let cli_tags = maru(&data, &["tag", "list"]);
+    let cli_tags = giwa(&data, &["tag", "list"]);
     assert_eq!(res["data"], cli_tags);
     let jeju = cli_tags
         .as_array()
@@ -278,7 +278,7 @@ fn taxonomy_cli_and_rest_agree_and_secret_body_stays_private() {
     assert_eq!(res["error"]["code"], "FORBIDDEN");
     assert!(res["error"]["hint"].is_string(), "{res}");
     assert!(!res.to_string().contains("아무도 몰라야"));
-    let shown = maru(&data, &["post", "show", &secret_id]);
+    let shown = giwa(&data, &["post", "show", &secret_id]);
     assert_eq!(shown["body_md"], "아무도 몰라야 하는 본문");
 
     // 공개 화면: 어느 경로로도 비밀 본문이 새지 않는다
@@ -352,22 +352,22 @@ fn taxonomy_cli_and_rest_agree_and_secret_body_stays_private() {
     assert_eq!(status, 403, "{res}");
 
     // CLI 로 고치기: 분류 비우기·태그 모두 빼기·공지 해제
-    let edited = maru(
+    let edited = giwa(
         &data,
         &["post", "edit", &draft_id, "--category=", "--clear-tags"],
     );
     assert!(edited["category_id"].is_null(), "{edited}");
     assert_eq!(edited["tags"], serde_json::json!([]));
     let id = notice["id"].as_str().unwrap();
-    let edited = maru(&data, &["post", "edit", id, "--notice", "false"]);
+    let edited = giwa(&data, &["post", "edit", id, "--notice", "false"]);
     assert_eq!(edited["is_notice"], false);
 
     // 분류를 지우면 글은 남고 분류만 빈다
-    maru(
+    giwa(
         &data,
         &["category", "remove", "--board", "blog", "제주-여행"],
     );
     let trip_id = trip["id"].as_str().unwrap();
-    let shown = maru(&data, &["post", "show", trip_id]);
+    let shown = giwa(&data, &["post", "show", trip_id]);
     assert!(shown["category_id"].is_null());
 }

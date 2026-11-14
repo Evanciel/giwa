@@ -9,7 +9,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 
 struct Server(Child);
 
@@ -27,12 +27,12 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -97,7 +97,7 @@ fn up(bind: &str, post_id: &str, who: &str) {
 }
 
 fn new_post(data: &Path, board: &str, slug: &str, title: &str) -> String {
-    let v = maru(
+    let v = giwa(
         data,
         &[
             "post",
@@ -121,17 +121,17 @@ fn new_post(data: &Path, board: &str, slug: &str, title: &str) -> String {
 fn hot_mark_and_hot_only_view() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    maru(
+    giwa(
         &data,
         &[
             "board", "create", "free", "--name", "자유", "--kind", "free",
         ],
     );
-    maru(
+    giwa(
         &data,
         &[
             "board",
@@ -147,11 +147,11 @@ fn hot_mark_and_hot_only_view() {
     let cold = new_post(&data, "free", "cold1", "조용한 글");
     let hidden = new_post(&data, "staff", "staff1", "운영진만 보는 글");
 
-    maru(&data, &["module", "enable", "reaction"]);
+    giwa(&data, &["module", "enable", "reaction"]);
     // 기준은 0~100000
     let bad = run(&data, &["module", "set", "reaction", "--field", "hot=-1"]);
     assert_eq!(bad["error"]["code"], "VALIDATION", "{bad}");
-    maru(
+    giwa(
         &data,
         &[
             "module",
@@ -171,8 +171,8 @@ fn hot_mark_and_hot_only_view() {
     // 추천을 받은 뒤 운영진만 읽게 바꾼 게시판의 글은 기준을 넘어도 손님 인기글 화면에 없다.
     up(&bind, &hidden, "guest-a");
     up(&bind, &hidden, "guest-b");
-    maru(&data, &["board", "update", "staff", "--read", "admin"]);
-    let ok = maru(
+    giwa(&data, &["board", "update", "staff", "--read", "admin"]);
+    let ok = giwa(
         &data,
         &[
             "reaction",
@@ -223,7 +223,7 @@ fn hot_mark_and_hot_only_view() {
     assert_ne!(status, 200);
 
     // 기준 0 이면 표시도 링크도 없고 화면도 닫힌다
-    maru(&data, &["module", "set", "reaction", "--field", "hot=0"]);
+    giwa(&data, &["module", "set", "reaction", "--field", "hot=0"]);
     let (_, page) = get(&bind, "/b/free");
     assert!(!page.contains("hot-mark"), "{page}");
     assert!(!page.contains("/m/reaction/hot"), "{page}");

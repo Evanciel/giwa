@@ -10,7 +10,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 
 struct Server(Child);
 
@@ -28,12 +28,12 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -139,13 +139,13 @@ fn enc(s: &str) -> String {
 
 const SAME: (&str, &str) = ("Sec-Fetch-Site", "same-origin");
 
-fn db<T>(data: &Path, f: impl AsyncFnOnce(&maru_storage::Db) -> T) -> T {
+fn db<T>(data: &Path, f: impl AsyncFnOnce(&giwa_storage::Db) -> T) -> T {
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .unwrap();
     rt.block_on(async {
-        let db = maru_storage::Db::open(&data.join("maru.db"), false)
+        let db = giwa_storage::Db::open(&data.join("giwa.db"), false)
             .await
             .unwrap();
         let v = f(&db).await;
@@ -191,14 +191,14 @@ fn hidden(body: &str, name: &str) -> String {
 
 /// 게시판 `free`(자유게시판).
 fn site(data: &Path, write: &str) {
-    maru(data, &["init", "--no-samples", "--preset", "blog", "--yes"]);
-    maru(
+    giwa(data, &["init", "--no-samples", "--preset", "blog", "--yes"]);
+    giwa(
         data,
         &[
             "board", "create", "free", "--name", "자유", "--kind", "free",
         ],
     );
-    let b = maru(data, &["board", "update", "free", "--write", write]);
+    let b = giwa(data, &["board", "update", "free", "--write", write]);
     assert_eq!(b["policy"]["write"], write);
     assert_eq!(b["policy"]["write_approval"], "guest");
 }
@@ -218,8 +218,8 @@ fn guest_writes_with_captcha_waits_for_review_and_edits_by_password() {
     assert_eq!(page.header("cache-control").unwrap(), "no-store");
     assert!(page.body.contains("확인 질문"));
     assert!(!page.body.contains("name=\"secret\""), "손님에게 비밀글 칸");
-    let pre = page.cookie("maru_csrf").unwrap();
-    let cookie = format!("maru_csrf={pre}");
+    let pre = page.cookie("giwa_csrf").unwrap();
+    let cookie = format!("giwa_csrf={pre}");
     let csrf = hidden(&page.body, "_csrf");
     let token = hidden(&page.body, "captcha_token");
     let fields = [
@@ -293,13 +293,13 @@ fn guest_writes_with_captcha_waits_for_review_and_edits_by_password() {
     assert!(!board.body.contains("손님이 쓴 글"), "승인 전에 보임");
 
     // 승인 대기 → 운영자가 발행 → 목록·글 화면에 손님 이름.
-    let queue = maru(&data, &["post", "list", "--status", "pending"]);
+    let queue = giwa(&data, &["post", "list", "--status", "pending"]);
     assert_eq!(queue["total"], 1, "{queue}");
     let id = queue["items"][0]["id"].as_str().unwrap().to_owned();
     assert_eq!(queue["items"][0]["guest_name"], "지나가던손님");
     assert!(queue["items"][0].get("guest_pw_hash").is_none());
     assert!(post_column(&data, &id, "guest_pw_hash").starts_with("$argon2id$"));
-    maru(&data, &["post", "publish", &id]);
+    giwa(&data, &["post", "publish", &id]);
     let board = http(&bind, "GET", "/b/free", &[], "");
     assert!(board.body.contains("손님이 쓴 글"));
     assert!(board.body.contains("지나가던손님"));
@@ -383,7 +383,7 @@ fn member_post_is_public_at_once_and_guests_are_sent_to_login() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
     site(&data, "member");
-    maru(
+    giwa(
         &data,
         &[
             "site",
@@ -407,8 +407,8 @@ fn member_post_is_public_at_once_and_guests_are_sent_to_login() {
     );
 
     let page = http(&bind, "GET", "/signup", &[], "");
-    let pre = page.cookie("maru_csrf").unwrap();
-    let cookie = format!("maru_csrf={pre}");
+    let pre = page.cookie("giwa_csrf").unwrap();
+    let cookie = format!("giwa_csrf={pre}");
     let res = http(
         &bind,
         "POST",
@@ -437,7 +437,7 @@ fn member_post_is_public_at_once_and_guests_are_sent_to_login() {
         ]),
     );
     assert_eq!(res.status, 303, "{}", res.body);
-    let session = format!("maru_session={}", res.cookie("maru_session").unwrap());
+    let session = format!("giwa_session={}", res.cookie("giwa_session").unwrap());
 
     let page = http(&bind, "GET", "/write/free", &[("Cookie", &session)], "");
     assert_eq!(page.status, 200, "{}", page.body);
@@ -470,7 +470,7 @@ fn member_post_is_public_at_once_and_guests_are_sent_to_login() {
     let page = http(&bind, "GET", &url, &[], "");
     assert!(page.body.contains("바로 보입니다"));
     assert!(page.body.contains("달빛"));
-    let mine = maru(
+    let mine = giwa(
         &data,
         &["post", "list", "--board", "free", "--status", "published"],
     );

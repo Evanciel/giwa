@@ -9,7 +9,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 const TYPES: [&str; 21] = [
     "docs",
     "cafe",
@@ -49,14 +49,14 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .arg(data)
         .args(args)
         .arg("--json")
-        .env_remove("MARU_TOKEN")
+        .env_remove("GIWA_TOKEN")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -148,7 +148,7 @@ fn rows(data: &Path, form: &str) -> Vec<String> {
         .build()
         .unwrap();
     rt.block_on(async {
-        let db = maru_storage::Db::open(&data.join("maru.db"), false)
+        let db = giwa_storage::Db::open(&data.join("giwa.db"), false)
             .await
             .unwrap();
         let v: Vec<String> =
@@ -167,12 +167,12 @@ fn 유형_프리셋은_한_번에_첫_화면과_메뉴가_뜨고_두_번_실행�
     for id in TYPES {
         let tmp = tempfile::tempdir().unwrap();
         let data = tmp.path().join("사이트");
-        maru(&data, &["init", "--no-samples", "--preset", id, "--yes"]);
-        let widgets = maru(&data, &["widget", "list"]);
-        let again = maru(&data, &["init", "--no-samples", "--preset", id, "--yes"]);
+        giwa(&data, &["init", "--no-samples", "--preset", id, "--yes"]);
+        let widgets = giwa(&data, &["widget", "list"]);
+        let again = giwa(&data, &["init", "--no-samples", "--preset", id, "--yes"]);
         assert_eq!(again["created"], false, "{id}: {again}");
         assert_eq!(
-            maru(&data, &["widget", "list"]).as_array().unwrap().len(),
+            giwa(&data, &["widget", "list"]).as_array().unwrap().len(),
             widgets.as_array().unwrap().len(),
             "{id}: 다시 실행하면 블록이 늘면 안 된다"
         );
@@ -205,7 +205,7 @@ fn 유형_프리셋은_한_번에_첫_화면과_메뉴가_뜨고_두_번_실행�
 fn 첫_화면_페이지는_바로가기와_사이트맵이_겹치지_않고_숨기면_목록으로_돌아간다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "company", "--yes"],
     );
@@ -223,7 +223,7 @@ fn 첫_화면_페이지는_바로가기와_사이트맵이_겹치지_않고_숨�
     assert_eq!(bad["ok"], false, "{bad}");
 
     // 첫 화면 페이지를 내리면 최신 글 목록으로 돌아간다. 깨진 첫 화면은 없다.
-    maru(&data, &["site", "set", "--home-page", ""]);
+    giwa(&data, &["site", "set", "--home-page", ""]);
     let (status, _, home) = get(&bind, "/");
     assert_eq!(status, 200, "{home}");
     assert!(!home.contains("page-blocks"), "{home}");
@@ -235,7 +235,7 @@ fn 첫_화면_페이지는_바로가기와_사이트맵이_겹치지_않고_숨�
 fn 폼에_낸_내용은_db_와_툴까지_가고_막아야_할_제출은_남지_않는다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "company", "--yes"],
     );
@@ -269,14 +269,14 @@ fn 폼에_낸_내용은_db_와_툴까지_가고_막아야_할_제출은_남지_�
     assert!(rows(&data, "contact").is_empty());
 
     // 확인 질문을 켜 둔 사이트는 질문을 답하기 전에 저장하지 않는다.
-    maru(&data, &["site", "set", "--captcha", "guest"]);
+    giwa(&data, &["site", "set", "--captcha", "guest"]);
     let (status, _, body) = post_form(&bind, action, &origin, good);
     assert_eq!(status, 200, "{body}");
     assert!(body.contains("captcha_token"), "{body}");
     assert!(body.contains("견적 부탁합니다"), "쓴 내용은 남아야: {body}");
     assert!(rows(&data, "contact").is_empty());
 
-    maru(&data, &["site", "set", "--captcha", "off"]);
+    giwa(&data, &["site", "set", "--captcha", "off"]);
     let (status, _, body) = post_form(&bind, action, &origin, good);
     assert_eq!(status, 200, "{body}");
     assert!(body.contains("받았습니다"), "{body}");
@@ -285,7 +285,7 @@ fn 폼에_낸_내용은_db_와_툴까지_가고_막아야_할_제출은_남지_�
     assert!(saved[0].contains("견적 부탁합니다"), "{saved:?}");
 
     // 툴은 바깥 사람이 쓴 글이라고 표시한다 (원칙 6).
-    let listed = maru(&data, &["forms", "list"]);
+    let listed = giwa(&data, &["forms", "list"]);
     assert_eq!(listed["untrusted"], true, "{listed}");
     let items = listed["items"].as_array().unwrap();
     assert_eq!(items.len(), 1, "{listed}");
@@ -298,11 +298,11 @@ fn 폼에_낸_내용은_db_와_툴까지_가고_막아야_할_제출은_남지_�
     );
 
     // 감사 기록에 내용이 실리지 않는다.
-    let audit = maru(&data, &["audit", "list"]).to_string();
+    let audit = giwa(&data, &["audit", "list"]).to_string();
     assert!(!audit.contains("견적 부탁합니다"), "{audit}");
 
     let id = items[0]["id"].as_str().unwrap();
-    maru(&data, &["forms", "delete", "--id", id]);
+    giwa(&data, &["forms", "delete", "--id", id]);
     assert!(rows(&data, "contact").is_empty());
 }
 
@@ -331,18 +331,18 @@ fn sign_in(bind: &str, url: &str) -> String {
                 (k == name && !v.is_empty()).then(|| v.to_owned())
             })
     };
-    let csrf = cookie_of(&head, "maru_csrf").unwrap();
+    let csrf = cookie_of(&head, "giwa_csrf").unwrap();
     let form = format!("_csrf={csrf}");
     let (status, head, body) = request(
         bind,
         &format!(
-            "POST {path} HTTP/1.1\r\nHost: {bind}\r\nCookie: maru_csrf={csrf}\r\nConnection: close\r\n\
+            "POST {path} HTTP/1.1\r\nHost: {bind}\r\nCookie: giwa_csrf={csrf}\r\nConnection: close\r\n\
              Content-Type: application/x-www-form-urlencoded\r\nContent-Length: {}\r\n\r\n{form}",
             form.len()
         ),
     );
     assert_eq!(status, 303, "{body}");
-    format!("maru_session={}", cookie_of(&head, "maru_session").unwrap())
+    format!("giwa_session={}", cookie_of(&head, "giwa_session").unwrap())
 }
 
 /// ADR-0129: 회원 전용 게시판은 손님을 로그인으로 보내고, 로그인하면 읽힌다.
@@ -350,11 +350,11 @@ fn sign_in(bind: &str, url: &str) -> String {
 fn 회원_전용_게시판은_로그인하면_읽히고_손님_화면과_목록에_새지_않는다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "course", "--yes"],
     );
-    let posted = maru(
+    let posted = giwa(
         &data,
         &[
             "post",
@@ -387,7 +387,7 @@ fn 회원_전용_게시판은_로그인하면_읽히고_손님_화면과_목록�
     let (_, _, rss) = get(&bind, "/rss.xml");
     assert!(!rss.contains("회원만 보는"), "{rss}");
 
-    let link = maru(&data, &["login-link"]);
+    let link = giwa(&data, &["login-link"]);
     let cookie = sign_in(&bind, link["url"].as_str().unwrap());
     let (status, head, body) = with_cookie(&bind, list, &cookie);
     assert_eq!(status, 200, "{body}");
@@ -410,7 +410,7 @@ fn 회원_전용_게시판은_로그인하면_읽히고_손님_화면과_목록�
 fn 문서_프리셋은_목록과_위치와_앞뒤로_이어진다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "docs", "--yes"],
     );
@@ -436,7 +436,7 @@ fn 문서_프리셋은_목록과_위치와_앞뒤로_이어진다() {
     assert_eq!(bad["ok"], false, "{bad}");
 
     // 맨 위로 옮기면 위치 표시가 사라진다.
-    maru(&data, &["page", "edit", "install", "--parent", ""]);
+    giwa(&data, &["page", "edit", "install", "--parent", ""]);
     let (_, _, body) = get(&bind, "/p/install");
     assert!(!body.contains("class=\"crumbs\""), "{body}");
 }
@@ -446,7 +446,7 @@ fn 문서_프리셋은_목록과_위치와_앞뒤로_이어진다() {
 fn 주소를_바꾸면_옛_주소가_새_주소로_간다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "company", "--yes"],
     );
@@ -459,20 +459,20 @@ fn 주소를_바꾸면_옛_주소가_새_주소로_간다() {
             .unwrap_or_default()
     };
 
-    maru(&data, &["page", "edit", "about", "--new-slug", "소개"]);
+    giwa(&data, &["page", "edit", "about", "--new-slug", "소개"]);
     let (status, head, _) = get(&bind, "/p/about?x=1");
     assert_eq!(status, 301, "{head}");
     assert_eq!(location(&head), "/p/%EC%86%8C%EA%B0%9C?x=1");
     assert_eq!(get(&bind, "/p/%EC%86%8C%EA%B0%9C").0, 200);
 
     // 두 번 옮겨도 한 번에 간다.
-    maru(&data, &["page", "edit", "소개", "--new-slug", "company"]);
+    giwa(&data, &["page", "edit", "소개", "--new-slug", "company"]);
     let (status, head, _) = get(&bind, "/p/about");
     assert_eq!(status, 301, "{head}");
     assert_eq!(location(&head), "/p/company");
 
     // 옛 주소에 새 페이지를 만들면 그 페이지가 보인다.
-    maru(
+    giwa(
         &data,
         &["page", "new", "about", "--title", "새 소개", "--publish"],
     );
@@ -481,7 +481,7 @@ fn 주소를_바꾸면_옛_주소가_새_주소로_간다() {
     assert!(body.contains("새 소개"), "{body}");
 
     // 글 슬러그
-    let posted = maru(
+    let posted = giwa(
         &data,
         &[
             "post",
@@ -497,13 +497,13 @@ fn 주소를_바꾸면_옛_주소가_새_주소로_간다() {
     );
     let id = posted["id"].as_str().unwrap();
     let old = format!("/b/notice/{}", posted["slug"].as_str().unwrap());
-    maru(&data, &["post", "edit", id, "--slug", "first-notice"]);
+    giwa(&data, &["post", "edit", id, "--slug", "first-notice"]);
     let (status, head, _) = get(&bind, &old);
     assert_eq!(status, 301, "{head}");
     assert_eq!(location(&head), "/b/notice/first-notice");
 
     // 직접 더하기: 다른 사이트에서 옮겨 올 때
-    maru(&data, &["redirect", "add", "/old/greeting", "/p/company"]);
+    giwa(&data, &["redirect", "add", "/old/greeting", "/p/company"]);
     let (status, head, _) = get(&bind, "/old/greeting");
     assert_eq!(status, 301, "{head}");
     assert_eq!(location(&head), "/p/company");
@@ -521,9 +521,9 @@ fn 주소를_바꾸면_옛_주소가_새_주소로_간다() {
         assert_eq!(v["ok"], false, "{from} -> {to}: {v}");
     }
 
-    let listed = maru(&data, &["redirect", "list"]);
+    let listed = giwa(&data, &["redirect", "list"]);
     assert!(listed.to_string().contains("/old/greeting"), "{listed}");
-    maru(&data, &["redirect", "remove", "/old/greeting"]);
+    giwa(&data, &["redirect", "remove", "/old/greeting"]);
     assert_eq!(get(&bind, "/old/greeting").0, 404);
 }
 
@@ -532,7 +532,7 @@ fn 주소를_바꾸면_옛_주소가_새_주소로_간다() {
 fn 옮긴_주소는_변경_묶음으로_담고_되돌린다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "docs", "--yes"],
     );
@@ -543,7 +543,7 @@ fn 옮긴_주소는_변경_묶음으로_담고_되돌린다() {
             {"op":"page.update","slug":"install","patch":{"parent":"guides"}}]"#,
     )
     .unwrap();
-    let cs = maru(
+    let cs = giwa(
         &data,
         &[
             "changeset",
@@ -555,29 +555,29 @@ fn 옮긴_주소는_변경_묶음으로_담고_되돌린다() {
         ],
     );
     let id = cs["id"].as_str().unwrap();
-    maru(&data, &["changeset", "apply", id]);
+    giwa(&data, &["changeset", "apply", id]);
     assert!(
-        maru(&data, &["redirect", "list"])
+        giwa(&data, &["redirect", "list"])
             .to_string()
             .contains("/old")
     );
     let parent = |d: &Path| {
-        let v = maru(d, &["page", "show", "install"]);
-        let guides = maru(d, &["page", "show", "guides"]);
+        let v = giwa(d, &["page", "show", "install"]);
+        let guides = giwa(d, &["page", "show", "guides"]);
         v["parent_id"] == guides["id"]
     };
     assert!(parent(&data));
 
-    maru(&data, &["changeset", "revert", id]);
+    giwa(&data, &["changeset", "revert", id]);
     assert!(
-        !maru(&data, &["redirect", "list"])
+        !giwa(&data, &["redirect", "list"])
             .to_string()
             .contains("/old")
     );
     assert!(!parent(&data), "위 페이지도 돌아가야 한다");
-    let start = maru(&data, &["page", "show", "start"]);
+    let start = giwa(&data, &["page", "show", "start"]);
     assert_eq!(
-        maru(&data, &["page", "show", "install"])["parent_id"],
+        giwa(&data, &["page", "show", "install"])["parent_id"],
         start["id"]
     );
 }
@@ -588,7 +588,7 @@ fn 새_종류의_메뉴_화면은_모두_뜨고_제목은_하나다() {
     for id in &TYPES[10..] {
         let tmp = tempfile::tempdir().unwrap();
         let data = tmp.path().join("사이트");
-        maru(&data, &["init", "--no-samples", "--preset", id, "--yes"]);
+        giwa(&data, &["init", "--no-samples", "--preset", id, "--yes"]);
         let (_server, bind) = start_server(&data);
         let (_, _, home) = get(&bind, "/");
         let pages: Vec<String> = links(&home)
@@ -613,7 +613,7 @@ fn 새_종류의_메뉴_화면은_모두_뜨고_제목은_하나다() {
 fn 부동산_매물은_거래_종류로_거르고_완료한_것을_뺀다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "realty", "--yes"],
     );
@@ -650,7 +650,7 @@ fn 부동산_매물은_거래_종류로_거르고_완료한_것을_뺀다() {
             &closed,
         ];
         args.extend(common);
-        maru(&data, &args);
+        giwa(&data, &args);
     }
     // 필수 칸이 빠지면 받지 않는다.
     let bad = run(
@@ -703,12 +703,12 @@ fn 부동산_매물은_거래_종류로_거르고_완료한_것을_뺀다() {
 fn 숙박_예약_문의는_db_에_남고_병원에는_후기가_없다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "stay", "--yes"],
     );
     // 손님 확인 질문은 기본으로 켜져 있다. 폼 저장만 보려고 끈다.
-    maru(&data, &["site", "set", "--captcha", "off"]);
+    giwa(&data, &["site", "set", "--captcha", "off"]);
     let (server, bind) = start_server(&data);
     let origin = format!("http://{bind}");
     let action = "/m/forms/submit/booking";
@@ -731,11 +731,11 @@ fn 숙박_예약_문의는_db_에_남고_병원에는_후기가_없다() {
 
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "clinic", "--yes"],
     );
-    let widgets = maru(&data, &["widget", "list"]).to_string();
+    let widgets = giwa(&data, &["widget", "list"]).to_string();
     assert!(!widgets.contains("testimonials"), "{widgets}");
     assert!(!widgets.contains("후기"), "{widgets}");
 }
@@ -747,13 +747,13 @@ fn 사이트_관찰로_더한_구조가_첫_화면과_게시판에_있다() {
     let tmp = tempfile::tempdir().unwrap();
 
     let community = tmp.path().join("커뮤니티");
-    maru(
+    giwa(
         &community,
         &["init", "--no-samples", "--preset", "community", "--yes"],
     );
     for (title, status) in [("파는 시험 물건", "open"), ("끝난 시험 물건", "done")] {
         let status = format!("status={status}");
-        maru(
+        giwa(
             &community,
             &[
                 "post",
@@ -790,7 +790,7 @@ fn 사이트_관찰로_더한_구조가_첫_화면과_게시판에_있다() {
     }
 
     let platform = tmp.path().join("플랫폼");
-    maru(
+    giwa(
         &platform,
         &["init", "--no-samples", "--preset", "platform", "--yes"],
     );
@@ -802,7 +802,7 @@ fn 사이트_관찰로_더한_구조가_첫_화면과_게시판에_있다() {
     }
 
     let shop = tmp.path().join("쇼핑몰");
-    maru(
+    giwa(
         &shop,
         &["init", "--no-samples", "--preset", "shop", "--yes"],
     );

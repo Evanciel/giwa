@@ -1,6 +1,6 @@
 [package]
-name = "maru-core"
-description = "Maru 도메인 모델, 서비스, 권한 (DB·웹 비의존)"
+name = "giwa-core"
+description = "Giwa 도메인 모델, 서비스, 권한 (DB·웹 비의존)"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

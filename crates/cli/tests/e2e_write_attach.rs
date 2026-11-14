@@ -9,7 +9,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 const FORM: (&str, &str) = ("Content-Type", "application/x-www-form-urlencoded");
 const PASSWORD: &str = "test-pass-1234";
 
@@ -29,12 +29,12 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -131,8 +131,8 @@ fn form(pairs: &[(&str, &str)]) -> String {
 /// 가입하고 로그인해 세션 쿠키를 받는다 (메일 확인·확인 질문을 끈 사이트).
 fn signup_and_login(bind: &str, email: &str) -> String {
     let page = http(bind, "GET", "/signup", &[], b"");
-    let pre = page.cookie("maru_csrf").unwrap();
-    let cookie = format!("maru_csrf={pre}");
+    let pre = page.cookie("giwa_csrf").unwrap();
+    let cookie = format!("giwa_csrf={pre}");
     let res = http(
         bind,
         "POST",
@@ -147,7 +147,7 @@ fn signup_and_login(bind: &str, email: &str) -> String {
         ])
         .as_bytes(),
     );
-    if let Some(s) = res.cookie("maru_session") {
+    if let Some(s) = res.cookie("giwa_session") {
         return s;
     }
     let login = http(bind, "GET", "/login", &[("Cookie", &cookie)], b"");
@@ -164,7 +164,7 @@ fn signup_and_login(bind: &str, email: &str) -> String {
         ])
         .as_bytes(),
     );
-    res.cookie("maru_session")
+    res.cookie("giwa_session")
         .unwrap_or_else(|| panic!("로그인 실패 {}: {}", res.status, res.body))
 }
 
@@ -172,11 +172,11 @@ fn signup_and_login(bind: &str, email: &str) -> String {
 fn member_attaches_a_file_to_a_post_from_the_public_write_form() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    maru(
+    giwa(
         &data,
         &[
             "site",
@@ -189,19 +189,19 @@ fn member_attaches_a_file_to_a_post_from_the_public_write_form() {
             "false",
         ],
     );
-    maru(
+    giwa(
         &data,
         &[
             "board", "create", "free", "--name", "자유", "--kind", "free",
         ],
     );
-    maru(
+    giwa(
         &data,
         &["board", "update", "free", "--write-approval", "off"],
     );
     let (_server, bind) = start_server(&data);
     let session = signup_and_login(&bind, "attach@example.test");
-    let cookie = format!("maru_session={session}");
+    let cookie = format!("giwa_session={session}");
     let as_member = [("Cookie", cookie.as_str())];
 
     // 기본은 받지 않는다: 칸이 없고 올려도 거절.
@@ -227,7 +227,7 @@ fn member_attaches_a_file_to_a_post_from_the_public_write_form() {
     assert_eq!(res.status, 403, "{}", res.body);
 
     // 게시판 역할을 회원으로 열면 칸이 보이고, 손님 역할은 고를 수 없다.
-    maru(&data, &["board", "update", "free", "--upload", "member"]);
+    giwa(&data, &["board", "update", "free", "--upload", "member"]);
     let bad = run(&data, &["board", "update", "free", "--upload", "guest"]);
     assert_eq!(bad["ok"], false);
     assert_eq!(bad["error"]["code"], "VALIDATION", "{bad}");
@@ -300,7 +300,7 @@ fn member_attaches_a_file_to_a_post_from_the_public_write_form() {
         "{}",
         file.head
     );
-    let audit = maru(
+    let audit = giwa(
         &data,
         &[
             "audit",

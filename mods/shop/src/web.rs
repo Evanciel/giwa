@@ -9,9 +9,9 @@ use axum::Extension;
 use axum::extract::{Form, Path, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Redirect, Response};
-use maru_core::actor::Actor;
-use maru_core::{Code, Ctx, Error, Result};
-use maru_modules::{ModuleState, module_error};
+use giwa_core::actor::Actor;
+use giwa_core::{Code, Ctx, Error, Result};
+use giwa_modules::{ModuleState, module_error};
 use serde_json::{Value, json};
 
 use super::{

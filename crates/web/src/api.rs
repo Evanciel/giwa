@@ -9,17 +9,17 @@ use axum::http::request::Parts;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, patch, post};
 use axum::{Json, Router};
-use maru_core::model::{ChangesetStatus, MenuItem, PageReq, PageStatus, PostStatus};
-use maru_core::output::Success;
-use maru_core::services::changesets;
-use maru_core::services::{
+use giwa_core::model::{ChangesetStatus, MenuItem, PageReq, PageStatus, PostStatus};
+use giwa_core::output::Success;
+use giwa_core::services::changesets;
+use giwa_core::services::{
     anonymous_actor, audit_log, backups, boards, categories, comments, design, designs,
     editor_drafts, files, fonts, indexnow, links, media, members, menus, pages, posts, redirects,
     retention, samples, saved_blocks, search, settings, signals, stats, tags, templates, tokens,
     views, widgets, wiki,
 };
-use maru_core::{Actor, Code, Error};
-use maru_modules::service as modules;
+use giwa_core::{Actor, Code, Error};
+use giwa_modules::service as modules;
 use serde::Deserialize;
 
 use crate::AppState;
@@ -797,7 +797,7 @@ async fn update_tokens(
 
 /// 디자인 모음 (ADR-0158). 입히는 길은 변경 묶음의 `widget.place`·`tokens.set` 이다.
 async fn list_designs(ApiActor(actor): ApiActor) -> Result<Response, ApiError> {
-    let presets = maru_themes::presets()?;
+    let presets = giwa_themes::presets()?;
     Ok(ok(StatusCode::OK, designs::list(&actor, &presets)?))
 }
 
@@ -805,7 +805,7 @@ async fn get_design(
     ApiActor(actor): ApiActor,
     Path(id): Path<String>,
 ) -> Result<Response, ApiError> {
-    let preset = maru_themes::preset(&id)?;
+    let preset = giwa_themes::preset(&id)?;
     Ok(ok(StatusCode::OK, designs::show(&actor, &preset)?))
 }
 
@@ -1294,7 +1294,7 @@ async fn list_links(
 ) -> Result<Response, ApiError> {
     let status = match q.status.as_deref() {
         None => None,
-        Some(s) => Some(maru_core::model::LinkStatus::parse(s).ok_or_else(|| {
+        Some(s) => Some(giwa_core::model::LinkStatus::parse(s).ok_or_else(|| {
             Error::new(Code::Validation)
                 .with_message("error.link_status")
                 .arg("value", s)
@@ -1498,8 +1498,8 @@ async fn list_tags(
 
 #[derive(Debug, serde::Serialize)]
 struct TagPage {
-    tag: maru_core::model::Tag,
-    posts: maru_core::model::Listing<maru_core::model::Post>,
+    tag: giwa_core::model::Tag,
+    posts: giwa_core::model::Listing<giwa_core::model::Post>,
 }
 
 /// `GET /tags/{slug}` 태그가 달린 공개 글 (비밀글 제외).
@@ -1632,7 +1632,7 @@ async fn list_comments(
 ) -> Result<Response, ApiError> {
     let status = match q.status.as_deref().unwrap_or("pending") {
         "all" => None,
-        s => Some(maru_core::model::CommentStatus::parse(s).ok_or_else(|| {
+        s => Some(giwa_core::model::CommentStatus::parse(s).ok_or_else(|| {
             Error::new(Code::Validation)
                 .with_message("error.usage_detail")
                 .arg(
@@ -1712,7 +1712,7 @@ async fn get_profile(
 #[serde(deny_unknown_fields)]
 struct MemberPatch {
     /// active, disabled
-    status: Option<maru_core::model::MemberStatus>,
+    status: Option<giwa_core::model::MemberStatus>,
     /// member, editor, admin
     role: Option<String>,
 }

@@ -9,11 +9,11 @@ use axum::Extension;
 use axum::extract::{Form, Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Redirect, Response};
-use maru_core::actor::{Actor, Permission};
-use maru_core::services::settings;
-use maru_core::{Code, Error, Result, urls};
-use maru_modules::checkout::CheckoutRequest;
-use maru_modules::{ModuleState, module_error};
+use giwa_core::actor::{Actor, Permission};
+use giwa_core::services::settings;
+use giwa_core::{Code, Error, Result, urls};
+use giwa_modules::checkout::CheckoutRequest;
+use giwa_modules::{ModuleState, module_error};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -91,7 +91,7 @@ async fn guard_post(
 }
 
 impl PayModule {
-    async fn admin_view(&self, ctx: &maru_core::Ctx, q: &ListQuery) -> Result<Value> {
+    async fn admin_view(&self, ctx: &giwa_core::Ctx, q: &ListQuery) -> Result<Value> {
         self.expire_due().await?;
         let status = if STATUSES.contains(&q.status.as_str()) {
             q.status.as_str()

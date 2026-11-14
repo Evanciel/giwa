@@ -8,7 +8,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 원하는 결과 | `maru init --preset blog --yes` 후 `serve`로 실제 블로그를 운영할 수 있는 단일 바이너리 |
+| 원하는 결과 | `giwa init --preset blog --yes` 후 `serve`로 실제 블로그를 운영할 수 있는 단일 바이너리 |
 | 최소 완료 조건 | SPEC §15 Phase 1 완료 기준 4개를 실제 바이너리로 실행해 증거를 남긴다 |
 | 필요한 증거 | 기능은 E3(실제 프로세스, HTTP, DB 흐름), 화면은 브라우저 직접 확인 |
 | 제외 범위 | 위젯, 모듈, changeset, MCP, 미디어 업로드, 댓글, 회원 가입, 태그, 검색, 서비스 등록, 터널 |
@@ -41,17 +41,17 @@
 
 - **Q1 근거:** 원칙 4(`CLAUDE.md`)와 SPEC §6 첫 줄은 발행을 changeset에 포함하지만, SPEC §1.2, §5.3, §6 끝, §11은 발행을 스코프와 감사 로그로 다룬다. Phase 1에는 changeset이 없으므로 구조 변경은 바로 적용하고 변경 전 값을 `audit_log.diff`에 남겨 Phase 3 역연산에 재사용한다.
 - **Q2 근거:** SPEC §3.1의 CLI는 DB를 직접 열어, 셸을 쓰는 에이전트가 §5.3의 스코프와 "적용은 사람만" 규칙을 우회할 수 있다. 같은 OS 계정에서는 보안 경계가 될 수 없으므로 안전장치로만 다루고, Phase 3에서 에이전트 쓰기를 MCP로 유도한다. `posts.actor_type`에 `local` 값이 추가된다.
-- **Q3 근거:** SPEC §15 Phase 1에는 REST가 없지만 `CLAUDE.md`와 착수 프롬프트에는 있다. SPEC §10의 `init`은 초기 토큰을 발급하는데 `maru token`은 Phase 1 CLI 목록에 없다. `blog` 프리셋의 태그, 검색, 최신글 위젯도 Phase 1에 없고 태그는 데이터 모델에도 없다.
+- **Q3 근거:** SPEC §15 Phase 1에는 REST가 없지만 `CLAUDE.md`와 착수 프롬프트에는 있다. SPEC §10의 `init`은 초기 토큰을 발급하는데 `giwa token`은 Phase 1 CLI 목록에 없다. `blog` 프리셋의 태그, 검색, 최신글 위젯도 Phase 1에 없고 태그는 데이터 모델에도 없다.
 - **Q4 근거:** SPEC §10의 `init`에는 owner 입력 인자가 없다. 생성한 비밀번호를 JSON으로 내면 에이전트 대화 기록에 남고 분실 시 복구 명령도 없다. 초기 토큰은 `read`, `draft` 스코프로 1회만 표시한다.
-- **Q5 근거:** crates.io에서 `maru`(0.0.1, 2023)와 `nuri`(0.1.0, 2024)는 등록돼 있고 `madang`, `maru-core`, `maru-cli`는 비어 있다(2026-11-02). 바이너리 이름 `maru`는 쓸 수 있다. 호스팅 SaaS가 범위 밖이라 무임승차 위험이 낮고 에이전시 납품이 쉬워야 해 허용형을 추천한다. 공개 후 AGPL로 바꿔도 이미 낸 릴리스에는 소급되지 않는다.
+- **Q5 근거:** crates.io에서 `giwa`(0.0.1, 2023)와 `nuri`(0.1.0, 2024)는 등록돼 있고 `madang`, `giwa-core`, `giwa-cli`는 비어 있다(2026-11-02). 바이너리 이름 `giwa`는 쓸 수 있다. 호스팅 SaaS가 범위 밖이라 무임승차 위험이 낮고 에이전시 납품이 쉬워야 해 허용형을 추천한다. 공개 후 AGPL로 바꿔도 이미 낸 릴리스에는 소급되지 않는다.
 
 | # | 질문 | 추천안 | 영향 단위 |
 |---|---|---|---|
 | Q1 | 글 발행도 changeset인가 | 아니다. §11을 따르고 원칙 4의 범위를 구조, 디자인, 모듈, 설정으로 좁힌다 | U4, U8, U9 |
-| Q2 | 로컬 CLI의 Actor는 무엇인가 | `actor_type=local`, 운영자 권한. `MARU_TOKEN`이 있으면 스코프 강제 | U4, U6 |
+| Q2 | 로컬 CLI의 Actor는 무엇인가 | `actor_type=local`, 운영자 권한. `GIWA_TOKEN`이 있으면 스코프 강제 | U4, U6 |
 | Q3 | Phase 1 범위 | 최소 REST와 토큰 포함. 태그, 검색, 위젯은 Phase 2. 홈 최신글은 템플릿 고정 | U6, U10, U14 |
-| Q4 | owner 초기 자격증명 | `init`은 비밀번호를 만들지 않고 1회용 로그인 링크 사용, `maru login-link`로 재발급 | U6, U12 |
-| Q5 | 이름과 라이선스 | `maru`, `MIT OR Apache-2.0`. 공개 전 확정 | U1 |
+| Q4 | owner 초기 자격증명 | `init`은 비밀번호를 만들지 않고 1회용 로그인 링크 사용, `giwa login-link`로 재발급 | U6, U12 |
+| Q5 | 이름과 라이선스 | `giwa`, `MIT OR Apache-2.0`. 공개 전 확정 | U1 |
 
 ## 4. 핵심 설계
 
@@ -63,7 +63,7 @@ cli ─┬─> web ─┬─> core
      └─> storage ─> core
 ```
 
-- `core`에는 `sqlx`, `axum`, `minijinja`가 들어오지 않는다. U1 게이트가 `cargo tree -p maru-core`로 검사한다.
+- `core`에는 `sqlx`, `axum`, `minijinja`가 들어오지 않는다. U1 게이트가 `cargo tree -p giwa-core`로 검사한다.
 - 구현체 조립은 `cli`에서만 한다. `web`은 `Arc<dyn Store>`를 담은 `Ctx`만 받는다.
 - `modules`, `agent` 크레이트는 Phase 2, 3에서 추가한다.
 
@@ -169,7 +169,7 @@ CHECK 제약 범위 (ADR-0016):
 | 단위 | 산출물 | 의존 | 테스트 | 커밋 메시지 |
 |---|---|---|---|---|
 | U0 저장소·툴체인 | git, `.gitignore`, `.gitattributes`, `rust-toolchain.toml`, 로컬 빌드 경로, `.env.example`, 포트 3139 | 없음 | 툴체인 버전, `*.sql` LF 고정, 포트 비어 있음 | `chore: 저장소와 툴체인 고정` |
-| U1 워크스페이스·게이트 | 크레이트 5개, `scripts/check.ps1`, pre-commit, CI, `deny.toml` | U0 | `maru --version`. **역시험:** 포맷 위반 커밋과 `core`의 금지 의존이 실제로 막히는가 | `chore: 워크스페이스와 품질 게이트 구성` |
+| U1 워크스페이스·게이트 | 크레이트 5개, `scripts/check.ps1`, pre-commit, CI, `deny.toml` | U0 | `giwa --version`. **역시험:** 포맷 위반 커밋과 `core`의 금지 의존이 실제로 막히는가 | `chore: 워크스페이스와 품질 게이트 구성` |
 | U2 출력 계약 | 에러 타입, 메시지 키, `--json` 형식, 종료 코드 0~5 | U1 | 성공·실패 스냅샷, 종료 코드 매핑, REST 내부 정보 비노출 | `feat(core): 도메인 에러와 출력 계약` |
 
 ### M1 걷는 뼈대
@@ -243,7 +243,7 @@ U11 착수 전에 네이버 서치어드바이저 공식 문서로 사이트맵,
 | 경로 탈출 | 테마와 자산 경로 정규화 | `..`, 절대 경로, 역슬래시 |
 | 응답 헤더 | CSP, `nosniff`, `Referrer-Policy`, 관리 화면 `frame-ancestors 'none'` | 헤더 스냅샷 |
 
-공개 터널 뒤에서는 모든 요청이 `127.0.0.1`에서 온 것처럼 보인다. 따라서 Phase 3의 `maru expose`에서 신뢰할 전달 헤더를 ADR로 정해야 한다.
+공개 터널 뒤에서는 모든 요청이 `127.0.0.1`에서 온 것처럼 보인다. 따라서 Phase 3의 `giwa expose`에서 신뢰할 전달 헤더를 ADR로 정해야 한다.
 
 ## 8. 검증
 
@@ -261,10 +261,10 @@ U11 착수 전에 네이버 서치어드바이저 공식 문서로 사이트맵,
 
 **E2E-1 (M1 관문)**
 
-1. 임시 디렉터리에서 `maru init --preset blog --yes --json`을 실행한다.
+1. 임시 디렉터리에서 `giwa init --preset blog --yes --json`을 실행한다.
 2. 발급된 토큰으로 `POST /api/v1/posts`를 호출해 한글 초안을 만든다.
 3. 공개 URL이 404인지 확인한다.
-4. `maru post publish`를 실행한다.
+4. `giwa post publish`를 실행한다.
 5. 실행 중인 서버의 공개 URL에 본문이 나오는지 확인한다.
 6. `posts.status`, `revisions`, `audit_log`를 DB에서 직접 읽어 Actor와 action을 대조한다.
 
@@ -272,7 +272,7 @@ U11 착수 전에 네이버 서치어드바이저 공식 문서로 사이트맵,
 
 **E2E-2 (M4 관문, 실제 브라우저)**
 
-1. 생성한 테스트 owner로 `maru login-link`를 발급한다.
+1. 생성한 테스트 owner로 `giwa login-link`를 발급한다.
 2. 링크를 열어 확인 후 로그인하고 비밀번호를 설정한다.
 3. 글을 작성해 발행하고 공개 페이지와 DB를 확인한다.
 4. 로그아웃 후 세션 행이 지워졌는지, `/admin`이 차단되는지 확인한다.

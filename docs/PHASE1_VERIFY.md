@@ -8,8 +8,8 @@
 
 | 기준 | 결과 | 근거 (실행 명령 · 대조 건수) |
 |---|---|---|
-| `maru init --preset blog --yes` 후 `serve`로 블로그 운영 가능 | PASS | 깨끗한 디렉터리(`F:\…\verify\새 사이트`, 한글 경로)에서 릴리스 바이너리로 init → serve → `GET /` 200. 홈·목록·글·페이지·RSS·사이트맵 응답 확인 |
-| CLI로 글 작성·발행 가능 | PASS | `maru post new --from post.md --publish` 30회 모두 성공, 목록·RSS에 노출. `e2e_publish::cli_post_lifecycle_and_input_paths` |
+| `giwa init --preset blog --yes` 후 `serve`로 블로그 운영 가능 | PASS | 깨끗한 디렉터리(`F:\…\verify\새 사이트`, 한글 경로)에서 릴리스 바이너리로 init → serve → `GET /` 200. 홈·목록·글·페이지·RSS·사이트맵 응답 확인 |
+| CLI로 글 작성·발행 가능 | PASS | `giwa post new --from post.md --publish` 30회 모두 성공, 목록·RSS에 노출. `e2e_publish::cli_post_lifecycle_and_input_paths` |
 | 모든 쓰기가 audit_log에 남음 | PASS | 서비스 쓰기 지점 21곳 모두 `Tx` 경유. `Tx`는 감사 0건이면 commit을 거부한다(`commit_without_audit_is_rejected`). 역시험 「감사 기록 제거」가 게이트에 걸림. action 32종: post 7, page 6, board 4, menu 2, token 2, auth 4, member 1, settings·design·preset 등 |
 | 통합 테스트 통과 | PASS | `cargo test --workspace`: 아래 §5 |
 
@@ -76,7 +76,7 @@
 | 권한 함수를 항상 허용 | `agent_cannot_issue_login_link` 외 | PASS |
 | 로그아웃 세션 삭제 누락 | `password_login_and_change_drop_other_sessions` | PASS |
 | XML 이스케이프 해제 | `seo_outputs_follow_public_state` | PASS |
-| `core`에 `sqlx` 추가 | `check.ps1` 의존 방향 (`maru-core -> sqlx`) | PASS |
+| `core`에 `sqlx` 추가 | `check.ps1` 의존 방향 (`giwa-core -> sqlx`) | PASS |
 
 ## 7. UI-1
 
@@ -99,6 +99,6 @@
 
 ## 9. 다음 Phase 전에 알아 둘 것
 
-- 공개 터널 뒤에서는 모든 요청이 `127.0.0.1`로 보인다. 그러면 분당 600회 한도를 방문자 전체가 나눠 쓴다. `maru expose`(Phase 3)에서 믿을 전달 헤더를 ADR로 정해야 한다 (PHASE1_PLAN §7에 이미 적힌 항목).
+- 공개 터널 뒤에서는 모든 요청이 `127.0.0.1`로 보인다. 그러면 분당 600회 한도를 방문자 전체가 나눠 쓴다. `giwa expose`(Phase 3)에서 믿을 전달 헤더를 ADR로 정해야 한다 (PHASE1_PLAN §7에 이미 적힌 항목).
 - 관리 화면 에디터는 Markdown 입력 칸뿐이다. 미리보기, 서식, 이미지 업로드가 없다.
 - SPEC §15는 다음 Phase 전에 실제 사이트 운영을 요구한다. 운영 기간은 사용자가 정한다.

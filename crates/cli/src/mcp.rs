@@ -1,22 +1,22 @@
-//! `maru mcp serve`, `maru mcp install` (GAP S8, ADR-0117).
+//! `giwa mcp serve`, `giwa mcp install` (GAP S8, ADR-0117).
 //!
 //! 토큰 원문은 데이터 디렉터리 `secrets/` 에만 둔다. 클라이언트 설정에는 파일 경로만 적는다.
 
 use std::path::{Path, PathBuf};
 
-use maru_core::model::Token;
-use maru_core::services::tokens::{self, NewToken};
-use maru_core::{Code, Ctx, Error, Result, Scope};
-use maru_storage::DataDir;
+use giwa_core::model::Token;
+use giwa_core::services::tokens::{self, NewToken};
+use giwa_core::{Code, Ctx, Error, Result, Scope};
+use giwa_storage::DataDir;
 use serde_json::{Map, Value, json};
 
 use crate::commands::{Out, actor, open};
 use crate::{Global, McpInstallArgs, McpServeArgs};
 
 const CLIENTS: [&str; 3] = ["claude-code", "claude-desktop", "cursor"];
-const SERVER_NAME: &str = "maru";
+const SERVER_NAME: &str = "giwa";
 
-/// 쓸 토큰: `--token-file` → `MARU_TOKEN`. 없으면 운영자 권한으로 돌지 않고 멈춘다.
+/// 쓸 토큰: `--token-file` → `GIWA_TOKEN`. 없으면 운영자 권한으로 돌지 않고 멈춘다.
 fn secret(g: &Global, args: &McpServeArgs) -> Result<String> {
     if let Some(path) = &args.token_file {
         let raw = std::fs::read_to_string(path).map_err(|_| {
@@ -30,8 +30,8 @@ fn secret(g: &Global, args: &McpServeArgs) -> Result<String> {
         })?;
         return Ok(raw.trim().to_owned());
     }
-    match std::env::var("MARU_TOKEN") {
-        Ok(t) if !t.trim().is_empty() => Ok(t.trim().to_owned()),
+    match giwa_core::env::var("TOKEN") {
+        Some(t) if !t.trim().is_empty() => Ok(t.trim().to_owned()),
         _ => Err(Error::new(Code::Unauthorized)
             .with_message("error.mcp_token")
             .next(install_command(g))),
@@ -40,7 +40,7 @@ fn secret(g: &Global, args: &McpServeArgs) -> Result<String> {
 
 fn install_command(g: &Global) -> String {
     format!(
-        "maru --data \"{}\" mcp install --client claude-code",
+        "giwa --data \"{}\" mcp install --client claude-code",
         g.data.display()
     )
 }
@@ -56,8 +56,8 @@ pub(crate) async fn serve(g: &Global, args: McpServeArgs) -> Result<()> {
             .await
             .map_err(|e| e.next(install_command(g)))?;
         let registry = crate::modules::registry(&db)?;
-        let sandbox = maru_storage::sandbox::FsSandbox::new(&DataDir::new(&g.data), db.clone());
-        maru_agent::serve_stdio(
+        let sandbox = giwa_storage::sandbox::FsSandbox::new(&DataDir::new(&g.data), db.clone());
+        giwa_agent::serve_stdio(
             ctx.clone(),
             registry,
             secret,
@@ -81,7 +81,7 @@ fn config_required(detail: &str) -> Error {
     Error::new(Code::Validation)
         .with_message("error.usage_detail")
         .arg("detail", detail.to_owned())
-        .next("maru mcp install --client <클라이언트> --config <설정 파일>")
+        .next("giwa mcp install --client <클라이언트> --config <설정 파일>")
 }
 
 /// 클라이언트 설정 파일의 기본 자리.
@@ -105,7 +105,7 @@ fn default_config(client: &str) -> Result<PathBuf> {
     })
 }
 
-/// `mcpServers.maru` 만 넣고 나머지는 그대로 둔다. 읽을 수 없는 파일은 덮어쓰지 않는다.
+/// `mcpServers.giwa` 만 넣고 나머지는 그대로 둔다. 읽을 수 없는 파일은 덮어쓰지 않는다.
 fn merge_config(path: &Path, entry: Value) -> Result<bool> {
     let mut root: Map<String, Value> = match std::fs::read_to_string(path) {
         Ok(s) if s.trim().is_empty() => Map::new(),
@@ -131,7 +131,7 @@ fn merge_config(path: &Path, entry: Value) -> Result<bool> {
         std::fs::create_dir_all(dir).map_err(Error::internal)?;
     }
     let body = serde_json::to_string_pretty(&Value::Object(root)).map_err(Error::internal)?;
-    let tmp = path.with_extension("maru-tmp");
+    let tmp = path.with_extension("giwa-tmp");
     std::fs::write(&tmp, body + "\n").map_err(Error::internal)?;
     std::fs::rename(&tmp, path).map_err(Error::internal)?;
     Ok(true)
@@ -162,7 +162,7 @@ fn same_scopes(token: &Token, wanted: &[Scope]) -> bool {
 /// 클라이언트 몫의 토큰을 맞춘다. 파일의 토큰이 살아 있고 스코프가 같으면 그대로 둔다(멱등).
 async fn ensure_token(
     ctx: &Ctx,
-    who: &maru_core::Actor,
+    who: &giwa_core::Actor,
     name: &str,
     file: &Path,
     wanted: &[Scope],

@@ -3,17 +3,17 @@
 //! 공개 화면은 손님 기준이다. 위젯 하나가 실패하거나(게시판이 사라짐 등) 손님이 못 읽는
 //! 게시판을 가리키면 그 위젯만 빠지고 화면은 그대로 뜬다.
 
-use maru_core::model::{PageReq, SiteSettings, Widget};
-use maru_core::services::posts::PublicFilter;
-use maru_core::services::widgets::{
+use giwa_core::model::{PageReq, SiteSettings, Widget};
+use giwa_core::services::posts::PublicFilter;
+use giwa_core::services::widgets::{
     self, AccountBoxConfig, GalleryGridConfig, ImageBannerConfig, LatestPostsConfig,
     MarkdownBlockConfig, MenuConfig, NoticeBarConfig, PopularPostsConfig, PopupConfig,
     PostTabsConfig, Screen, SearchConfig,
 };
-use maru_core::services::{anonymous_actor, boards, media, posts, settings};
-use maru_core::urls::{self, Target};
-use maru_core::{Actor, Result, markdown};
-use maru_themes::tr;
+use giwa_core::services::{anonymous_actor, boards, media, posts, settings};
+use giwa_core::urls::{self, Target};
+use giwa_core::{Actor, Result, markdown};
+use giwa_themes::tr;
 use serde_json::{Map, Value, json};
 
 use crate::AppState;
@@ -26,7 +26,7 @@ pub(crate) struct Editing {
     /// 사이트 이름·설명·메뉴 초안 (ADR-0145). 없으면 저장된 값을 그린다.
     pub site: Option<std::sync::Arc<SiteDraft>>,
     /// 편집하는 사람. 캔버스는 이 사람 눈으로 아직 공개하지 않은 페이지도 그린다 (ADR-0149).
-    pub actor: Option<maru_core::Actor>,
+    pub actor: Option<giwa_core::Actor>,
 }
 
 /// 편집기 초안의 사이트 공통 부분. 저장할 때와 같은 검사를 마친 값만 들어온다.
@@ -35,7 +35,7 @@ pub(crate) struct SiteDraft {
     pub name: String,
     pub description: String,
     /// 위치(`header`·`quick`·`footer`)마다 메뉴
-    pub menus: Vec<(String, Vec<maru_core::model::MenuItem>)>,
+    pub menus: Vec<(String, Vec<giwa_core::model::MenuItem>)>,
 }
 
 tokio::task_local! {
@@ -127,7 +127,7 @@ fn recent_popular_url() -> String {
 }
 
 fn cfg<T: serde::de::DeserializeOwned>(w: &Widget) -> Result<T> {
-    serde_json::from_value(w.config.clone()).map_err(maru_core::Error::internal)
+    serde_json::from_value(w.config.clone()).map_err(giwa_core::Error::internal)
 }
 
 /// 위젯 하나의 템플릿 값. 그릴 것이 없으면 None.
@@ -284,7 +284,7 @@ async fn view(
                 "bar_url": "/me/bar",
                 "login_url": "/login",
                 "forgot_url": "/forgot",
-                "signup_url": (site.signup == maru_core::model::SignupMode::Open).then_some("/signup"),
+                "signup_url": (site.signup == giwa_core::model::SignupMode::Open).then_some("/signup"),
                 "links": c.links.iter().map(|l| json!({ "label": l.label, "link": link_json(&l.link) })).collect::<Vec<_>>(),
             })
         }
@@ -399,7 +399,7 @@ async fn readable(
     state: &AppState,
     actor: &Actor,
     slug: &str,
-) -> Result<Option<Option<maru_core::model::Board>>> {
+) -> Result<Option<Option<giwa_core::model::Board>>> {
     if slug.is_empty() {
         return Ok(Some(None));
     }

@@ -6,7 +6,7 @@ use axum::http::header::{AUTHORIZATION, WWW_AUTHENTICATE};
 use axum::http::{HeaderValue, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
-use maru_core::services::tokens;
+use giwa_core::services::tokens;
 
 use crate::AppState;
 use crate::error::ApiError;
@@ -15,7 +15,7 @@ pub fn routes(state: &AppState) -> Router<AppState> {
     Router::new()
         .nest_service(
             "/mcp",
-            maru_agent::http_service(
+            giwa_agent::http_service(
                 state.ctx.clone(),
                 state.modules.clone(),
                 state.previews.as_ref().map(|p| p.sandbox()),

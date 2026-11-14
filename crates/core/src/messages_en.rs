@@ -11,14 +11,14 @@ pub(crate) fn lookup(key: &str) -> Option<&'static str> {
         "error.forbidden" => "You do not have permission to do this.",
         "error.conflict" => "It already exists or conflicts with the current state.",
         "error.port_in_use" => "Port {port} is in use by another program.",
-        "error.schema_too_new" => "The database is newer than this version of maru.",
+        "error.schema_too_new" => "The database is newer than this version of giwa.",
         "error.rate_limited" => "Too many requests. Try again shortly.",
         "error.external" => "An external connection failed.",
         "error.service" => "Could not register the service: {detail}",
         "hint.port_in_use" => "Run on a different port.",
         "error.usage_detail" => "The command usage is not correct: {detail}",
-        "hint.usage" => "Run `maru --help` to see the usage.",
-        "hint.schema_too_new" => "Run a newer maru or restore from a backup.",
+        "hint.usage" => "Run `giwa --help` to see the usage.",
+        "hint.schema_too_new" => "Run a newer giwa or restore from a backup.",
         "error.io" => "Could not read or write the file: {path}",
         "error.config_parse" => "Could not parse the config file ({path}): {detail}",
         "error.config_site_url" => "site_url must start with http:// or https://: {value}",
@@ -159,7 +159,7 @@ pub(crate) fn lookup(key: &str) -> Option<&'static str> {
             "Unencrypted SMTP (security = none) works only with a relay on this computer: {host}"
         }
         "error.link_not_found" => {
-            "No link card for `{url}`. Open a post containing it once (or run `maru link list`) and try again."
+            "No link card for `{url}`. Open a post containing it once (or run `giwa link list`) and try again."
         }
         "error.link_status" => "There is no link status `{value}`. Allowed: pending, ok, failed",
         "error.mail_test_failed" => "Could not send the test mail: {detail}",
@@ -173,7 +173,7 @@ pub(crate) fn lookup(key: &str) -> Option<&'static str> {
             "This is a test mail from {site}. If you received it, the mail settings are right.\n\nSign-up verification and password reset mails go out the same way.\n"
         }
         "error.mail_local_only" => {
-            "Mail bodies contain one-time links, so they can be read only with `maru mail` on this computer."
+            "Mail bodies contain one-time links, so they can be read only with `giwa mail` on this computer."
         }
         "error.banned_word" => "It contains the banned word \"{word}\" and cannot be saved.",
         "error.banned_word_long" => "A banned word can have {max} characters at most.",
@@ -191,7 +191,7 @@ pub(crate) fn lookup(key: &str) -> Option<&'static str> {
             "cloudflared is not installed. Install it as the official guide says and run this again: {url}"
         }
         "error.expose_no_server" => {
-            "The maru server is not answering at {target}. Start the server first."
+            "The giwa server is not answering at {target}. Start the server first."
         }
         "error.expose_failed" => "Could not open the tunnel: {detail}",
         "error.expose_hostname" => "The domain name is not valid: {value}",
@@ -319,7 +319,7 @@ pub(crate) fn lookup(key: &str) -> Option<&'static str> {
         "error.widget_config" => "The `{kind}` widget settings are not valid: {reason}",
         "error.widget_device" => "Devices to hide on are {allowed}: {value}",
         "error.widget_hidden_everywhere" => {
-            "To hide a widget on every device, turn it off instead (`maru widget configure <id> --disable`)."
+            "To hide a widget on every device, turn it off instead (`giwa widget configure <id> --disable`)."
         }
         "error.audit_actor_type" => "The actor type must be one of {allowed} (got {value}).",
         "error.audit_name" => {
@@ -350,10 +350,10 @@ pub(crate) fn lookup(key: &str) -> Option<&'static str> {
         }
         "error.backup_not_found" => "There is no backup file `{name}`.",
         "error.backup_invalid" => {
-            "This is not a Maru backup file, or it is broken: {path} ({detail})"
+            "This is not a Giwa backup file, or it is broken: {path} ({detail})"
         }
         "error.backup_newer" => {
-            "This backup was made by a newer Maru ({version}, schema {schema}). This binary knows up to schema {known}. Upgrade Maru and restore."
+            "This backup was made by a newer Giwa ({version}, schema {schema}). This binary knows up to schema {known}. Upgrade Giwa and restore."
         }
         "error.server_running" => {
             "A server is already running with this data directory ({path}). Stop it and run this again."

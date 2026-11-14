@@ -8,10 +8,10 @@ use std::sync::{Arc, Mutex};
 use axum::extract::State;
 use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
-use maru_core::design::Tokens;
-use maru_core::model::SiteSettings;
-use maru_core::sample_art;
-use maru_core::services::{design, settings};
+use giwa_core::design::Tokens;
+use giwa_core::model::SiteSettings;
+use giwa_core::sample_art;
+use giwa_core::services::{design, settings};
 use serde_json::json;
 
 use crate::AppState;
@@ -36,7 +36,7 @@ fn seed(name: &str, primary: &str) -> u32 {
 }
 
 async fn off(state: &AppState) -> Response {
-    crate::error::page(state, &maru_core::Error::new(maru_core::Code::NotFound)).await
+    crate::error::page(state, &giwa_core::Error::new(giwa_core::Code::NotFound)).await
 }
 
 /// `/manifest.webmanifest`. `site.pwa` 를 끄면 없는 주소다.

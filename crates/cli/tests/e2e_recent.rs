@@ -9,7 +9,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 
 struct Server(Child);
 
@@ -27,12 +27,12 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -73,7 +73,7 @@ fn table(page: &str) -> &str {
 }
 
 fn post(data: &Path, board: &str, slug: &str, title: &str) {
-    maru(
+    giwa(
         data,
         &[
             "post",
@@ -93,22 +93,22 @@ fn post(data: &Path, board: &str, slug: &str, title: &str) {
 fn recent_collects_every_readable_board() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    maru(&data, &["site", "set", "--posts-per-page", "2"]);
-    maru(
+    giwa(&data, &["site", "set", "--posts-per-page", "2"]);
+    giwa(
         &data,
         &[
             "board", "create", "free", "--name", "자유", "--kind", "free",
         ],
     );
-    maru(
+    giwa(
         &data,
         &["board", "create", "qna", "--name", "질문", "--kind", "free"],
     );
-    maru(
+    giwa(
         &data,
         &[
             "board",
@@ -120,13 +120,13 @@ fn recent_collects_every_readable_board() {
             "free",
         ],
     );
-    maru(&data, &["board", "update", "vip", "--read", "member"]);
+    giwa(&data, &["board", "update", "vip", "--read", "member"]);
     post(&data, "free", "f1", "자유 첫 글");
     post(&data, "qna", "q1", "질문 하나");
     post(&data, "vip", "v1", "회원만 읽는 글");
     post(&data, "free", "f2", "자유 둘째 글");
     // 게시판을 고르지 않은 새 글·인기 위젯
-    maru(
+    giwa(
         &data,
         &[
             "widget",
@@ -140,7 +140,7 @@ fn recent_collects_every_readable_board() {
             "{}",
         ],
     );
-    maru(
+    giwa(
         &data,
         &[
             "widget",

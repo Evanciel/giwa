@@ -9,16 +9,16 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use async_trait::async_trait;
+use giwa_core::actor::{Actor, Permission};
+use giwa_core::audit::{AuditRecord, Target};
+use giwa_core::model::AuditEvent;
+use giwa_core::services::auth::new_secret;
+use giwa_core::store::ModuleMigration;
+use giwa_core::{Code, Ctx, Error, Result, clock};
+use giwa_modules::{Manifest, Module, ToolDef, module_error, schema_of};
+use giwa_storage::Db;
+use giwa_storage::fetch::{WebhookPoster, check_target_url};
 use hmac::{Hmac, KeyInit, Mac};
-use maru_core::actor::{Actor, Permission};
-use maru_core::audit::{AuditRecord, Target};
-use maru_core::model::AuditEvent;
-use maru_core::services::auth::new_secret;
-use maru_core::store::ModuleMigration;
-use maru_core::{Code, Ctx, Error, Result, clock};
-use maru_modules::{Manifest, Module, ToolDef, module_error, schema_of};
-use maru_storage::Db;
-use maru_storage::fetch::{WebhookPoster, check_target_url};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -138,7 +138,7 @@ struct AddInput {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct IdInput {
-    /// 받는 곳 ID (`maru webhook list`)
+    /// 받는 곳 ID (`giwa webhook list`)
     id: String,
 }
 
@@ -179,7 +179,7 @@ fn host_of(url: &str) -> String {
 
 fn not_found(id: &str) -> Error {
     module_error(Code::NotFound, format!("받는 곳을 찾을 수 없습니다: {id}"))
-        .next("maru webhook list")
+        .next("giwa webhook list")
 }
 
 /// 받는 쪽이 검사할 서명: `HMAC-SHA256(키, "<시각>.<본문>")` 의 16진수.
@@ -264,11 +264,11 @@ impl WebhookModule {
             .duration_since(UNIX_EPOCH)
             .map_or(0, |d| d.as_secs());
         let headers = [
-            ("Maru-Webhook-Id", event_id.to_owned()),
-            ("Maru-Webhook-Event", action.to_owned()),
-            ("Maru-Webhook-Timestamp", ts.to_string()),
+            ("Giwa-Webhook-Id", event_id.to_owned()),
+            ("Giwa-Webhook-Event", action.to_owned()),
+            ("Giwa-Webhook-Timestamp", ts.to_string()),
             (
-                "Maru-Webhook-Signature",
+                "Giwa-Webhook-Signature",
                 format!("v1={}", sign(&ep.secret, ts, body)),
             ),
         ];
@@ -407,7 +407,7 @@ impl WebhookModule {
             Target::new("webhook", id.clone()),
             json!({ "host": host_of(&url), "events": events }),
         );
-        maru_storage::sqlite::insert_audit(&mut tx, &audit).await?;
+        giwa_storage::sqlite::insert_audit(&mut tx, &audit).await?;
         tx.commit().await.map_err(Error::internal)?;
         let mut out = json!({ "id": id, "url": url, "events": events, "created": created });
         match secret {
@@ -417,7 +417,7 @@ impl WebhookModule {
             }
             None => {
                 out["note"] = json!(
-                    "이미 있던 받는 곳입니다. 키가 필요하면 `maru webhook rotate --id <ID>`."
+                    "이미 있던 받는 곳입니다. 키가 필요하면 `giwa webhook rotate --id <ID>`."
                 );
             }
         }
@@ -459,7 +459,7 @@ impl WebhookModule {
             Target::new("webhook", ep.id.clone()),
             json!({ "host": host_of(&ep.url) }),
         );
-        maru_storage::sqlite::insert_audit(&mut tx, &audit).await?;
+        giwa_storage::sqlite::insert_audit(&mut tx, &audit).await?;
         tx.commit().await.map_err(Error::internal)?;
         Ok(json!({ "removed": ep.id }))
     }
@@ -487,7 +487,7 @@ impl WebhookModule {
             Target::new("webhook", ep.id.clone()),
             json!({ "host": host_of(&ep.url) }),
         );
-        maru_storage::sqlite::insert_audit(&mut tx, &audit).await?;
+        giwa_storage::sqlite::insert_audit(&mut tx, &audit).await?;
         tx.commit().await.map_err(Error::internal)?;
         Ok(json!({
             "id": ep.id,
@@ -548,7 +548,7 @@ impl WebhookModule {
                     sent.error.unwrap_or_default()
                 ),
             )
-            .next(format!("maru webhook ping --id {}", ep.id)));
+            .next(format!("giwa webhook ping --id {}", ep.id)));
         }
         Ok(json!({ "ok": true, "http_status": sent.status }))
     }
@@ -628,7 +628,7 @@ impl Module for WebhookModule {
             "rotate" => self.tool_rotate(actor, parse_input(input)?).await,
             "deliveries" => self.tool_deliveries(parse_input(input)?).await,
             "ping" => self.tool_ping(parse_input(input)?).await,
-            other => Err(maru_modules::tool_not_found(MANIFEST.id, other)),
+            other => Err(giwa_modules::tool_not_found(MANIFEST.id, other)),
         }
     }
 

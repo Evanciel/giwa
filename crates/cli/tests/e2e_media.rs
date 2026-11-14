@@ -10,7 +10,7 @@ use std::process::{Child, Command, Stdio};
 use image::{DynamicImage, ImageFormat, Rgb, RgbImage};
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 
 struct Server(Child);
 
@@ -21,14 +21,14 @@ impl Drop for Server {
     }
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let out = Command::new(BIN)
         .arg("--data")
         .arg(data)
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
@@ -140,22 +140,22 @@ fn path_of(url: &str) -> String {
 
 /// 로그인 링크로 세션을 받고, 글쓰기 화면에서 세션 CSRF 값을 읽는다.
 fn admin_session(data: &Path, bind: &str) -> (String, String) {
-    let link = maru(data, &["login-link"]);
+    let link = giwa(data, &["login-link"]);
     let link_path = path_of(link["data"]["url"].as_str().unwrap());
     let page = http(bind, "GET", &link_path, &[], b"");
-    let pre = page.cookie("maru_csrf").unwrap();
+    let pre = page.cookie("giwa_csrf").unwrap();
     let res = http(
         bind,
         "POST",
         &link_path,
         &[
             ("Content-Type", "application/x-www-form-urlencoded"),
-            ("Cookie", &format!("maru_csrf={pre}")),
+            ("Cookie", &format!("giwa_csrf={pre}")),
         ],
         format!("_csrf={pre}").as_bytes(),
     );
     assert_eq!(res.status, 303, "{}", res.text());
-    let cookie = format!("maru_session={}", res.cookie("maru_session").unwrap());
+    let cookie = format!("giwa_session={}", res.cookie("giwa_session").unwrap());
     let edit = http(bind, "GET", "/admin/posts/new", &[("Cookie", &cookie)], b"");
     assert_eq!(edit.status, 200);
     (cookie, edit.csrf_field())
@@ -165,14 +165,14 @@ fn admin_session(data: &Path, bind: &str) -> (String, String) {
 fn media_upload_serve_and_preview_through_all_paths() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    let init = maru(&data, &["init", "--no-samples", "--yes"]);
+    let init = giwa(&data, &["init", "--no-samples", "--yes"]);
     let token = init["data"]["token"]["secret"].as_str().unwrap().to_owned();
     let bearer = format!("Bearer {token}");
 
     // CLI: 한글 파일 이름도 받고, 경로에는 ID 만 쓴다.
     let file = tmp.path().join("가을 사진.jpg");
     std::fs::write(&file, jpeg(1400, 700)).unwrap();
-    let up = maru(
+    let up = giwa(
         &data,
         &[
             "media",
@@ -207,7 +207,7 @@ fn media_upload_serve_and_preview_through_all_paths() {
     // 공개 글: 보관소 그림에 크기·축소본(srcset)이 붙고, 크기 조각·캡션이 그려진다 (ADR-0035).
     let body =
         format!("![노란 벽]({url}#w50 \"가을 골목\")\n\n:::gallery\n![a]({url}) ![b]({url})\n:::");
-    let post = maru(
+    let post = giwa(
         &data,
         &[
             "post",
@@ -255,7 +255,7 @@ fn media_upload_serve_and_preview_through_all_paths() {
     // 보관소 밖·규칙 밖 경로는 파일 시스템을 보지 않고 404.
     for bad in [
         "/media/../config.toml",
-        "/media/%2e%2e/maru.db",
+        "/media/%2e%2e/giwa.db",
         "/media/2026/x.svg",
         "/media/2026/X.JPG",
         "/media/2026/11/없는.jpg",
@@ -349,7 +349,7 @@ fn media_upload_serve_and_preview_through_all_paths() {
         br#"{"rotate":90}"#,
     );
     assert_eq!(res.status, 401, "{}", res.text());
-    let cli = maru(
+    let cli = giwa(
         &data,
         &[
             "media",
@@ -460,12 +460,12 @@ fn media_upload_serve_and_preview_through_all_paths() {
     );
 
     // 주소 겹침 확인: CLI·REST·관리 화면이 같은 답을 낸다. 아무것도 바꾸지 않는다.
-    let made = maru(
+    let made = giwa(
         &data,
         &["post", "new", "--title", "주소 확인", "--body", "본문"],
     );
     assert_eq!(made["data"]["slug"], "주소-확인", "{made}");
-    let cli = maru(
+    let cli = giwa(
         &data,
         &[
             "post",
@@ -511,12 +511,12 @@ fn media_upload_serve_and_preview_through_all_paths() {
     );
 
     // 세 경로가 모두 같은 표에 남는다.
-    let all = maru(&data, &["media", "list"]);
+    let all = giwa(&data, &["media", "list"]);
     assert_eq!(all["data"]["total"], 5);
 
     // 지우면 파일도 사라진다.
     let id = rest_media["id"].as_str().unwrap();
-    let del = maru(&data, &["media", "delete", id]);
+    let del = giwa(&data, &["media", "delete", id]);
     assert_eq!(del["ok"], true, "{del}");
     let gone = rest_media["url"].as_str().unwrap();
     assert_eq!(http(&bind, "GET", gone, &[], b"").status, 404);
@@ -526,7 +526,7 @@ fn media_upload_serve_and_preview_through_all_paths() {
 fn attachments_are_download_only_through_all_paths() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("첨부");
-    let init = maru(&data, &["init", "--no-samples", "--yes"]);
+    let init = giwa(&data, &["init", "--no-samples", "--yes"]);
     let token = init["data"]["token"]["secret"].as_str().unwrap().to_owned();
     let bearer = format!("Bearer {token}");
     let (_server, bind) = start_server(&data);
@@ -586,7 +586,7 @@ fn attachments_are_download_only_through_all_paths() {
     for bad in [
         "/files/없음",
         "/files/01m6eft46wt5sp5seq1xjbbryw",
-        "/files/..%2fmaru.db",
+        "/files/..%2fgiwa.db",
     ] {
         assert_eq!(http(&bind, "GET", bad, &[], b"").status, 404, "{bad}");
     }
@@ -618,7 +618,7 @@ fn attachments_are_download_only_through_all_paths() {
 
     // 본문 링크는 그대로 공개 화면에 남는다.
     let body = format!("자료: [견적서 v2.pdf (1KB)]({url})");
-    let post = maru(
+    let post = giwa(
         &data,
         &[
             "post",
@@ -638,10 +638,10 @@ fn attachments_are_download_only_through_all_paths() {
     assert!(html.contains(&format!("<a href=\"{url}\"")), "{html}");
 
     // CLI: 목록·지우기
-    let all = maru(&data, &["file", "list"]);
+    let all = giwa(&data, &["file", "list"]);
     assert_eq!(all["data"]["total"], 2, "{all}");
     let id = file["id"].as_str().unwrap();
-    let del = maru(&data, &["file", "delete", id]);
+    let del = giwa(&data, &["file", "delete", id]);
     assert_eq!(del["ok"], true, "{del}");
     assert_eq!(http(&bind, "GET", &url, &[], b"").status, 404);
 }

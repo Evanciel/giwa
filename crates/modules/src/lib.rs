@@ -1,7 +1,7 @@
 //! 모듈 시스템 (SPEC §7, ADR-0066).
 //!
 //! 코어 도메인 밖의 기능은 이 트레이트만 구현해 붙는다. 공식 모듈은 `mods/<id>` 에 있고 바이너리만
-//! 안다. 이 크레이트와 `maru-web` 은 `dyn Module` 만 보므로 sqlx 를 모른다.
+//! 안다. 이 크레이트와 `giwa-web` 은 `dyn Module` 만 보므로 sqlx 를 모른다.
 //!
 //! - 이벤트: 감사 기록이 곧 이벤트다. [`delivery`] 가 `audit_log` 를 따라가며 넘긴다.
 //! - 라우트: `/m/<id>` 아래에만 놓인다. 꺼져 있으면 404.
@@ -17,12 +17,12 @@ use async_trait::async_trait;
 use axum::Router;
 use axum::http::HeaderMap;
 use axum::response::Response;
-use maru_core::actor::{Actor, Permission};
-use maru_core::fields::FieldDef;
-use maru_core::model::{AuditEvent, Signal};
-use maru_core::services::widgets::WidgetType;
-use maru_core::store::{Extensions, ModuleMigration};
-use maru_core::{Code, Ctx, Error, Result};
+use giwa_core::actor::{Actor, Permission};
+use giwa_core::fields::FieldDef;
+use giwa_core::model::{AuditEvent, Signal};
+use giwa_core::services::widgets::WidgetType;
+use giwa_core::store::{Extensions, ModuleMigration};
+use giwa_core::{Code, Ctx, Error, Result};
 use serde::Serialize;
 use serde_json::{Map, Value};
 
@@ -159,7 +159,7 @@ pub trait Module: Send + Sync {
         Ok(())
     }
 
-    /// 보존 정리 (ADR-0073). 서버가 하루 한 번, `maru privacy run` 이 바로 부른다. 지운 수를 돌려준다.
+    /// 보존 정리 (ADR-0073). 서버가 하루 한 번, `giwa privacy run` 이 바로 부른다. 지운 수를 돌려준다.
     async fn purge(&self, _ctx: &Ctx) -> Result<u64> {
         Ok(0)
     }
@@ -225,7 +225,7 @@ pub fn tool_not_found(id: &str, tool: &str) -> Error {
         .with_message("error.module_tool_not_found")
         .arg("module", id)
         .arg("tool", tool)
-        .next(format!("maru module show {id}"))
+        .next(format!("giwa module show {id}"))
 }
 
 /// 이 바이너리에 든 모듈 목록. 켜짐은 DB 에 있다.

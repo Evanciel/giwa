@@ -6,7 +6,7 @@
 //! 배달은 최소 한 번이므로 받는 쪽이 멱등해야 한다.
 
 use async_trait::async_trait;
-use maru_core::{Ctx, Result};
+use giwa_core::{Ctx, Result};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

@@ -104,7 +104,7 @@ pub fn show(actor: &Actor, preset: &Preset) -> Result<Design> {
                 "detail",
                 format!("{} 에는 첫 화면 디자인이 없습니다.", preset.id),
             )
-            .next("maru design gallery")
+            .next("giwa design gallery")
     })
 }
 

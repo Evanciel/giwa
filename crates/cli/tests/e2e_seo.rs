@@ -9,7 +9,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 
 struct Server(Child);
 
@@ -26,14 +26,14 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .arg(data)
         .args(args)
         .arg("--json")
-        .env_remove("MARU_TOKEN")
+        .env_remove("GIWA_TOKEN")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -127,8 +127,8 @@ fn jpeg_size(b: &[u8]) -> (u32, u32) {
 fn 화면마다_구조화_데이터와_설명_공유_그림이_붙는다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("데이터");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
-    let site = maru(&data, &["site", "show"]);
+    giwa(&data, &["init", "--preset", "blog", "--yes"]);
+    let site = giwa(&data, &["site", "show"]);
     assert_eq!(
         site["description"], "일상과 공부한 것을 기록하는 개인 블로그입니다.",
         "사이트 종류가 예시 설명을 넣는다"
@@ -219,8 +219,8 @@ fn 화면마다_구조화_데이터와_설명_공유_그림이_붙는다() {
 fn 공유_그림_설정과_이름의_스크립트_닫기를_막는다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("데이터");
-    maru(&data, &["init", "--no-samples", "--yes"]);
-    maru(
+    giwa(&data, &["init", "--no-samples", "--yes"]);
+    giwa(
         &data,
         &[
             "site",
@@ -260,7 +260,7 @@ fn 공유_그림_설정과_이름의_스크립트_닫기를_막는다() {
     );
 
     // 비우면 다시 서버가 그린 그림
-    maru(&data, &["site", "set", "--share-image", ""]);
+    giwa(&data, &["site", "set", "--share-image", ""]);
     let (_, home) = get(&bind, "/");
     assert!(
         meta(&home, "property=\"og:image\"")
@@ -273,8 +273,8 @@ fn 공유_그림_설정과_이름의_스크립트_닫기를_막는다() {
 fn 내_컴퓨터_주소에서는_검색엔진에_알리지_않는다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("데이터");
-    maru(&data, &["init", "--preset", "blog", "--yes"]);
-    let s = maru(&data, &["seo", "status"]);
+    giwa(&data, &["init", "--preset", "blog", "--yes"]);
+    let s = giwa(&data, &["seo", "status"]);
     assert_eq!(s["enabled"], true);
     assert_eq!(s["public_site"], false);
     assert_eq!(s["endpoint"], "https://searchadvisor.naver.com/indexnow");
@@ -287,6 +287,6 @@ fn 내_컴퓨터_주소에서는_검색엔진에_알리지_않는다() {
     assert_eq!(get(&bind, "/nothing-here").0, 404);
     assert_eq!(get(&bind, "/robots.txt").0, 200);
 
-    maru(&data, &["site", "set", "--indexnow", "false"]);
-    assert_eq!(maru(&data, &["seo", "status"])["enabled"], false);
+    giwa(&data, &["site", "set", "--indexnow", "false"]);
+    assert_eq!(giwa(&data, &["seo", "status"])["enabled"], false);
 }

@@ -6,18 +6,18 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use async_trait::async_trait;
-use maru_core::actor::{Actor, Permission, rank};
-use maru_core::model::AuditEvent;
-use maru_core::services::auth;
-use maru_core::services::boards::{self, NewBoard};
-use maru_core::services::members::{self, SignupInput};
-use maru_core::services::posts::{self, NewPost};
-use maru_core::services::settings::{self, SettingsPatch};
-use maru_core::{Code, Ctx, Error, Result};
-use maru_mod_point::PointModule;
-use maru_modules::delivery::{MAX_ATTEMPTS, deliver_once};
-use maru_modules::{Manifest, Module, Registry, service};
-use maru_storage::{DataDir, Db, FsBlobs, SqliteStore};
+use giwa_core::actor::{Actor, Permission, rank};
+use giwa_core::model::AuditEvent;
+use giwa_core::services::auth;
+use giwa_core::services::boards::{self, NewBoard};
+use giwa_core::services::members::{self, SignupInput};
+use giwa_core::services::posts::{self, NewPost};
+use giwa_core::services::settings::{self, SettingsPatch};
+use giwa_core::{Code, Ctx, Error, Result};
+use giwa_mod_point::PointModule;
+use giwa_modules::delivery::{MAX_ATTEMPTS, deliver_once};
+use giwa_modules::{Manifest, Module, Registry, service};
+use giwa_storage::{DataDir, Db, FsBlobs, SqliteStore};
 use serde_json::{Map, Value, json};
 
 const PASSWORD: &str = "test-pass-1234";
@@ -38,7 +38,7 @@ async fn env() -> Env {
         store: Arc::new(SqliteStore::new(db.clone())),
         blobs: Arc::new(FsBlobs::new(dir.media_dir())),
         site_url: "http://127.0.0.1:8080".into(),
-        extensions: maru_core::store::no_extensions(),
+        extensions: giwa_core::store::no_extensions(),
     };
     settings::update(
         &ctx,

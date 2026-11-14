@@ -10,10 +10,10 @@ use axum::Extension;
 use axum::extract::{Form, Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Redirect, Response};
-use maru_core::actor::{Actor, Permission};
-use maru_core::services::settings;
-use maru_core::{Code, Ctx, Error, Result, urls};
-use maru_modules::{ModuleState, module_error};
+use giwa_core::actor::{Actor, Permission};
+use giwa_core::services::settings;
+use giwa_core::{Code, Ctx, Error, Result, urls};
+use giwa_modules::{ModuleState, module_error};
 use serde::Deserialize;
 use serde_json::{Value, json};
 

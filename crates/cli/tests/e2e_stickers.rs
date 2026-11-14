@@ -9,7 +9,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 const FORM: (&str, &str) = ("Content-Type", "application/x-www-form-urlencoded");
 const SAME: (&str, &str) = ("Sec-Fetch-Site", "same-origin");
 const PASSWORD: &str = "test-pass-1234";
@@ -23,14 +23,14 @@ impl Drop for Server {
     }
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let out = Command::new(BIN)
         .arg("--data")
         .arg(data)
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     let v: Value =
         serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"));
@@ -131,8 +131,8 @@ fn form(pairs: &[(&str, &str)]) -> String {
 
 fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
     let page = http(bind, "GET", "/signup", &[], "");
-    let pre = page.cookie("maru_csrf").unwrap();
-    let cookie = format!("maru_csrf={pre}");
+    let pre = page.cookie("giwa_csrf").unwrap();
+    let cookie = format!("giwa_csrf={pre}");
     let res = http(
         bind,
         "POST",
@@ -146,8 +146,8 @@ fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
             ("password2", PASSWORD),
         ]),
     );
-    if let Some(s) = res.cookie("maru_session") {
-        return format!("maru_session={s}");
+    if let Some(s) = res.cookie("giwa_session") {
+        return format!("giwa_session={s}");
     }
     let login = http(bind, "GET", "/login", &[("Cookie", &cookie)], "");
     let res = http(
@@ -163,20 +163,20 @@ fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
         ]),
     );
     let session = res
-        .cookie("maru_session")
+        .cookie("giwa_session")
         .unwrap_or_else(|| panic!("로그인 실패 {}: {}", res.status, res.body));
-    format!("maru_session={session}")
+    format!("giwa_session={session}")
 }
 
 #[test]
 fn stickers_in_comments_and_posts() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    maru(
+    giwa(
         &data,
         &[
             "site",
@@ -189,19 +189,19 @@ fn stickers_in_comments_and_posts() {
             "false",
         ],
     );
-    maru(
+    giwa(
         &data,
         &[
             "board", "create", "free", "--name", "자유", "--kind", "free",
         ],
     );
-    maru(
+    giwa(
         &data,
         &["board", "update", "free", "--write-approval", "off"],
     );
 
     // CLI 목록과 내장 파일이 맞다.
-    let list = maru(&data, &["stickers"]);
+    let list = giwa(&data, &["stickers"]);
     let items = list["items"].as_array().unwrap();
     assert_eq!(items.len(), 63);
     assert_eq!(items[0]["id"], "cat-1");
@@ -277,7 +277,7 @@ fn stickers_in_comments_and_posts() {
     drop(server);
 
     // 켜면 댓글의 이름이 그림이 되고, 나머지 글자는 이스케이프되고, 모르는 이름은 글자 그대로다.
-    let set = maru(&data, &["site", "set", "--stickers", "true"]);
+    let set = giwa(&data, &["site", "set", "--stickers", "true"]);
     assert_eq!(set["stickers"], true);
     let (_server, bind) = start_server(&data);
     let post = http(&bind, "GET", &url, &[], "");
@@ -322,5 +322,5 @@ fn stickers_in_comments_and_posts() {
     );
 
     // 관리 화면 설정·프리셋 값이 같은 칸을 쓴다.
-    assert_eq!(maru(&data, &["site", "show"])["stickers"], true);
+    assert_eq!(giwa(&data, &["site", "show"])["stickers"], true);
 }

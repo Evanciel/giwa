@@ -1,6 +1,6 @@
 [package]
-name = "maru-storage"
-description = "Maru SQLite 저장소 구현"
+name = "giwa-storage"
+description = "Giwa SQLite 저장소 구현"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,7 +11,7 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
-maru-core.workspace = true
+giwa-core.workspace = true
 sqlx.workspace = true
 tokio.workspace = true
 async-trait.workspace = true

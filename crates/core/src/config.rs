@@ -17,13 +17,13 @@ pub struct Config {
     /// 편지 보내는 방식. 없으면 파일로만 남긴다 (ADR-0051·0083).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mail: Option<MailConfig>,
-    /// 루프백 연결의 `CF-Connecting-IP` 를 방문자 주소로 믿는다. `maru expose` 가 켠다 (ADR-0118).
+    /// 루프백 연결의 `CF-Connecting-IP` 를 방문자 주소로 믿는다. `giwa expose` 가 켠다 (ADR-0118).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub trust_tunnel: bool,
 }
 
 /// `[mail]` — 편지 전송 설정. 비밀번호는 여기 두지 않는다(백업 파일에 설정이 들어간다).
-/// 비밀번호는 환경 변수 `MARU_SMTP_PASSWORD` 또는 데이터 디렉터리 `secrets/smtp-password`.
+/// 비밀번호는 환경 변수 `GIWA_SMTP_PASSWORD` 또는 데이터 디렉터리 `secrets/smtp-password`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct MailConfig {

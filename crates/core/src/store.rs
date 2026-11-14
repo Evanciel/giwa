@@ -1,4 +1,4 @@
-//! 저장소 경계 (PHASE1_PLAN §4.1·§4.2). 구현은 `maru-storage`, 조립은 `cli`.
+//! 저장소 경계 (PHASE1_PLAN §4.1·§4.2). 구현은 `giwa-storage`, 조립은 `cli`.
 //!
 //! 쓰기는 반드시 [`Tx`] 를 거친다. `Tx::commit` 은 감사 기록이 한 건도 없으면 거부한다.
 

@@ -9,7 +9,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 
 struct Server(Child);
 
@@ -20,14 +20,14 @@ impl Drop for Server {
     }
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let out = Command::new(BIN)
         .arg("--data")
         .arg(data)
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     let v: Value =
         serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"));
@@ -96,8 +96,8 @@ fn sign_in(bind: &str, link_url: &str) -> String {
     let path = &rest[rest.find('/').unwrap()..];
     let page = http(bind, "GET", path, &[], "");
     assert_eq!(page.status, 200, "{}", page.body);
-    let csrf = page.cookie("maru_csrf").unwrap();
-    let cookie = format!("maru_csrf={csrf}");
+    let csrf = page.cookie("giwa_csrf").unwrap();
+    let cookie = format!("giwa_csrf={csrf}");
     let res = http(
         bind,
         "POST",
@@ -109,20 +109,20 @@ fn sign_in(bind: &str, link_url: &str) -> String {
         &format!("_csrf={csrf}"),
     );
     assert_eq!(res.status, 303, "{}", res.body);
-    res.cookie("maru_session").unwrap()
+    res.cookie("giwa_session").unwrap()
 }
 
 #[test]
 fn audit_log_is_listed_by_cli_rest_and_admin_screen() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    let init = maru(
+    let init = giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
     let reader = format!("Bearer {}", init["token"]["secret"].as_str().unwrap());
-    let link = maru(&data, &["login-link"]);
-    let post = maru(
+    let link = giwa(&data, &["login-link"]);
+    let post = giwa(
         &data,
         &[
             "post",
@@ -136,7 +136,7 @@ fn audit_log_is_listed_by_cli_rest_and_admin_screen() {
     );
     let id = post["id"].as_str().unwrap().to_owned();
 
-    let list = maru(&data, &["audit", "list", "--action", "post"]);
+    let list = giwa(&data, &["audit", "list", "--action", "post"]);
     let items = list["items"].as_array().unwrap();
     assert!(!items.is_empty(), "{list}");
     assert!(
@@ -146,7 +146,7 @@ fn audit_log_is_listed_by_cli_rest_and_admin_screen() {
     );
     assert_eq!(items[0]["action"], "post.publish", "최신 순");
     assert_eq!(items[0]["actor_type"], "local");
-    let target = maru(
+    let target = giwa(
         &data,
         &[
             "audit",
@@ -182,7 +182,7 @@ fn audit_log_is_listed_by_cli_rest_and_admin_screen() {
 
     // 로그인도 기록된다. 사람의 기록에는 회원 이름이 붙는다.
     let session = sign_in(&bind, link["url"].as_str().unwrap());
-    let cookie = format!("maru_session={session}");
+    let cookie = format!("giwa_session={session}");
     let page = get(
         "/admin/audit?action=post&target_id=",
         &[("Cookie", &cookie)],
@@ -197,7 +197,7 @@ fn audit_log_is_listed_by_cli_rest_and_admin_screen() {
     let all = get("/admin/audit", &[("Cookie", &cookie)]);
     assert!(all.body.contains("게시판을 만들었습니다"), "{}", all.body);
     assert!(all.body.contains("원본 보기"), "원본 펼치기");
-    let humans = maru(&data, &["audit", "list", "--actor-type", "human"]);
+    let humans = giwa(&data, &["audit", "list", "--actor-type", "human"]);
     let login = &humans["items"][0];
     assert_eq!(
         login["action"].as_str().unwrap().split('.').next(),

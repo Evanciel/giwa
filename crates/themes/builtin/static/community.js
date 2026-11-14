@@ -3,7 +3,7 @@
 (function () {
   "use strict";
   // 영어 사이트 문구 (ADR-0134). `<html lang>` 을 보고, 표에 없으면 한국어 그대로. {n} 은 값 자리.
-  var MARU_EN = document.documentElement.lang.indexOf("en") === 0 ? {
+  var GIWA_EN = document.documentElement.lang.indexOf("en") === 0 ? {
     "{n} 전체 보기": "All {n}",
     "{n} 지우기": "Remove {n}",
     "내 댓글": "My comments",
@@ -22,9 +22,9 @@
     "프로필 보기": "View profile",
     "회원가입": "Sign up",
   } : null;
-  function T(s, n) { return ((MARU_EN && MARU_EN[s]) || s).replace("{n}", n); }
+  function T(s, n) { return ((GIWA_EN && GIWA_EN[s]) || s).replace("{n}", n); }
   var root = document.documentElement;
-  var KEY = "maru.mode";
+  var KEY = "giwa.mode";
 
   function stored() {
     try { return localStorage.getItem(KEY); } catch (e) { return null; }
@@ -341,7 +341,7 @@
   }
 
   // 최근 검색어: 이 브라우저 localStorage 에만 10개. 서버로 보내지 않는다.
-  var QKEY = "maru.recentSearches";
+  var QKEY = "giwa.recentSearches";
   function loadQ() {
     try {
       var v = JSON.parse(localStorage.getItem(QKEY) || "[]");

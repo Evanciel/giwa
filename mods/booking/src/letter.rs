@@ -3,8 +3,8 @@
 //! 손님 취소 링크의 1회용 값은 해시만 남는다. 그래서 확정·접수 편지를 쌓을 때마다 새 값을 만들어
 //! 편지에만 싣고, 앞서 보낸 링크는 쓸 수 없게 된다(가장 최근 편지의 링크가 살아 있다).
 
-use maru_core::model::{BusinessInfo, MailOut, MailStatus, SiteSettings};
-use maru_core::{Ctx, Result, clock};
+use giwa_core::model::{BusinessInfo, MailOut, MailStatus, SiteSettings};
+use giwa_core::{Ctx, Result, clock};
 
 use super::{BookingModule, BookingRow, Conf, HOME, won};
 
@@ -143,7 +143,7 @@ impl BookingModule {
             created_at: clock::now(),
             sent_at: None,
         };
-        maru_storage::mail::queue(tx, &out).await?;
+        giwa_storage::mail::queue(tx, &out).await?;
         Ok(())
     }
 }

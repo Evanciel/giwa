@@ -1,6 +1,6 @@
 [package]
-name = "maru-agent"
-description = "Maru MCP 서버: 코어 서비스와 모듈 툴을 에이전트에게 내놓는다"
+name = "giwa-agent"
+description = "Giwa MCP 서버: 코어 서비스와 모듈 툴을 에이전트에게 내놓는다"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,9 +11,9 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
-maru-core.workspace = true
-maru-modules.workspace = true
-maru-themes.workspace = true
+giwa-core.workspace = true
+giwa-modules.workspace = true
+giwa-themes.workspace = true
 http.workspace = true
 rmcp.workspace = true
 schemars.workspace = true

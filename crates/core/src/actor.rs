@@ -292,7 +292,7 @@ impl Actor {
             return Err(Error::new(Code::Forbidden)
                 .with_message("error.changeset_required")
                 .arg("action", action)
-                .next("maru changeset new --title <제목> --ops '[...]'"));
+                .next("giwa changeset new --title <제목> --ops '[...]'"));
         }
         Ok(())
     }

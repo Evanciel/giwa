@@ -9,7 +9,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 
 struct Server(Child);
 
@@ -27,12 +27,12 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -70,12 +70,12 @@ fn get(bind: &str, path: &str) -> (u16, String) {
 fn design_gallery_is_the_same_everywhere() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
 
-    let list = maru(&data, &["design", "gallery"]);
+    let list = giwa(&data, &["design", "gallery"]);
     let items = list["items"].as_array().unwrap();
     assert!(items.len() >= 10, "{list}");
     let cafe = items
@@ -85,7 +85,7 @@ fn design_gallery_is_the_same_everywhere() {
     assert!(cafe["blocks"].as_u64().unwrap() >= 2, "{cafe}");
     assert!(cafe["swatch"]["primary"].is_string(), "{cafe}");
 
-    let one = maru(&data, &["design", "gallery", "cafe"]);
+    let one = giwa(&data, &["design", "gallery", "cafe"]);
     assert_eq!(one["id"], "cafe");
     assert_eq!(
         one["items"].as_array().unwrap().len() as u64,
@@ -111,7 +111,7 @@ fn design_gallery_is_the_same_everywhere() {
 fn saved_blocks_are_kept_for_reuse() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
@@ -125,8 +125,8 @@ fn saved_blocks_are_kept_for_reuse() {
         "--config",
         r#"{"text":"늘 처음처럼","name":"대표"}"#,
     ];
-    let a = maru(&data, &save);
-    let b = maru(&data, &save);
+    let a = giwa(&data, &save);
+    let b = giwa(&data, &save);
     assert_eq!(a["id"], b["id"], "같은 내용은 한 번만 저장");
     assert_eq!(a["region"], "main");
     assert_eq!(a["config"]["text"], "늘 처음처럼");
@@ -151,7 +151,7 @@ fn saved_blocks_are_kept_for_reuse() {
     );
     assert_eq!(bad["ok"], false, "{bad}");
 
-    let list = maru(&data, &["widget", "saved", "list"]);
+    let list = giwa(&data, &["widget", "saved", "list"]);
     assert_eq!(list.as_array().unwrap().len(), 1, "{list}");
 
     let (_server, bind) = start_server(&data);
@@ -160,13 +160,13 @@ fn saved_blocks_are_kept_for_reuse() {
     drop(_server);
 
     let id = a["id"].as_str().unwrap();
-    let gone = maru(&data, &["widget", "saved", "delete", id]);
+    let gone = giwa(&data, &["widget", "saved", "delete", id]);
     assert_eq!(gone["deleted"], true);
-    let again = maru(&data, &["widget", "saved", "delete", id]);
+    let again = giwa(&data, &["widget", "saved", "delete", id]);
     assert_eq!(again["deleted"], false, "두 번 지워도 오류가 아니다");
-    let list = maru(&data, &["widget", "saved", "list"]);
+    let list = giwa(&data, &["widget", "saved", "list"]);
     assert!(list.as_array().unwrap().is_empty());
-    let audit = maru(&data, &["audit", "list"]).to_string();
+    let audit = giwa(&data, &["audit", "list"]).to_string();
     assert!(
         audit.contains("block.save") && audit.contains("block.delete"),
         "감사 기록"

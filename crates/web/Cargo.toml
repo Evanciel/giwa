@@ -1,6 +1,6 @@
 [package]
-name = "maru-web"
-description = "Maru 공개 사이트, REST API, 관리 화면"
+name = "giwa-web"
+description = "Giwa 공개 사이트, REST API, 관리 화면"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,10 +11,10 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
-maru-core.workspace = true
-maru-themes.workspace = true
-maru-modules.workspace = true
-maru-agent.workspace = true
+giwa-core.workspace = true
+giwa-themes.workspace = true
+giwa-modules.workspace = true
+giwa-agent.workspace = true
 async-trait.workspace = true
 axum.workspace = true
 tokio.workspace = true

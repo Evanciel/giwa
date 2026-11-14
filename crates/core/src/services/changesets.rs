@@ -133,7 +133,7 @@ fn not_found(id: &str) -> Error {
     Error::new(Code::NotFound)
         .with_message("error.changeset_not_found")
         .arg("id", id)
-        .next("maru changeset list")
+        .next("giwa changeset list")
 }
 
 fn wrong_status(cs: &Changeset) -> Error {
@@ -141,7 +141,7 @@ fn wrong_status(cs: &Changeset) -> Error {
         .with_message("error.changeset_status")
         .arg("id", cs.id.clone())
         .arg("status", cs.status.as_str())
-        .next(format!("maru changeset show {}", cs.id))
+        .next(format!("giwa changeset show {}", cs.id))
 }
 
 fn bad_op(detail: impl std::fmt::Display) -> Error {
@@ -176,7 +176,7 @@ fn require_apply(actor: &Actor) -> Result<()> {
     match actor.kind() {
         ActorKind::Agent { .. } if !actor.can_auto_apply() => Err(Error::new(Code::Forbidden)
             .with_message("error.changeset_apply_agent")
-            .next("maru changeset apply <id>")),
+            .next("giwa changeset apply <id>")),
         ActorKind::Anonymous | ActorKind::Human { .. } => actor.require(Permission::SiteAdmin),
         _ => Ok(()),
     }
@@ -558,7 +558,7 @@ pub async fn revert(ctx: &Ctx, actor: &Actor, id: &str) -> Result<Changeset> {
         cs.error = Some(e.message());
         ctx.store.save_changeset(&cs).await?;
         stamp(ctx, actor, &cs.id, &started).await?;
-        return Err(e.next(format!("maru changeset revert {id}")));
+        return Err(e.next(format!("giwa changeset revert {id}")));
     }
     cs.status = ChangesetStatus::Reverted;
     cs.error = None;

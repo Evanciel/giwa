@@ -6,12 +6,12 @@ use axum::extract::{Form, Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
-use maru_core::actor::Permission;
-use maru_core::clock;
-use maru_core::model::{Changeset, ChangesetStatus};
-use maru_core::services::changesets;
-use maru_core::{Code, Error};
-use maru_modules::Registry;
+use giwa_core::actor::Permission;
+use giwa_core::clock;
+use giwa_core::model::{Changeset, ChangesetStatus};
+use giwa_core::services::changesets;
+use giwa_core::{Code, Error};
+use giwa_modules::Registry;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -99,7 +99,7 @@ fn module_name(modules: &Registry, id: &str) -> String {
 
 /// 위젯 종류 이름. 코어 위젯이 아니면 모듈이 내놓은 종류에서 찾는다.
 fn widget_name(modules: &Registry, kind: &str) -> String {
-    let core = maru_core::services::widgets::kind_name(kind);
+    let core = giwa_core::services::widgets::kind_name(kind);
     if core != kind {
         return core.to_owned();
     }

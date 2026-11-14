@@ -16,18 +16,18 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use axum::routing::{get, post};
 use axum::{Extension, Router};
-use maru_core::actor::{Actor, ActorKind, Permission};
-use maru_core::audit::{AuditRecord, Target};
-use maru_core::fields::FieldDef;
-use maru_core::model::{AuditEvent, Signal};
-use maru_core::services::widgets::WidgetType;
-use maru_core::services::{auth, settings, tokens};
-use maru_core::store::ModuleMigration;
-use maru_core::{Code, Ctx, Error, Result, clock};
-use maru_modules::checkout::{Checkout, CheckoutRequest};
-use maru_modules::service::settings_of;
-use maru_modules::{Manifest, Module, ModuleState, ToolDef, module_error, schema_of};
-use maru_storage::Db;
+use giwa_core::actor::{Actor, ActorKind, Permission};
+use giwa_core::audit::{AuditRecord, Target};
+use giwa_core::fields::FieldDef;
+use giwa_core::model::{AuditEvent, Signal};
+use giwa_core::services::widgets::WidgetType;
+use giwa_core::services::{auth, settings, tokens};
+use giwa_core::store::ModuleMigration;
+use giwa_core::{Code, Ctx, Error, Result, clock};
+use giwa_modules::checkout::{Checkout, CheckoutRequest};
+use giwa_modules::service::settings_of;
+use giwa_modules::{Manifest, Module, ModuleState, ToolDef, module_error, schema_of};
+use giwa_storage::Db;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
@@ -58,7 +58,7 @@ const KEEP_DAYS: i64 = 365 * 5;
 const MAX_AMOUNT: i64 = 100_000_000;
 const MAX_LINES: usize = 30;
 const MAX_QTY: i64 = 99;
-pub const CART_COOKIE: &str = "maru_cart";
+pub const CART_COOKIE: &str = "giwa_cart";
 
 pub const PENDING: &str = "pending";
 pub const PAID: &str = "paid";
@@ -105,7 +105,7 @@ fn no_product(id: &str) -> Error {
             id.chars().take(40).collect::<String>()
         ),
     )
-    .next("maru shop products")
+    .next("giwa shop products")
 }
 
 fn no_order(id: &str) -> Error {
@@ -116,7 +116,7 @@ fn no_order(id: &str) -> Error {
             id.chars().take(40).collect::<String>()
         ),
     )
-    .next("maru shop orders")
+    .next("giwa shop orders")
 }
 
 fn parse<T: for<'de> Deserialize<'de>>(input: Value) -> Result<T> {
@@ -134,7 +134,7 @@ fn require_person(actor: &Actor) -> Result<()> {
             Code::Forbidden,
             "주문 취소는 사람이 합니다. 운영자가 관리 화면이나 이 컴퓨터의 CLI 로 실행하세요.",
         )
-        .next("maru shop cancel --id <주문> --reason <사유>"));
+        .next("giwa shop cancel --id <주문> --reason <사유>"));
     }
     actor.require(Permission::SiteAdmin)
 }
@@ -689,7 +689,7 @@ impl ShopModule {
             Target::new("shop_product", p.id.clone()),
             p.view(),
         );
-        maru_storage::sqlite::insert_audit(&mut tx, &audit).await?;
+        giwa_storage::sqlite::insert_audit(&mut tx, &audit).await?;
         tx.commit().await.map_err(Error::internal)?;
         Ok(json!({ "product": p.view(), "created": fresh }))
     }
@@ -956,7 +956,7 @@ impl ShopModule {
             Target::new("shop_order", id.clone()),
             json!({ "total": q.total, "lines": lines.len() }),
         );
-        maru_storage::sqlite::insert_audit(&mut tx, &audit).await?;
+        giwa_storage::sqlite::insert_audit(&mut tx, &audit).await?;
         tx.commit().await.map_err(Error::internal)?;
         let title = match lines.len() {
             1 => lines[0].name.clone(),
@@ -1166,7 +1166,7 @@ impl ShopModule {
             Target::new("shop_order", id),
             json!({ "from": o.status, "to": ch.to, "total": o.total, "short": short != 0, "tracking": ch.tracking }),
         );
-        maru_storage::sqlite::insert_audit(&mut tx, &audit).await?;
+        giwa_storage::sqlite::insert_audit(&mut tx, &audit).await?;
         if let Some(kind) = ch.letter {
             let row = self.row_in(&mut tx, id).await?;
             self.letter(&mut tx, ctx, &site, kind, &row, &items).await?;
@@ -1381,7 +1381,7 @@ struct ProductSetInput {
     price: Option<i64>,
     /// 재고 수. -1 이면 세지 않는다(무제한)
     stock: Option<i64>,
-    /// 사진 주소 (`maru media upload` 가 돌려준 /media/… 주소)
+    /// 사진 주소 (`giwa media upload` 가 돌려준 /media/… 주소)
     image: Option<String>,
     /// 옵션 이름 (예: 크기)
     option_label: Option<String>,
@@ -1604,7 +1604,7 @@ impl Module for ShopModule {
                 let i: CancelInput = parse(input)?;
                 self.cancel(ctx, actor, i.id.trim(), &i.reason).await
             }
-            _ => Err(maru_modules::tool_not_found(MANIFEST.id, tool)),
+            _ => Err(giwa_modules::tool_not_found(MANIFEST.id, tool)),
         }
     }
 

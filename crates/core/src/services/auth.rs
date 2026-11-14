@@ -102,7 +102,7 @@ pub async fn ensure_owner(
     if ctx.store.count_members().await? > 0 {
         return Err(Error::new(Code::Conflict)
             .with_message("error.owner_exists")
-            .next("maru login-link"));
+            .next("giwa login-link"));
     }
     let now = clock::now();
     let member = Member {
@@ -142,13 +142,13 @@ pub async fn issue_login_link(ctx: &Ctx, actor: &Actor, email: Option<&str>) -> 
         None => {
             return Err(Error::new(Code::Validation)
                 .with_message("error.member_email_required")
-                .next("maru login-link --email <이메일>"));
+                .next("giwa login-link --email <이메일>"));
         }
     }
     .ok_or_else(|| {
         Error::new(Code::NotFound)
             .with_message("error.member_not_found")
-            .next("maru init --yes")
+            .next("giwa init --yes")
     })?;
     if member.status != MemberStatus::Active {
         return Err(Error::new(Code::Forbidden).with_message("error.member_disabled"));
@@ -522,7 +522,7 @@ fn dummy_hash() -> &'static str {
 fn link_invalid() -> Error {
     Error::new(Code::Unauthorized)
         .with_message("error.link_invalid")
-        .next("maru login-link")
+        .next("giwa login-link")
 }
 
 fn login_failed() -> Error {

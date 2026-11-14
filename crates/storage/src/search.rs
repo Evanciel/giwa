@@ -5,10 +5,10 @@
 //!   공개 여부·비밀글·게시판 권한은 찾을 때 `posts`/`pages` 와 이어 붙여 거른다.
 //! - DB 를 열 때 [`ensure`] 가 `search_state.version` 을 보고 자르는 규칙이 바뀌었으면 다시 만든다.
 
-use maru_core::Result;
-use maru_core::model::{Page, Post};
-use maru_core::search::{Document, INDEX_VERSION};
-use maru_core::store::{LiteralSearchQuery, LiteralTarget, SearchQuery, SearchRef};
+use giwa_core::Result;
+use giwa_core::model::{Page, Post};
+use giwa_core::search::{Document, INDEX_VERSION};
+use giwa_core::store::{LiteralSearchQuery, LiteralTarget, SearchQuery, SearchRef};
 use sqlx::{SqliteConnection, SqlitePool};
 
 use crate::sqlite::db_error;

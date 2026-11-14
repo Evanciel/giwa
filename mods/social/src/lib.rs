@@ -14,19 +14,19 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
 use axum::{Extension, Router};
-use maru_core::actor::{Actor, Permission, rank};
-use maru_core::audit::{AuditRecord, Target};
-use maru_core::model::{AuditEvent, MemberStatus, SignupMode};
-use maru_core::services::{auth, members, settings, tokens};
-use maru_core::store::ModuleMigration;
-use maru_core::urls;
-use maru_core::{Code, Ctx, Error, Result, clock};
-use maru_modules::{
+use giwa_core::actor::{Actor, Permission, rank};
+use giwa_core::audit::{AuditRecord, Target};
+use giwa_core::model::{AuditEvent, MemberStatus, SignupMode};
+use giwa_core::services::{auth, members, settings, tokens};
+use giwa_core::store::ModuleMigration;
+use giwa_core::urls;
+use giwa_core::{Code, Ctx, Error, Result, clock};
+use giwa_modules::{
     LOGIN_OPTIONS, ME_SECTIONS, Manifest, Module, ModuleState, SlotContent, SlotView, ToolDef,
     module_error, schema_of,
 };
-use maru_storage::Db;
-use maru_storage::fetch::{OAuthClient, check_oauth_url};
+use giwa_storage::Db;
+use giwa_storage::fetch::{OAuthClient, check_oauth_url};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -42,8 +42,8 @@ static MANIFEST: Manifest = Manifest {
 
 /// 공급자 종류. 이 차례로 단추를 놓는다.
 const PROVIDERS: [&str; 4] = ["google", "kakao", "naver", "oidc"];
-const STATE_COOKIE: &str = "maru_social";
-const JOIN_COOKIE: &str = "maru_social_join";
+const STATE_COOKIE: &str = "giwa_social";
+const JOIN_COOKIE: &str = "giwa_social_join";
 const STATE_MINUTES: i64 = 10;
 const JOIN_MINUTES: i64 = 30;
 
@@ -282,7 +282,7 @@ fn no_provider(id: &str) -> Error {
         Code::NotFound,
         format!("쓸 수 있는 로그인 공급자가 아닙니다: {id}"),
     )
-    .next("maru social provider_list")
+    .next("giwa social provider_list")
 }
 
 fn refused(what: &str, status: u16) -> Error {
@@ -562,7 +562,7 @@ impl SocialModule {
             Target::new("member", member_id),
             json!({ "provider": provider, "auto": auto }),
         );
-        maru_storage::sqlite::insert_audit(&mut tx, &audit).await?;
+        giwa_storage::sqlite::insert_audit(&mut tx, &audit).await?;
         tx.commit().await.map_err(Error::internal)?;
         Ok(())
     }
@@ -630,7 +630,7 @@ impl SocialModule {
             Target::new("member", member_id),
             json!({ "provider": provider }),
         );
-        maru_storage::sqlite::insert_audit(&mut tx, &audit).await?;
+        giwa_storage::sqlite::insert_audit(&mut tx, &audit).await?;
         tx.commit().await.map_err(Error::internal)?;
         Ok(())
     }
@@ -843,7 +843,7 @@ impl SocialModule {
                 "클라이언트 ID 를 넣으세요 (512자 이하, 비밀값도 512자 이하).",
             )
             .next(format!(
-                "maru social provider_set --provider {id} --client_id <ID> --client_secret <비밀값>"
+                "giwa social provider_set --provider {id} --client_id <ID> --client_secret <비밀값>"
             )));
         }
         if label.chars().count() > 20 {
@@ -857,7 +857,7 @@ impl SocialModule {
             for u in urls {
                 check_oauth_url(u).map_err(|e| {
                     module_error(Code::Validation, format!("oidc 주소를 쓸 수 없습니다: {e}"))
-                        .next("maru social provider_set --provider oidc --auth_url https://… --token_url https://… --userinfo_url https://…")
+                        .next("giwa social provider_set --provider oidc --auth_url https://… --token_url https://… --userinfo_url https://…")
                 })?;
             }
         } else if urls.iter().any(|u| !u.is_empty()) {
@@ -901,7 +901,7 @@ impl SocialModule {
             Target::new("social_provider", id),
             json!({ "enabled": enabled, "secret_changed": old.as_ref().is_none_or(|o| o.client_secret != client_secret) }),
         );
-        maru_storage::sqlite::insert_audit(&mut tx, &audit).await?;
+        giwa_storage::sqlite::insert_audit(&mut tx, &audit).await?;
         tx.commit().await.map_err(Error::internal)?;
         let row = self.provider(id).await?.ok_or_else(|| no_provider(id))?;
         Ok(json!(view(ctx, &row)))
@@ -927,7 +927,7 @@ impl SocialModule {
                 Target::new("social_provider", id),
                 json!({}),
             );
-            maru_storage::sqlite::insert_audit(&mut tx, &audit).await?;
+            giwa_storage::sqlite::insert_audit(&mut tx, &audit).await?;
         }
         tx.commit().await.map_err(Error::internal)?;
         // 연결은 남긴다: 같은 공급자를 다시 넣으면 그대로 로그인된다.
@@ -1031,7 +1031,7 @@ impl Module for SocialModule {
             }
             "provider_remove" => self.tool_provider_remove(actor, parse_input(input)?).await,
             "identities" => self.tool_identities(actor, parse_input(input)?).await,
-            other => Err(maru_modules::tool_not_found(MANIFEST.id, other)),
+            other => Err(giwa_modules::tool_not_found(MANIFEST.id, other)),
         }
     }
 

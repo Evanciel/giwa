@@ -5,9 +5,9 @@
 //! `kakao_channel` 은 채널 홈과 채팅으로 가는 링크뿐이라 키도 스크립트도 없다.
 
 use async_trait::async_trait;
-use maru_core::services::widgets::WidgetType;
-use maru_core::{Code, Ctx, Error, Result};
-use maru_modules::{Manifest, Module, module_error, schema_of};
+use giwa_core::services::widgets::WidgetType;
+use giwa_core::{Code, Ctx, Error, Result};
+use giwa_modules::{Manifest, Module, module_error, schema_of};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};

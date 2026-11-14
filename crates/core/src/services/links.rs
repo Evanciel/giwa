@@ -177,7 +177,7 @@ pub async fn refresh(ctx: &Ctx, actor: &Actor, url: &str) -> Result<LinkPreview>
         return Err(Error::new(Code::NotFound)
             .with_message("error.link_not_found")
             .arg("url", url)
-            .next("maru link list"));
+            .next("giwa link list"));
     };
     tx.audit(actor, "link.refresh", Target::new("link", url), json!({}))
         .await?;

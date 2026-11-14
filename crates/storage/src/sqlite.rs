@@ -1,23 +1,23 @@
-//! `maru_core::Store` 의 SQLite 구현. 쿼리는 모두 컴파일 타임 검증 매크로로 쓴다.
+//! `giwa_core::Store` 의 SQLite 구현. 쿼리는 모두 컴파일 타임 검증 매크로로 쓴다.
 
 use async_trait::async_trait;
-use maru_core::actor::{AuthorType, Permission, Scope};
-use maru_core::audit::AuditRecord;
-use maru_core::model::{
+use giwa_core::actor::{AuthorType, Permission, Scope};
+use giwa_core::audit::AuditRecord;
+use giwa_core::model::{
     Attachment, AuditEntry, AuditEvent, Board, BoardPolicy, Category, Changeset, ChangesetStatus,
     Comment, CommentStatus, Font, FontFile, Listing, LoginTicket, MailOut, MailStatus, Media,
     MediaVariant, Member, MemberStatus, ModuleFailure, ModuleRow, Page, PageReq, PageStatus, Post,
     PostKind, PostStatus, PostTemplate, Revision, Role, Session, StatBatch, StatDay, StatPage,
     StatReferrer, Tag, TicketPurpose, Token, TotpChallenge, Widget,
 };
-use maru_core::model::{
+use giwa_core::model::{
     EditorDraft, LinkPreview, LinkStatus, MemberActivity, MemberTotp, Redirect, SavedBlock,
 };
-use maru_core::store::{
+use giwa_core::store::{
     AuditFilter, CommentQuery, LiteralSearchQuery, MenuRow, ModuleMigration, PopularQuery,
     PostFilter, PublishedQuery, SearchQuery, SearchRef, Store, TextHit, WikiPage, WriteTx,
 };
-use maru_core::{Code, Error, Result, clock, slug, urls};
+use giwa_core::{Code, Error, Result, clock, slug, urls};
 use serde_json::Value;
 use sqlx::{Sqlite, SqliteConnection, SqliteExecutor, Transaction};
 
@@ -565,7 +565,7 @@ impl Store for SqliteStore {
                 .execute(&mut *tx)
                 .await
                 .map_err(db_error)?;
-            let now = maru_core::clock::now();
+            let now = giwa_core::clock::now();
             sqlx::query!(
                 "INSERT INTO module_migrations (module, version, name, applied_at) VALUES (?, ?, ?, ?)",
                 id,

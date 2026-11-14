@@ -3,14 +3,14 @@
 
 use std::sync::Arc;
 
-use maru_core::actor::{Actor, Scope};
-use maru_core::model::Post;
-use maru_core::services::anonymous_actor;
-use maru_core::services::boards::{self, NewBoard};
-use maru_core::services::posts::{self, NewPost};
-use maru_core::services::views::{self, ViewCounter};
-use maru_core::{Code, Ctx};
-use maru_storage::{DataDir, Db, FsBlobs, SqliteStore};
+use giwa_core::actor::{Actor, Scope};
+use giwa_core::model::Post;
+use giwa_core::services::anonymous_actor;
+use giwa_core::services::boards::{self, NewBoard};
+use giwa_core::services::posts::{self, NewPost};
+use giwa_core::services::views::{self, ViewCounter};
+use giwa_core::{Code, Ctx};
+use giwa_storage::{DataDir, Db, FsBlobs, SqliteStore};
 
 const UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130.0";
 
@@ -30,7 +30,7 @@ async fn env() -> Env {
         store: Arc::new(SqliteStore::new(db.clone())),
         blobs: Arc::new(FsBlobs::new(dir.media_dir())),
         site_url: "http://127.0.0.1:8080".into(),
-        extensions: maru_core::store::no_extensions(),
+        extensions: giwa_core::store::no_extensions(),
     };
     for slug in ["blog", "notes"] {
         boards::create(

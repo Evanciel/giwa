@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>{% block title %}관리{% endblock %} · {{ site.name | default("Maru") }}</title>
+<title>{% block title %}관리{% endblock %} · {{ site.name | default("Giwa") }}</title>
 <link rel="stylesheet" href="/admin/assets/admin.css">
 {% block head %}{% endblock %}
 </head>
@@ -15,7 +15,7 @@
 <a href="{{ href }}"{% if nav == key %} aria-current="page"{% endif %}>{{ ic.icon(icon) }}<span>{{ label }}</span></a>
 {%- endmacro %}
 <aside class="side">
-  <a class="brand" href="/admin"><span class="brand-mark" aria-hidden="true">{{ (site.name | default("M"))[:1] }}</span><span class="brand-name">{{ site.name | default("Maru") }}<small>관리</small></span></a>
+  <a class="brand" href="/admin"><span class="brand-mark" aria-hidden="true">{{ (site.name | default("M"))[:1] }}</span><span class="brand-name">{{ site.name | default("Giwa") }}<small>관리</small></span></a>
   <nav class="side-nav" aria-label="관리 메뉴">
     {{ item("/admin", "dashboard", "대시보드", "home") }}
     <p class="side-group">콘텐츠</p>
@@ -56,7 +56,7 @@
 </aside>
 {% else %}
 <header class="bar">
-  <a class="brand" href="/admin"><span class="brand-mark" aria-hidden="true">{{ (site.name | default("M"))[:1] }}</span><span class="brand-name">{{ site.name | default("Maru") }}<small>관리</small></span></a>
+  <a class="brand" href="/admin"><span class="brand-mark" aria-hidden="true">{{ (site.name | default("M"))[:1] }}</span><span class="brand-name">{{ site.name | default("Giwa") }}<small>관리</small></span></a>
 </header>
 {% endif %}
 <main id="main" class="{% block main_class %}wide{% endblock %}">

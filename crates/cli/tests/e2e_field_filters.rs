@@ -9,7 +9,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 
 struct Server(Child);
 
@@ -27,12 +27,12 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -100,7 +100,7 @@ fn deal(data: &Path, slug: &str, title: &str, store: &str, price: &str, ended: b
     if ended {
         args.extend(["--field", "ended=true"]);
     }
-    maru(data, &args);
+    giwa(data, &args);
 }
 
 /// 목록 HTML 에서 글 제목(주소 조각)만 뽑는다.
@@ -117,11 +117,11 @@ fn listed(html: &str) -> Vec<String> {
 fn deal_board_lists_fields_and_filters_by_them() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    maru(&data, &["site", "set", "--posts-per-page", "2"]);
+    giwa(&data, &["site", "set", "--posts-per-page", "2"]);
 
     // 거르기는 고르는 칸에만.
     let bad = tmp.path().join("bad.json");
@@ -152,7 +152,7 @@ fn deal_board_lists_fields_and_filters_by_them() {
 
     let file = tmp.path().join("deal.json");
     std::fs::write(&file, DEAL_FIELDS).unwrap();
-    maru(
+    giwa(
         &data,
         &[
             "board",
@@ -166,7 +166,7 @@ fn deal_board_lists_fields_and_filters_by_them() {
             file.to_str().unwrap(),
         ],
     );
-    let shown = maru(&data, &["board", "show", "deal"]);
+    let shown = giwa(&data, &["board", "show", "deal"]);
     assert!(shown.to_string().contains("\"filter\":true"), "{shown}");
 
     deal(&data, "a1", "가몰 이어폰", "mall_a", "12900", false);
@@ -241,7 +241,7 @@ fn deal_board_lists_fields_and_filters_by_them() {
 fn event_deadline_roles_and_view_switch() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
@@ -283,7 +283,7 @@ fn event_deadline_roles_and_view_switch() {
         ]"#,
     )
     .unwrap();
-    maru(
+    giwa(
         &data,
         &[
             "board",
@@ -301,7 +301,7 @@ fn event_deadline_roles_and_view_switch() {
     );
     for (slug, day) in [("past", "2000-01-01"), ("future", "2999-12-31")] {
         let deadline = format!("deadline={day}");
-        maru(
+        giwa(
             &data,
             &[
                 "post",

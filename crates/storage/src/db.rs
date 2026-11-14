@@ -8,7 +8,7 @@ use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
 
-use maru_core::{Code, Error, Result};
+use giwa_core::{Code, Error, Result};
 use sha2::{Digest, Sha384};
 use sqlx::ConnectOptions;
 use sqlx::migrate::{MigrateError, Migrator};
@@ -147,7 +147,7 @@ fn migrate_error(e: MigrateError) -> Error {
         MigrateError::VersionMissing(version) => Error::new(Code::SchemaTooNew)
             .arg("version", version.to_string())
             .with_hint("hint.schema_too_new")
-            .next("maru --version"),
+            .next("giwa --version"),
         other => Error::internal(other),
     }
 }

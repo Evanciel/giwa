@@ -543,9 +543,9 @@
   // 템플릿이 편집 중에만 그림 칸에 data-maru-img="<경로>"(설명 칸이 있으면 data-maru-alt)를 붙인다.
   // 대화 상자는 media-picker.js 다. 고르면 그 경로를 초안에 쓰고 캔버스를 다시 그린다.
   function pickImage(id, node) {
-    if (!window.MaruMedia) return;
+    if (!window.GiwaMedia) return;
     var path = node.getAttribute("data-maru-img"), altPath = node.getAttribute("data-maru-alt");
-    window.MaruMedia.open({
+    window.GiwaMedia.open({
       url: getPath(id, path), alt: altPath ? getPath(id, altPath) : null, csrf: csrf,
       required: node.hasAttribute("data-maru-required"),
       onPick: function (url, alt) {
@@ -568,11 +568,11 @@
   }
   function pickLink() {
     var t = textEdit;
-    if (!t || !window.MaruLinks) return;
+    if (!t || !window.GiwaLinks) return;
     var id = t.id, path = t.path.replace(/\.[^.]+$/, ".link");
     if (path === t.path || path.indexOf(".") < 0) return;
     finishText(false);
-    window.MaruLinks.open({
+    window.GiwaLinks.open({
       link: getPath(id, path),
       targets: { pages: data.pages || [], boards: data.boards || [], anchors: data.anchors },
       onPick: function (v) {
@@ -724,7 +724,7 @@
   function blankBlock(kind, region) {
     var schema = data.types[kind];
     var config = sample(kind);
-    if (!config) config = schema && window.MaruBlank ? window.MaruBlank(schema, schema) : {};
+    if (!config) config = schema && window.GiwaBlank ? window.GiwaBlank(schema, schema) : {};
     return { id: newId(), kind: kind, region: kind === "popup" ? "popup" : region, scope: screen, title: "", config: config, enabled: true };
   }
   // 누르기로 더하기: 고른 블록 아래, 없으면 본문 끝.
@@ -1164,8 +1164,8 @@
     var cur = (w.config || {}).bg_image || "";
     var pick = el("button", { type: "button", cls: "secondary small", text: cur ? "배경 그림 바꾸기" : "배경 그림 고르기" });
     pick.addEventListener("click", function () {
-      if (!window.MaruMedia) return;
-      window.MaruMedia.open({
+      if (!window.GiwaMedia) return;
+      window.GiwaMedia.open({
         url: (byId(w.id).config || {}).bg_image || "", alt: null, csrf: csrf,
         onPick: function (url) {
           var cw = byId(w.id);
@@ -1520,8 +1520,8 @@
     inspector.appendChild(el("h3", { cls: "ed-group", "data-in-tab": "content", text: "설정" }));
     f.setAttribute("data-in-tab", "content");
     inspector.appendChild(f);
-    if (window.MaruForm && data.types[w.kind]) {
-      var mf = new window.MaruForm(f, data);
+    if (window.GiwaForm && data.types[w.kind]) {
+      var mf = new window.GiwaForm(f, data);
       if (looks) {
         mf.skip = { tone: 1, space: 1, align: 1, anchor: 1, bg_image: 1, bg_dim: 1, motion: 1 };
         if (STYLES[w.kind]) mf.skip[STYLE_KEY[w.kind] || "style"] = 1;
@@ -1642,8 +1642,8 @@
       if (cur) shareBox.appendChild(el("img", { cls: "ed-bg-thumb", src: cur, alt: "" }));
       var pick = el("button", { type: "button", cls: "secondary small", text: cur ? "공유 그림 바꾸기" : "공유 그림 고르기" });
       pick.addEventListener("click", function () {
-        if (!window.MaruMedia) return;
-        window.MaruMedia.open({ url: site.page.share_image || "", alt: null, csrf: csrf, onPick: function (url) { set("share_image", url || ""); } });
+        if (!window.GiwaMedia) return;
+        window.GiwaMedia.open({ url: site.page.share_image || "", alt: null, csrf: csrf, onPick: function (url) { set("share_image", url || ""); } });
       });
       shareBox.appendChild(pick);
       if (cur) {

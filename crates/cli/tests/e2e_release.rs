@@ -1,4 +1,4 @@
-//! `maru update`, `maru export static`, `maru theme` (ADR-0131·0132·0133).
+//! `giwa update`, `giwa export static`, `giwa theme` (ADR-0131·0132·0133).
 #![allow(clippy::expect_used, clippy::unwrap_used)]
 
 use std::collections::HashMap;
@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 
 fn run_with(bin: &Path, data: &Path, args: &[&str]) -> Value {
     let out = Command::new(bin)
@@ -19,9 +19,9 @@ fn run_with(bin: &Path, data: &Path, args: &[&str]) -> Value {
         .arg(data)
         .args(args)
         .arg("--json")
-        .env_remove("MARU_BASE_URL")
+        .env_remove("GIWA_BASE_URL")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}{stdout}"))
 }
@@ -30,7 +30,7 @@ fn run(data: &Path, args: &[&str]) -> Value {
     run_with(Path::new(BIN), data, args)
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -88,7 +88,7 @@ fn asset_name() -> String {
         other => panic!("{other:?}"),
     };
     let ext = if cfg!(windows) { ".exe" } else { "" };
-    format!("maru-{target}{ext}")
+    format!("giwa-{target}{ext}")
 }
 
 fn sums(name: &str, bytes: &[u8]) -> Vec<u8> {
@@ -101,7 +101,7 @@ fn 업데이트는_체크섬과_실행을_확인한_뒤에만_바꾼다() {
     let data = tmp.path().join("data");
     let exe = tmp
         .path()
-        .join(if cfg!(windows) { "maru.exe" } else { "maru" });
+        .join(if cfg!(windows) { "giwa.exe" } else { "giwa" });
     std::fs::copy(BIN, &exe).unwrap();
     let original = std::fs::read(&exe).unwrap();
     let old = exe.with_file_name(format!(
@@ -212,15 +212,15 @@ fn 정적_내보내기는_손님이_보는_것만_내린다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
     let out = tmp.path().join("밖");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    let board = maru(&data, &["board", "list"])[0]["slug"]
+    let board = giwa(&data, &["board", "list"])[0]["slug"]
         .as_str()
         .unwrap()
         .to_owned();
-    let published = maru(
+    let published = giwa(
         &data,
         &[
             "post",
@@ -236,7 +236,7 @@ fn 정적_내보내기는_손님이_보는_것만_내린다() {
     );
     let slug = published["slug"].as_str().unwrap().to_owned();
     let id = published["id"].as_str().unwrap().to_owned();
-    maru(
+    giwa(
         &data,
         &[
             "post",
@@ -250,7 +250,7 @@ fn 정적_내보내기는_손님이_보는_것만_내린다() {
         ],
     );
     for n in 0..25 {
-        maru(
+        giwa(
             &data,
             &[
                 "post",
@@ -265,9 +265,9 @@ fn 정적_내보내기는_손님이_보는_것만_내린다() {
             ],
         );
     }
-    maru(&data, &["board", "create", "notes", "--name", "회원 노트"]);
-    maru(&data, &["board", "update", "notes", "--read", "member"]);
-    maru(
+    giwa(&data, &["board", "create", "notes", "--name", "회원 노트"]);
+    giwa(&data, &["board", "update", "notes", "--read", "member"]);
+    giwa(
         &data,
         &[
             "post",
@@ -281,13 +281,13 @@ fn 정적_내보내기는_손님이_보는_것만_내린다() {
             "--publish",
         ],
     );
-    maru(
+    giwa(
         &data,
         &["redirect", "add", "/old/x", &format!("/b/{board}")],
     );
-    let before = maru(&data, &["post", "show", &id]).to_string();
+    let before = giwa(&data, &["post", "show", &id]).to_string();
 
-    let report = maru(&data, &["export", "static", "--out", out.to_str().unwrap()]);
+    let report = giwa(&data, &["export", "static", "--out", out.to_str().unwrap()]);
     assert!(report["pages"].as_u64().unwrap() > 3, "{report}");
     let all = exported(&out);
     for need in [
@@ -328,13 +328,13 @@ fn 정적_내보내기는_손님이_보는_것만_내린다() {
     );
 
     // 조회수에 들어가지 않는다.
-    assert_eq!(maru(&data, &["post", "show", &id]).to_string(), before);
+    assert_eq!(giwa(&data, &["post", "show", &id]).to_string(), before);
 
     // 비어 있지 않은 폴더는 묻고 덮어쓴다.
     let v = run(&data, &["export", "static", "--out", out.to_str().unwrap()]);
     assert_eq!(v["ok"], false, "{v}");
     assert!(v.to_string().contains("--yes"), "{v}");
-    maru(
+    giwa(
         &data,
         &["export", "static", "--out", out.to_str().unwrap(), "--yes"],
     );
@@ -344,13 +344,13 @@ fn 정적_내보내기는_손님이_보는_것만_내린다() {
 fn 테마는_색과_모양만_입힌다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    let boards = maru(&data, &["board", "list"]).to_string();
+    let boards = giwa(&data, &["board", "list"]).to_string();
 
-    let list = maru(&data, &["theme", "list"]);
+    let list = giwa(&data, &["theme", "list"]);
     let ids: Vec<&str> = list["items"]
         .as_array()
         .unwrap()
@@ -359,13 +359,13 @@ fn 테마는_색과_모양만_입힌다() {
         .collect();
     assert!(ids.contains(&"cafe"), "{ids:?}");
 
-    let before = maru(&data, &["theme", "tokens", "get"]);
-    assert_eq!(before, maru(&data, &["design", "show"]));
-    maru(&data, &["theme", "apply", "cafe"]);
-    let after = maru(&data, &["theme", "tokens", "get"]);
+    let before = giwa(&data, &["theme", "tokens", "get"]);
+    assert_eq!(before, giwa(&data, &["design", "show"]));
+    giwa(&data, &["theme", "apply", "cafe"]);
+    let after = giwa(&data, &["theme", "tokens", "get"]);
     assert_ne!(before, after);
     assert_eq!(
-        maru(&data, &["board", "list"]).to_string(),
+        giwa(&data, &["board", "list"]).to_string(),
         boards,
         "구조는 그대로"
     );

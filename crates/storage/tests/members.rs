@@ -4,16 +4,16 @@
 
 use std::sync::Arc;
 
-use maru_core::actor::Actor;
-use maru_core::model::{MailStatus, MemberStatus, PageReq};
-use maru_core::services::anonymous_actor;
-use maru_core::services::auth::{self, SignedIn};
-use maru_core::services::mail;
-use maru_core::services::members::{self, ProfilePatch, SignupInput};
-use maru_core::services::settings::{self, SettingsPatch};
-use maru_core::{Code, Ctx};
-use maru_storage::mailer::FileMailer;
-use maru_storage::{DataDir, Db, FsBlobs, SqliteStore};
+use giwa_core::actor::Actor;
+use giwa_core::model::{MailStatus, MemberStatus, PageReq};
+use giwa_core::services::anonymous_actor;
+use giwa_core::services::auth::{self, SignedIn};
+use giwa_core::services::mail;
+use giwa_core::services::members::{self, ProfilePatch, SignupInput};
+use giwa_core::services::settings::{self, SettingsPatch};
+use giwa_core::{Code, Ctx};
+use giwa_storage::mailer::FileMailer;
+use giwa_storage::{DataDir, Db, FsBlobs, SqliteStore};
 
 const PW: &str = "test-password-1";
 
@@ -34,7 +34,7 @@ async fn env(signup: &str, verify: bool) -> Env {
         store: Arc::new(SqliteStore::new(db.clone())),
         blobs: Arc::new(FsBlobs::new(dir.media_dir())),
         site_url: "http://127.0.0.1:8080".into(),
-        extensions: maru_core::store::no_extensions(),
+        extensions: giwa_core::store::no_extensions(),
     };
     auth::ensure_owner(&ctx, &Actor::local(), "owner@example.test", "운영자")
         .await
@@ -149,7 +149,7 @@ async fn signup_verify_then_login() {
         .session()
         .unwrap();
     let me = who(&e.ctx, &s.secret).await;
-    assert_eq!(me.actor.rank(), maru_core::actor::rank::MEMBER);
+    assert_eq!(me.actor.rank(), giwa_core::actor::rank::MEMBER);
 }
 
 #[tokio::test]
@@ -449,7 +449,7 @@ async fn admin_status_and_role() {
         .unwrap_err();
     assert_eq!(err.code(), Code::Validation);
     // 편집자 이하가 관리자를 줄 수는 없다
-    let editor_admin = Actor::human("x".into(), [maru_core::actor::Permission::MemberManage], 30);
+    let editor_admin = Actor::human("x".into(), [giwa_core::actor::Permission::MemberManage], 30);
     let err = members::set_role(&e.ctx, &editor_admin, "moon@example.test", "admin")
         .await
         .unwrap_err();

@@ -3,17 +3,17 @@
 
 use std::sync::{Arc, Mutex};
 
-use maru_core::Ctx;
-use maru_core::actor::Actor;
-use maru_core::services::boards::{self, NewBoard};
-use maru_core::services::indexnow::{self, IndexNowSender, SendReport};
-use maru_core::services::pages::{self, NewPage};
-use maru_core::services::posts::{self, NewPost};
-use maru_core::services::settings::{self, SettingsPatch};
-use maru_storage::{DataDir, Db, FsBlobs, SqliteStore};
+use giwa_core::Ctx;
+use giwa_core::actor::Actor;
+use giwa_core::services::boards::{self, NewBoard};
+use giwa_core::services::indexnow::{self, IndexNowSender, SendReport};
+use giwa_core::services::pages::{self, NewPage};
+use giwa_core::services::posts::{self, NewPost};
+use giwa_core::services::settings::{self, SettingsPatch};
+use giwa_storage::{DataDir, Db, FsBlobs, SqliteStore};
 use serde_json::{Value, json};
 
-const SITE: &str = "https://maru.site.co.kr";
+const SITE: &str = "https://giwa.site.co.kr";
 
 struct Env {
     _tmp: tempfile::TempDir,
@@ -31,7 +31,7 @@ async fn env(site_url: &str) -> Env {
         store: Arc::new(SqliteStore::new(db.clone())),
         blobs: Arc::new(FsBlobs::new(dir.media_dir())),
         site_url: site_url.into(),
-        extensions: maru_core::store::no_extensions(),
+        extensions: giwa_core::store::no_extensions(),
     };
     Env {
         _tmp: tmp,
@@ -163,7 +163,7 @@ async fn changed_public_addresses_are_sent_once_with_the_key() {
     let sent = fake.sent.lock().unwrap().clone();
     assert_eq!(sent[0].0, "https://searchadvisor.naver.com/indexnow");
     let body = &sent[0].1;
-    assert_eq!(body["host"], "maru.site.co.kr");
+    assert_eq!(body["host"], "giwa.site.co.kr");
     let key = body["key"].as_str().unwrap().to_owned();
     assert_eq!(key.len(), 32);
     assert!(key.chars().all(|c| c.is_ascii_hexdigit()));

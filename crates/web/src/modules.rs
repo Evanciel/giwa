@@ -8,8 +8,8 @@ use axum::extract::{Request, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
-use maru_core::{Actor, Ctx, Error, Result};
-use maru_modules::{
+use giwa_core::{Actor, Ctx, Error, Result};
+use giwa_modules::{
     ACCOUNT_BAR, COMMENT_ACTIONS, Host, LOGIN_OPTIONS, ME_SECTIONS, MEMBER_BADGE, ModuleState,
     POST_FOOTER, POST_LIST, SlotView,
 };
@@ -23,7 +23,7 @@ struct WebHost(AppState);
 impl Host for WebHost {
     async fn page(&self, template: &str, title: &str, data: Value) -> Response {
         let site = crate::public::site_json(&self.0).await;
-        let name = site["name"].as_str().unwrap_or("Maru");
+        let name = site["name"].as_str().unwrap_or("Giwa");
         let noindex = data["noindex"].as_bool().unwrap_or(false);
         let mut ctx = json!({
             "site": site,
@@ -49,7 +49,7 @@ impl Host for WebHost {
     }
 
     async fn sign_in(&self, member_id: &str, method: &str, next: &str) -> Response {
-        match maru_core::services::auth::login_external(&self.0.ctx, member_id, method).await {
+        match giwa_core::services::auth::login_external(&self.0.ctx, member_id, method).await {
             Ok(login) => {
                 crate::account::finish_login(&self.0, &login, crate::account::next_or_me(next))
             }

@@ -8,10 +8,10 @@ use std::fmt::Write as _;
 use axum::extract::State;
 use axum::http::header;
 use axum::response::{IntoResponse, Response};
-use maru_core::model::{Board, PageReq, Post};
-use maru_core::services::{anonymous_actor, boards, pages, posts, settings};
-use maru_core::urls::{self, Target};
-use maru_core::{Result, clock, markdown};
+use giwa_core::model::{Board, PageReq, Post};
+use giwa_core::services::{anonymous_actor, boards, pages, posts, settings};
+use giwa_core::urls::{self, Target};
+use giwa_core::{Result, clock, markdown};
 
 use crate::{AppState, error};
 

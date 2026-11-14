@@ -3,9 +3,9 @@
 //! 최소 한 번 배달이다. 실패한 이벤트는 실패 표에 적고 커서는 넘어간다(글 하나 때문에 모듈 전체가
 //! 멈추지 않게). 정한 횟수만큼 다시 시도하고, 그래도 안 되면 실패 보관함에 남긴다.
 
-use maru_core::clock;
-use maru_core::model::{AuditEvent, ModuleFailure};
-use maru_core::{Ctx, Result};
+use giwa_core::clock;
+use giwa_core::model::{AuditEvent, ModuleFailure};
+use giwa_core::{Ctx, Result};
 
 use crate::{Module, Registry};
 

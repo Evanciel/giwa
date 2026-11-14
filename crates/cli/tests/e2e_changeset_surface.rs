@@ -8,7 +8,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::{Value, json};
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 
 struct Server(Child);
 
@@ -23,15 +23,15 @@ fn run_as(data: &Path, token: Option<&str>, args: &[&str]) -> Value {
     let mut cmd = Command::new(BIN);
     cmd.arg("--data").arg(data).args(args).arg("--json");
     match token {
-        Some(t) => cmd.env("MARU_TOKEN", t),
-        None => cmd.env_remove("MARU_TOKEN"),
+        Some(t) => cmd.env("GIWA_TOKEN", t),
+        None => cmd.env_remove("GIWA_TOKEN"),
     };
-    let out = cmd.output().expect("maru 실행");
+    let out = cmd.output().expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run_as(data, None, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -39,7 +39,7 @@ fn maru(data: &Path, args: &[&str]) -> Value {
 
 fn init(tmp: &Path) -> PathBuf {
     let data = tmp.join("데이터");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
@@ -49,7 +49,7 @@ fn init(tmp: &Path) -> PathBuf {
 fn token(data: &Path, extra: &[&str]) -> String {
     let mut args = vec!["token", "create", "--name", "시험"];
     args.extend(extra);
-    maru(data, &args)["secret"].as_str().unwrap().to_owned()
+    giwa(data, &args)["secret"].as_str().unwrap().to_owned()
 }
 
 fn start_server(data: &Path) -> (Server, String) {
@@ -126,14 +126,14 @@ fn path_of(url: &str) -> String {
 }
 
 fn sign_in(data: &Path, bind: &str) -> String {
-    let link = maru(data, &["login-link"]);
+    let link = giwa(data, &["login-link"]);
     let path = path_of(link["url"].as_str().unwrap());
     let (_, head, _) = http(bind, "GET", &path, &[], "");
-    let csrf = set_cookie(&head, "maru_csrf");
+    let csrf = set_cookie(&head, "giwa_csrf");
     let body = format!("_csrf={}", csrf.split_once('=').unwrap().1);
     let (status, head, text) = http(bind, "POST", &path, &[FORM, ("Cookie", &csrf)], &body);
     assert_eq!(status, 303, "{text}");
-    set_cookie(&head, "maru_session")
+    set_cookie(&head, "giwa_session")
 }
 
 const FORM: (&str, &str) = ("Content-Type", "application/x-www-form-urlencoded");
@@ -144,7 +144,7 @@ fn csrf_of(html: &str) -> String {
 }
 
 fn has_board(data: &Path, slug: &str) -> bool {
-    maru(data, &["board", "list"])
+    giwa(data, &["board", "list"])
         .as_array()
         .unwrap()
         .iter()
@@ -273,15 +273,15 @@ fn 토큰은_바로_쓰지_못하고_묶음에_담아_승인받는다() {
 
     // 사람이 승인하면 들어가고, 되돌리면 빠진다.
     assert_eq!(
-        maru(&data, &["changeset", "apply", &id])["status"],
+        giwa(&data, &["changeset", "apply", &id])["status"],
         "applied"
     );
-    assert_eq!(maru(&data, &["board", "show", "staged"])["name"], "고친 판");
+    assert_eq!(giwa(&data, &["board", "show", "staged"])["name"], "고친 판");
     let (status, list) = api(&bind, &t, "GET", "/changesets?status=applied", &json!({}));
     assert_eq!(status, 200);
     assert_eq!(list["data"]["items"].as_array().unwrap().len(), 1, "{list}");
     assert_eq!(
-        maru(&data, &["changeset", "revert", &id])["status"],
+        giwa(&data, &["changeset", "revert", &id])["status"],
         "reverted"
     );
     assert!(!has_board(&data, "staged"));
@@ -296,7 +296,7 @@ fn 자동_적용_토큰은_승인_없이_적용한다() {
         &["--scope", "read", "--scope", "structure", "--auto-apply"],
     );
     assert!(
-        maru(&data, &["token", "list"])
+        giwa(&data, &["token", "list"])
             .to_string()
             .contains("\"auto_apply\":true"),
         "목록에 보인다"
@@ -383,7 +383,7 @@ fn 관리_화면에서_보고_적용하고_되돌린다() {
     // 관리자 세션으로 미리보기에 들어가면 띠에서 이 화면으로 돌아온다.
     let (status, head, _) = http(&bind, "GET", &format!("/__preview/{id}"), &cookie, "");
     assert_eq!(status, 303, "{head}");
-    let preview = set_cookie(&head, "maru_preview");
+    let preview = set_cookie(&head, "giwa_preview");
     let (_, _, home) = http(&bind, "GET", "/", &[("Cookie", &preview)], "");
     assert!(home.contains(&page), "{home}");
 
@@ -411,14 +411,14 @@ fn 관리_화면에서_보고_적용하고_되돌린다() {
     assert!(head.contains("done=apply"), "{head}");
     assert!(has_board(&data, "from-admin"));
     assert_eq!(
-        maru(&data, &["changeset", "show", &id])["status"],
+        giwa(&data, &["changeset", "show", &id])["status"],
         "applied"
     );
     // 적용한 뒤에는 미리보기가 끝났다.
     let (_, _, home) = http(&bind, "GET", "/", &[("Cookie", &preview)], "");
     assert!(!home.contains("maru-preview-band"));
     // 감사 기록에는 사람으로 남고 묶음 번호가 붙는다.
-    let audit = maru(&data, &["audit", "list", "--action", "board.create"]);
+    let audit = giwa(&data, &["audit", "list", "--action", "board.create"]);
     let entry = audit["items"]
         .as_array()
         .unwrap()

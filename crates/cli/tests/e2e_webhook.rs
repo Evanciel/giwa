@@ -14,8 +14,8 @@ use hmac::{Hmac, KeyInit, Mac};
 use serde_json::Value;
 use sha2::Sha256;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
-const ALLOW: &str = "MARU_TEST_ALLOW_LOOPBACK_FETCH";
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
+const ALLOW: &str = "GIWA_TEST_ALLOW_LOOPBACK_FETCH";
 
 fn run(data: &Path, args: &[&str], allow_loopback: bool) -> Value {
     let mut cmd = Command::new(BIN);
@@ -25,12 +25,12 @@ fn run(data: &Path, args: &[&str], allow_loopback: bool) -> Value {
     } else {
         cmd.env_remove(ALLOW);
     }
-    let out = cmd.output().expect("maru 실행");
+    let out = cmd.output().expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args, true);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -107,25 +107,25 @@ fn hits(got: &Arc<Mutex<Vec<Got>>>, path: &str, event: &str) -> Vec<Got> {
     got.lock()
         .unwrap()
         .iter()
-        .filter(|g| g.path == path && g.header("Maru-Webhook-Event") == event)
+        .filter(|g| g.path == path && g.header("Giwa-Webhook-Event") == event)
         .cloned()
         .collect()
 }
 
 fn verify(g: &Got, secret: &str) -> bool {
-    let ts = g.header("Maru-Webhook-Timestamp");
+    let ts = g.header("Giwa-Webhook-Timestamp");
     let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes()).unwrap();
     mac.update(format!("{ts}.{}", g.body).as_bytes());
-    g.header("Maru-Webhook-Signature") == format!("v1={}", hex::encode(mac.finalize().into_bytes()))
+    g.header("Giwa-Webhook-Signature") == format!("v1={}", hex::encode(mac.finalize().into_bytes()))
 }
 
-fn db<T>(data: &Path, f: impl AsyncFnOnce(&maru_storage::Db) -> T) -> T {
+fn db<T>(data: &Path, f: impl AsyncFnOnce(&giwa_storage::Db) -> T) -> T {
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .unwrap();
     rt.block_on(async {
-        let db = maru_storage::Db::open(&data.join("maru.db"), false)
+        let db = giwa_storage::Db::open(&data.join("giwa.db"), false)
             .await
             .unwrap();
         let v = f(&db).await;
@@ -138,8 +138,8 @@ fn db<T>(data: &Path, f: impl AsyncFnOnce(&maru_storage::Db) -> T) -> T {
 fn webhooks_are_signed_filtered_and_retried_per_endpoint() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path();
-    maru(data, &["init", "--no-samples", "--preset", "blog", "--yes"]);
-    maru(data, &["module", "enable", "webhook"]);
+    giwa(data, &["init", "--no-samples", "--preset", "blog", "--yes"]);
+    giwa(data, &["module", "enable", "webhook"]);
     let (port, got, fail_b) = receiver();
     let a = format!("http://127.0.0.1:{port}/a");
     let b = format!("http://127.0.0.1:{port}/b");
@@ -162,7 +162,7 @@ fn webhooks_are_signed_filtered_and_retried_per_endpoint() {
     assert_eq!(v["error"]["code"], "VALIDATION", "{v}");
 
     // 더하기: 키는 처음 한 번만, 같은 주소를 다시 더하면 이벤트만 바뀐다
-    let added = maru(
+    let added = giwa(
         data,
         &["webhook", "add", "--url", &a, "--event", "comment.create"],
     );
@@ -172,7 +172,7 @@ fn webhooks_are_signed_filtered_and_retried_per_endpoint() {
         secret_a.starts_with("mwhs_") && secret_a.len() > 60,
         "{added}"
     );
-    let again = maru(
+    let again = giwa(
         data,
         &[
             "webhook",
@@ -188,12 +188,12 @@ fn webhooks_are_signed_filtered_and_retried_per_endpoint() {
     assert_eq!(again["created"], false);
     assert_eq!(again["id"], added["id"]);
     assert!(again.get("secret").is_none(), "{again}");
-    let added_b = maru(data, &["webhook", "add", "--url", &b]);
+    let added_b = giwa(data, &["webhook", "add", "--url", &b]);
     assert_eq!(added_b["events"][0], "*");
     let id_a = added["id"].as_str().unwrap().to_owned();
     let id_b = added_b["id"].as_str().unwrap().to_owned();
 
-    let list = maru(data, &["webhook", "list"]);
+    let list = giwa(data, &["webhook", "list"]);
     assert_eq!(list["items"].as_array().unwrap().len(), 2, "{list}");
     assert!(
         !list.to_string().contains(&secret_a),
@@ -205,7 +205,7 @@ fn webhooks_are_signed_filtered_and_retried_per_endpoint() {
     );
 
     // 시험 알림
-    let ping = maru(data, &["webhook", "ping", "--id", &id_a]);
+    let ping = giwa(data, &["webhook", "ping", "--id", &id_a]);
     assert_eq!(ping["http_status"], 204);
     let pings = hits(&got, "/a", "webhook.ping");
     assert_eq!(pings.len(), 1);
@@ -213,7 +213,7 @@ fn webhooks_are_signed_filtered_and_retried_per_endpoint() {
 
     // 글을 발행하면 두 곳에 간다. b 가 실패하면 실패함에 남고 a 는 한 번만 받는다
     fail_b.store(true, Ordering::SeqCst);
-    let post = maru(
+    let post = giwa(
         data,
         &[
             "post",
@@ -226,7 +226,7 @@ fn webhooks_are_signed_filtered_and_retried_per_endpoint() {
         ],
     );
     let post_id = post["id"].as_str().unwrap().to_owned();
-    maru(data, &["module", "deliver"]);
+    giwa(data, &["module", "deliver"]);
     let to_a = hits(&got, "/a", "post.publish");
     assert_eq!(to_a.len(), 1, "{to_a:?}");
     let g = &to_a[0];
@@ -235,11 +235,11 @@ fn webhooks_are_signed_filtered_and_retried_per_endpoint() {
     assert_eq!(body["event"], "post.publish");
     assert_eq!(body["target"]["type"], "post");
     assert_eq!(body["target"]["id"], post_id.as_str());
-    assert_eq!(body["id"], g.header("Maru-Webhook-Id"));
+    assert_eq!(body["id"], g.header("Giwa-Webhook-Id"));
     assert!(!g.body.contains("본문"), "글 내용은 싣지 않는다");
     assert_eq!(g.header("Content-Type"), "application/json");
     assert_eq!(hits(&got, "/b", "post.publish").len(), 1);
-    let failures = maru(data, &["module", "failures", "webhook"]);
+    let failures = giwa(data, &["module", "failures", "webhook"]);
     let f = failures.as_array().unwrap();
     assert_eq!(f.len(), 1, "{failures}");
     assert_eq!(f[0]["action"], "post.publish");
@@ -247,7 +247,7 @@ fn webhooks_are_signed_filtered_and_retried_per_endpoint() {
         f[0]["last_error"].as_str().unwrap().contains("응답 500"),
         "{failures}"
     );
-    let failed = maru(data, &["webhook", "deliveries", "--failed", "true"]);
+    let failed = giwa(data, &["webhook", "deliveries", "--failed", "true"]);
     assert_eq!(failed["items"].as_array().unwrap().len(), 1, "{failed}");
     assert_eq!(failed["items"][0]["endpoint_id"], id_b.as_str());
 
@@ -259,7 +259,7 @@ fn webhooks_are_signed_filtered_and_retried_per_endpoint() {
             .await
             .unwrap();
     });
-    maru(data, &["module", "deliver"]);
+    giwa(data, &["module", "deliver"]);
     assert_eq!(
         hits(&got, "/a", "post.publish").len(),
         1,
@@ -268,45 +268,45 @@ fn webhooks_are_signed_filtered_and_retried_per_endpoint() {
     let to_b = hits(&got, "/b", "post.publish");
     assert_eq!(to_b.len(), 2);
     assert_eq!(
-        to_b[0].header("Maru-Webhook-Id"),
-        to_b[1].header("Maru-Webhook-Id"),
+        to_b[0].header("Giwa-Webhook-Id"),
+        to_b[1].header("Giwa-Webhook-Id"),
         "같은 이벤트 ID 로 다시 온다(받는 쪽이 겹침을 거른다)"
     );
     assert!(
-        maru(data, &["module", "failures", "webhook"])
+        giwa(data, &["module", "failures", "webhook"])
             .as_array()
             .unwrap()
             .is_empty()
     );
-    let log = maru(data, &["webhook", "deliveries", "--endpoint", &id_b]);
+    let log = giwa(data, &["webhook", "deliveries", "--endpoint", &id_b]);
     assert_eq!(log["items"][0]["ok"], true, "{log}");
     assert_eq!(log["items"][0]["attempts"], 2, "{log}");
 
     // 고른 이벤트만: 글 고침은 a 에 가지 않고 전부 받는 b 에만 간다
-    maru(data, &["post", "edit", &post_id, "--title", "고친 제목"]);
-    maru(data, &["module", "deliver"]);
+    giwa(data, &["post", "edit", &post_id, "--title", "고친 제목"]);
+    giwa(data, &["module", "deliver"]);
     assert!(hits(&got, "/a", "post.update").is_empty());
     assert_eq!(hits(&got, "/b", "post.update").len(), 1);
 
     // 키를 바꾸면 옛 키 서명은 맞지 않는다
-    let rotated = maru(data, &["webhook", "rotate", "--id", &id_a]);
+    let rotated = giwa(data, &["webhook", "rotate", "--id", &id_a]);
     let secret_new = rotated["secret"].as_str().unwrap().to_owned();
     assert_ne!(secret_new, secret_a);
-    maru(data, &["webhook", "ping", "--id", &id_a]);
+    giwa(data, &["webhook", "ping", "--id", &id_a]);
     let last = hits(&got, "/a", "webhook.ping").pop().unwrap();
     assert!(verify(&last, &secret_new) && !verify(&last, &secret_a));
 
     // 감사에는 호스트만, 키는 어디에도 없다
-    let audit = maru(data, &["audit", "list", "--action", "webhook.add"]);
+    let audit = giwa(data, &["audit", "list", "--action", "webhook.add"]);
     let text = audit.to_string();
     assert!(text.contains(&format!("127.0.0.1:{port}")), "{audit}");
     assert!(!text.contains("/a") && !text.contains("mwhs_"), "{audit}");
 
     // 지우기
-    let removed = maru(data, &["webhook", "remove", "--id", &id_b]);
+    let removed = giwa(data, &["webhook", "remove", "--id", &id_b]);
     assert_eq!(removed["removed"], id_b.as_str());
     assert_eq!(
-        maru(data, &["webhook", "list"])["items"]
+        giwa(data, &["webhook", "list"])["items"]
             .as_array()
             .unwrap()
             .len(),

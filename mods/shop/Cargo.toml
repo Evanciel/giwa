@@ -1,6 +1,6 @@
 [package]
-name = "maru-mod-shop"
-description = "Maru 공식 모듈: 쇼핑 (상품·장바구니·재고·배송)"
+name = "giwa-mod-shop"
+description = "Giwa 공식 모듈: 쇼핑 (상품·장바구니·재고·배송)"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,9 +11,9 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
-maru-core.workspace = true
-maru-modules.workspace = true
-maru-storage.workspace = true
+giwa-core.workspace = true
+giwa-modules.workspace = true
+giwa-storage.workspace = true
 async-trait.workspace = true
 axum.workspace = true
 schemars.workspace = true

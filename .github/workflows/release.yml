@@ -34,26 +34,26 @@ jobs:
           python3 -m pip install --user ziglang
           cargo install --locked cargo-zigbuild --version 0.20.1
       - if: matrix.zig
-        run: cargo zigbuild --release --locked -p maru-cli --target ${{ matrix.target }}
+        run: cargo zigbuild --release --locked -p giwa-cli --target ${{ matrix.target }}
       - if: ${{ !matrix.zig }}
-        run: cargo build --release --locked -p maru-cli --target ${{ matrix.target }}
-      - name: 낱개 바이너리 (maru update 가 받는다)
+        run: cargo build --release --locked -p giwa-cli --target ${{ matrix.target }}
+      - name: 낱개 바이너리 (giwa update 가 받는다)
         shell: bash
         run: |
           ext=""
           if [ "${{ runner.os }}" = "Windows" ]; then ext=".exe"; fi
-          cp "target/${{ matrix.target }}/release/maru$ext" "maru-${{ matrix.target }}$ext"
+          cp "target/${{ matrix.target }}/release/giwa$ext" "giwa-${{ matrix.target }}$ext"
       - name: 묶기 (윈도우)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: Compress-Archive -Path target/${{ matrix.target }}/release/maru.exe -DestinationPath maru-${{ matrix.target }}.zip
+        run: Compress-Archive -Path target/${{ matrix.target }}/release/giwa.exe -DestinationPath giwa-${{ matrix.target }}.zip
       - name: 묶기 (그 밖)
         if: runner.os != 'Windows'
-        run: tar -czf maru-${{ matrix.target }}.tar.gz -C target/${{ matrix.target }}/release maru
+        run: tar -czf giwa-${{ matrix.target }}.tar.gz -C target/${{ matrix.target }}/release giwa
       - uses: actions/upload-artifact@v4
         with:
-          name: maru-${{ matrix.target }}
-          path: maru-${{ matrix.target }}*
+          name: giwa-${{ matrix.target }}
+          path: giwa-${{ matrix.target }}*
 
   publish:
     needs: build
@@ -68,7 +68,7 @@ jobs:
       - name: 체크섬
         working-directory: dist
         run: |
-          sha256sum maru-* > SHA256SUMS
+          sha256sum giwa-* > SHA256SUMS
           printf '%s\n' "${GITHUB_REF_NAME#v}" > VERSION
       - name: 릴리스
         env:

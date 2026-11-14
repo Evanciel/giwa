@@ -10,9 +10,9 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
-use maru_core::blobs::Blobs;
-use maru_core::services::changesets::Sandbox;
-use maru_core::{Ctx, Error, Result};
+use giwa_core::blobs::Blobs;
+use giwa_core::services::changesets::Sandbox;
+use giwa_core::{Ctx, Error, Result};
 
 use crate::blobs::FsBlobs;
 use crate::data_dir::{DataDir, io_error};

@@ -2,7 +2,7 @@
 //!
 //! ```text
 //! <data>/
-//! ├─ maru.db  config.toml
+//! ├─ giwa.db  config.toml
 //! ├─ media/  themes/  backups/
 //! ├─ mail/     파일로 남긴 편지
 //! └─ secrets/  smtp-password (백업에 넣지 않는다)
@@ -11,8 +11,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use maru_core::config::Config;
-use maru_core::{Code, Error, Result};
+use giwa_core::config::Config;
+use giwa_core::{Code, Error, Result};
 
 #[derive(Debug, Clone)]
 pub struct DataDir {
@@ -20,8 +20,29 @@ pub struct DataDir {
 }
 
 impl DataDir {
+    /// 이름을 바꾸기 전(ADR-0173)의 `maru.db` 가 있으면 `giwa.db` 로 옮겨 둔다(실패하면 그대로).
     pub fn new(root: impl Into<PathBuf>) -> Self {
-        Self { root: root.into() }
+        let dir = Self { root: root.into() };
+        let _ = dir.adopt_legacy_db();
+        dir
+    }
+
+    /// `giwa.db` 가 없고 예전 이름 `maru.db` 가 있으면 옮긴다(WAL·SHM 함께). 옮겼으면 true.
+    pub fn adopt_legacy_db(&self) -> Result<bool> {
+        let new = self.db_path();
+        let old = self.root.join("maru.db");
+        if new.exists() || !old.is_file() {
+            return Ok(false);
+        }
+        for suffix in ["-wal", "-shm"] {
+            let from = self.root.join(format!("maru.db{suffix}"));
+            if from.exists() {
+                let to = self.root.join(format!("giwa.db{suffix}"));
+                fs::rename(&from, &to).map_err(|e| io_error(&from, e))?;
+            }
+        }
+        fs::rename(&old, &new).map_err(|e| io_error(&old, e))?;
+        Ok(true)
     }
 
     pub fn root(&self) -> &Path {
@@ -29,7 +50,7 @@ impl DataDir {
     }
 
     pub fn db_path(&self) -> PathBuf {
-        self.root.join("maru.db")
+        self.root.join("giwa.db")
     }
 
     pub fn config_path(&self) -> PathBuf {
@@ -62,10 +83,10 @@ impl DataDir {
         self.secrets_dir().join("smtp-password")
     }
 
-    /// SMTP 비밀번호: 환경 변수 `MARU_SMTP_PASSWORD` 가 먼저, 없으면 `secrets/smtp-password`.
+    /// SMTP 비밀번호: 환경 변수 `GIWA_SMTP_PASSWORD` 가 먼저, 없으면 `secrets/smtp-password`.
     /// 돌려주는 두 번째 값은 어디서 읽었는지(`env`·`file`).
     pub fn smtp_password(&self) -> Option<(String, &'static str)> {
-        if let Ok(v) = std::env::var("MARU_SMTP_PASSWORD")
+        if let Some(v) = giwa_core::env::var("SMTP_PASSWORD")
             && !v.is_empty()
         {
             return Some((v, "env"));
@@ -141,11 +162,11 @@ impl DataDir {
         let path = self.config_path();
         let body = toml::to_string_pretty(&cfg).map_err(Error::internal)?;
         let text = format!(
-            "# maru 설정. 바꾼 뒤에는 serve 를 다시 시작한다.\n\
+            "# giwa 설정. 바꾼 뒤에는 serve 를 다시 시작한다.\n\
              # bind: 서버 주소 (기본은 이 컴퓨터에서만 접속 가능)\n\
              # site_url: 사이트맵·RSS 등 절대 URL 의 기준\n\
-             # trust_tunnel: 터널이 건네는 방문자 주소를 믿는다 (`maru expose`)\n\
-             # [mail]: 편지 보내는 방식 (`maru mail setup`). SMTP 비밀번호는 여기 두지 않는다\n{body}"
+             # trust_tunnel: 터널이 건네는 방문자 주소를 믿는다 (`giwa expose`)\n\
+             # [mail]: 편지 보내는 방식 (`giwa mail setup`). SMTP 비밀번호는 여기 두지 않는다\n{body}"
         );
         fs::write(&path, text).map_err(|e| io_error(&path, e))
     }
@@ -156,7 +177,7 @@ pub fn not_initialized(root: &Path) -> Error {
         .with_message("error.data_dir_not_initialized")
         .arg("path", root.display().to_string())
         .next(format!(
-            "maru init --data \"{}\" --preset blog --yes",
+            "giwa init --data \"{}\" --preset blog --yes",
             root.display()
         ))
 }

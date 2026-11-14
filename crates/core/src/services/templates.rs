@@ -135,7 +135,7 @@ pub async fn delete(ctx: &Ctx, actor: &Actor, id_or_name: &str) -> Result<PostTe
         Error::new(Code::NotFound)
             .with_message("error.post_template_not_found")
             .arg("name", id_or_name)
-            .next("maru template list")
+            .next("giwa template list")
     })?;
     tx.delete_template(&before.id).await?;
     tx.audit(

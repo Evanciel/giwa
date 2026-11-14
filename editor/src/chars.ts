@@ -18,7 +18,7 @@ export function splitChars(s: string): string[] {
   return Array.from(s);
 }
 
-const RECENT_KEY = "maru:editor-recent-chars";
+const RECENT_KEY = "giwa:editor-recent-chars";
 
 export function recentChars(): string[] {
   try {

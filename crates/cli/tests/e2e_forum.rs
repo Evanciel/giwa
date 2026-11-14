@@ -9,7 +9,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 
 struct Server(Child);
 
@@ -27,12 +27,12 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -137,13 +137,13 @@ fn enc(s: &str) -> String {
 
 const SAME: (&str, &str) = ("Sec-Fetch-Site", "same-origin");
 
-fn db<T>(data: &Path, f: impl AsyncFnOnce(&maru_storage::Db) -> T) -> T {
+fn db<T>(data: &Path, f: impl AsyncFnOnce(&giwa_storage::Db) -> T) -> T {
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .unwrap();
     rt.block_on(async {
-        let db = maru_storage::Db::open(&data.join("maru.db"), false)
+        let db = giwa_storage::Db::open(&data.join("giwa.db"), false)
             .await
             .unwrap();
         let v = f(&db).await;
@@ -185,8 +185,8 @@ fn comment_count(data: &Path, post: &str) -> i64 {
 /// 회원으로 가입하고 로그인한 세션 쿠키.
 fn sign_in(bind: &str, email: &str, name: &str) -> String {
     let page = http(bind, "GET", "/signup", &[], "");
-    let pre = page.cookie("maru_csrf").unwrap();
-    let cookie = format!("maru_csrf={pre}");
+    let pre = page.cookie("giwa_csrf").unwrap();
+    let cookie = format!("giwa_csrf={pre}");
     let res = http(
         bind,
         "POST",
@@ -215,7 +215,7 @@ fn sign_in(bind: &str, email: &str, name: &str) -> String {
         ]),
     );
     assert_eq!(res.status, 303, "{}", res.body);
-    format!("maru_session={}", res.cookie("maru_session").unwrap())
+    format!("giwa_session={}", res.cookie("giwa_session").unwrap())
 }
 
 /// 공개 글쓰기 화면으로 글을 쓰고 그 주소를 돌려준다.
@@ -253,11 +253,11 @@ fn comment(bind: &str, session: &str, post_url: &str, body: &str) -> Res {
 fn forum_orders_by_activity_accepts_answers_and_locks() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    let b = maru(
+    let b = giwa(
         &data,
         &[
             "board",
@@ -279,7 +279,7 @@ fn forum_orders_by_activity_accepts_answers_and_locks() {
             .contains("activity"),
         "{bad}"
     );
-    maru(
+    giwa(
         &data,
         &[
             "site",
@@ -373,7 +373,7 @@ fn forum_orders_by_activity_accepts_answers_and_locks() {
     let list = http(&bind, "GET", "/b/qa", &[], "");
     assert!(list.body.contains("solved-mark"), "목록에 해결 표시");
     // 첫 화면 위젯 줄에도 해결 표시 (GAP Q23, ADR-0110). 위젯은 놓자마자 보인다.
-    maru(
+    giwa(
         &data,
         &[
             "widget",
@@ -398,7 +398,7 @@ fn forum_orders_by_activity_accepts_answers_and_locks() {
     let bind = started["bind"].as_str().unwrap().to_owned();
 
     // 잠금: CLI → 화면 안내, 회원 댓글 거부, 운영자 풀기.
-    let p = maru(&data, &["post", "lock", &post_id]);
+    let p = giwa(&data, &["post", "lock", &post_id]);
     assert_eq!(p["is_locked"], true);
     let page = http(&bind, "GET", &old, &[], "");
     assert!(page.body.contains("잠긴 글이라"));
@@ -411,13 +411,13 @@ fn forum_orders_by_activity_accepts_answers_and_locks() {
         &["post", "accept", &post_id, "--comment", "없는-댓글"],
     );
     assert_eq!(err["ok"], false);
-    maru(&data, &["post", "lock", &post_id, "--off"]);
+    giwa(&data, &["post", "lock", &post_id, "--off"]);
     let res = comment(&bind, &helper, &old, "한마디 더");
     assert_eq!(res.status, 303, "{}", res.body);
     assert_eq!(comment_count(&data, &post_id), 2);
 
     // CLI 로 채택을 뺀다.
-    let p = maru(&data, &["post", "accept", &post_id, "--clear"]);
+    let p = giwa(&data, &["post", "accept", &post_id, "--clear"]);
     assert!(p["accepted_comment_id"].is_null());
     assert_eq!(
         scalar(

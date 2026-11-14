@@ -1,4 +1,4 @@
-//! `maru service` (SPEC §10·§12, ADR-0124). 로그인하면 서버가 뜨도록 사용자 권한으로 등록한다.
+//! `giwa service` (SPEC §10·§12, ADR-0124). 로그인하면 서버가 뜨도록 사용자 권한으로 등록한다.
 //!
 //! 관리자 권한을 쓰지 않는다 (원칙 6). 리눅스는 systemd 사용자 단위, 맥은 launchd 에이전트,
 //! 윈도우는 작업 스케줄러의 로그온 작업이다. 윈도우 서비스는 관리자 권한이 있어야 해서 쓰지 않는다.
@@ -7,12 +7,12 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
 
-use maru_core::{Code, Error, Result};
-use maru_storage::DataDir;
+use giwa_core::{Code, Error, Result};
+use giwa_storage::DataDir;
 use serde_json::{Value, json};
 
 use crate::commands::{Out, open, running_server};
-use crate::doctor::probe_maru;
+use crate::doctor::probe_giwa;
 use crate::{Global, ServiceCmd, ServiceInstallArgs};
 
 const START_WAIT: Duration = Duration::from_secs(20);
@@ -56,7 +56,7 @@ fn service_name(data: &Path) -> String {
     let hash = key.bytes().fold(0xcbf2_9ce4_8422_2325_u64, |h, b| {
         (h ^ u64::from(b)).wrapping_mul(0x0000_0100_0000_01b3)
     });
-    format!("maru-{hash:016x}")
+    format!("giwa-{hash:016x}")
 }
 
 fn xml(s: &str) -> String {
@@ -80,7 +80,7 @@ fn systemd_unit(program: &Path, args: &[String], data: &Path) -> String {
     let mut words = vec![systemd_word(&program.display().to_string())];
     words.extend(args.iter().map(|a| systemd_word(a)));
     format!(
-        "[Unit]\nDescription=Maru CMS ({})\n\n[Service]\nExecStart={}\nRestart=on-failure\nRestartSec=5\n\n[Install]\nWantedBy=default.target\n",
+        "[Unit]\nDescription=Giwa CMS ({})\n\n[Service]\nExecStart={}\nRestart=on-failure\nRestartSec=5\n\n[Install]\nWantedBy=default.target\n",
         data.display().to_string().replace(['\r', '\n'], " "),
         words.join(" "),
     )
@@ -121,7 +121,7 @@ fn task_xml(user: &str, program: &Path, args: &[String], data: &Path) -> String 
     format!(
         "<?xml version=\"1.0\" encoding=\"UTF-16\"?>\n\
          <Task version=\"1.2\" xmlns=\"http://schemas.microsoft.com/windows/2004/02/mit/task\">\n\
-         \x20 <RegistrationInfo><Description>Maru CMS</Description></RegistrationInfo>\n\
+         \x20 <RegistrationInfo><Description>Giwa CMS</Description></RegistrationInfo>\n\
          \x20 <Triggers><LogonTrigger><Enabled>true</Enabled><UserId>{user}</UserId></LogonTrigger></Triggers>\n\
          \x20 <Principals><Principal id=\"Author\"><UserId>{user}</UserId><LogonType>InteractiveToken</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal></Principals>\n\
          \x20 <Settings>\n\
@@ -278,21 +278,21 @@ fn unregister(manager: Manager, p: &Paths) -> Result<()> {
 
 /// 주소에서 답하는 쪽. `None` 이면 아무도 듣지 않는다.
 async fn answering(bind: &str) -> Option<bool> {
-    probe_maru(bind.parse().ok()?).await
+    probe_giwa(bind.parse().ok()?).await
 }
 
 fn port_taken(bind: &str) -> Error {
     Error::new(Code::PortInUse)
         .with_message("error.port_in_use")
         .arg("port", bind.rsplit(':').next().unwrap_or(bind))
-        .next("maru service install --bind 127.0.0.1:<다른 포트>")
+        .next("giwa service install --bind 127.0.0.1:<다른 포트>")
 }
 
 async fn install(g: &Global, args: ServiceInstallArgs) -> Out {
     let dir = DataDir::new(&g.data);
     if !dir.is_initialized() {
         return Err(
-            failed("초기화된 데이터 디렉터리가 아닙니다").next("maru init --preset blog --yes")
+            failed("초기화된 데이터 디렉터리가 아닙니다").next("giwa init --preset blog --yes")
         );
     }
     let (_ctx, config, db) = open(g).await?;
@@ -308,7 +308,7 @@ async fn install(g: &Global, args: ServiceInstallArgs) -> Out {
                 "detail",
                 format!("서비스는 정해진 주소가 필요합니다: {bind}"),
             )
-            .next("maru service install --bind 127.0.0.1:8080"));
+            .next("giwa service install --bind 127.0.0.1:8080"));
     }
     let manager = Manager::current();
     let p = paths(g, manager)?;
@@ -344,15 +344,15 @@ async fn install(g: &Global, args: ServiceInstallArgs) -> Out {
     let already = before == Some(true);
     let content = definition(manager, &p, &program, &words)?;
     // 등록이 막혀도 사이트는 띄울 수 있다.
-    register(manager, &p, &content).map_err(|e| e.next(format!("maru serve --bind {bind}")))?;
+    register(manager, &p, &content).map_err(|e| e.next(format!("giwa serve --bind {bind}")))?;
 
     let url = format!("http://{bind}");
     let waited = tokio::time::Instant::now();
     while answering(&bind).await != Some(true) {
         if waited.elapsed() > START_WAIT {
             return Err(failed("등록했지만 서버가 뜨지 않았습니다")
-                .next("maru doctor")
-                .next("maru service uninstall"));
+                .next("giwa doctor")
+                .next("giwa service uninstall"));
         }
         tokio::time::sleep(Duration::from_millis(300)).await;
     }
@@ -377,7 +377,7 @@ async fn install(g: &Global, args: ServiceInstallArgs) -> Out {
     Ok((data, human))
 }
 
-/// 그 주소의 maru 가 이 데이터 디렉터리를 쓰는가. `server.json` 은 서버가 켤 때 적는다.
+/// 그 주소의 giwa 가 이 데이터 디렉터리를 쓰는가. `server.json` 은 서버가 켤 때 적는다.
 fn same_site(dir: &DataDir, bind: &str) -> bool {
     running_server(dir).is_some_and(|(addr, _)| addr == bind)
 }
@@ -480,18 +480,18 @@ mod tests {
         let a = service_name(Path::new("/srv/a"));
         assert_eq!(a, service_name(Path::new("/srv/a")));
         assert_ne!(a, service_name(Path::new("/srv/b")));
-        assert!(a.starts_with("maru-") && a.len() == 21, "{a}");
+        assert!(a.starts_with("giwa-") && a.len() == 21, "{a}");
     }
 
     #[test]
     fn systemd_단위는_칸을_감싸고_특수_문자를_막는다() {
         let unit = systemd_unit(
-            Path::new("/opt/maru 앱/maru"),
+            Path::new("/opt/giwa 앱/giwa"),
             &["--data".to_owned(), "/a%b$c\"d".to_owned()],
             Path::new("/a"),
         );
         assert!(
-            unit.contains(r#"ExecStart="/opt/maru 앱/maru" "--data" "/a%%b$$c\"d""#),
+            unit.contains(r#"ExecStart="/opt/giwa 앱/giwa" "--data" "/a%%b$$c\"d""#),
             "{unit}"
         );
         assert!(unit.contains("WantedBy=default.target"));
@@ -499,7 +499,7 @@ mod tests {
 
     #[test]
     fn plist_는_값을_이스케이프한다() {
-        let plist = launchd_plist("maru-x", Path::new("/opt/maru"), &args(), Path::new("/a"));
+        let plist = launchd_plist("maru-x", Path::new("/opt/giwa"), &args(), Path::new("/a"));
         assert!(
             plist.contains("<string>/집/사이트 &amp; 하나</string>"),
             "{plist}"
@@ -511,7 +511,7 @@ mod tests {
     fn 작업_정의는_사용자_권한이고_창을_띄우지_않는다() {
         let task = task_xml(
             r"PC\나",
-            Path::new(r"C:\앱\maru.exe"),
+            Path::new(r"C:\앱\giwa.exe"),
             &args(),
             Path::new(r"C:\a&b"),
         );
@@ -522,7 +522,7 @@ mod tests {
         assert!(task.contains(r"<UserId>PC\나</UserId>"));
         assert!(task.contains("<Command>conhost.exe</Command>"));
         assert!(
-            task.contains("--headless &quot;C:\\앱\\maru.exe&quot;"),
+            task.contains("--headless &quot;C:\\앱\\giwa.exe&quot;"),
             "{task}"
         );
         assert!(task.contains("<WorkingDirectory>C:\\a&amp;b</WorkingDirectory>"));

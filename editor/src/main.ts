@@ -1,4 +1,4 @@
-// Maru 글 에디터. 관리 화면의 `textarea[data-editor]` 를 서식 편집기로 바꾼다.
+// Giwa 글 에디터. 관리 화면의 `textarea[data-editor]` 를 서식 편집기로 바꾼다.
 //
 // - 저장되는 값은 언제나 textarea 의 Markdown 이다. 스크립트가 꺼져 있으면 textarea 가 그대로 동작한다.
 // - 세 모드: 서식(ProseMirror), Markdown(원문 textarea), 미리보기(서버 렌더러 = 공개 화면과 같은 결과).
@@ -326,7 +326,7 @@ class Editor {
   ) {
     this.initialMd = textarea.value;
     this.initialTitle = title?.value ?? "";
-    this.draftKey = `maru:draft:${form.getAttribute("action") ?? location.pathname}`;
+    this.draftKey = `giwa:draft:${form.getAttribute("action") ?? location.pathname}`;
 
     this.root = el("div", { class: "me" });
     // 도구 막대: 넣기 줄과 꾸미기 줄
@@ -563,13 +563,13 @@ class Editor {
     this.bindPopover();
     this.bindChars();
     try {
-      this.setSpell(localStorage.getItem("maru:editor-spell") === "on");
+      this.setSpell(localStorage.getItem("giwa:editor-spell") === "on");
     } catch {
       this.setSpell(false);
     }
 
     if (loaded.ok) {
-      this.setMode(localStorage.getItem("maru:editor-mode") === "md" ? "md" : "rich", false);
+      this.setMode(localStorage.getItem("giwa:editor-mode") === "md" ? "md" : "rich", false);
     } else {
       this.setMode("md", false);
       this.showNotice(`이 글에는 Markdown 으로만 고칠 수 있는 부분(${loaded.reason})이 있어 Markdown 으로 엽니다.`);
@@ -620,7 +620,7 @@ class Editor {
     if (mode !== "preview") {
       this.lastEdit = mode;
       try {
-        localStorage.setItem("maru:editor-mode", mode);
+        localStorage.setItem("giwa:editor-mode", mode);
       } catch {
         // 저장소를 못 쓰면 다음에도 기본값
       }
@@ -925,7 +925,7 @@ class Editor {
     this.textarea.spellcheck = on;
     this.view.setProps({});
     try {
-      localStorage.setItem("maru:editor-spell", on ? "on" : "off");
+      localStorage.setItem("giwa:editor-spell", on ? "on" : "off");
     } catch {
       // 무시
     }

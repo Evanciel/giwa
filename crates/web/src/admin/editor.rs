@@ -29,22 +29,22 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{delete, get, post, put};
 use axum::{Json, Router, middleware};
-use maru_core::clock;
-use maru_core::design::FONTS;
-use maru_core::model::{
+use giwa_core::clock;
+use giwa_core::design::FONTS;
+use giwa_core::model::{
     ChangesetStatus, MENU_LOCATIONS, MenuItem, PageReq, PageStatus, WIDGET_REGIONS, Widget,
 };
-use maru_core::output::Success;
-use maru_core::services::auth::SignedIn;
-use maru_core::services::changesets as change;
-use maru_core::services::stats::StatCounter;
-use maru_core::services::views::ViewCounter;
-use maru_core::services::widgets;
-use maru_core::services::{boards, design, editor_drafts, fonts, media, menus, pages, settings};
-use maru_core::services::{designs, saved_blocks};
-use maru_core::urls::{self, Target};
-use maru_core::{Actor, Code, Error, Permission};
-use maru_modules::service as modules;
+use giwa_core::output::Success;
+use giwa_core::services::auth::SignedIn;
+use giwa_core::services::changesets as change;
+use giwa_core::services::stats::StatCounter;
+use giwa_core::services::views::ViewCounter;
+use giwa_core::services::widgets;
+use giwa_core::services::{boards, design, editor_drafts, fonts, media, menus, pages, settings};
+use giwa_core::services::{designs, saved_blocks};
+use giwa_core::urls::{self, Target};
+use giwa_core::{Actor, Code, Error, Permission};
+use giwa_modules::service as modules;
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
 use tower::Service;
@@ -239,7 +239,7 @@ async fn page(
             "done": changeset_id(&q.done),
             "reverted": changeset_id(&q.reverted),
             "screens": data["screens"],
-            "starters": maru_themes::starters().unwrap_or_default(),
+            "starters": giwa_themes::starters().unwrap_or_default(),
             "editor_json": script_json(&data),
         }),
     );
@@ -252,7 +252,7 @@ async fn editor_data(
     who: &SignedIn,
     screen: &EditScreen,
     list: &[Widget],
-) -> maru_core::Result<Value> {
+) -> giwa_core::Result<Value> {
     let ctx = &state.ctx;
     let types = widgets::all_types(ctx).await;
     let board_list = boards::list(ctx, &who.actor).await.unwrap_or_default();
@@ -380,13 +380,13 @@ async fn starter_draft(
     q: &ScreenQuery,
     list: &[Widget],
     data: &mut Value,
-) -> maru_core::Result<()> {
+) -> giwa_core::Result<()> {
     let page = pages::editable_page(&state.ctx, &who.actor, slug).await?;
     let scope = format!("page:{}", page.slug);
     if page.status == PageStatus::Published || list.iter().any(|w| w.scope == scope) {
         return Ok(());
     }
-    let starter = maru_themes::starter(&q.starter)?;
+    let starter = giwa_themes::starter(&q.starter)?;
     let drafts: Vec<Value> = starter
         .widgets(&page.slug, &page.title)
         .into_iter()
@@ -423,9 +423,9 @@ fn kinds_json(types: &[widgets::WidgetType]) -> Vec<Value> {
 /// 이 사이트에서 쓸 수 없는 블록은 빼고, 없는 게시판·페이지를 가리키는 곳은 [`fit_links`] 로 고친다.
 /// 처음 보일 셋([`BUNDLE_PICKS`])을 앞에 둔다.
 fn bundles(kinds: &HashSet<&str>, site: &Known) -> Vec<Value> {
-    let mut out: Vec<Value> = maru_themes::preset_ids()
+    let mut out: Vec<Value> = giwa_themes::preset_ids()
         .iter()
-        .filter_map(|id| maru_themes::preset(id).ok())
+        .filter_map(|id| giwa_themes::preset(id).ok())
         .filter_map(|p| designs::from_preset(&p))
         .filter_map(|d| {
             let blocks: Vec<Value> = d
@@ -674,7 +674,7 @@ struct PageSettingsInput {
     _slug: Option<String>,
 }
 
-fn page_settings(p: &maru_core::model::Page) -> Value {
+fn page_settings(p: &giwa_core::model::Page) -> Value {
     json!({
         "title": p.title,
         "slug": p.slug,
@@ -723,7 +723,7 @@ struct Opened {
 async fn to_site(
     state: &AppState,
     input: &SiteInput,
-) -> maru_core::Result<(SiteDraft, Vec<String>)> {
+) -> giwa_core::Result<(SiteDraft, Vec<String>)> {
     let saved = settings::site(&state.ctx).await?;
     let mut invalid = Vec::new();
     let name = settings::check_name(&input.name).unwrap_or_else(|_| {
@@ -756,7 +756,7 @@ async fn site_ops(
     state: &AppState,
     input: &SiteInput,
     untouched: &[String],
-) -> maru_core::Result<Vec<Value>> {
+) -> giwa_core::Result<Vec<Value>> {
     let ctx = &state.ctx;
     let saved = settings::site(ctx).await?;
     let mut ops = Vec::new();
@@ -789,7 +789,7 @@ async fn page_settings_op(
     actor: &Actor,
     slug: &str,
     input: &PageSettingsInput,
-) -> maru_core::Result<Option<Value>> {
+) -> giwa_core::Result<Option<Value>> {
     let page = pages::editable_page(&state.ctx, actor, slug).await?;
     let mut patch = Map::new();
     if let Some(t) = &input.title {
@@ -824,7 +824,7 @@ async fn page_settings_op(
         .then(|| json!({ "op": "page.update", "slug": page.slug, "patch": patch })))
 }
 
-fn check_ids(list: &[DraftWidget]) -> maru_core::Result<()> {
+fn check_ids(list: &[DraftWidget]) -> giwa_core::Result<()> {
     if list.len() > MAX_DRAFT {
         return Err(Error::new(Code::Validation)
             .with_message("error.widget_too_many")
@@ -1062,7 +1062,7 @@ async fn new_page(
 ) -> Result<Response, ApiError> {
     let who = json_session(&state, &headers).await?;
     let Json(input) = body.map_err(rejected)?;
-    let starter = maru_themes::starter(&input.starter)?;
+    let starter = giwa_themes::starter(&input.starter)?;
     let page = pages::create(
         &state.ctx,
         &who.actor,

@@ -979,7 +979,7 @@ fn default_true() -> bool {
 impl Default for SiteSettings {
     fn default() -> Self {
         Self {
-            name: "Maru".into(),
+            name: "Giwa".into(),
             description: String::new(),
             lang: "ko".into(),
             tz_offset_min: 540,

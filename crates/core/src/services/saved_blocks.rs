@@ -24,7 +24,7 @@ pub const MAX_BLOCKS: usize = 200;
 pub struct NewSavedBlock {
     /// 보관함에 보일 이름 (40자)
     pub name: String,
-    /// 블록 종류 (`maru widget types`)
+    /// 블록 종류 (`giwa widget types`)
     pub kind: String,
     /// 놓을 자리. 비우면 `main`
     #[serde(default)]
@@ -72,7 +72,7 @@ pub async fn save(ctx: &Ctx, actor: &Actor, input: NewSavedBlock) -> Result<Save
         return Err(Error::new(Code::Validation)
             .with_message("error.saved_blocks_full")
             .arg("max", MAX_BLOCKS.to_string())
-            .next("maru widget saved list"));
+            .next("giwa widget saved list"));
     }
     let block = SavedBlock {
         id: clock::new_id(),

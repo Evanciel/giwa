@@ -9,7 +9,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 const FORM: (&str, &str) = ("Content-Type", "application/x-www-form-urlencoded");
 
 struct Server(Child);
@@ -21,14 +21,14 @@ impl Drop for Server {
     }
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let out = Command::new(BIN)
         .arg("--data")
         .arg(data)
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     let v: Value =
         serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"));
@@ -108,8 +108,8 @@ fn sign_in(bind: &str, link_url: &str) -> String {
     let path = &rest[rest.find('/').unwrap()..];
     let page = http(bind, "GET", path, &[], "");
     assert_eq!(page.status, 200, "{}", page.body);
-    let csrf = page.cookie("maru_csrf").unwrap();
-    let cookie = format!("maru_csrf={csrf}");
+    let csrf = page.cookie("giwa_csrf").unwrap();
+    let cookie = format!("giwa_csrf={csrf}");
     let res = http(
         bind,
         "POST",
@@ -118,7 +118,7 @@ fn sign_in(bind: &str, link_url: &str) -> String {
         &format!("_csrf={csrf}"),
     );
     assert_eq!(res.status, 303, "{}", res.body);
-    res.cookie("maru_session").unwrap()
+    res.cookie("giwa_session").unwrap()
 }
 
 fn header<'a>(res: &'a Res, name: &str) -> &'a str {
@@ -149,11 +149,11 @@ fn draft_of(list: &Value) -> Vec<Value> {
 fn edit_screen_draw_draft_publish_and_revert() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    let link = maru(&data, &["login-link"]);
+    let link = giwa(&data, &["login-link"]);
     let (_server, bind) = start_server(&data);
 
     // 로그인하지 않으면 로그인으로 보낸다.
@@ -162,7 +162,7 @@ fn edit_screen_draw_draft_publish_and_revert() {
     assert!(r.location().starts_with("/admin/login"), "{}", r.location());
 
     let session = sign_in(&bind, link["url"].as_str().unwrap());
-    let cookie = format!("maru_session={session}");
+    let cookie = format!("giwa_session={session}");
     let page = http(
         &bind,
         "GET",
@@ -208,7 +208,7 @@ fn edit_screen_draw_draft_publish_and_revert() {
     assert!(!public.body.contains("data-maru"), "공개 화면에 편집 표시");
 
     // 초안 그리기: 새 블록이 캔버스에만 보이고 DB·공개 화면은 그대로다.
-    let before = maru(&data, &["widget", "list"]);
+    let before = giwa(&data, &["widget", "list"]);
     let mut draft = draft_of(&before);
     draft.push(serde_json::json!({
         "id": "new-1", "kind": "markdown_block", "region": "hero", "scope": "home",
@@ -240,7 +240,7 @@ fn edit_screen_draw_draft_publish_and_revert() {
     assert!(drawn.body.contains("data-maru-w=\"new-1\""));
     // 설정이 틀린 블록은 빼고 그리고 그 id 를 알린다.
     assert_eq!(header(&drawn, "x-maru-invalid"), "new-2");
-    assert_eq!(maru(&data, &["widget", "list"]), before);
+    assert_eq!(giwa(&data, &["widget", "list"]), before);
     assert!(
         !http(&bind, "GET", "/", &[], "")
             .body
@@ -296,7 +296,7 @@ fn edit_screen_draw_draft_publish_and_revert() {
     assert_eq!(first["ops"], 1);
     let shown = http(&bind, "GET", "/", &[], "");
     assert!(shown.body.contains("편집기 새 블록"), "발행 뒤 공개 화면");
-    let after = maru(&data, &["widget", "list"]);
+    let after = giwa(&data, &["widget", "list"]);
     let placed = after
         .as_array()
         .unwrap()
@@ -305,7 +305,7 @@ fn edit_screen_draw_draft_publish_and_revert() {
         .expect("새 블록이 DB 에")
         .clone();
     assert_eq!(placed["scope"], "home");
-    let cs_view = maru(&data, &["changeset", "show", &cs]);
+    let cs_view = giwa(&data, &["changeset", "show", &cs]);
     assert_eq!(cs_view["status"], "applied");
     assert_eq!(cs_view["title"], "화면 편집: 첫 화면");
 
@@ -328,7 +328,7 @@ fn edit_screen_draw_draft_publish_and_revert() {
             .body
             .contains("편집기 새 블록")
     );
-    let kept = maru(&data, &["widget", "list"]);
+    let kept = giwa(&data, &["widget", "list"]);
     assert!(
         kept.as_array()
             .unwrap()
@@ -337,7 +337,7 @@ fn edit_screen_draw_draft_publish_and_revert() {
     );
 
     // 되돌리기: 그 묶음 하나만 되돌리면 다시 보인다.
-    maru(&data, &["changeset", "revert", &cs2]);
+    giwa(&data, &["changeset", "revert", &cs2]);
     assert!(
         http(&bind, "GET", "/", &[], "")
             .body
@@ -351,7 +351,7 @@ fn edit_screen_draw_draft_publish_and_revert() {
         }
         v
     };
-    assert_eq!(strip(maru(&data, &["widget", "list"])), strip(after));
+    assert_eq!(strip(giwa(&data, &["widget", "list"])), strip(after));
 
     // 사이트 공통 부분 (ADR-0145): 이름·메뉴 초안이 캔버스에만 보이고, 발행하면 같은 묶음에 들어간다.
     let canvas = http(
@@ -365,7 +365,7 @@ fn edit_screen_draw_draft_publish_and_revert() {
         canvas.body.contains("data-maru-s=\"name\""),
         "사이트 이름 표시"
     );
-    let widgets_now = draft_of(&maru(&data, &["widget", "list"]));
+    let widgets_now = draft_of(&giwa(&data, &["widget", "list"]));
     let site_body = |name: &str, label: &str| {
         serde_json::json!({
             "screen": "home",
@@ -422,13 +422,13 @@ fn edit_screen_draw_draft_publish_and_revert() {
     let home = http(&bind, "GET", "/", &[], "").body;
     assert!(home.contains("편집기 이름") && home.contains("새 메뉴 이름"));
     assert!(!home.contains("data-maru"), "공개 화면에 편집 표시");
-    assert_eq!(maru(&data, &["site", "show"])["name"], "편집기 이름");
+    assert_eq!(giwa(&data, &["site", "show"])["name"], "편집기 이름");
     let cs3 = out["data"]["changeset"].as_str().unwrap().to_owned();
-    maru(&data, &["changeset", "revert", &cs3]);
-    assert_ne!(maru(&data, &["site", "show"])["name"], "편집기 이름");
+    giwa(&data, &["changeset", "revert", &cs3]);
+    assert_ne!(giwa(&data, &["site", "show"])["name"], "편집기 이름");
 
     // 기기별 숨김 (ADR-0146): 지우지 않고 그 기기 폭에서만 감추는 클래스가 붙는다.
-    let mut devices = draft_of(&maru(&data, &["widget", "list"]));
+    let mut devices = draft_of(&giwa(&data, &["widget", "list"]));
     let set_hide = |list: &mut Vec<Value>, hide: Value| {
         for w in list.iter_mut() {
             if w["id"] == placed["id"] {
@@ -476,7 +476,7 @@ fn edit_screen_draw_draft_publish_and_revert() {
     assert_eq!(dev_pub["ops"], 1, "{dev_pub}");
     let home = http(&bind, "GET", "/", &[], "").body;
     assert!(home.contains("편집기 새 블록") && home.contains(" hide-mobile\""));
-    let stored = maru(&data, &["widget", "list"]);
+    let stored = giwa(&data, &["widget", "list"]);
     let stored = stored
         .as_array()
         .unwrap()
@@ -486,9 +486,9 @@ fn edit_screen_draw_draft_publish_and_revert() {
     assert_eq!(stored["hide_on"], serde_json::json!(["mobile"]));
     // CLI 도 같은 서비스: 빈 값이면 모든 기기에 다시 보인다.
     let id = placed["id"].as_str().unwrap();
-    let cleared = maru(&data, &["widget", "configure", id, "--hide-on", ""]);
+    let cleared = giwa(&data, &["widget", "configure", id, "--hide-on", ""]);
     assert_eq!(cleared["hide_on"], serde_json::json!([]));
-    let tablet = maru(
+    let tablet = giwa(
         &data,
         &["widget", "configure", id, "--hide-on", "tablet,desktop"],
     );
@@ -507,13 +507,13 @@ const PNG: &[u8] = &[
 fn editor_picks_images_and_links() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
     let file = tmp.path().join("가게.png");
     std::fs::write(&file, PNG).unwrap();
-    let up = maru(
+    let up = giwa(
         &data,
         &[
             "media",
@@ -524,10 +524,10 @@ fn editor_picks_images_and_links() {
         ],
     );
     let url = up["url"].as_str().unwrap().to_owned();
-    let link = maru(&data, &["login-link"]);
+    let link = giwa(&data, &["login-link"]);
     let (_server, bind) = start_server(&data);
     let session = sign_in(&bind, link["url"].as_str().unwrap());
-    let cookie = format!("maru_session={session}");
+    let cookie = format!("giwa_session={session}");
     let page = http(
         &bind,
         "GET",
@@ -571,7 +571,7 @@ fn editor_picks_images_and_links() {
     assert_eq!(v["data"]["more"], false);
 
     // 캔버스: 그림 칸에 경로 표시가 붙고, 그림이 없으면 「그림 넣기」 자리가 생긴다.
-    let mut draft = draft_of(&maru(&data, &["widget", "list"]));
+    let mut draft = draft_of(&giwa(&data, &["widget", "list"]));
     draft.push(serde_json::json!({
         "id": "new-img", "kind": "image_text", "region": "main", "scope": "home", "title": "",
         "config": { "body": "그림 옆 글", "image": url, "image_alt": "가게 앞" },
@@ -625,7 +625,7 @@ fn editor_picks_images_and_links() {
     assert!(home.contains("href=\"/b/notice\""));
     assert!(!home.contains("data-maru"), "공개 화면에 편집 표시");
     assert!(!home.contains("maru-img-empty"), "공개 화면에 빈 그림 자리");
-    let stored = maru(&data, &["widget", "list"]);
+    let stored = giwa(&data, &["widget", "list"]);
     let it = stored
         .as_array()
         .unwrap()
@@ -642,14 +642,14 @@ fn editor_picks_images_and_links() {
 fn editor_styles_blocks_and_site_design() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    let link = maru(&data, &["login-link"]);
+    let link = giwa(&data, &["login-link"]);
     let (_server, bind) = start_server(&data);
     let session = sign_in(&bind, link["url"].as_str().unwrap());
-    let cookie = format!("maru_session={session}");
+    let cookie = format!("giwa_session={session}");
     let page = http(
         &bind,
         "GET",
@@ -669,10 +669,10 @@ fn editor_styles_blocks_and_site_design() {
         ("Cookie", cookie.as_str()),
         ("x-csrf-token", csrf.as_str()),
     ];
-    let before_primary = maru(&data, &["design", "show"])["color"]["primary"].clone();
+    let before_primary = giwa(&data, &["design", "show"])["color"]["primary"].clone();
 
     // 꾸미기: 여백·정렬이 띠 클래스가 되고, 모르는 값은 알린다.
-    let mut draft = draft_of(&maru(&data, &["widget", "list"]));
+    let mut draft = draft_of(&giwa(&data, &["widget", "list"]));
     draft.push(serde_json::json!({
         "id": "new-cta", "kind": "cta", "region": "main", "scope": "home", "title": "문의",
         "config": { "text": "연락 주세요", "space": "roomy", "align": "center" },
@@ -733,7 +733,7 @@ fn editor_styles_blocks_and_site_design() {
         403
     );
     assert_eq!(
-        maru(&data, &["design", "show"])["color"]["primary"],
+        giwa(&data, &["design", "show"])["color"]["primary"],
         before_primary,
         "미리보기는 저장하지 않는다"
     );
@@ -754,12 +754,12 @@ fn editor_styles_blocks_and_site_design() {
     let out: Value = serde_json::from_str(&published.body).unwrap();
     assert_eq!(out["data"]["ops"], 2, "{out}");
     assert_eq!(
-        maru(&data, &["design", "show"])["color"]["primary"],
+        giwa(&data, &["design", "show"])["color"]["primary"],
         "#1d4ed8"
     );
     let home = http(&bind, "GET", "/", &[], "").body;
     assert!(home.contains("space-roomy align-center"));
-    let stored = maru(&data, &["widget", "list"]);
+    let stored = giwa(&data, &["widget", "list"]);
     let cta = stored
         .as_array()
         .unwrap()
@@ -784,9 +784,9 @@ fn editor_styles_blocks_and_site_design() {
     let again: Value = serde_json::from_str(&again.body).unwrap();
     assert_eq!(again["data"]["ops"], 0, "{again}");
     let cs = out["data"]["changeset"].as_str().unwrap().to_owned();
-    maru(&data, &["changeset", "revert", &cs]);
+    giwa(&data, &["changeset", "revert", &cs]);
     assert_eq!(
-        maru(&data, &["design", "show"])["color"]["primary"],
+        giwa(&data, &["design", "show"])["color"]["primary"],
         before_primary
     );
 }
@@ -797,14 +797,14 @@ fn editor_styles_blocks_and_site_design() {
 fn editor_creates_page_from_starter() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    let link = maru(&data, &["login-link"]);
+    let link = giwa(&data, &["login-link"]);
     let (_server, bind) = start_server(&data);
     let session = sign_in(&bind, link["url"].as_str().unwrap());
-    let cookie = format!("maru_session={session}");
+    let cookie = format!("giwa_session={session}");
     let page = http(
         &bind,
         "GET",
@@ -843,7 +843,7 @@ fn editor_creates_page_from_starter() {
         r#"{"title":"x","slug":"x","starter":"nope"}"#,
     );
     assert_eq!(unknown.status, 400, "{}", unknown.body);
-    assert!(!maru(&data, &["page", "list"]).to_string().contains("\"x\""));
+    assert!(!giwa(&data, &["page", "list"]).to_string().contains("\"x\""));
 
     // 만들기: 공개 전 페이지. 공개 주소는 404, 캔버스는 그린다.
     let made = http(&bind, "POST", "/admin/editor/pages", &auth, body);
@@ -885,12 +885,12 @@ fn editor_creates_page_from_starter() {
     );
 
     // 발행: page.publish + 블록 + 메뉴가 한 묶음. 공개되고 메뉴에 보인다.
-    let mut draft = draft_of(&maru(&data, &["widget", "list"]));
+    let mut draft = draft_of(&giwa(&data, &["widget", "list"]));
     draft.push(serde_json::json!({
         "id": "new-hero", "kind": "hero", "region": "main", "scope": "page:about-us", "title": "",
         "config": { "title": "회사 소개" }, "enabled": true, "hide_on": [],
     }));
-    let site = maru(&data, &["site", "show"]);
+    let site = giwa(&data, &["site", "show"]);
     let published = http(
         &bind,
         "POST",
@@ -919,11 +919,11 @@ fn editor_creates_page_from_starter() {
 
     // 되돌리면 다시 404.
     let cs = out["data"]["changeset"].as_str().unwrap().to_owned();
-    maru(&data, &["changeset", "revert", &cs]);
+    giwa(&data, &["changeset", "revert", &cs]);
     assert_eq!(http(&bind, "GET", "/p/about-us", &[], "").status, 404);
 
     // CLI: 틀의 블록은 새로 만들 때만 놓는다.
-    let first = maru(
+    let first = giwa(
         &data,
         &[
             "page",
@@ -939,7 +939,7 @@ fn editor_creates_page_from_starter() {
     assert_eq!(first["created"], true);
     assert_eq!(first["blocks"], 3);
     assert_eq!(first["layout"], "blocks");
-    let again = maru(
+    let again = giwa(
         &data,
         &[
             "page",
@@ -954,7 +954,7 @@ fn editor_creates_page_from_starter() {
     );
     assert_eq!(again["created"], false);
     assert_eq!(again["blocks"], 0);
-    let on_contact = maru(&data, &["widget", "list"])
+    let on_contact = giwa(&data, &["widget", "list"])
         .as_array()
         .unwrap()
         .iter()
@@ -968,15 +968,15 @@ fn editor_creates_page_from_starter() {
 fn editor_enables_app_blocks() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    assert_eq!(maru(&data, &["module", "show", "map"])["enabled"], false);
-    let link = maru(&data, &["login-link"]);
+    assert_eq!(giwa(&data, &["module", "show", "map"])["enabled"], false);
+    let link = giwa(&data, &["login-link"]);
     let (_server, bind) = start_server(&data);
     let session = sign_in(&bind, link["url"].as_str().unwrap());
-    let cookie = format!("maru_session={session}");
+    let cookie = format!("giwa_session={session}");
     let page = http(
         &bind,
         "GET",
@@ -1008,7 +1008,7 @@ fn editor_enables_app_blocks() {
         http(&bind, "POST", "/admin/editor/apps/nope", &auth, "").status,
         404
     );
-    assert_eq!(maru(&data, &["module", "show", "map"])["enabled"], false);
+    assert_eq!(giwa(&data, &["module", "show", "map"])["enabled"], false);
 
     let on = http(&bind, "POST", "/admin/editor/apps/map", &auth, "");
     assert_eq!(on.status, 200, "{}", on.body);
@@ -1023,7 +1023,7 @@ fn editor_enables_app_blocks() {
             .iter()
             .any(|a| a["app"] == "map")
     );
-    assert_eq!(maru(&data, &["module", "show", "map"])["enabled"], true);
+    assert_eq!(giwa(&data, &["module", "show", "map"])["enabled"], true);
     // 다시 눌러도 같다(멱등).
     assert_eq!(
         http(&bind, "POST", "/admin/editor/apps/map", &auth, "").status,
@@ -1037,11 +1037,11 @@ fn editor_enables_app_blocks() {
 fn editor_drafts_follow_the_person() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    let secret = maru(
+    let secret = giwa(
         &data,
         &[
             "token",
@@ -1059,12 +1059,12 @@ fn editor_drafts_follow_the_person() {
         .to_owned();
     let (_server, bind) = start_server(&data);
     let first = format!(
-        "maru_session={}",
-        sign_in(&bind, maru(&data, &["login-link"])["url"].as_str().unwrap())
+        "giwa_session={}",
+        sign_in(&bind, giwa(&data, &["login-link"])["url"].as_str().unwrap())
     );
     let second = format!(
-        "maru_session={}",
-        sign_in(&bind, maru(&data, &["login-link"])["url"].as_str().unwrap())
+        "giwa_session={}",
+        sign_in(&bind, giwa(&data, &["login-link"])["url"].as_str().unwrap())
     );
     assert_ne!(first, second, "다른 세션");
     let page = http(
@@ -1146,7 +1146,7 @@ fn editor_drafts_follow_the_person() {
     assert_eq!(rest["data"][0]["screen"], "home");
 
     // 발행하면(고칠 것이 없어도) 그 화면의 초안을 지운다.
-    let now = draft_of(&maru(&data, &["widget", "list"]));
+    let now = draft_of(&giwa(&data, &["widget", "list"]));
     let body = serde_json::json!({ "screen": "home", "widgets": now }).to_string();
     let r = http(&bind, "POST", "/admin/editor/publish", &auth, &body);
     assert_eq!(r.status, 200, "{}", r.body);
@@ -1168,18 +1168,18 @@ fn editor_drafts_follow_the_person() {
 fn editor_offers_start_bundles_and_help() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    maru(
+    giwa(
         &data,
         &["page", "new", "empty", "--title", "빈 페이지", "--publish"],
     );
-    let link = maru(&data, &["login-link"]);
+    let link = giwa(&data, &["login-link"]);
     let (_server, bind) = start_server(&data);
     let session = sign_in(&bind, link["url"].as_str().unwrap());
-    let cookie = format!("maru_session={session}");
+    let cookie = format!("giwa_session={session}");
     let page = http(
         &bind,
         "GET",
@@ -1189,7 +1189,7 @@ fn editor_offers_start_bundles_and_help() {
     );
     assert_eq!(page.status, 200);
     // 한글 주소 페이지도 편집기가 열린다(초안 화면 이름 검사가 막던 버그).
-    maru(
+    giwa(
         &data,
         &["page", "new", "메뉴", "--title", "메뉴", "--publish"],
     );
@@ -1247,15 +1247,15 @@ fn editor_offers_start_bundles_and_help() {
 fn stale_editor_keeps_what_others_published() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    maru(
+    giwa(
         &data,
         &["page", "new", "메뉴", "--title", "메뉴", "--publish"],
     );
-    maru(
+    giwa(
         &data,
         &[
             "widget",
@@ -1271,8 +1271,8 @@ fn stale_editor_keeps_what_others_published() {
     );
     let (_server, bind) = start_server(&data);
     let cookie = format!(
-        "maru_session={}",
-        sign_in(&bind, maru(&data, &["login-link"])["url"].as_str().unwrap())
+        "giwa_session={}",
+        sign_in(&bind, giwa(&data, &["login-link"])["url"].as_str().unwrap())
     );
     let page = http(
         &bind,
@@ -1291,12 +1291,12 @@ fn stale_editor_keeps_what_others_published() {
         ("x-csrf-token", csrf.as_str()),
     ];
     // 첫 화면 편집기를 연 때 본 블록들.
-    let opened = draft_of(&maru(&data, &["widget", "list"]));
+    let opened = draft_of(&giwa(&data, &["widget", "list"]));
     let first = opened[0]["id"].as_str().unwrap().to_owned();
     let ids: Vec<&str> = opened.iter().map(|w| w["id"].as_str().unwrap()).collect();
 
     // 그 사이 다른 창: 메뉴 페이지에 블록을 놓고, 첫 화면 첫 블록의 제목을 바꿔 발행했다.
-    let placed = maru(
+    let placed = giwa(
         &data,
         &[
             "widget",
@@ -1313,7 +1313,7 @@ fn stale_editor_keeps_what_others_published() {
         ],
     );
     let placed_id = placed["id"].as_str().unwrap().to_owned();
-    maru(
+    giwa(
         &data,
         &["widget", "configure", &first, "--title", "다른 창에서 고침"],
     );
@@ -1332,7 +1332,7 @@ fn stale_editor_keeps_what_others_published() {
     .to_string();
     let r = http(&bind, "POST", "/admin/editor/publish", &auth, &body);
     assert_eq!(r.status, 200, "{}", r.body);
-    let after = maru(&data, &["widget", "list"]);
+    let after = giwa(&data, &["widget", "list"]);
     let after = after.as_array().unwrap();
     assert!(
         after.iter().any(|w| w["id"] == placed_id.as_str()),
@@ -1353,7 +1353,7 @@ fn stale_editor_keeps_what_others_published() {
     assert!(public.body.contains("메뉴판"), "공개 화면에도 남는다");
 
     // 「연 때 본 것」이 없는 예전 요청은 초안이 전부라 그 사이 놓인 블록을 지운다(호환).
-    let now = draft_of(&maru(&data, &["widget", "list"]));
+    let now = draft_of(&giwa(&data, &["widget", "list"]));
     let without: Vec<Value> = now
         .into_iter()
         .filter(|w| w["id"] != placed_id.as_str())
@@ -1361,7 +1361,7 @@ fn stale_editor_keeps_what_others_published() {
     let body = serde_json::json!({ "screen": "home", "widgets": without }).to_string();
     let r = http(&bind, "POST", "/admin/editor/publish", &auth, &body);
     assert_eq!(r.status, 200, "{}", r.body);
-    let gone = maru(&data, &["widget", "list"]);
+    let gone = giwa(&data, &["widget", "list"]);
     assert!(
         !gone
             .as_array()
@@ -1377,14 +1377,14 @@ fn stale_editor_keeps_what_others_published() {
 fn editor_page_settings_and_site_history() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    let link = maru(&data, &["login-link"]);
+    let link = giwa(&data, &["login-link"]);
     let (_server, bind) = start_server(&data);
     let session = sign_in(&bind, link["url"].as_str().unwrap());
-    let cookie = format!("maru_session={session}");
+    let cookie = format!("giwa_session={session}");
     let page = http(
         &bind,
         "GET",
@@ -1426,7 +1426,7 @@ fn editor_page_settings_and_site_history() {
         editor.body.contains(r#""page":{"#) && editor.body.contains(r#""noindex":false"#),
         "편집기 자료에 페이지 설정"
     );
-    let name = maru(&data, &["site", "show"])["name"].clone();
+    let name = giwa(&data, &["site", "show"])["name"].clone();
     let publish = |page: Value| {
         let body = serde_json::json!({
             "screen": "page:about-us",
@@ -1473,7 +1473,7 @@ fn editor_page_settings_and_site_history() {
         !sitemap.contains("/p/about-us"),
         "검색에서 뺀 페이지는 사이트맵에 없다"
     );
-    let stored = maru(&data, &["page", "show", "about-us"]);
+    let stored = giwa(&data, &["page", "show", "about-us"]);
     assert_eq!(
         stored["slug"], "about-us",
         "주소는 편집기에서 바꾸지 않는다"
@@ -1512,7 +1512,7 @@ fn editor_page_settings_and_site_history() {
         let r = http(&bind, "POST", &path, &auth, "");
         assert_eq!(r.status, 200, "{}", r.body);
     }
-    let stored = maru(&data, &["page", "show", "about-us"]);
+    let stored = giwa(&data, &["page", "show", "about-us"]);
     assert_eq!(stored["title"], "회사 소개");
     assert_eq!(stored["description"], "");
     assert_eq!(stored["noindex"], false);
@@ -1542,7 +1542,7 @@ fn editor_page_settings_and_site_history() {
     assert!(css.body.contains("[hidden] { display: none !important; }"));
 
     // CLI 도 같은 서비스: 설명·공유 그림·검색에서 빼기.
-    let edited = maru(
+    let edited = giwa(
         &data,
         &[
             "page",

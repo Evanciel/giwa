@@ -9,7 +9,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::{Value, json};
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 
 struct Server(Child);
 
@@ -26,14 +26,14 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .arg(data)
         .args(args)
         .arg("--json")
-        .env_remove("MARU_TOKEN")
+        .env_remove("GIWA_TOKEN")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -41,7 +41,7 @@ fn maru(data: &Path, args: &[&str]) -> Value {
 
 fn init(tmp: &Path) -> PathBuf {
     let data = tmp.join("데이터");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
@@ -50,7 +50,7 @@ fn init(tmp: &Path) -> PathBuf {
 
 fn new_changeset(data: &Path, ops: &Value) -> String {
     let text = ops.to_string();
-    let cs = maru(
+    let cs = giwa(
         data,
         &["changeset", "new", "--title", "시험 변경", "--ops", &text],
     );
@@ -59,7 +59,7 @@ fn new_changeset(data: &Path, ops: &Value) -> String {
 }
 
 fn board_slugs(data: &Path) -> Vec<String> {
-    maru(data, &["board", "list"])
+    giwa(data, &["board", "list"])
         .as_array()
         .unwrap()
         .iter()
@@ -99,9 +99,9 @@ fn get(bind: &str, path: &str) -> (u16, String) {
 fn 적용하면_사이트가_바뀌고_되돌리면_원래대로다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = init(tmp.path());
-    let site_before = maru(&data, &["site", "show"]);
-    let design_before = maru(&data, &["design", "show"]);
-    let menu_before = maru(&data, &["menu", "show", "header"]);
+    let site_before = giwa(&data, &["site", "show"]);
+    let design_before = giwa(&data, &["design", "show"]);
+    let menu_before = giwa(&data, &["menu", "show", "header"]);
     let boards_before = board_slugs(&data);
 
     let id = new_changeset(
@@ -122,16 +122,16 @@ fn 적용하면_사이트가_바뀌고_되돌리면_원래대로다() {
 
     // 적용 전: 사이트는 그대로다.
     assert!(!board_slugs(&data).contains(&"cs-board".to_owned()));
-    assert_eq!(maru(&data, &["site", "show"]), site_before);
+    assert_eq!(giwa(&data, &["site", "show"]), site_before);
     assert_eq!(
-        maru(&data, &["changeset", "list", "--status", "preview"])["items"]
+        giwa(&data, &["changeset", "list", "--status", "preview"])["items"]
             .as_array()
             .unwrap()
             .len(),
         1
     );
 
-    let applied = maru(&data, &["changeset", "apply", &id]);
+    let applied = giwa(&data, &["changeset", "apply", &id]);
     assert_eq!(applied["status"], "applied", "{applied}");
     assert!(!applied["inverse"].as_array().unwrap().is_empty());
 
@@ -141,17 +141,17 @@ fn 적용하면_사이트가_바뀌고_되돌리면_원래대로다() {
 
     // 적용 후: 실제 화면과 DB 에 남았다.
     assert!(board_slugs(&data).contains(&"cs-board".to_owned()));
-    assert_eq!(maru(&data, &["site", "show"])["name"], "묶음 사이트");
+    assert_eq!(giwa(&data, &["site", "show"])["name"], "묶음 사이트");
     assert_eq!(
-        maru(&data, &["design", "show"])["color"]["primary"],
+        giwa(&data, &["design", "show"])["color"]["primary"],
         "#1f4f8f"
     );
     assert_eq!(
-        maru(&data, &["page", "show", "cs-page"])["status"],
+        giwa(&data, &["page", "show", "cs-page"])["status"],
         "published"
     );
     assert_eq!(
-        maru(&data, &["menu", "show", "header"]),
+        giwa(&data, &["menu", "show", "header"]),
         json!([{ "label": "묶음", "link": { "kind": "page", "slug": "cs-page" }, "children": [] }])
     );
     {
@@ -168,7 +168,7 @@ fn 적용하면_사이트가_바뀌고_되돌리면_원래대로다() {
     }
 
     // 감사 기록에 어느 묶음인지 남는다.
-    let audit = maru(&data, &["audit", "list", "--action", "board.create"]);
+    let audit = giwa(&data, &["audit", "list", "--action", "board.create"]);
     let entry = audit["items"]
         .as_array()
         .unwrap()
@@ -179,28 +179,28 @@ fn 적용하면_사이트가_바뀌고_되돌리면_원래대로다() {
 
     // 다시 적용해도 그대로다(멱등).
     assert_eq!(
-        maru(&data, &["changeset", "apply", &id])["status"],
+        giwa(&data, &["changeset", "apply", &id])["status"],
         "applied"
     );
 
-    let reverted = maru(&data, &["changeset", "revert", &id]);
+    let reverted = giwa(&data, &["changeset", "revert", &id]);
     assert_eq!(reverted["status"], "reverted", "{reverted}");
     assert_eq!(reverted["inverse"], json!([]));
     assert_eq!(board_slugs(&data), boards_before);
-    assert_eq!(maru(&data, &["site", "show"]), site_before);
-    assert_eq!(maru(&data, &["design", "show"]), design_before);
-    assert_eq!(maru(&data, &["menu", "show", "header"]), menu_before);
+    assert_eq!(giwa(&data, &["site", "show"]), site_before);
+    assert_eq!(giwa(&data, &["design", "show"]), design_before);
+    assert_eq!(giwa(&data, &["menu", "show", "header"]), menu_before);
     let page = run(&data, &["page", "show", "cs-page"]);
     assert!(
         page["ok"] == false || page["data"]["status"] == "deleted",
         "{page}"
     );
-    let widgets = maru(&data, &["widget", "list"]);
+    let widgets = giwa(&data, &["widget", "list"]);
     assert!(!widgets.to_string().contains("묶음 위젯"), "{widgets}");
 
     // 다시 되돌려도 그대로다.
     assert_eq!(
-        maru(&data, &["changeset", "revert", &id])["status"],
+        giwa(&data, &["changeset", "revert", &id])["status"],
         "reverted"
     );
 }
@@ -209,7 +209,7 @@ fn 적용하면_사이트가_바뀌고_되돌리면_원래대로다() {
 fn 고치기_지우기를_되돌리면_처음_값이다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = init(tmp.path());
-    maru(
+    giwa(
         &data,
         &[
             "board",
@@ -221,8 +221,8 @@ fn 고치기_지우기를_되돌리면_처음_값이다() {
             "forum",
         ],
     );
-    let board_before = maru(&data, &["board", "show", "old"]);
-    let site_before = maru(&data, &["site", "show"]);
+    let board_before = giwa(&data, &["board", "show", "old"]);
+    let site_before = giwa(&data, &["site", "show"]);
 
     let id = new_changeset(
         &data,
@@ -234,16 +234,16 @@ fn 고치기_지우기를_되돌리면_처음_값이다() {
         ]),
     );
     assert_eq!(
-        maru(&data, &["changeset", "apply", &id])["status"],
+        giwa(&data, &["changeset", "apply", &id])["status"],
         "applied"
     );
     assert!(!board_slugs(&data).contains(&"old".to_owned()));
 
     assert_eq!(
-        maru(&data, &["changeset", "revert", &id])["status"],
+        giwa(&data, &["changeset", "revert", &id])["status"],
         "reverted"
     );
-    let after = maru(&data, &["board", "show", "old"]);
+    let after = giwa(&data, &["board", "show", "old"]);
     for key in [
         "slug",
         "name",
@@ -255,7 +255,7 @@ fn 고치기_지우기를_되돌리면_처음_값이다() {
     ] {
         assert_eq!(after[key], board_before[key], "{key}");
     }
-    assert_eq!(maru(&data, &["site", "show"]), site_before);
+    assert_eq!(giwa(&data, &["site", "show"]), site_before);
 }
 
 #[test]
@@ -264,7 +264,7 @@ fn 중간_연산이_틀리면_사이트는_그대로이고_고쳐서_다시_적�
     let data = init(tmp.path());
     // 담을 때 사본에서 돌려 보아, 틀린 연산은 저장하지 않고 몇 번째인지 바로 알려 준다.
     let listed = |data: &Path| {
-        maru(data, &["changeset", "list"])["items"]
+        giwa(data, &["changeset", "list"])["items"]
             .as_array()
             .unwrap()
             .len()
@@ -290,7 +290,7 @@ fn 중간_연산이_틀리면_사이트는_그대로이고_고쳐서_다시_적�
     assert_eq!(listed(&data), count_before, "틀린 묶음은 남지 않는다");
 
     // 담은 뒤에 사이트가 바뀌어 적용할 때 틀리게 된 경우.
-    maru(
+    giwa(
         &data,
         &[
             "board",
@@ -309,7 +309,7 @@ fn 중간_연산이_틀리면_사이트는_그대로이고_고쳐서_다시_적�
             { "op": "board.delete", "slug": "gone" }
         ]),
     );
-    maru(&data, &["board", "delete", "gone"]);
+    giwa(&data, &["board", "delete", "gone"]);
     let boards_before = board_slugs(&data);
 
     let v = run(&data, &["changeset", "apply", &id]);
@@ -320,7 +320,7 @@ fn 중간_연산이_틀리면_사이트는_그대로이고_고쳐서_다시_적�
     );
     assert_eq!(board_slugs(&data), boards_before, "앞 연산도 남지 않는다");
 
-    let cs = maru(&data, &["changeset", "show", &id]);
+    let cs = giwa(&data, &["changeset", "show", &id]);
     assert_eq!(cs["status"], "preview");
     assert!(cs["error"].as_str().unwrap().contains("2번째"), "{cs}");
     assert_eq!(cs["inverse"], json!([]));
@@ -332,7 +332,7 @@ fn 중간_연산이_틀리면_사이트는_그대로이고_고쳐서_다시_적�
     );
     assert_eq!(bad["ok"], false, "{bad}");
     assert_eq!(
-        maru(&data, &["changeset", "show", &id])["ops"]
+        giwa(&data, &["changeset", "show", &id])["ops"]
             .as_array()
             .unwrap()
             .len(),
@@ -344,7 +344,7 @@ fn 중간_연산이_틀리면_사이트는_그대로이고_고쳐서_다시_적�
         &data,
         &json!([{ "op": "board.create", "slug": "first", "name": "첫째" }]),
     );
-    maru(
+    giwa(
         &data,
         &[
             "changeset",
@@ -355,21 +355,21 @@ fn 중간_연산이_틀리면_사이트는_그대로이고_고쳐서_다시_적�
         ],
     );
     assert_eq!(
-        maru(&data, &["changeset", "apply", &fixed])["status"],
+        giwa(&data, &["changeset", "apply", &fixed])["status"],
         "applied"
     );
     assert_eq!(
-        maru(&data, &["board", "show", "first"])["name"],
+        giwa(&data, &["board", "show", "first"])["name"],
         "첫째 고침"
     );
 
     // 버린 것은 적용할 수 없고, 다시 버려도 그대로다.
     assert_eq!(
-        maru(&data, &["changeset", "discard", &id])["status"],
+        giwa(&data, &["changeset", "discard", &id])["status"],
         "discarded"
     );
     assert_eq!(
-        maru(&data, &["changeset", "discard", &id])["status"],
+        giwa(&data, &["changeset", "discard", &id])["status"],
         "discarded"
     );
     let v = run(&data, &["changeset", "apply", &id]);
@@ -381,7 +381,7 @@ fn 중간_연산이_틀리면_사이트는_그대로이고_고쳐서_다시_적�
 fn 되돌리면_데이터를_잃는_경우는_멈추고_치운_뒤_이어서_되돌린다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = init(tmp.path());
-    maru(
+    giwa(
         &data,
         &[
             "board",
@@ -394,7 +394,7 @@ fn 되돌리면_데이터를_잃는_경우는_멈추고_치운_뒤_이어서_되
         ],
     );
     let boards_before = board_slugs(&data);
-    let site_before = maru(&data, &["site", "show"]);
+    let site_before = giwa(&data, &["site", "show"]);
     let id = new_changeset(
         &data,
         &json!([
@@ -402,10 +402,10 @@ fn 되돌리면_데이터를_잃는_경우는_멈추고_치운_뒤_이어서_되
             { "op": "board.create", "slug": "kept", "name": "남길 판", "kind": "forum" }
         ]),
     );
-    maru(&data, &["changeset", "apply", &id]);
+    giwa(&data, &["changeset", "apply", &id]);
 
     // 적용 뒤에 그 게시판에 글이 생겼다.
-    let post = maru(
+    let post = giwa(
         &data,
         &[
             "post",
@@ -422,23 +422,23 @@ fn 되돌리면_데이터를_잃는_경우는_멈추고_치운_뒤_이어서_되
 
     let v = run(&data, &["changeset", "revert", &id]);
     assert_eq!(v["ok"], false, "{v}");
-    let cs = maru(&data, &["changeset", "show", &id]);
+    let cs = giwa(&data, &["changeset", "show", &id]);
     assert_eq!(cs["status"], "failed", "{cs}");
     assert!(cs["error"].as_str().is_some(), "{cs}");
     assert!(
         board_slugs(&data).contains(&"kept".to_owned()),
         "글이 있는 게시판을 지우지 않는다"
     );
-    assert_eq!(maru(&data, &["post", "show", &post_id])["title"], "남길 글");
+    assert_eq!(giwa(&data, &["post", "show", &post_id])["title"], "남길 글");
 
     // 글을 치우면 남은 것부터 이어서 되돌린다.
-    maru(&data, &["post", "move", &post_id, "--board", "elsewhere"]);
+    giwa(&data, &["post", "move", &post_id, "--board", "elsewhere"]);
     assert_eq!(
-        maru(&data, &["changeset", "revert", &id])["status"],
+        giwa(&data, &["changeset", "revert", &id])["status"],
         "reverted"
     );
     assert_eq!(board_slugs(&data), boards_before);
-    assert_eq!(maru(&data, &["site", "show"]), site_before);
+    assert_eq!(giwa(&data, &["site", "show"]), site_before);
 }
 
 /// 쿠키와 함께 읽는다. (상태, 머리글, 본문)
@@ -480,7 +480,7 @@ fn path_of(url: &str) -> String {
 fn 미리보기는_사본만_보여_주고_적용하면_끝난다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = init(tmp.path());
-    let name_before = maru(&data, &["site", "show"])["name"].clone();
+    let name_before = giwa(&data, &["site", "show"])["name"].clone();
     let id = new_changeset(
         &data,
         &json!([
@@ -498,12 +498,12 @@ fn 미리보기는_사본만_보여_주고_적용하면_끝난다() {
     let (status, _, _) = request(&bind, "GET", &format!("/__preview/{id}?token=틀린값"), "");
     assert_eq!(status, 403);
 
-    let link = maru(&data, &["changeset", "preview-url", &id]);
+    let link = giwa(&data, &["changeset", "preview-url", &id]);
     let url = link["url"].as_str().unwrap();
     assert!(url.contains(&bind), "지금 도는 서버 주소: {url}");
     let (status, head, _) = request(&bind, "GET", &path_of(url), "");
     assert_eq!(status, 303, "{head}");
-    let preview = set_cookie_value(&head, "maru_preview");
+    let preview = set_cookie_value(&head, "giwa_preview");
     // 토큰은 한 번만 쓴다.
     assert_eq!(request(&bind, "GET", &path_of(url), "").0, 403);
 
@@ -530,16 +530,16 @@ fn 미리보기는_사본만_보여_주고_적용하면_끝난다() {
     assert!(!real.contains("미리 본 이름"));
     assert!(!real.contains("maru-preview-band"));
     assert_eq!(request(&bind, "GET", "/b/previewed", "").0, 404);
-    assert_eq!(maru(&data, &["site", "show"])["name"], name_before);
+    assert_eq!(giwa(&data, &["site", "show"])["name"], name_before);
     assert!(!board_slugs(&data).contains(&"previewed".to_owned()));
 
     // 끝내기는 쿠키를 지운다.
     let (status, head, _) = request(&bind, "GET", "/__preview/exit", &preview);
     assert_eq!(status, 303);
-    assert!(head.contains("maru_preview=;"), "{head}");
+    assert!(head.contains("giwa_preview=;"), "{head}");
 
     // 연산을 더하면 사본도 따라온다.
-    maru(
+    giwa(
         &data,
         &[
             "changeset",
@@ -557,12 +557,12 @@ fn 미리보기는_사본만_보여_주고_적용하면_끝난다() {
 
     // 적용하면 미리보기는 끝나고 실제 사이트에 보인다.
     assert_eq!(
-        maru(&data, &["changeset", "apply", &id])["status"],
+        giwa(&data, &["changeset", "apply", &id])["status"],
         "applied"
     );
     let (status, head, home) = request(&bind, "GET", "/", &preview);
     assert_eq!(status, 200);
-    assert!(head.contains("maru_preview=;"), "{head}");
+    assert!(head.contains("giwa_preview=;"), "{head}");
     assert!(!home.contains("maru-preview-band"));
     assert!(home.contains("더 고친 이름"));
 }
@@ -572,7 +572,7 @@ fn 틀린_묶음은_미리보기_때_어디가_틀렸는지_알려_준다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = init(tmp.path());
     // 담을 때는 맞았는데 그 뒤에 사이트가 바뀌어 틀리게 된 묶음.
-    maru(
+    giwa(
         &data,
         &[
             "board",
@@ -585,9 +585,9 @@ fn 틀린_묶음은_미리보기_때_어디가_틀렸는지_알려_준다() {
         ],
     );
     let id = new_changeset(&data, &json!([{ "op": "board.delete", "slug": "gone" }]));
-    maru(&data, &["board", "delete", "gone"]);
+    giwa(&data, &["board", "delete", "gone"]);
     let (_server, bind) = start_server(&data);
-    let url = maru(&data, &["changeset", "preview-url", &id])["url"]
+    let url = giwa(&data, &["changeset", "preview-url", &id])["url"]
         .as_str()
         .unwrap()
         .to_owned();
@@ -616,10 +616,10 @@ fn 소유자_세션으로_미리보기를_연다() {
         &json!([{ "op": "settings.set", "values": { "name": "소유자가 본 이름" } }]),
     );
     let (_server, bind) = start_server(&data);
-    let link = maru(&data, &["login-link"]);
+    let link = giwa(&data, &["login-link"]);
     let path = path_of(link["url"].as_str().unwrap());
     let (_, head, _) = request(&bind, "GET", &path, "");
-    let csrf = set_cookie_value(&head, "maru_csrf");
+    let csrf = set_cookie_value(&head, "giwa_csrf");
     let body = format!("_csrf={}", csrf.split_once('=').unwrap().1);
     let mut s = TcpStream::connect(&bind).unwrap();
     let req = format!(
@@ -631,10 +631,10 @@ fn 소유자_세션으로_미리보기를_연다() {
     s.write_all(req.as_bytes()).unwrap();
     let mut raw = Vec::new();
     s.read_to_end(&mut raw).unwrap();
-    let session = set_cookie_value(&String::from_utf8_lossy(&raw), "maru_session");
+    let session = set_cookie_value(&String::from_utf8_lossy(&raw), "giwa_session");
     let (status, head, _) = request(&bind, "GET", &format!("/__preview/{id}"), &session);
     assert_eq!(status, 303, "{head}");
-    let preview = set_cookie_value(&head, "maru_preview");
+    let preview = set_cookie_value(&head, "giwa_preview");
     let both = format!("{session}; {preview}");
     assert!(
         request(&bind, "GET", "/", &both)

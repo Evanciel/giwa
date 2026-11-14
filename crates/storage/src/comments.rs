@@ -1,13 +1,13 @@
 //! 댓글 `comments` 와 캡차 도전 `challenges` (GAP M5·M6·M10, ADR-0052).
 //! 상태 목록·글 ID 목록은 JSON 배열 하나로 묶어 `json_each` 로 푼다 (컴파일 타임 검증 매크로 유지).
 
-use maru_core::model::{Comment, CommentAuthor, CommentStatus};
-use maru_core::{Error, Result};
+use giwa_core::model::{Comment, CommentAuthor, CommentStatus};
+use giwa_core::{Error, Result};
 use sqlx::{Sqlite, SqliteExecutor, Transaction};
 
 use crate::sqlite::db_error;
 
-pub(crate) use maru_core::store::CommentQuery;
+pub(crate) use giwa_core::store::CommentQuery;
 
 trait BoardsJson {
     fn boards_json(&self) -> Option<String>;

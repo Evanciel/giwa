@@ -9,10 +9,10 @@ use axum::Extension;
 use axum::extract::{Form, Path, Query, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Redirect, Response};
-use maru_core::actor::Actor;
-use maru_core::services::settings;
-use maru_core::{Code, Ctx, Result, urls};
-use maru_modules::{ModuleState, module_error};
+use giwa_core::actor::Actor;
+use giwa_core::services::settings;
+use giwa_core::{Code, Ctx, Result, urls};
+use giwa_modules::{ModuleState, module_error};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -27,7 +27,7 @@ pub(crate) fn no_store(mut res: Response) -> Response {
     res
 }
 
-fn status_of(e: &maru_core::Error) -> StatusCode {
+fn status_of(e: &giwa_core::Error) -> StatusCode {
     match e.code() {
         Code::RateLimited => StatusCode::TOO_MANY_REQUESTS,
         Code::Validation => StatusCode::UNPROCESSABLE_ENTITY,

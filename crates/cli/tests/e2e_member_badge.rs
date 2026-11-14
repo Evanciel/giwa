@@ -9,7 +9,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 const FORM: (&str, &str) = ("Content-Type", "application/x-www-form-urlencoded");
 const PASSWORD: &str = "test-pass-1234";
 
@@ -29,12 +29,12 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -133,8 +133,8 @@ fn form(pairs: &[(&str, &str)]) -> String {
 
 fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
     let page = http(bind, "GET", "/signup", &[], "");
-    let pre = page.cookie("maru_csrf").unwrap();
-    let cookie = format!("maru_csrf={pre}");
+    let pre = page.cookie("giwa_csrf").unwrap();
+    let cookie = format!("giwa_csrf={pre}");
     let res = http(
         bind,
         "POST",
@@ -148,7 +148,7 @@ fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
             ("password2", PASSWORD),
         ]),
     );
-    if let Some(s) = res.cookie("maru_session") {
+    if let Some(s) = res.cookie("giwa_session") {
         return s;
     }
     let login = http(bind, "GET", "/login", &[("Cookie", &cookie)], "");
@@ -164,7 +164,7 @@ fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
             ("password", PASSWORD),
         ]),
     );
-    res.cookie("maru_session")
+    res.cookie("giwa_session")
         .unwrap_or_else(|| panic!("로그인 실패 {}: {}", res.status, res.body))
 }
 
@@ -195,11 +195,11 @@ fn badge(level: u32, label: &str) -> String {
 fn level_badges_next_to_member_names() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    maru(
+    giwa(
         &data,
         &[
             "site",
@@ -212,24 +212,24 @@ fn level_badges_next_to_member_names() {
             "false",
         ],
     );
-    maru(
+    giwa(
         &data,
         &[
             "board", "create", "free", "--name", "자유", "--kind", "free",
         ],
     );
-    maru(
+    giwa(
         &data,
         &["board", "update", "free", "--write-approval", "off"],
     );
     let (_server, bind) = start_server(&data);
 
     let author = format!(
-        "maru_session={}",
+        "giwa_session={}",
         signup_and_login(&bind, "moon@example.test", "달빛이")
     );
     let reader = format!(
-        "maru_session={}",
+        "giwa_session={}",
         signup_and_login(&bind, "sun@example.test", "햇살이")
     );
     let url = write_post(&bind, &author, "레벨 보일 글");
@@ -252,8 +252,8 @@ fn level_badges_next_to_member_names() {
             .contains("level-badge")
     );
 
-    maru(&data, &["module", "enable", "point"]);
-    maru(
+    giwa(&data, &["module", "enable", "point"]);
+    giwa(
         &data,
         &[
             "point",
@@ -300,7 +300,7 @@ fn level_badges_next_to_member_names() {
         ],
     );
     assert_eq!(long["error"]["code"], "VALIDATION", "{long}");
-    maru(
+    giwa(
         &data,
         &[
             "module",
@@ -315,7 +315,7 @@ fn level_badges_next_to_member_names() {
     assert!(page.contains(&badge(1, "새싹")), "{page}");
 
     // 끄면 사라진다.
-    maru(&data, &["module", "disable", "point"]);
+    giwa(&data, &["module", "disable", "point"]);
     let list = http(&bind, "GET", "/b/free", &[], "").body;
     assert!(!list.contains("level-badge"), "{list}");
     assert!(
@@ -326,14 +326,14 @@ fn level_badges_next_to_member_names() {
 
     // 운영진 표시 (GAP Q25, ADR-0107): 모듈 없이도 붙고, 등급 표시보다 앞선다.
     let staff = "<span class=\"level-badge staff\" title=\"운영진\">운영진</span>";
-    maru(&data, &["member", "role", "sun@example.test", "editor"]);
+    giwa(&data, &["member", "role", "sun@example.test", "editor"]);
     let page = http(&bind, "GET", &url, &[], "").body;
     assert!(page.contains(&format!("햇살이</strong> {staff}")), "{page}");
-    maru(&data, &["module", "enable", "point"]);
+    giwa(&data, &["module", "enable", "point"]);
     let page = http(&bind, "GET", &url, &[], "").body;
     assert!(page.contains(&format!("햇살이</strong> {staff}")), "{page}");
     assert!(page.contains(&badge(3, "나무")), "{page}");
-    maru(&data, &["member", "role", "sun@example.test", "member"]);
+    giwa(&data, &["member", "role", "sun@example.test", "member"]);
     let page = http(&bind, "GET", &url, &[], "").body;
     assert!(!page.contains("level-badge staff"), "{page}");
 }

@@ -1,6 +1,6 @@
 //! 공개 사이트. 비로그인 Actor 로 공개 조회 서비스(`posts::public_*`, `pages::public_*`)만 부른다.
 
-use maru_themes::tr;
+use giwa_themes::tr;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 
@@ -10,20 +10,20 @@ use axum::http::{Extensions, HeaderMap, HeaderValue, Method, StatusCode, Uri, he
 use axum::middleware;
 use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::routing::get;
-use maru_core::Actor;
-use maru_core::actor::Permission;
-use maru_core::model::{
+use giwa_core::Actor;
+use giwa_core::actor::Permission;
+use giwa_core::model::{
     Board, Category, Listing, MemberStatus, MenuItem, MenuLink, Page, PageReq, Post, SiteSettings,
 };
-use maru_core::search::Range;
-use maru_core::services::search::{self, SearchInput, Sort};
-use maru_core::services::widgets::Screen;
-use maru_core::services::{
+use giwa_core::search::Range;
+use giwa_core::services::search::{self, SearchInput, Sort};
+use giwa_core::services::widgets::Screen;
+use giwa_core::services::{
     anonymous_actor, boards, comments, design, files, media, menus, pages, posts, settings, tags,
     wiki,
 };
-use maru_core::urls::{self, Target};
-use maru_core::{Code, Error, Result, blobs, clock, markdown, slug};
+use giwa_core::urls::{self, Target};
+use giwa_core::{Code, Error, Result, blobs, clock, markdown, slug};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -122,7 +122,7 @@ async fn site_value(state: &AppState, s: &SiteSettings) -> Value {
         // 로그인 상태는 HTML 에 굽지 않고 스킨 스크립트가 따로 받는다 (ADR-0081)
         "account_bar_url": "/me/bar",
         // 가입을 받는 사이트만 머리글에 「내 계정」. 공개 화면은 손님 기준이라 로그인 여부와 상관없이 같다(ADR-0051).
-        "show_account": s.signup != maru_core::model::SignupMode::Off,
+        "show_account": s.signup != giwa_core::model::SignupMode::Off,
         "account_url": "/me",
         "naver_verification": s.naver_verification,
         "share_image": s.share_image,
@@ -215,7 +215,7 @@ pub(crate) async fn render(state: &AppState, name: &str, ctx: Result<Value>) -> 
             // 광고 코드처럼 바뀌는 도메인을 쓰는 위젯은 이 화면에만 nonce 정책을 건다 (ADR-0079).
             // 화면 편집기 캔버스에서는 광고 코드를 돌리지 않는다(자리만 보인다).
             if !editing && wants_strict_csp(&regions) {
-                nonce = maru_core::services::auth::new_secret()
+                nonce = giwa_core::services::auth::new_secret()
                     .ok()
                     .map(|s| s[..32].to_owned());
             }
@@ -458,7 +458,7 @@ async fn board_inner(
                 view["flags"] = json!(flags);
                 // 마감 칸이 있는 게시판(이벤트 등): D-day (GAP Q22, ADR-0106)
                 if let Some(days) =
-                    maru_core::fields::days_left(&board.field_schema, &p.meta, &today)
+                    giwa_core::fields::days_left(&board.field_schema, &p.meta, &today)
                 {
                     view["deadline"] = json!({
                         "label": match days {
@@ -729,7 +729,7 @@ async fn profile_page(State(state): State<AppState>, Path(name): Path<String>) -
 async fn profile_inner(state: &AppState, name: &str) -> Result<Value> {
     let site = load_site(state).await?;
     let actor = anonymous_actor(&state.ctx).await?;
-    let p = maru_core::services::members::public_profile(&state.ctx, &actor, name).await?;
+    let p = giwa_core::services::members::public_profile(&state.ctx, &actor, name).await?;
     let tz = site.settings.tz_offset_min;
     let posts: Vec<Value> = p
         .posts
@@ -800,7 +800,7 @@ async fn search_inner(state: &AppState, p: SearchParams) -> Result<Value> {
 
 /// 목록 줄에 보일 여분 필드 (ADR-0089): 글자 칸들과, 켜진 참거짓 칸의 이름(표시).
 fn list_fields(
-    schema: &[maru_core::fields::FieldDef],
+    schema: &[giwa_core::fields::FieldDef],
     meta: &serde_json::Map<String, Value>,
 ) -> (Vec<Value>, Vec<String>) {
     let listed: Vec<_> = schema.iter().filter(|d| d.list).cloned().collect();
@@ -809,7 +809,7 @@ fn list_fields(
     }
     let mut shown = Vec::new();
     let mut flags = Vec::new();
-    for s in maru_core::fields::display(&listed, meta) {
+    for s in giwa_core::fields::display(&listed, meta) {
         if s.kind == "boolean" {
             flags.push(s.label);
         } else {
@@ -851,7 +851,7 @@ fn filtered_path(
 
 /// 거르기 단추 묶음 (ADR-0089): 거를 수 있는 칸마다 「전체」와 값들.
 fn field_filters(
-    schema: &[maru_core::fields::FieldDef],
+    schema: &[giwa_core::fields::FieldDef],
     base: &str,
     active: &[(String, String)],
 ) -> Vec<Value> {
@@ -1056,7 +1056,7 @@ async fn post_inner(
         // 카드의 최근 글·댓글 탭 (GAP Q30, ADR-0113): 프로필 화면과 같은 공개 범위(손님 기준), 지금 글은 뺀다.
         if let Some(name) = view["author"]["name"].as_str().map(str::to_owned)
             && let Ok(p) =
-                maru_core::services::members::public_profile(&state.ctx, actor, &name).await
+                giwa_core::services::members::public_profile(&state.ctx, actor, &name).await
         {
             let tz = site.settings.tz_offset_min;
             let recent_posts: Vec<Value> = p
@@ -1098,7 +1098,7 @@ async fn post_inner(
         view["delete_url"] = json!(format!("{base}/delete"));
     }
     // 여분 칸 (ADR-0057). 지금 정의에 있는 키만, 정의 순서대로.
-    let shown = maru_core::fields::display(&board.field_schema, &post.meta);
+    let shown = giwa_core::fields::display(&board.field_schema, &post.meta);
     // 출처 줄(글 머리)과 제휴 링크 고지 (GAP Q21, ADR-0106)
     if let Some(s) = shown.iter().find(|s| s.role.as_deref() == Some("source")) {
         let host = s
@@ -1128,7 +1128,7 @@ async fn post_inner(
         Some(id) => state.ctx.store.post_by_id(id).await?,
         None => None,
     }
-    .filter(|p| p.status == maru_core::model::PostStatus::Published)
+    .filter(|p| p.status == giwa_core::model::PostStatus::Published)
     {
         view["parent"] = json!({
             "title": parent.title,
@@ -1198,7 +1198,7 @@ async fn comments_json(
     let order = comments::CommentOrder::parse(&q.corder);
     let list = comments::list_for_post_ordered(&state.ctx, actor, &post.id, order).await?;
     let published =
-        |c: &comments::CommentView| c.status == maru_core::model::CommentStatus::Published;
+        |c: &comments::CommentView| c.status == giwa_core::model::CommentStatus::Published;
     // 채택한 댓글이 지금 공개 상태일 때만 보인다.
     let accepted = post
         .accepted_comment_id
@@ -1207,7 +1207,7 @@ async fn comments_json(
     let can_accept = board.accepts_answers() && !post.is_locked;
     let reply_to = list
         .iter()
-        .find(|c| c.id == q.reply && c.status == maru_core::model::CommentStatus::Published)
+        .find(|c| c.id == q.reply && c.status == giwa_core::model::CommentStatus::Published)
         .map(|c| json!({ "id": c.id, "name": c.author_name }));
     let items: Vec<Value> = list
         .iter()
@@ -1215,7 +1215,7 @@ async fn comments_json(
             json!({
                 "id": c.id,
                 "depth": c.depth,
-                "deleted": c.status == maru_core::model::CommentStatus::Deleted,
+                "deleted": c.status == giwa_core::model::CommentStatus::Deleted,
                 "author_name": c.author_name,
                 "is_guest": c.is_guest,
                 "by_post_author": c.by_post_author,
@@ -1240,7 +1240,7 @@ async fn comments_json(
         .collect();
     let count = list
         .iter()
-        .filter(|c| c.status == maru_core::model::CommentStatus::Published)
+        .filter(|c| c.status == giwa_core::model::CommentStatus::Published)
         .count();
     Ok(json!({
         "rules": rules,
@@ -1500,7 +1500,7 @@ fn nav_node(n: &pages::TreeNode) -> Value {
 /// 디자인 토큰 CSS. 토큰은 검증된 값만 들어 있어 그대로 내보낸다.
 async fn tokens_css(State(state): State<AppState>) -> Response {
     let tokens = design::tokens(&state.ctx).await.unwrap_or_default();
-    let fonts = maru_core::services::fonts::list(&state.ctx)
+    let fonts = giwa_core::services::fonts::list(&state.ctx)
         .await
         .unwrap_or_default();
     (
@@ -1515,7 +1515,7 @@ async fn tokens_css(State(state): State<AppState>) -> Response {
 
 /// 올린 서체의 `@font-face`·`.ff-{slug}` (ADR-0048). slug·주소는 정해진 모양이라 그대로 내보낸다.
 async fn fonts_css(State(state): State<AppState>) -> Response {
-    let list = maru_core::services::fonts::list(&state.ctx)
+    let list = giwa_core::services::fonts::list(&state.ctx)
         .await
         .unwrap_or_default();
     (
@@ -1523,7 +1523,7 @@ async fn fonts_css(State(state): State<AppState>) -> Response {
             (header::CONTENT_TYPE, "text/css; charset=utf-8"),
             (header::CACHE_CONTROL, "no-cache"),
         ],
-        maru_core::services::fonts::css(&list),
+        giwa_core::services::fonts::css(&list),
     )
         .into_response()
 }
@@ -1533,7 +1533,7 @@ async fn font_file(
     State(state): State<AppState>,
     Path((slug, name)): Path<(String, String)>,
 ) -> Response {
-    use maru_core::services::fonts;
+    use giwa_core::services::fonts;
     match fonts::file(&state.ctx, &slug, &name).await {
         Ok((format, bytes)) => {
             let cache = if format == "txt" {
@@ -1949,11 +1949,11 @@ async fn body_document(
     // 링크 카드 (ADR-0084). 정보를 못 읽어도 본문은 그린다 — 카드는 주소와 도메인만 보인다.
     let link_urls = markdown::link_urls(md);
     if !link_urls.is_empty() {
-        let cards = maru_core::services::links::cards_for(&state.ctx, &link_urls)
+        let cards = giwa_core::services::links::cards_for(&state.ctx, &link_urls)
             .await
             .unwrap_or_default();
         doc.html = markdown::fill_link_cards(doc.html, &|url| {
-            let sns = maru_core::services::links::sns_label(url);
+            let sns = giwa_core::services::links::sns_label(url);
             match cards.get(url) {
                 Some(p) => Some(markdown::LinkCardInfo {
                     title: p.title.clone(),

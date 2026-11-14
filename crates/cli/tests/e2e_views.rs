@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 const CHROME: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130.0";
 const FIREFOX: &str = "Mozilla/5.0 (Windows NT 10.0; rv:131.0) Gecko/20100101 Firefox/131.0";
 
@@ -23,14 +23,14 @@ impl Drop for Server {
     }
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let out = Command::new(BIN)
         .arg("--data")
         .arg(data)
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     let v: Value =
         serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"));
@@ -114,8 +114,8 @@ fn sign_in(bind: &str, link_url: &str) -> String {
     let path = &rest[rest.find('/').unwrap()..];
     let page = http(bind, "GET", path, &[], "");
     assert_eq!(page.status, 200, "{}", page.body);
-    let csrf = page.cookie("maru_csrf").unwrap();
-    let cookie = format!("maru_csrf={csrf}");
+    let csrf = page.cookie("giwa_csrf").unwrap();
+    let cookie = format!("giwa_csrf={csrf}");
     let res = http(
         bind,
         "POST",
@@ -127,7 +127,7 @@ fn sign_in(bind: &str, link_url: &str) -> String {
         &format!("_csrf={csrf}"),
     );
     assert_eq!(res.status, 303, "{}", res.body);
-    res.cookie("maru_session").unwrap()
+    res.cookie("giwa_session").unwrap()
 }
 
 fn db_views(data: &Path, slug: &str) -> i64 {
@@ -136,7 +136,7 @@ fn db_views(data: &Path, slug: &str) -> i64 {
         .build()
         .unwrap();
     rt.block_on(async {
-        let db = maru_storage::Db::open(&data.join("maru.db"), false)
+        let db = giwa_storage::Db::open(&data.join("giwa.db"), false)
             .await
             .unwrap();
         let v: i64 = sqlx::query_scalar("SELECT view_count FROM posts WHERE slug = ?")
@@ -153,20 +153,20 @@ fn db_views(data: &Path, slug: &str) -> i64 {
 fn views_count_people_once_and_reach_db_and_neighbors_agree() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    let init = maru(
+    let init = giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
     let token = init["token"]["secret"].as_str().unwrap().to_owned();
     let bearer = format!("Bearer {token}");
-    let link = maru(&data, &["login-link"]);
+    let link = giwa(&data, &["login-link"]);
 
     let new = |title: &str, slug: &str, tag: Option<&str>| {
         let mut args = vec!["post", "new", "--title", title, "--slug", slug, "--publish"];
         if let Some(t) = tag {
             args.extend(["--tag", t]);
         }
-        maru(&data, &args)
+        giwa(&data, &args)
     };
     new("하나", "one", Some("러스트"));
     let two = new("둘", "two", Some("러스트"));
@@ -209,7 +209,7 @@ fn views_count_people_once_and_reach_db_and_neighbors_agree() {
     assert_eq!(head.status, 200);
     // 로그인한 운영자도 세지 않는다.
     let session = sign_in(&bind, link["url"].as_str().unwrap());
-    let cookie = format!("maru_session={session}");
+    let cookie = format!("giwa_session={session}");
     let staff = [
         ("User-Agent", "Mozilla/5.0 Edg/130.0"),
         ("Cookie", cookie.as_str()),
@@ -257,7 +257,7 @@ fn views_count_people_once_and_reach_db_and_neighbors_agree() {
     assert_eq!(near["next"]["slug"], "three");
     assert_eq!(near["related"][0]["slug"], "one");
     // CLI 도 같은 서비스로 같은 답.
-    let cli = maru(&data, &["post", "nearby", "blog", "two"]);
+    let cli = giwa(&data, &["post", "nearby", "blog", "two"]);
     assert_eq!(cli["prev"]["slug"], near["prev"]["slug"]);
     assert_eq!(cli["next"]["slug"], near["next"]["slug"]);
     assert_eq!(cli["related"], near["related"]);
@@ -280,7 +280,7 @@ fn views_count_people_once_and_reach_db_and_neighbors_agree() {
         "{}",
         list.body
     );
-    let s = maru(&data, &["site", "set", "--show-views", "false"]);
+    let s = giwa(&data, &["site", "set", "--show-views", "false"]);
     assert_eq!(s["show_views"], false);
     let (_, hidden) = open_post(&bind, "/b/blog/one", &[("User-Agent", CHROME)]);
     assert_eq!(hidden, None);
@@ -307,7 +307,7 @@ fn views_count_people_once_and_reach_db_and_neighbors_agree() {
         r#"{"view_count":0}"#,
     );
     assert_eq!(res.status, 403, "{}", res.body);
-    let fixed = maru(&data, &["post", "views", &two_id, "--set", "0"]);
+    let fixed = giwa(&data, &["post", "views", &two_id, "--set", "0"]);
     assert_eq!(fixed["view_count"], 0);
     assert_eq!(db_views(&data, "two"), 0);
 
@@ -315,9 +315,9 @@ fn views_count_people_once_and_reach_db_and_neighbors_agree() {
     let page = http(&bind, "GET", path, &[], "").body;
     assert!(!page.contains("class=\"board-under\""), "기본은 끔");
     assert!(page.contains("class=\"post-back\""), "휴대폰 뒤로가기 줄");
-    let s = maru(&data, &["site", "set", "--list-under-post", "true"]);
+    let s = giwa(&data, &["site", "set", "--list-under-post", "true"]);
     assert_eq!(s["list_under_post"], true, "{s}");
-    maru(&data, &["board", "update", "blog", "--layout", "list"]);
+    giwa(&data, &["board", "update", "blog", "--layout", "list"]);
     let page = http(&bind, "GET", path, &[], "").body;
     let under = &page[page.find("class=\"board-under\"").expect("글 아래 목록")..];
     assert!(
@@ -343,7 +343,7 @@ fn views_count_people_once_and_reach_db_and_neighbors_agree() {
         "{float}"
     );
     // 갤러리 칸: 제목·글쓴이·수치가 그림 위 덮개 안에
-    maru(&data, &["board", "update", "blog", "--layout", "gallery"]);
+    giwa(&data, &["board", "update", "blog", "--layout", "gallery"]);
     let list = http(&bind, "GET", "/b/blog", &[], "").body;
     let cap = &list[list.find("class=\"tile-cap\"").expect("덮개")..];
     assert!(

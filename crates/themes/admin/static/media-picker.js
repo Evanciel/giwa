@@ -1,9 +1,9 @@
 // 그림·링크 고르기 (ADR-0147). 화면 편집기 캔버스와 설정 칸(admin-ui.js Form)이 함께 쓴다.
-//   MaruMedia.open({ url, alt, csrf, required, onPick: function (url, alt) {} })
+//   GiwaMedia.open({ url, alt, csrf, required, onPick: function (url, alt) {} })
 //     올려 둔 그림을 고르거나 새로 올린다. alt 가 null 이면 그림 설명 칸을 보이지 않는다.
 //     url 이 "" 로 오면 「그림 빼기」다(required 면 단추가 없다).
 //     kind: "video" 면 올린 동영상(mp4·webm)만 보이고, 새 동영상은 8MB 조각으로 나눠 올린다 (ADR-0161).
-//   MaruLinks.open({ link, targets: { pages: [{id,label}], boards: [{id,label}] }, onPick: function (link) {} })
+//   GiwaLinks.open({ link, targets: { pages: [{id,label}], boards: [{id,label}] }, onPick: function (link) {} })
 //     첫 화면·게시판·페이지·바깥 주소 가운데 고른다. link 가 "" 로 오면 「링크 빼기」다.
 (function () {
   "use strict";
@@ -236,6 +236,6 @@
     sel.focus();
   }
 
-  window.MaruMedia = { open: openMedia };
-  window.MaruLinks = { open: openLinks };
+  window.GiwaMedia = { open: openMedia };
+  window.GiwaLinks = { open: openLinks };
 })();

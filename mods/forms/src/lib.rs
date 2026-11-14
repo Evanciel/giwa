@@ -14,17 +14,17 @@ use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
 use axum::{Extension, Router};
-use maru_core::actor::{Actor, Permission};
-use maru_core::audit::{AuditRecord, Target};
-use maru_core::fields::FieldDef;
-use maru_core::model::{CaptchaMode, MailOut, MailStatus};
-use maru_core::services::{captcha, settings};
-use maru_core::store::ModuleMigration;
-use maru_core::urls;
-use maru_core::{Code, Ctx, Error, Result, clock};
-use maru_modules::service::settings_of;
-use maru_modules::{Manifest, Module, ModuleState, ToolDef, module_error, schema_of};
-use maru_storage::Db;
+use giwa_core::actor::{Actor, Permission};
+use giwa_core::audit::{AuditRecord, Target};
+use giwa_core::fields::FieldDef;
+use giwa_core::model::{CaptchaMode, MailOut, MailStatus};
+use giwa_core::services::{captcha, settings};
+use giwa_core::store::ModuleMigration;
+use giwa_core::urls;
+use giwa_core::{Code, Ctx, Error, Result, clock};
+use giwa_modules::service::settings_of;
+use giwa_modules::{Manifest, Module, ModuleState, ToolDef, module_error, schema_of};
+use giwa_storage::Db;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
@@ -406,7 +406,7 @@ impl FormsModule {
             Target::new("form", form),
             json!({ "id": id, "fields": keys }),
         );
-        maru_storage::sqlite::insert_audit(&mut tx, &audit).await?;
+        giwa_storage::sqlite::insert_audit(&mut tx, &audit).await?;
         // 알림 메일. 받는 주소가 없으면 쌓지 않는다.
         let to = settings_of(ctx, self)
             .await?
@@ -431,7 +431,7 @@ impl FormsModule {
                 created_at: at.clone(),
                 sent_at: None,
             };
-            maru_storage::mail::queue(&mut tx, &out).await?;
+            giwa_storage::mail::queue(&mut tx, &out).await?;
         }
         tx.commit().await.map_err(Error::internal)?;
         Ok(id)
@@ -516,7 +516,7 @@ impl FormsModule {
             Target::new("form_submission", id),
             json!({}),
         );
-        maru_storage::sqlite::insert_audit(&mut tx, &audit).await?;
+        giwa_storage::sqlite::insert_audit(&mut tx, &audit).await?;
         tx.commit().await.map_err(Error::internal)?;
         Ok(true)
     }
@@ -646,7 +646,7 @@ impl Module for FormsModule {
                 let i = parse(input)?;
                 Ok(json!({ "deleted": self.delete(actor, &i.id).await? }))
             }
-            _ => Err(maru_modules::tool_not_found(MANIFEST.id, tool)),
+            _ => Err(giwa_modules::tool_not_found(MANIFEST.id, tool)),
         }
     }
 
@@ -715,8 +715,8 @@ impl Module for FormsModule {
         Some(HOME)
     }
 
-    fn widget_types(&self) -> Vec<maru_core::services::widgets::WidgetType> {
-        vec![maru_core::services::widgets::WidgetType {
+    fn widget_types(&self) -> Vec<giwa_core::services::widgets::WidgetType> {
+        vec![giwa_core::services::widgets::WidgetType {
             id: WIDGET,
             name: "문의 폼",
             description: "문의·신청을 받아 이 사이트에 모은다. 수집 동의 문구가 자동으로 붙는다",

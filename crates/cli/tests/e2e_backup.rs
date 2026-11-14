@@ -10,7 +10,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 
 struct Server(Child);
 
@@ -28,18 +28,18 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
 }
 
-fn maru_err(data: &Path, args: &[&str]) -> Value {
+fn giwa_err(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], false, "{args:?} → {v}");
     v["error"].clone()
@@ -112,8 +112,8 @@ fn sign_in(bind: &str, link_url: &str) -> String {
     let path = &rest[rest.find('/').unwrap()..];
     let page = http(bind, "GET", path, &[], "");
     assert_eq!(page.status, 200, "{}", page.body);
-    let csrf = page.cookie("maru_csrf").unwrap();
-    let cookie = format!("maru_csrf={csrf}");
+    let csrf = page.cookie("giwa_csrf").unwrap();
+    let cookie = format!("giwa_csrf={csrf}");
     let res = http(
         bind,
         "POST",
@@ -125,20 +125,20 @@ fn sign_in(bind: &str, link_url: &str) -> String {
         &format!("_csrf={csrf}"),
     );
     assert_eq!(res.status, 303, "{}", res.body);
-    res.cookie("maru_session").unwrap()
+    res.cookie("giwa_session").unwrap()
 }
 
 #[test]
 fn backup_while_running_then_restore_after_stop() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    let init = maru(
+    let init = giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
     let agent = format!("Bearer {}", init["token"]["secret"].as_str().unwrap());
-    let link = maru(&data, &["login-link"]);
-    let post = maru(
+    let link = giwa(&data, &["login-link"]);
+    let post = giwa(
         &data,
         &[
             "post",
@@ -154,20 +154,20 @@ fn backup_while_running_then_restore_after_stop() {
 
     let (server, bind) = start_server(&data);
     // 서버가 켜진 채로 CLI 백업
-    let made = maru(&data, &["backup"]);
+    let made = giwa(&data, &["backup"]);
     let name = made["name"].as_str().unwrap().to_owned();
     let file = made["path"].as_str().unwrap().to_owned();
     assert_eq!(made["secrets"], true);
     assert!(Path::new(&file).exists());
     assert_eq!(
-        maru(&data, &["backup", "list"]).as_array().unwrap().len(),
+        giwa(&data, &["backup", "list"]).as_array().unwrap().len(),
         1
     );
 
     // 켜진 서버면 복원 거부. --yes 없으면 사용법 오류.
-    let err = maru_err(&data, &["restore", &file, "--yes"]);
+    let err = giwa_err(&data, &["restore", &file, "--yes"]);
     assert_eq!(err["code"], "CONFLICT", "{err}");
-    let err = maru_err(&data, &["restore", &file]);
+    let err = giwa_err(&data, &["restore", &file]);
     assert_eq!(err["code"], "USAGE", "{err}");
 
     // REST: 에이전트 토큰은 못 다룬다.
@@ -182,14 +182,14 @@ fn backup_while_running_then_restore_after_stop() {
     let session = sign_in(&bind, link["url"].as_str().unwrap());
     let page = get(
         "/admin/backups",
-        &[("Cookie", &format!("maru_session={session}"))],
+        &[("Cookie", &format!("giwa_session={session}"))],
     );
     assert_eq!(page.status, 200, "{}", page.body);
     assert!(page.body.contains(&name), "{}", page.body);
-    assert!(page.body.contains("maru restore"));
+    assert!(page.body.contains("giwa restore"));
     let at = page.body.find("name=\"_csrf\" value=\"").unwrap() + 20;
     let csrf = page.body[at..at + page.body[at..].find('"').unwrap()].to_owned();
-    let cookie = format!("maru_session={session}");
+    let cookie = format!("giwa_session={session}");
     let form = [
         ("Content-Type", "application/x-www-form-urlencoded"),
         ("Cookie", cookie.as_str()),
@@ -202,7 +202,7 @@ fn backup_while_running_then_restore_after_stop() {
         &format!("_csrf={csrf}&no_secrets=1"),
     );
     assert_eq!(res.status, 303, "{}", res.body);
-    let list = maru(&data, &["backup", "list"]);
+    let list = giwa(&data, &["backup", "list"]);
     let bare = list
         .as_array()
         .unwrap()
@@ -217,7 +217,7 @@ fn backup_while_running_then_restore_after_stop() {
     assert!(down.head.contains("application/gzip"), "{}", down.head);
     assert!(down.head.contains("attachment"), "{}", down.head);
     assert!(down.body_len > 100);
-    let bad = get("/admin/backups/..%2Fmaru.db", &[("Cookie", &cookie)]);
+    let bad = get("/admin/backups/..%2Fgiwa.db", &[("Cookie", &cookie)]);
     assert_eq!(bad.status, 404);
     let res = http(
         &bind,
@@ -228,7 +228,7 @@ fn backup_while_running_then_restore_after_stop() {
     );
     assert_eq!(res.status, 303, "{}", res.body);
     assert_eq!(
-        maru(&data, &["backup", "list"]).as_array().unwrap().len(),
+        giwa(&data, &["backup", "list"]).as_array().unwrap().len(),
         1
     );
     let forged = http(
@@ -240,15 +240,15 @@ fn backup_while_running_then_restore_after_stop() {
     );
     assert_eq!(forged.status, 403, "CSRF 값이 틀리면 거절");
 
-    let audit = maru(&data, &["audit", "list", "--action", "backup."]);
+    let audit = giwa(&data, &["audit", "list", "--action", "backup."]);
     assert_eq!(audit["total"], 3, "만들기 둘·지우기 하나: {audit}");
 
     // 글을 지우고 서버를 끈 뒤 복원하면 돌아온다. DB 는 첫 백업 시점 사본이다.
-    assert_eq!(maru(&data, &["post", "delete", &id])["status"], "deleted");
+    assert_eq!(giwa(&data, &["post", "delete", &id])["status"], "deleted");
     drop(server);
-    let done = maru(&data, &["restore", &file, "--yes"]);
+    let done = giwa(&data, &["restore", &file, "--yes"]);
     assert!(Path::new(done["previous"].as_str().unwrap()).exists());
-    assert_eq!(maru(&data, &["post", "show", &id])["status"], "published");
+    assert_eq!(giwa(&data, &["post", "show", &id])["status"], "published");
     // 되살린 데이터로 서버가 다시 뜬다.
     let (_server, bind) = start_server(&data);
     assert_eq!(http(&bind, "GET", "/", &[], "").status, 200);

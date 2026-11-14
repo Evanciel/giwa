@@ -245,7 +245,7 @@ fn not_found(id: &str) -> Error {
     Error::new(Code::NotFound)
         .with_message("error.file_not_found")
         .arg("id", id.to_owned())
-        .next("maru file list")
+        .next("giwa file list")
 }
 
 #[cfg(test)]

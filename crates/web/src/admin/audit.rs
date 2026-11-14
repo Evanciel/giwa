@@ -6,9 +6,9 @@ use axum::extract::{Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
 use axum::routing::get;
-use maru_core::clock;
-use maru_core::services::audit_log::{self, AuditQuery};
-use maru_core::services::settings;
+use giwa_core::clock;
+use giwa_core::services::audit_log::{self, AuditQuery};
+use giwa_core::services::settings;
 use serde::Deserialize;
 use serde_json::{Value, json};
 

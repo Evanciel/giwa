@@ -15,10 +15,10 @@ use std::thread;
 
 use serde_json::{Value, json};
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 const FORM: (&str, &str) = ("Content-Type", "application/x-www-form-urlencoded");
 const SAME: (&str, &str) = ("Sec-Fetch-Site", "same-origin");
-const API_ENV: &str = "MARU_PAY_PORTONE_API";
+const API_ENV: &str = "GIWA_PAY_PORTONE_API";
 const STORE: &str = "store-e2e-0001";
 const CHANNEL: &str = "channel-key-e2e-0002";
 const SECRET: &str = "e2eportonesecret5678";
@@ -40,12 +40,12 @@ fn run(data: &Path, api: &str, args: &[&str]) -> Value {
         .arg("--json")
         .env(API_ENV, api)
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, api: &str, args: &[&str]) -> Value {
+fn giwa(data: &Path, api: &str, args: &[&str]) -> Value {
     let v = run(data, api, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -322,13 +322,13 @@ fn respond(
     missing()
 }
 
-fn db<T>(data: &Path, f: impl AsyncFnOnce(&maru_storage::Db) -> T) -> T {
+fn db<T>(data: &Path, f: impl AsyncFnOnce(&giwa_storage::Db) -> T) -> T {
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .unwrap();
     rt.block_on(async {
-        let db = maru_storage::Db::open(&data.join("maru.db"), false)
+        let db = giwa_storage::Db::open(&data.join("giwa.db"), false)
             .await
             .unwrap();
         let v = f(&db).await;
@@ -355,7 +355,7 @@ fn link(v: &Value) -> (String, String) {
 }
 
 fn new_order(data: &Path, api: &str, name: &str, amount: &str) -> (String, String) {
-    link(&maru(
+    link(&giwa(
         data,
         api,
         &[
@@ -374,7 +374,7 @@ fn new_order(data: &Path, api: &str, name: &str, amount: &str) -> (String, Strin
 }
 
 fn order(data: &Path, api: &str, id: &str) -> Value {
-    maru(data, api, &["pay", "order", "--id", id])
+    giwa(data, api, &["pay", "order", "--id", id])
 }
 
 fn open(bind: &str, id: &str, k: &str) -> Res {
@@ -418,12 +418,12 @@ fn portone_return_webhook_refund() {
     let portone = PortOne::start();
     let api = portone.api.clone();
     let data = data.as_path();
-    maru(
+    giwa(
         data,
         &api,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    maru(data, &api, &["module", "enable", "pay"]);
+    giwa(data, &api, &["module", "enable", "pay"]);
 
     // 1. 키 모양 검사. PortOne 키로는 시험·운영을 알 수 없어 mode 를 적지 않으면 운영으로 보고 잠근다.
     let set = |extra: &[&str]| {
@@ -462,7 +462,7 @@ fn portone_return_webhook_refund() {
             .unwrap()
             .ends_with("/m/pay/webhook/portone")
     );
-    let listed = maru(data, &api, &["pay", "provider_list"]);
+    let listed = giwa(data, &api, &["pay", "provider_list"]);
     assert!(!listed.to_string().contains(SECRET), "{listed}");
     assert_eq!(
         count(
@@ -612,12 +612,12 @@ fn portone_return_webhook_refund() {
     assert!(old.body.contains("다시 연"), "{}", old.body);
     // 돌아오지 못했어도 sync 로 결제사에 물어 맞춘다(결제 키 = 결제사 주문 번호).
     portone.pay(&format!("{id4}-2"), STORE, 40000, "PAID");
-    let s = maru(data, &api, &["pay", "sync", "--id", &id4]);
+    let s = giwa(data, &api, &["pay", "sync", "--id", &id4]);
     assert_eq!(s["changed"], true, "{s}");
     assert_eq!(s["order"]["status"], "paid", "{s}");
 
     // 8. 부분 환불: 우리가 아는 남은 금액을 currentCancellableAmount 로 보낸다.
-    let r = maru(
+    let r = giwa(
         data,
         &api,
         &[
@@ -642,7 +642,7 @@ fn portone_return_webhook_refund() {
 
     // 9. 결제사가 취소를 접수만 하면(REQUESTED) 주문은 그대로 두고, 그동안 또 환불하지 않는다.
     portone.requested.store(true, Ordering::SeqCst);
-    let r = maru(
+    let r = giwa(
         data,
         &api,
         &[

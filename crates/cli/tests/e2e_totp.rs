@@ -10,7 +10,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 /// 테스트 전용 값. 실제 비밀번호가 아니다.
 const PASSWORD: &str = "test-pass-1234";
 const EMAIL: &str = "moon@example.test";
@@ -31,12 +31,12 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -175,12 +175,12 @@ fn login_password(bind: &str, path: &str, next: &str) -> Res {
         &[],
         "",
     );
-    let pre = page.cookie("maru_csrf").expect("로그인 폼 CSRF 쿠키");
+    let pre = page.cookie("giwa_csrf").expect("로그인 폼 CSRF 쿠키");
     http(
         bind,
         "POST",
         path,
-        &[FORM, ("Cookie", &format!("maru_csrf={pre}"))],
+        &[FORM, ("Cookie", &format!("giwa_csrf={pre}"))],
         &form(&[
             ("_csrf", &pre),
             ("next", next),
@@ -194,11 +194,11 @@ fn login_password(bind: &str, path: &str, next: &str) -> Res {
 fn totp_setup_login_recovery_and_reset() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    maru(
+    giwa(
         &data,
         &[
             "site",
@@ -216,8 +216,8 @@ fn totp_setup_login_recovery_and_reset() {
 
     // 가입하고 로그인한다 (2단계 인증 전에는 바로 세션).
     let page = http(&bind, "GET", "/signup", &[], "");
-    let pre = page.cookie("maru_csrf").unwrap();
-    let pre_cookie = format!("maru_csrf={pre}");
+    let pre = page.cookie("giwa_csrf").unwrap();
+    let pre_cookie = format!("giwa_csrf={pre}");
     let res = http(
         &bind,
         "POST",
@@ -234,7 +234,7 @@ fn totp_setup_login_recovery_and_reset() {
     assert_eq!(res.status, 200, "{}", res.body);
     let res = login_password(&bind, "/login", "/me");
     assert_eq!(res.status, 303, "{}", res.body);
-    let old = format!("maru_session={}", res.cookie("maru_session").unwrap());
+    let old = format!("giwa_session={}", res.cookie("giwa_session").unwrap());
 
     // 내 정보 → 켜기 시작 → 비밀이 보인다.
     let me = http(&bind, "GET", "/me", &[("Cookie", &old)], "");
@@ -275,9 +275,9 @@ fn totp_setup_login_recovery_and_reset() {
     );
     assert_eq!(res.status, 400, "{}", res.body);
     assert!(res.body.contains("form-error"));
-    assert_eq!(maru(&data, &["member", "show", EMAIL])["two_factor"], false);
+    assert_eq!(giwa(&data, &["member", "show", EMAIL])["two_factor"], false);
     let at = now();
-    let code = maru_core::services::totp::code_at(&secret, at).unwrap();
+    let code = giwa_core::services::totp::code_at(&secret, at).unwrap();
     let res = http(
         &bind,
         "POST",
@@ -288,8 +288,8 @@ fn totp_setup_login_recovery_and_reset() {
     assert_eq!(res.status, 200, "{}", res.body);
     let codes = codes_on(&res.body);
     assert_eq!(codes.len(), 10, "{codes:?}");
-    let fresh = format!("maru_session={}", res.cookie("maru_session").unwrap());
-    assert_eq!(maru(&data, &["member", "show", EMAIL])["two_factor"], true);
+    let fresh = format!("giwa_session={}", res.cookie("giwa_session").unwrap());
+    assert_eq!(giwa(&data, &["member", "show", EMAIL])["two_factor"], true);
     // 예전 세션은 끊겼다.
     assert_eq!(
         http(&bind, "GET", "/me", &[("Cookie", &old)], "").status,
@@ -306,8 +306,8 @@ fn totp_setup_login_recovery_and_reset() {
         res.header("location").as_deref(),
         Some("/login/totp?next=/me")
     );
-    assert!(res.cookie("maru_session").is_none());
-    let challenge = format!("maru_totp={}", res.cookie("maru_totp").unwrap());
+    assert!(res.cookie("giwa_session").is_none());
+    let challenge = format!("giwa_totp={}", res.cookie("giwa_totp").unwrap());
     // 확인 단계 값으로는 내 정보를 볼 수 없다.
     assert_eq!(
         http(&bind, "GET", "/me", &[("Cookie", &challenge)], "").status,
@@ -323,8 +323,8 @@ fn totp_setup_login_recovery_and_reset() {
     );
     assert_eq!(page.status, 200);
     assert!(page.body.contains("one-time-code"));
-    let pre = page.cookie("maru_csrf").unwrap();
-    let both = format!("{challenge}; maru_csrf={pre}");
+    let pre = page.cookie("giwa_csrf").unwrap();
+    let both = format!("{challenge}; giwa_csrf={pre}");
     let res = http(
         &bind,
         "POST",
@@ -342,7 +342,7 @@ fn totp_setup_login_recovery_and_reset() {
     );
     assert_eq!(res.status, 401, "{}", res.body);
     assert!(res.body.contains("4번 더"), "{}", res.body);
-    let next = maru_core::services::totp::code_at(&secret, at + 30).unwrap();
+    let next = giwa_core::services::totp::code_at(&secret, at + 30).unwrap();
     let res = http(
         &bind,
         "POST",
@@ -352,9 +352,9 @@ fn totp_setup_login_recovery_and_reset() {
     );
     assert_eq!(res.status, 303, "{}", res.body);
     assert_eq!(res.header("location").as_deref(), Some("/me"));
-    let session = format!("maru_session={}", res.cookie("maru_session").unwrap());
+    let session = format!("giwa_session={}", res.cookie("giwa_session").unwrap());
     assert!(
-        res.head.contains("maru_totp=;"),
+        res.head.contains("giwa_totp=;"),
         "확인 단계 쿠키를 지우지 않음"
     );
     assert_eq!(
@@ -373,7 +373,7 @@ fn totp_setup_login_recovery_and_reset() {
         "{}",
         res.body
     );
-    let challenge = format!("maru_totp={}", res.cookie("maru_totp").unwrap());
+    let challenge = format!("giwa_totp={}", res.cookie("giwa_totp").unwrap());
     let page = http(
         &bind,
         "GET",
@@ -381,12 +381,12 @@ fn totp_setup_login_recovery_and_reset() {
         &[("Cookie", &challenge)],
         "",
     );
-    let pre = page.cookie("maru_csrf").unwrap();
+    let pre = page.cookie("giwa_csrf").unwrap();
     let res = http(
         &bind,
         "POST",
         "/login/totp",
-        &[FORM, ("Cookie", &format!("{challenge}; maru_csrf={pre}"))],
+        &[FORM, ("Cookie", &format!("{challenge}; giwa_csrf={pre}"))],
         &form(&[
             ("_csrf", &pre),
             ("code", &codes[0].to_uppercase()),
@@ -401,32 +401,32 @@ fn totp_setup_login_recovery_and_reset() {
         "/me",
         &[(
             "Cookie",
-            &format!("maru_session={}", res.cookie("maru_session").unwrap()),
+            &format!("giwa_session={}", res.cookie("giwa_session").unwrap()),
         )],
         "",
     );
     assert!(me.body.contains("남은 복구 코드 9개"), "{}", me.body);
 
     // 운영자는 관리 화면에서 회원의 2단계 인증을 끌 수 있다.
-    let link = maru(&data, &["login-link", "--email", "owner@localhost"]);
+    let link = giwa(&data, &["login-link", "--email", "owner@localhost"]);
     let url = link["url"].as_str().unwrap();
     let path = &url[url.find("/admin/link/").unwrap()..];
     let page = http(&bind, "GET", path, &[], "");
-    let pre = page.cookie("maru_csrf").unwrap();
+    let pre = page.cookie("giwa_csrf").unwrap();
     let res = http(
         &bind,
         "POST",
         path,
-        &[FORM, ("Cookie", &format!("maru_csrf={pre}"))],
+        &[FORM, ("Cookie", &format!("giwa_csrf={pre}"))],
         &form(&[("_csrf", &page.csrf())]),
     );
     let owner = format!(
-        "maru_session={}",
-        res.cookie("maru_session").expect("운영자 세션")
+        "giwa_session={}",
+        res.cookie("giwa_session").expect("운영자 세션")
     );
     let list = http(&bind, "GET", "/admin/members", &[("Cookie", &owner)], "");
     assert!(list.body.contains("2단계 끄기"), "{}", list.body);
-    let id = maru(&data, &["member", "show", EMAIL])["id"]
+    let id = giwa(&data, &["member", "show", EMAIL])["id"]
         .as_str()
         .unwrap()
         .to_owned();
@@ -442,15 +442,15 @@ fn totp_setup_login_recovery_and_reset() {
         res.header("location")
             .is_some_and(|l| l.contains("done=totp_reset"))
     );
-    assert_eq!(maru(&data, &["member", "show", EMAIL])["two_factor"], false);
+    assert_eq!(giwa(&data, &["member", "show", EMAIL])["two_factor"], false);
     let res = login_password(&bind, "/login", "/me");
     assert!(
-        res.cookie("maru_session").is_some(),
+        res.cookie("giwa_session").is_some(),
         "끈 뒤에도 코드를 물음"
     );
 
     // CLI 로도 끈다. 꺼져 있으면 바꾼 것이 없다고 답한다.
-    let out = maru(&data, &["member", "totp-reset", EMAIL]);
+    let out = giwa(&data, &["member", "totp-reset", EMAIL]);
     assert_eq!(out["reset"], false, "{out}");
     let bad = run(&data, &["member", "totp-reset", "ghost@example.test"]);
     assert_eq!(bad["ok"], false);

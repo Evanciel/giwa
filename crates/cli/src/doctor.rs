@@ -1,4 +1,4 @@
-//! `maru doctor`. 설치 상태를 항목별로 점검한다.
+//! `giwa doctor`. 설치 상태를 항목별로 점검한다.
 //!
 //! 결과는 `pass`, `warn`, `fail`, `unknown` 넷 중 하나다. 재지 못한 항목은 통과로 치지 않고
 //! `unknown`(못 쟀다)으로 드러낸다. `fail` 이 하나라도 있으면 종료 코드가 0 이 아니다.
@@ -7,8 +7,8 @@ use std::net::SocketAddr;
 use std::process::ExitCode;
 use std::time::Duration;
 
-use maru_core::Error;
-use maru_storage::DataDir;
+use giwa_core::Error;
+use giwa_storage::DataDir;
 use serde::Serialize;
 use serde_json::json;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -99,7 +99,7 @@ async fn collect(g: &Global) -> Vec<Check> {
     let mut out = vec![check(
         "version",
         Status::Pass,
-        format!("maru {}", env!("CARGO_PKG_VERSION")),
+        format!("giwa {}", env!("CARGO_PKG_VERSION")),
     )];
 
     if !dir.is_initialized() {
@@ -109,7 +109,7 @@ async fn collect(g: &Global) -> Vec<Check> {
                 Status::Fail,
                 format!("초기화된 데이터 디렉터리가 아닙니다: {shown}"),
             )
-            .next(format!("maru init --data \"{shown}\" --yes")),
+            .next(format!("giwa init --data \"{shown}\" --yes")),
         );
         for id in ["config", "database", "owner", "port"] {
             out.push(check(
@@ -137,7 +137,7 @@ async fn collect(g: &Global) -> Vec<Check> {
         }
     };
 
-    match maru_storage::open(&dir).await {
+    match giwa_storage::open(&dir).await {
         Ok((ctx, _config, db)) => {
             out.push(database(&db).await);
             out.push(owner(&ctx).await);
@@ -190,7 +190,7 @@ fn writable(dir: &DataDir) -> Check {
     }
 }
 
-async fn database(db: &maru_storage::Db) -> Check {
+async fn database(db: &giwa_storage::Db) -> Check {
     let integrity = db.quick_check().await;
     let versions = db.schema_versions().await;
     match (integrity, versions) {
@@ -217,7 +217,7 @@ fn database_error(e: &Error) -> Check {
     c
 }
 
-async fn owner(ctx: &maru_core::Ctx) -> Check {
+async fn owner(ctx: &giwa_core::Ctx) -> Check {
     match ctx.store.first_member().await {
         Ok(Some(m)) if m.has_password() => check(
             "owner",
@@ -232,16 +232,16 @@ async fn owner(ctx: &maru_core::Ctx) -> Check {
                 m.email
             ),
         )
-        .next("maru login-link"),
-        Ok(None) => check("owner", Status::Fail, "운영자 계정이 없습니다.").next("maru init --yes"),
+        .next("giwa login-link"),
+        Ok(None) => check("owner", Status::Fail, "운영자 계정이 없습니다.").next("giwa init --yes"),
         Err(e) => check("owner", Status::Fail, e.message()),
     }
 }
 
-async fn tokens(ctx: &maru_core::Ctx) -> Check {
+async fn tokens(ctx: &giwa_core::Ctx) -> Check {
     match ctx.store.list_tokens().await {
         Ok(list) => {
-            let now = maru_core::clock::now();
+            let now = giwa_core::clock::now();
             let active = list
                 .iter()
                 .filter(|t| {
@@ -259,7 +259,7 @@ async fn tokens(ctx: &maru_core::Ctx) -> Check {
     }
 }
 
-/// 포트가 비었는지, 차 있다면 maru 가 쓰는지 본다.
+/// 포트가 비었는지, 차 있다면 giwa 가 쓰는지 본다.
 async fn port(bind: &str, data: &str) -> Check {
     let Ok(addr) = bind.parse::<SocketAddr>() else {
         return check(
@@ -275,13 +275,13 @@ async fn port(bind: &str, data: &str) -> Check {
             Status::Pass,
             format!("{bind} 비어 있음 (서버 꺼짐)"),
         )
-        .next(format!("maru serve --data \"{data}\""));
+        .next(format!("giwa serve --data \"{data}\""));
     }
-    match probe_maru(addr).await {
+    match probe_giwa(addr).await {
         Some(true) => check(
             "port",
             Status::Pass,
-            format!("{bind} 에서 maru 서버가 응답합니다"),
+            format!("{bind} 에서 giwa 서버가 응답합니다"),
         ),
         Some(false) => {
             let mut other = addr;
@@ -291,7 +291,7 @@ async fn port(bind: &str, data: &str) -> Check {
                 Status::Warn,
                 format!("{bind} 를 다른 프로그램이 쓰고 있습니다"),
             )
-            .next(format!("maru serve --data \"{data}\" --bind {other}"))
+            .next(format!("giwa serve --data \"{data}\" --bind {other}"))
         }
         None => check(
             "port",
@@ -301,9 +301,9 @@ async fn port(bind: &str, data: &str) -> Check {
     }
 }
 
-/// `/robots.txt` 에 maru 가 내는 사이트맵 줄이 있는지로 판단한다.
-/// 연결조차 안 되면 `None`(못 쟀다). 연결은 됐는데 maru 답이 없으면 다른 프로그램이다.
-pub(crate) async fn probe_maru(addr: SocketAddr) -> Option<bool> {
+/// `/robots.txt` 에 giwa 가 내는 사이트맵 줄이 있는지로 판단한다.
+/// 연결조차 안 되면 `None`(못 쟀다). 연결은 됐는데 giwa 답이 없으면 다른 프로그램이다.
+pub(crate) async fn probe_giwa(addr: SocketAddr) -> Option<bool> {
     let wait = Duration::from_secs(3);
     let mut s = tokio::time::timeout(wait, tokio::net::TcpStream::connect(addr))
         .await
@@ -361,7 +361,7 @@ async fn service(g: &Global) -> Check {
             Status::Unknown,
             "상시 실행이 등록돼 있지 않습니다. 사이트를 계속 켜 둘 때만 필요합니다.",
         )
-        .next("maru service install"),
+        .next("giwa service install"),
         Err(e) => check("service", Status::Unknown, e.message()),
     }
 }
@@ -378,7 +378,7 @@ fn tunnel() -> Check {
             Status::Unknown,
             "cloudflared 가 없습니다. 외부 공개할 때만 필요합니다.",
         )
-        .next("maru expose --cloudflare"),
+        .next("giwa expose --cloudflare"),
     }
 }
 
@@ -387,7 +387,7 @@ fn theme(dir: &DataDir) -> Check {
     if !user.is_dir() {
         return check("theme", Status::Pass, "내장 테마 사용");
     }
-    if maru_themes::compatible(&user) {
+    if giwa_themes::compatible(&user) {
         check(
             "theme",
             Status::Pass,
@@ -399,7 +399,7 @@ fn theme(dir: &DataDir) -> Check {
             Status::Warn,
             format!(
                 "사용자 테마의 template_api 가 {} 이 아니어서 내장 테마를 씁니다: {}",
-                maru_themes::TEMPLATE_API,
+                giwa_themes::TEMPLATE_API,
                 user.display()
             ),
         )

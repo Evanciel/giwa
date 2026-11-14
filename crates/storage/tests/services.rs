@@ -3,14 +3,14 @@
 
 use std::sync::Arc;
 
-use maru_core::actor::{Actor, Scope};
-use maru_core::model::{PageReq, PostStatus};
-use maru_core::services::boards::{self, NewBoard};
-use maru_core::services::posts::{self, NewPost};
-use maru_core::services::{anonymous_actor, tokens};
-use maru_core::store::Tx;
-use maru_core::{Code, Ctx};
-use maru_storage::{DataDir, Db, FsBlobs, SqliteStore};
+use giwa_core::actor::{Actor, Scope};
+use giwa_core::model::{PageReq, PostStatus};
+use giwa_core::services::boards::{self, NewBoard};
+use giwa_core::services::posts::{self, NewPost};
+use giwa_core::services::{anonymous_actor, tokens};
+use giwa_core::store::Tx;
+use giwa_core::{Code, Ctx};
+use giwa_storage::{DataDir, Db, FsBlobs, SqliteStore};
 
 struct Env {
     _tmp: tempfile::TempDir,
@@ -39,7 +39,7 @@ fn ctx_for(db: &Db, dir: &DataDir) -> Ctx {
         store: Arc::new(SqliteStore::new(db.clone())),
         blobs: Arc::new(FsBlobs::new(dir.media_dir())),
         site_url: "http://127.0.0.1:8080".into(),
-        extensions: maru_core::store::no_extensions(),
+        extensions: giwa_core::store::no_extensions(),
     }
 }
 
@@ -435,7 +435,7 @@ async fn private_board_hides_posts_from_guests() {
             slug: "members".into(),
             name: "회원 전용".into(),
             kind: "free".into(),
-            policy: Some(maru_core::model::BoardPolicy {
+            policy: Some(giwa_core::model::BoardPolicy {
                 read: "member".into(),
                 ..Default::default()
             }),
@@ -491,8 +491,8 @@ async fn token_lifecycle() {
     assert_eq!(issued.token.scopes, Scope::DEFAULT.to_vec());
 
     let actor = tokens::authenticate(&e.ctx, &issued.secret).await.unwrap();
-    assert!(actor.has(maru_core::Permission::PostWrite));
-    assert!(!actor.has(maru_core::Permission::PostPublish));
+    assert!(actor.has(giwa_core::Permission::PostWrite));
+    assert!(!actor.has(giwa_core::Permission::PostPublish));
 
     for bad in ["", "maru_00", "Bearer x", &issued.secret[..20]] {
         assert_eq!(
@@ -895,8 +895,8 @@ async fn ensure_draft_is_idempotent() {
 
 // ---- U9 ----
 
-use maru_core::model::{MenuItem, MenuLink, PageStatus};
-use maru_core::services::{menus, pages, settings};
+use giwa_core::model::{MenuItem, MenuLink, PageStatus};
+use giwa_core::services::{menus, pages, settings};
 
 #[tokio::test]
 async fn pages_lifecycle_and_privacy() {
@@ -1036,7 +1036,7 @@ async fn menu_set_get_and_rejects_bad_trees() {
 async fn settings_update_and_audit() {
     let e = env().await;
     let local = Actor::local();
-    assert_eq!(settings::site(&e.ctx).await.unwrap().name, "Maru");
+    assert_eq!(settings::site(&e.ctx).await.unwrap().name, "Giwa");
     let patch = settings::SettingsPatch {
         name: Some("홍길동의 블로그".into()),
         description: Some("개발과 일상".into()),
@@ -1094,8 +1094,8 @@ async fn settings_update_and_audit() {
 
 // ---- U10 ----
 
-use maru_core::design::Tokens;
-use maru_core::services::{design, presets};
+use giwa_core::design::Tokens;
+use giwa_core::services::{design, presets};
 
 #[tokio::test]
 async fn tokens_update_validate_and_audit() {
@@ -1201,7 +1201,7 @@ async fn preset_apply_is_idempotent_and_keeps_user_edits() {
 // ---- 예약 발행·대표 이미지 ----
 
 fn later(days: i64) -> String {
-    maru_core::clock::format(time::OffsetDateTime::now_utc() + time::Duration::days(days))
+    giwa_core::clock::format(time::OffsetDateTime::now_utc() + time::Duration::days(days))
 }
 
 #[tokio::test]
@@ -1332,7 +1332,7 @@ async fn cover_is_checked_and_falls_back_to_first_photo() {
     );
     for bad in [
         "https://example.test/x.jpg",
-        "/media/../maru.db",
+        "/media/../giwa.db",
         "/media/a b.jpg",
         "/media/a\".jpg",
         "javascript:alert(1)",
@@ -1349,7 +1349,7 @@ async fn cover_is_checked_and_falls_back_to_first_photo() {
 
 #[tokio::test]
 async fn templates_upsert_by_name_and_protect_builtins() {
-    use maru_core::services::templates::{self, SaveTemplate};
+    use giwa_core::services::templates::{self, SaveTemplate};
     let e = env().await;
     let local = Actor::local();
     let save = |name: &str, body: &str| SaveTemplate {
@@ -1418,7 +1418,7 @@ async fn templates_upsert_by_name_and_protect_builtins() {
 
 // ---- 분류·태그·공지·비밀글 (GAP C1~C4) ----
 
-use maru_core::services::{categories, tags};
+use giwa_core::services::{categories, tags};
 
 fn in_category(title: &str, category: &str) -> NewPost {
     NewPost {
@@ -1471,7 +1471,7 @@ async fn categories_are_idempotent_and_delete_clears_posts() {
     assert!(
         err.next_commands()
             .iter()
-            .any(|c| c.contains("maru category list"))
+            .any(|c| c.contains("giwa category list"))
     );
 
     let post = posts::create_draft(&e.ctx, &local, in_category("한라산", "제주-여행"))

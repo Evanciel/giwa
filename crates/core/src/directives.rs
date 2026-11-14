@@ -1,4 +1,4 @@
-//! Maru 확장 문법 (ADR-0034). Markdown 을 pulldown-cmark 에 넘기기 전에 HTML 조각으로 바꾼다.
+//! Giwa 확장 문법 (ADR-0034). Markdown 을 pulldown-cmark 에 넘기기 전에 HTML 조각으로 바꾼다.
 //!
 //! - 블록 상자: `:::info` … `:::` (info·tip·warn·danger 강조 상자, center·right 정렬, gallery 사진 격자,
 //!   details 접기 — 첫 문단이 요약, ADR-0041, quote-mark·quote-bubble·quote-note·quote-frame 인용구 모양 — GAP E6)

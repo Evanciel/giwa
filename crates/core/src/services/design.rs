@@ -86,7 +86,7 @@ async fn merged(tx: &mut Tx, patch: Value) -> Result<(Tokens, Tokens)> {
                 .with_message("error.font_not_found")
                 .arg("slug", value.clone())
                 .arg("field", field)
-                .next("maru font list"));
+                .next("giwa font list"));
         }
     }
     Ok((before, after))

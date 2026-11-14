@@ -3,9 +3,9 @@
   "use strict";
   document.querySelectorAll("[data-media-open]").forEach(function (b) {
     b.addEventListener("click", function () {
-      if (!window.MaruMedia) return;
+      if (!window.GiwaMedia) return;
       var kind = b.getAttribute("data-media-open");
-      window.MaruMedia.open({
+      window.GiwaMedia.open({
         url: "",
         alt: null,
         required: true,

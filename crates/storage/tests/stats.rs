@@ -3,14 +3,14 @@
 
 use std::sync::Arc;
 
-use maru_core::actor::{Actor, Permission, rank};
-use maru_core::model::{StatBatch, StatDay, StatPage, StatReferrer};
-use maru_core::services::boards::{self, NewBoard};
-use maru_core::services::posts::{self, NewPost};
-use maru_core::services::settings::{self, SettingsPatch};
-use maru_core::services::stats::{self, Hit, StatCounter, StatsQuery};
-use maru_core::{Code, Ctx};
-use maru_storage::{DataDir, Db, FsBlobs, SqliteStore};
+use giwa_core::actor::{Actor, Permission, rank};
+use giwa_core::model::{StatBatch, StatDay, StatPage, StatReferrer};
+use giwa_core::services::boards::{self, NewBoard};
+use giwa_core::services::posts::{self, NewPost};
+use giwa_core::services::settings::{self, SettingsPatch};
+use giwa_core::services::stats::{self, Hit, StatCounter, StatsQuery};
+use giwa_core::{Code, Ctx};
+use giwa_storage::{DataDir, Db, FsBlobs, SqliteStore};
 
 const UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130.0";
 const OWN: [&str; 1] = ["127.0.0.1:8080"];
@@ -31,7 +31,7 @@ async fn env() -> Env {
         store: Arc::new(SqliteStore::new(db.clone())),
         blobs: Arc::new(FsBlobs::new(dir.media_dir())),
         site_url: "http://127.0.0.1:8080".into(),
-        extensions: maru_core::store::no_extensions(),
+        extensions: giwa_core::store::no_extensions(),
     };
     Env { _tmp: tmp, db, ctx }
 }
@@ -253,7 +253,7 @@ async fn old_days_are_purged_by_the_retention_setting() {
 async fn only_publishers_read_stats_and_ranges_are_checked() {
     let e = env().await;
     let q = StatsQuery { days: Some(30) };
-    let guest = maru_core::services::anonymous_actor(&e.ctx).await.unwrap();
+    let guest = giwa_core::services::anonymous_actor(&e.ctx).await.unwrap();
     let err = stats::summary(&e.ctx, &guest, &q).await.unwrap_err();
     assert_eq!(err.code(), Code::Unauthorized);
     let member = Actor::human(

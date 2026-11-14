@@ -9,7 +9,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 
 struct Server(Child);
 
@@ -27,12 +27,12 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -78,13 +78,13 @@ fn http(bind: &str, method: &str, path: &str, headers: &[(&str, &str)], body: &s
     }
 }
 
-fn db<T>(data: &Path, f: impl AsyncFnOnce(&maru_storage::Db) -> T) -> T {
+fn db<T>(data: &Path, f: impl AsyncFnOnce(&giwa_storage::Db) -> T) -> T {
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .unwrap();
     rt.block_on(async {
-        let db = maru_storage::Db::open(&data.join("maru.db"), false)
+        let db = giwa_storage::Db::open(&data.join("giwa.db"), false)
             .await
             .unwrap();
         let v = f(&db).await;
@@ -108,21 +108,21 @@ fn thread_path(data: &Path, id: &str) -> String {
 fn replies_thread_in_cli_and_public_screens() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    maru(
+    giwa(
         &data,
         &["board", "create", "qna", "--name", "문의", "--kind", "qna"],
     );
-    maru(
+    giwa(
         &data,
         &[
             "board", "create", "free", "--name", "자유", "--kind", "free",
         ],
     );
-    let q = maru(
+    let q = giwa(
         &data,
         &[
             "post",
@@ -137,7 +137,7 @@ fn replies_thread_in_cli_and_public_screens() {
         ],
     );
     let q_id = q["id"].as_str().unwrap();
-    let a = maru(
+    let a = giwa(
         &data,
         &[
             "post",
@@ -155,7 +155,7 @@ fn replies_thread_in_cli_and_public_screens() {
     assert_eq!(thread_path(&data, a["id"].as_str().unwrap()), "0001.");
 
     // 답변을 받지 않는 게시판: 원인과 다음 명령
-    let f = maru(
+    let f = giwa(
         &data,
         &[
             "post",
@@ -175,10 +175,10 @@ fn replies_thread_in_cli_and_public_screens() {
     assert_eq!(v["error"]["code"], "FORBIDDEN");
     assert_eq!(
         v["error"]["next"][0],
-        "maru board update free --reply editor"
+        "giwa board update free --reply editor"
     );
     // 정책을 열면 상태에 보인다. 알 수 없는 역할은 거부.
-    let b = maru(&data, &["board", "update", "free", "--reply", "member"]);
+    let b = giwa(&data, &["board", "update", "free", "--reply", "member"]);
     assert_eq!(b["policy"]["reply"], "member");
     let v = run(&data, &["board", "update", "free", "--reply", "anyone"]);
     assert_eq!(v["error"]["code"], "VALIDATION");

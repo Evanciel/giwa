@@ -5,7 +5,7 @@
 //! - 결제사 알림(웹훅) 본문은 믿지 않는다. paymentKey 만 꺼내 조회 API 로 다시 물어 그 결과로 맞춘다.
 //! - 상태는 [`can_move`] 가 허용하는 길로만 바뀐다. 같은 알림이 두 번 와도 두 번째는 아무 일도 없다.
 //! - 환불·입금 확인은 사람(운영자·로컬 CLI)만 한다. 에이전트는 보기와 결제 요청 만들기까지 (원칙 4).
-//! - 다른 모듈은 [`maru_modules::checkout::Checkout`] 으로 주문을 맡기고 감사 기록 `pay.paid`·`pay.refunded` 를 받는다.
+//! - 다른 모듈은 [`giwa_modules::checkout::Checkout`] 으로 주문을 맡기고 감사 기록 `pay.paid`·`pay.refunded` 를 받는다.
 
 mod admin;
 mod button;
@@ -22,17 +22,17 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
 use axum::{Extension, Router};
-use maru_core::actor::{Actor, ActorKind, Permission};
-use maru_core::audit::{AuditRecord, Target};
-use maru_core::model::{AuditEvent, Signal};
-use maru_core::services::widgets::WidgetType;
-use maru_core::services::{auth, settings, tokens};
-use maru_core::store::ModuleMigration;
-use maru_core::urls;
-use maru_core::{Code, Ctx, Error, Result, clock};
-use maru_modules::checkout::{Checkout, CheckoutOrder, CheckoutRequest, CheckoutStarted};
-use maru_modules::{Manifest, Module, ModuleState, ToolDef, module_error, schema_of};
-use maru_storage::Db;
+use giwa_core::actor::{Actor, ActorKind, Permission};
+use giwa_core::audit::{AuditRecord, Target};
+use giwa_core::model::{AuditEvent, Signal};
+use giwa_core::services::widgets::WidgetType;
+use giwa_core::services::{auth, settings, tokens};
+use giwa_core::store::ModuleMigration;
+use giwa_core::urls;
+use giwa_core::{Code, Ctx, Error, Result, clock};
+use giwa_modules::checkout::{Checkout, CheckoutOrder, CheckoutRequest, CheckoutStarted};
+use giwa_modules::{Manifest, Module, ModuleState, ToolDef, module_error, schema_of};
+use giwa_storage::Db;
 use pg::State as PgState;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -113,7 +113,7 @@ fn no_order(id: &str) -> Error {
             id.chars().take(40).collect::<String>()
         ),
     )
-    .next("maru pay orders")
+    .next("giwa pay orders")
 }
 
 fn parse<T: for<'de> Deserialize<'de>>(input: Value) -> Result<T> {
@@ -131,7 +131,7 @@ fn require_person(actor: &Actor) -> Result<()> {
             Code::Forbidden,
             "환불·입금 확인은 사람이 합니다. 운영자가 관리 화면이나 이 컴퓨터의 CLI 로 실행하세요.",
         )
-        .next("maru pay refund --order <주문> --reason <사유>"));
+        .next("giwa pay refund --order <주문> --reason <사유>"));
     }
     actor.require(Permission::SiteAdmin)
 }
@@ -488,7 +488,7 @@ impl PayModule {
     ) -> Result<CheckoutStarted> {
         if !self.enabled(ctx).await? {
             return Err(module_error(Code::Conflict, "결제 모듈이 꺼져 있습니다.")
-                .next("maru module enable pay"));
+                .next("giwa module enable pay"));
         }
         let owner = req.owner.trim();
         if owner.is_empty()
@@ -522,7 +522,7 @@ impl PayModule {
                 Code::Conflict,
                 "쓸 수 있는 결제 방법이 없습니다. 무통장 입금 계좌나 토스페이먼츠 키를 먼저 넣으세요.",
             )
-            .next("maru pay provider_set --provider bank --enabled true --bank <은행> --account <계좌> --holder <예금주>"));
+            .next("giwa pay provider_set --provider bank --enabled true --bank <은행> --account <계좌> --holder <예금주>"));
         }
         let id = auth::new_secret()?[..24].to_owned();
         let key = auth::new_secret()?;
@@ -565,7 +565,7 @@ impl PayModule {
             Target::new("pay_order", id.clone()),
             json!({ "owner": owner, "ref_id": ref_id, "name": name, "amount": req.amount }),
         );
-        maru_storage::sqlite::insert_audit(&mut tx, &audit).await?;
+        giwa_storage::sqlite::insert_audit(&mut tx, &audit).await?;
         tx.commit().await.map_err(Error::internal)?;
         let order = self
             .order_row(&id)
@@ -650,7 +650,7 @@ impl PayModule {
                 "to": ch.status,
             }),
         );
-        maru_storage::sqlite::insert_audit(&mut tx, &audit).await?;
+        giwa_storage::sqlite::insert_audit(&mut tx, &audit).await?;
         tx.commit().await.map_err(Error::internal)?;
         Ok(true)
     }
@@ -961,7 +961,7 @@ impl PayModule {
                     Code::Conflict,
                     "결제사가 아직 앞선 취소를 처리하고 있습니다. 끝난 뒤 다시 환불하세요.",
                 )
-                .next(format!("maru pay sync --id {}", order.id)));
+                .next(format!("giwa pay sync --id {}", order.id)));
             }
         }
         let refund_id = clock::new_id();
@@ -1022,7 +1022,7 @@ impl PayModule {
                 .map_err(Error::internal)?;
                 return Err(
                     module_error(Code::External, format!("환불하지 못했습니다: {e}"))
-                        .next(format!("maru pay order --id {}", order.id)),
+                        .next(format!("giwa pay order --id {}", order.id)),
                 );
             }
         };
@@ -1036,7 +1036,7 @@ impl PayModule {
                 "requested": true,
                 "manual": false,
                 "note": "결제사가 취소를 접수했습니다. 끝나면 주문 상태가 바뀝니다.",
-                "next": format!("maru pay sync --id {}", order.id),
+                "next": format!("giwa pay sync --id {}", order.id),
             }));
         }
         sqlx::query!(
@@ -1190,14 +1190,14 @@ impl PayModule {
                         missing.join(", ")
                     ),
                 )
-                .next("maru site set --business-name <상호> --business-owner <대표자> --business-address <주소> --business-phone <전화> --business-email <전자우편> --business-reg-no <사업자등록번호> --business-hosting <호스팅 제공자>"));
+                .next("giwa site set --business-name <상호> --business-owner <대표자> --business-address <주소> --business-phone <전화> --business-email <전자우편> --business-reg-no <사업자등록번호> --business-hosting <호스팅 제공자>"));
             }
             if !ctx.site_url.starts_with("https://") {
                 return Err(module_error(
                     Code::Conflict,
                     "운영 키(live_)·운영 채널은 사이트 주소가 https 일 때만 넣습니다. 결제사 웹훅과 돌아오는 주소가 공개 https 여야 합니다. 시험 채널이면 --mode test 를 붙이세요.",
                 )
-                .next("maru expose"));
+                .next("giwa expose"));
             }
         }
         let row = ProviderRow {
@@ -1247,7 +1247,7 @@ impl PayModule {
             Target::new("pay_provider", row.id.clone()),
             json!({ "enabled": row.enabled, "live": row.live(), "secret_hint": tail4(&row.secret_key) }),
         );
-        maru_storage::sqlite::insert_audit(&mut tx, &audit).await?;
+        giwa_storage::sqlite::insert_audit(&mut tx, &audit).await?;
         tx.commit().await.map_err(Error::internal)?;
         Ok(json!(provider_view(ctx, &row)))
     }
@@ -1582,7 +1582,7 @@ impl Module for PayModule {
                 let i: RefundInput = parse(input)?;
                 self.refund(actor, &i.order, i.amount, &i.reason).await
             }
-            _ => Err(maru_modules::tool_not_found(MANIFEST.id, tool)),
+            _ => Err(giwa_modules::tool_not_found(MANIFEST.id, tool)),
         }
     }
 

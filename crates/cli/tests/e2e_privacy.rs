@@ -1,5 +1,5 @@
 //! GAP M17: 개인정보 보유기간·휴면 회원 (ADR-0073). 실제 바이너리·실제 포트·실제 DB 파일로
-//! CLI 설정 → `maru privacy run` 이 미리 알림을 쌓고 → REST 가 휴면으로 바꾸면 세션이 끊기고 주소가
+//! CLI 설정 → `giwa privacy run` 이 미리 알림을 쌓고 → REST 가 휴면으로 바꾸면 세션이 끊기고 주소가
 //! 분리 표로 가는지, 관리 화면이 주소 대신 「휴면」을 보이는지, 비밀번호 로그인으로 돌아오는지 본다.
 #![allow(clippy::expect_used, clippy::unwrap_used)]
 
@@ -10,7 +10,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 /// 테스트 전용 값. 실제 비밀번호가 아니다.
 const PASSWORD: &str = "test-pass-1234";
 const EMAIL: &str = "moon@example.test";
@@ -24,14 +24,14 @@ impl Drop for Server {
     }
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let out = Command::new(BIN)
         .arg("--data")
         .arg(data)
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     let v: Value =
         serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"));
@@ -117,13 +117,13 @@ fn enc(s: &str) -> String {
         .collect()
 }
 
-fn db<T>(data: &Path, f: impl AsyncFnOnce(&maru_storage::Db) -> T) -> T {
+fn db<T>(data: &Path, f: impl AsyncFnOnce(&giwa_storage::Db) -> T) -> T {
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .unwrap();
     rt.block_on(async {
-        let db = maru_storage::Db::open(&data.join("maru.db"), false)
+        let db = giwa_storage::Db::open(&data.join("giwa.db"), false)
             .await
             .unwrap();
         let v = f(&db).await;
@@ -158,12 +158,12 @@ fn db_count(data: &Path, sql: &'static str) -> i64 {
 
 fn login_password(bind: &str) -> Res {
     let page = http(bind, "GET", "/login", &[], "");
-    let pre = page.cookie("maru_csrf").expect("로그인 폼 CSRF 쿠키");
+    let pre = page.cookie("giwa_csrf").expect("로그인 폼 CSRF 쿠키");
     http(
         bind,
         "POST",
         "/login",
-        &[FORM, ("Cookie", &format!("maru_csrf={pre}"))],
+        &[FORM, ("Cookie", &format!("giwa_csrf={pre}"))],
         &form(&[
             ("_csrf", &pre),
             ("next", "/me"),
@@ -178,27 +178,27 @@ fn sign_in(bind: &str, link_url: &str) -> String {
     let rest = link_url.split_once("://").unwrap().1;
     let path = &rest[rest.find('/').unwrap()..];
     let page = http(bind, "GET", path, &[], "");
-    let csrf = page.cookie("maru_csrf").unwrap();
+    let csrf = page.cookie("giwa_csrf").unwrap();
     let res = http(
         bind,
         "POST",
         path,
-        &[FORM, ("Cookie", &format!("maru_csrf={csrf}"))],
+        &[FORM, ("Cookie", &format!("giwa_csrf={csrf}"))],
         &format!("_csrf={csrf}"),
     );
     assert_eq!(res.status, 303, "{}", res.body);
-    format!("maru_session={}", res.cookie("maru_session").unwrap())
+    format!("giwa_session={}", res.cookie("giwa_session").unwrap())
 }
 
 #[test]
 fn dormant_notice_sleep_and_wake() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    let s = maru(
+    let s = giwa(
         &data,
         &[
             "site",
@@ -222,27 +222,27 @@ fn dormant_notice_sleep_and_wake() {
         ),
         (Some(365), Some(30))
     );
-    let admin = maru(
+    let admin = giwa(
         &data,
         &["token", "create", "--name", "운영", "--scope", "admin"],
     );
     let admin = format!("Bearer {}", admin["secret"].as_str().unwrap());
-    let reader = maru(
+    let reader = giwa(
         &data,
         &["token", "create", "--name", "읽기", "--scope", "read"],
     );
     let reader = format!("Bearer {}", reader["secret"].as_str().unwrap());
-    let link = maru(&data, &["login-link"]);
+    let link = giwa(&data, &["login-link"]);
     let (_server, bind) = start_server(&data);
 
     // 가입하고 로그인한다.
     let page = http(&bind, "GET", "/signup", &[], "");
-    let pre = page.cookie("maru_csrf").unwrap();
+    let pre = page.cookie("giwa_csrf").unwrap();
     let res = http(
         &bind,
         "POST",
         "/signup",
-        &[FORM, ("Cookie", &format!("maru_csrf={pre}"))],
+        &[FORM, ("Cookie", &format!("giwa_csrf={pre}"))],
         &form(&[
             ("_csrf", &pre),
             ("email", EMAIL),
@@ -254,7 +254,7 @@ fn dormant_notice_sleep_and_wake() {
     assert_eq!(res.status, 200, "{}", res.body);
     let res = login_password(&bind);
     assert_eq!(res.status, 303, "{}", res.body);
-    let moon = format!("maru_session={}", res.cookie("maru_session").unwrap());
+    let moon = format!("giwa_session={}", res.cookie("giwa_session").unwrap());
     assert_eq!(
         db_count(
             &data,
@@ -269,7 +269,7 @@ fn dormant_notice_sleep_and_wake() {
         &data,
         "UPDATE members SET last_login_at = '2000-01-01T00:00:00Z', created_at = '2000-01-01T00:00:00Z'",
     );
-    let r = maru(&data, &["privacy", "run"]);
+    let r = giwa(&data, &["privacy", "run"]);
     assert_eq!(
         (r["notified"].as_u64(), r["dormant"].as_u64()),
         (Some(1), Some(0)),
@@ -366,7 +366,7 @@ fn dormant_notice_sleep_and_wake() {
         "/me",
         &[(
             "Cookie",
-            &format!("maru_session={}", res.cookie("maru_session").unwrap()),
+            &format!("giwa_session={}", res.cookie("giwa_session").unwrap()),
         )],
         "",
     );
@@ -378,11 +378,11 @@ fn dormant_notice_sleep_and_wake() {
 fn module_purge_removes_old_notifications() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    maru(&data, &["module", "enable", "notify"]);
+    giwa(&data, &["module", "enable", "notify"]);
     db_exec(
         &data,
         "INSERT INTO mod_notify_item (id, member_id, kind, source, post_id, comment_id, at, read_at)
@@ -393,17 +393,17 @@ fn module_purge_removes_old_notifications() {
         "INSERT INTO mod_notify_item (id, member_id, kind, source, post_id, comment_id, at, read_at)
          SELECT 'new', id, 'comment', 'comment:y', 'p1', 'y', strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), NULL FROM members LIMIT 1",
     );
-    maru(&data, &["module", "disable", "notify"]);
-    let r = maru(&data, &["privacy", "run"]);
+    giwa(&data, &["module", "disable", "notify"]);
+    let r = giwa(&data, &["privacy", "run"]);
     assert_eq!(r["module_removed"], 0, "꺼진 모듈은 정리하지 않는다");
-    maru(&data, &["module", "enable", "notify"]);
-    let r = maru(&data, &["privacy", "run"]);
+    giwa(&data, &["module", "enable", "notify"]);
+    let r = giwa(&data, &["privacy", "run"]);
     assert_eq!(r["module_removed"], 1, "{r}");
     assert_eq!(
         db_text(&data, "SELECT group_concat(id) FROM mod_notify_item"),
         "new"
     );
-    maru(
+    giwa(
         &data,
         &["module", "set", "notify", "--field", "keep_days=7"],
     );

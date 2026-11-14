@@ -9,7 +9,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 
 struct Server(Child);
 
@@ -20,14 +20,14 @@ impl Drop for Server {
     }
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let out = Command::new(BIN)
         .arg("--data")
         .arg(data)
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
@@ -123,22 +123,22 @@ fn path_of(url: &str) -> String {
 
 /// 로그인 링크로 세션을 받고, 글쓰기 화면에서 세션 CSRF 값을 읽는다.
 fn admin_session(data: &Path, bind: &str) -> (String, String) {
-    let link = maru(data, &["login-link"]);
+    let link = giwa(data, &["login-link"]);
     let link_path = path_of(link["data"]["url"].as_str().unwrap());
     let page = http(bind, "GET", &link_path, &[], b"");
-    let pre = page.cookie("maru_csrf").unwrap();
+    let pre = page.cookie("giwa_csrf").unwrap();
     let res = http(
         bind,
         "POST",
         &link_path,
         &[
             ("Content-Type", "application/x-www-form-urlencoded"),
-            ("Cookie", &format!("maru_csrf={pre}")),
+            ("Cookie", &format!("giwa_csrf={pre}")),
         ],
         format!("_csrf={pre}").as_bytes(),
     );
     assert_eq!(res.status, 303, "{}", res.text());
-    let cookie = format!("maru_session={}", res.cookie("maru_session").unwrap());
+    let cookie = format!("giwa_session={}", res.cookie("giwa_session").unwrap());
     let edit = http(bind, "GET", "/admin/posts/new", &[("Cookie", &cookie)], b"");
     assert_eq!(edit.status, 200);
     (cookie, edit.csrf_field())
@@ -155,7 +155,7 @@ fn mp4(len: usize) -> Vec<u8> {
 fn video_upload_ranges_sections_and_posts() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    let init = maru(
+    let init = giwa(
         &data,
         &["init", "--no-samples", "--preset", "company", "--yes"],
     );
@@ -166,7 +166,7 @@ fn video_upload_ranges_sections_and_posts() {
     let small = mp4(1000);
     let file = tmp.path().join("짧은 영상.mp4");
     std::fs::write(&file, &small).unwrap();
-    let up = maru(&data, &["media", "upload", file.to_str().unwrap()]);
+    let up = giwa(&data, &["media", "upload", file.to_str().unwrap()]);
     assert_eq!(up["ok"], true, "{up}");
     assert_eq!(up["data"]["mime"], "video/mp4");
     assert_eq!(up["data"]["size"], 1000);
@@ -174,12 +174,12 @@ fn video_upload_ranges_sections_and_posts() {
     assert!(small_url.ends_with(".mp4"), "{small_url}");
     let fake = tmp.path().join("가짜.mp4");
     std::fs::write(&fake, b"<html>not a video</html>").unwrap();
-    let bad = maru(&data, &["media", "upload", fake.to_str().unwrap()]);
+    let bad = giwa(&data, &["media", "upload", fake.to_str().unwrap()]);
     assert_eq!(bad["ok"], false, "{bad}");
 
     // 동영상 섹션: 올린 동영상 주소를 받고, 보관함 밖·임시 경로는 거절한다.
     let place = |config: &str| {
-        maru(
+        giwa(
             &data,
             &[
                 "widget", "place", "video", "--region", "main", "--scope", "home", "--config",
@@ -189,7 +189,7 @@ fn video_upload_ranges_sections_and_posts() {
     };
     for config in [
         r#"{"url":"/media/tmp/01abcdefghij.mp4"}"#,
-        r#"{"url":"/media/../maru.db.mp4"}"#,
+        r#"{"url":"/media/../giwa.db.mp4"}"#,
         r#"{"url":"/media/2026/11/a.mov"}"#,
     ] {
         assert_eq!(place(config)["ok"], false, "{config}");
@@ -199,7 +199,7 @@ fn video_upload_ranges_sections_and_posts() {
 
     // 본문 `::video[/media/…]{autoplay}`: 저절로 재생은 소리를 끈다.
     let body = format!("영상\n\n::video[{small_url}]{{autoplay}}\n");
-    let post = maru(
+    let post = giwa(
         &data,
         &[
             "post",
@@ -218,9 +218,9 @@ fn video_upload_ranges_sections_and_posts() {
     );
     assert_eq!(post["ok"], true, "{post}");
 
-    let list = maru(&data, &["media", "list", "--kind", "video"]);
+    let list = giwa(&data, &["media", "list", "--kind", "video"]);
     assert_eq!(list["data"]["total"], 1, "{list}");
-    let list = maru(&data, &["media", "list", "--kind", "image"]);
+    let list = giwa(&data, &["media", "list", "--kind", "image"]);
     assert_eq!(list["data"]["total"], 0, "{list}");
 
     let (_server, bind) = start_server(&data);
@@ -471,7 +471,7 @@ fn video_upload_ranges_sections_and_posts() {
         .unwrap()
         .set_modified(std::time::SystemTime::now() - std::time::Duration::from_secs(2 * 86_400))
         .unwrap();
-    let r = maru(&data, &["privacy", "run"]);
+    let r = giwa(&data, &["privacy", "run"]);
     assert_eq!(r["data"]["video_parts_removed"], 1, "{r}");
     assert!(!part.exists());
     // 지워진 조각에 이어 보내면 받은 크기 0 을 알려 처음부터 다시 보내게 한다.

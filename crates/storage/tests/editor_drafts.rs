@@ -3,10 +3,10 @@
 
 use std::sync::Arc;
 
-use maru_core::actor::{Actor, Permission, Scope, rank};
-use maru_core::services::{auth, editor_drafts};
-use maru_core::{Code, Ctx};
-use maru_storage::{DataDir, Db, FsBlobs, SqliteStore};
+use giwa_core::actor::{Actor, Permission, Scope, rank};
+use giwa_core::services::{auth, editor_drafts};
+use giwa_core::{Code, Ctx};
+use giwa_storage::{DataDir, Db, FsBlobs, SqliteStore};
 use serde_json::json;
 
 async fn env() -> (tempfile::TempDir, Ctx, String) {
@@ -19,7 +19,7 @@ async fn env() -> (tempfile::TempDir, Ctx, String) {
         store: Arc::new(SqliteStore::new(db.clone())),
         blobs: Arc::new(FsBlobs::new(dir.media_dir())),
         site_url: "http://127.0.0.1:8080".into(),
-        extensions: maru_core::store::no_extensions(),
+        extensions: giwa_core::store::no_extensions(),
     };
     let owner = auth::ensure_owner(&ctx, &Actor::local(), "owner@example.test", "운영자")
         .await

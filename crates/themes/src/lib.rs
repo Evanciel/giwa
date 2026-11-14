@@ -1,4 +1,4 @@
-//! Maru 기본 테마와 프리셋
+//! Giwa 기본 테마와 프리셋
 //!
 //! 템플릿은 소스 목록을 순서대로 찾는 겹 구조다: 사용자 테마 디렉터리 → 내장 테마 (PHASE1_PLAN §2).
 //! Phase 3 changeset 미리보기는 이 목록 앞에 오버레이 소스 하나를 더하면 된다.
@@ -8,9 +8,9 @@ use std::collections::HashMap;
 use std::path::{Component, Path, PathBuf};
 use std::sync::OnceLock;
 
-use maru_core::services::pages::Starter;
-use maru_core::services::presets::{Op, Preset};
-use maru_core::{Code, Error, Result};
+use giwa_core::services::pages::Starter;
+use giwa_core::services::presets::{Op, Preset};
+use giwa_core::{Code, Error, Result};
 use minijinja::{AutoEscape, Environment, UndefinedBehavior};
 use rust_embed::RustEmbed;
 use serde::{Deserialize, Serialize};
@@ -42,7 +42,7 @@ impl Theme {
     ) -> Self {
         let user_dir = user_dir.filter(|d| compatible(d));
         let env = public_env(user_dir.clone(), extra.clone(), None);
-        let skins = maru_core::model::SKINS
+        let skins = giwa_core::model::SKINS
             .iter()
             .skip(1)
             .map(|(id, _)| (*id, public_env(user_dir.clone(), extra.clone(), Some(id))))
@@ -172,7 +172,7 @@ fn url_for(
     a: Option<String>,
     b: Option<String>,
 ) -> std::result::Result<String, minijinja::Error> {
-    use maru_core::urls::{Target, path};
+    use giwa_core::urls::{Target, path};
     let a = a.unwrap_or_default();
     let b = b.unwrap_or_default();
     let target = match kind {
@@ -290,7 +290,7 @@ struct StarterFile {
     starters: Vec<Starter>,
 }
 
-/// 새 페이지 틀 목록. 화면 편집기·`maru page new --starter`·MCP 가 같은 목록을 쓴다 (ADR-0149).
+/// 새 페이지 틀 목록. 화면 편집기·`giwa page new --starter`·MCP 가 같은 목록을 쓴다 (ADR-0149).
 pub fn starters() -> Result<Vec<Starter>> {
     let invalid = |detail: String| {
         Error::new(Code::Internal)
@@ -332,7 +332,7 @@ fn ago_in(en: bool, at: minijinja::Value, tz: Option<i32>) -> String {
     let Some(at) = at.as_str() else {
         return String::new();
     };
-    match (maru_core::clock::seconds_since(at), en) {
+    match (giwa_core::clock::seconds_since(at), en) {
         // 시계가 조금 어긋나 앞으로 온 시각도 「방금」으로 본다.
         (Some(s), false) if (-300..60).contains(&s) => "방금 전".to_owned(),
         (Some(s), false) if (60..3600).contains(&s) => format!("{}분 전", s / 60),
@@ -340,7 +340,7 @@ fn ago_in(en: bool, at: minijinja::Value, tz: Option<i32>) -> String {
         (Some(s), true) if (-300..60).contains(&s) => "just now".to_owned(),
         (Some(s), true) if (60..3600).contains(&s) => format!("{} min ago", s / 60),
         (Some(s), true) if (3600..86_400).contains(&s) => format!("{} hr ago", s / 3600),
-        _ => maru_core::clock::display_date(at, tz.unwrap_or(540)),
+        _ => giwa_core::clock::display_date(at, tz.unwrap_or(540)),
     }
 }
 
@@ -384,7 +384,7 @@ fn english() -> &'static HashMap<String, String> {
 
 /// Rust 가 만드는 공개 화면 문구 (ADR-0134). 프로세스 언어가 영어면 영어표에서, 아니면 그대로.
 pub fn tr(ko: &'static str) -> &'static str {
-    if maru_core::messages::lang() == "en" {
+    if giwa_core::messages::lang() == "en" {
         english().get(ko).map_or(ko, String::as_str)
     } else {
         ko
@@ -398,7 +398,7 @@ fn is_en(state: &minijinja::State) -> bool {
         .and_then(|s| s.get_attr("lang").ok())
         .and_then(|l| l.as_str().map(str::to_owned));
     site.as_deref()
-        .unwrap_or(maru_core::messages::lang())
+        .unwrap_or(giwa_core::messages::lang())
         .starts_with("en")
 }
 
@@ -815,8 +815,8 @@ mod tests {
             "표에 없는 &lt;b&gt;"
         );
         assert_eq!(en("{{ x|t }}", "", 0), "");
-        assert_eq!(en("{{ at|ago }}", &maru_core::clock::now(), 0), "just now");
-        let five = maru_core::clock::minutes_later(-5);
+        assert_eq!(en("{{ at|ago }}", &giwa_core::clock::now(), 0), "just now");
+        let five = giwa_core::clock::minutes_later(-5);
         assert_eq!(en("{{ at|ago }}", &five, 0), "5 min ago");
         for (n, want) in [
             (999, "999"),
@@ -893,18 +893,18 @@ mod tests {
             env.render_str(src, minijinja::context! { at => at })
                 .unwrap()
         };
-        let now = maru_core::clock::now();
+        let now = giwa_core::clock::now();
         assert_eq!(render("{{ at|ago }}", &now), "방금 전");
-        let minutes = maru_core::clock::minutes_later(-5);
+        let minutes = giwa_core::clock::minutes_later(-5);
         assert_eq!(render("{{ at|ago }}", &minutes), "5분 전");
         assert_eq!(
-            render("{{ at|ago }}", &maru_core::clock::hours_ago(3)),
+            render("{{ at|ago }}", &giwa_core::clock::hours_ago(3)),
             "3시간 전"
         );
-        let old = maru_core::clock::hours_ago(48);
+        let old = giwa_core::clock::hours_ago(48);
         assert_eq!(
             render("{{ at|ago(540) }}", &old),
-            maru_core::clock::display_date(&old, 540)
+            giwa_core::clock::display_date(&old, 540)
         );
         assert_eq!(render("{{ none|ago }}", ""), "");
         assert_eq!(render("{{ missing|ago }}", ""), "");
@@ -940,7 +940,7 @@ mod tests {
             .unwrap();
         let expected = format!(
             "{}|/p/about|/",
-            maru_core::urls::path(&maru_core::urls::Target::Post {
+            giwa_core::urls::path(&giwa_core::urls::Target::Post {
                 board: "블로그",
                 post: "첫 글"
             })
@@ -1121,12 +1121,12 @@ mod tests {
                     let at = format!("{id}/{board}/{}", it.title);
                     assert!(it.category.is_none(), "{at}: 프리셋은 분류를 만들지 않는다");
                     if let Some(m) = &it.image {
-                        assert!(maru_core::sample_art::is_motif(m), "{at}: {m}");
+                        assert!(giwa_core::sample_art::is_motif(m), "{at}: {m}");
                     }
                     for bad in ['—', '–'] {
                         assert!(!it.title.contains(bad) && !it.body_md.contains(bad), "{at}");
                     }
-                    if let Err(e) = maru_core::fields::validate(&schema, &it.meta, true) {
+                    if let Err(e) = giwa_core::fields::validate(&schema, &it.meta, true) {
                         panic!("{at}: {e:?}");
                     }
                 }
@@ -1148,7 +1148,7 @@ mod tests {
         }
         let html = theme.render("home.html", &json!({"posts": []})).unwrap();
         assert!(!html.contains("community.css"));
-        for id in maru_core::model::SKINS.iter().skip(1).map(|(id, _)| id) {
+        for id in giwa_core::model::SKINS.iter().skip(1).map(|(id, _)| id) {
             assert!(
                 Builtin::get(&format!("skins/{id}/templates/base.html")).is_some(),
                 "{id}"

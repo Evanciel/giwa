@@ -5,10 +5,10 @@
 //! 지도 코드는 안에서 스크립트를 더 부르므로 광고와 같이 nonce 를 쓰는 strict CSP 를 건다.
 
 use async_trait::async_trait;
-use maru_core::directives::map_search_urls;
-use maru_core::services::widgets::WidgetType;
-use maru_core::{Code, Ctx, Error, Result};
-use maru_modules::{Manifest, Module, module_error, schema_of};
+use giwa_core::directives::map_search_urls;
+use giwa_core::services::widgets::WidgetType;
+use giwa_core::{Code, Ctx, Error, Result};
+use giwa_modules::{Manifest, Module, module_error, schema_of};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};

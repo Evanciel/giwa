@@ -9,7 +9,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 const FAKE_URL: &str = "https://warm-owl-tiny.trycloudflare.com";
 
 struct Kill(Child);
@@ -29,7 +29,7 @@ fn base(data: &Path, path: &Path, args: &[&str]) -> Command {
         .args(args)
         .arg("--json")
         .env("PATH", path)
-        .env_remove("MARU_TOKEN");
+        .env_remove("GIWA_TOKEN");
     c
 }
 
@@ -246,12 +246,12 @@ fn 도메인_공개는_설정을_맞추고_명령_순서를_주며_여러_번_�
         .map(|s| s["command"].as_str().unwrap())
         .collect();
     assert_eq!(steps[0], "cloudflared tunnel login", "{steps:?}");
-    assert_eq!(steps[1], "cloudflared tunnel create maru", "{steps:?}");
+    assert_eq!(steps[1], "cloudflared tunnel create giwa", "{steps:?}");
     assert_eq!(
-        steps[2], "cloudflared tunnel route dns maru blog.example.com",
+        steps[2], "cloudflared tunnel route dns giwa blog.example.com",
         "{steps:?}"
     );
-    assert!(steps[3].ends_with(" maru"), "{steps:?}");
+    assert!(steps[3].ends_with(" giwa"), "{steps:?}");
 
     let config = std::fs::read_to_string(data.join("config.toml")).unwrap();
     assert!(
@@ -317,7 +317,7 @@ fn 토큰으로는_공개하지_못한다() {
         vec!["expose", "--cloudflare", "--quick"],
     ] {
         let out = base(&data, &fake, &args)
-            .env("MARU_TOKEN", secret)
+            .env("GIWA_TOKEN", secret)
             .output()
             .unwrap();
         assert!(!out.status.success(), "{args:?}");
@@ -345,7 +345,7 @@ fn 임시_터널은_서버가_있어야_열리고_주소를_알리며_끌_수_�
         &fake,
         &["expose", "--cloudflare", "--quick", "--to", "127.0.0.1:9"],
     );
-    assert!(e["next"].to_string().contains("maru serve"), "{e}");
+    assert!(e["next"].to_string().contains("giwa serve"), "{e}");
     assert!(data.join("config.toml").exists());
 
     let (server, bind) = start_server(&data);
@@ -510,7 +510,7 @@ fn join_through_tunnel(bind: &str, email: &str) -> String {
         ("Sec-Fetch-Site", "same-origin"),
     ];
     let (_, head, _) = through_tunnel(bind, "GET", "/signup", "", &[], "");
-    let csrf = cookie_value(&set_cookie(&head, "maru_csrf").expect("CSRF 쿠키"));
+    let csrf = cookie_value(&set_cookie(&head, "giwa_csrf").expect("CSRF 쿠키"));
     let token = csrf.split_once('=').unwrap().1.to_owned();
     let body = format!(
         "_csrf={token}&email={}&display_name={}&password={PASSWORD}&password2={PASSWORD}",
@@ -518,7 +518,7 @@ fn join_through_tunnel(bind: &str, email: &str) -> String {
         email.split('@').next().unwrap()
     );
     let (signup, head, signup_page) = through_tunnel(bind, "POST", "/signup", &csrf, &same, &body);
-    if let Some(line) = set_cookie(&head, "maru_session") {
+    if let Some(line) = set_cookie(&head, "giwa_session") {
         return line;
     }
     let (_, _, page) = through_tunnel(bind, "GET", "/login", &csrf, &[], "");
@@ -528,7 +528,7 @@ fn join_through_tunnel(bind: &str, email: &str) -> String {
         email.replace('@', "%40")
     );
     let (status, head, _) = through_tunnel(bind, "POST", "/login", &csrf, &same, &body);
-    set_cookie(&head, "maru_session").unwrap_or_else(|| {
+    set_cookie(&head, "giwa_session").unwrap_or_else(|| {
         panic!(
             "로그인 실패 {status}, 가입 {signup}: {}",
             error_of(&signup_page)
@@ -589,7 +589,7 @@ fn 터널_주소로_가입하고_로그인하면_회원이_남고_세션이_통�
             ],
             "",
         );
-        assert!(set_cookie(&head, "maru_session").is_none());
+        assert!(set_cookie(&head, "giwa_session").is_none());
         assert_ne!(status, 200);
     }
 

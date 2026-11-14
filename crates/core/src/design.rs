@@ -282,7 +282,7 @@ impl Tokens {
     /// 목록에 없는 slug 는 시스템 고딕으로 떨어진다.
     pub fn to_css(&self, uploaded: &[Font]) -> String {
         let mut css = String::from(
-            "/* Maru 디자인 토큰. 직접 고치지 말고 `maru design set` 을 쓴다. */\n:root {\n",
+            "/* Giwa 디자인 토큰. 직접 고치지 말고 `giwa design set` 을 쓴다. */\n:root {\n",
         );
         push_palette(&mut css, &self.color);
         let stack = |name: &str| -> String {

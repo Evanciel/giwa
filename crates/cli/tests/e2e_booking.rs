@@ -11,7 +11,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 const FORM: (&str, &str) = ("Content-Type", "application/x-www-form-urlencoded");
 const SAME: (&str, &str) = ("Sec-Fetch-Site", "same-origin");
 const CROSS: (&str, &str) = ("Sec-Fetch-Site", "cross-site");
@@ -32,12 +32,12 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -130,13 +130,13 @@ fn form(pairs: &[(&str, &str)]) -> String {
         .join("&")
 }
 
-fn db<T>(data: &Path, f: impl AsyncFnOnce(&maru_storage::Db) -> T) -> T {
+fn db<T>(data: &Path, f: impl AsyncFnOnce(&giwa_storage::Db) -> T) -> T {
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .unwrap();
     rt.block_on(async {
-        let db = maru_storage::Db::open(&data.join("maru.db"), false)
+        let db = giwa_storage::Db::open(&data.join("giwa.db"), false)
             .await
             .unwrap();
         let v = f(&db).await;
@@ -205,12 +205,12 @@ fn kst_day(plus: i64) -> String {
 
 /// 로그인 링크로 운영자 세션 쿠키를 받는다.
 fn owner_cookie(data: &Path, bind: &str) -> String {
-    let link = maru(data, &["login-link"]);
+    let link = giwa(data, &["login-link"]);
     let rest = link["url"].as_str().unwrap().split_once("://").unwrap().1;
     let path = &rest[rest.find('/').unwrap()..];
     let first = http(bind, "GET", path, &[], "");
-    let pre = first.cookie("maru_csrf").unwrap();
-    let cookie = format!("maru_csrf={pre}");
+    let pre = first.cookie("giwa_csrf").unwrap();
+    let cookie = format!("giwa_csrf={pre}");
     let res = http(
         bind,
         "POST",
@@ -219,9 +219,9 @@ fn owner_cookie(data: &Path, bind: &str) -> String {
         &form(&[("_csrf", &pre)]),
     );
     let session = res
-        .cookie("maru_session")
+        .cookie("giwa_session")
         .unwrap_or_else(|| panic!("로그인 실패: {}", res.body));
-    format!("maru_session={session}")
+    format!("giwa_session={session}")
 }
 
 fn starts(slots: &Value) -> Vec<String> {
@@ -238,11 +238,11 @@ fn slots_race_cancel_link_deposit_and_release() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
     let data = data.as_path();
-    maru(data, &["init", "--no-samples", "--preset", "blog", "--yes"]);
-    maru(data, &["module", "enable", "booking"]);
+    giwa(data, &["init", "--no-samples", "--preset", "blog", "--yes"]);
+    giwa(data, &["module", "enable", "booking"]);
 
     // 매일 10:00~12:00, 30분짜리 정원 1 상담과 60분짜리 예약금 진료.
-    let hours = maru(
+    let hours = giwa(
         data,
         &[
             "booking",
@@ -270,7 +270,7 @@ fn slots_race_cancel_link_deposit_and_release() {
         ],
     );
     assert_eq!(bad["ok"], false, "닫는 시간이 먼저면 거절: {bad}");
-    let made = maru(
+    let made = giwa(
         data,
         &[
             "booking",
@@ -287,7 +287,7 @@ fn slots_race_cancel_link_deposit_and_release() {
     );
     assert_eq!(made["created"], true);
     assert_eq!(made["service"]["capacity"], 1);
-    maru(
+    giwa(
         data,
         &[
             "booking",
@@ -313,13 +313,13 @@ fn slots_race_cancel_link_deposit_and_release() {
 
     let day = kst_day(7);
     let next = kst_day(8);
-    let slots = maru(
+    let slots = giwa(
         data,
         &["booking", "slots", "--service", "consult", "--day", &day],
     );
     assert_eq!(starts(&slots), ["10:00:1", "10:30:1", "11:00:1", "11:30:1"]);
     // 막은 시간과 하루 쉬는 날.
-    let blocked = maru(
+    let blocked = giwa(
         data,
         &[
             "booking", "block", "--day", &day, "--start", "11:00", "--end", "11:30", "--reason",
@@ -327,19 +327,19 @@ fn slots_race_cancel_link_deposit_and_release() {
         ],
     );
     assert_eq!(blocked["existing_bookings"], 0);
-    let slots = maru(
+    let slots = giwa(
         data,
         &["booking", "slots", "--service", "consult", "--day", &day],
     );
     assert_eq!(starts(&slots), ["10:00:1", "10:30:1", "11:30:1"]);
-    maru(data, &["booking", "block", "--day", &next]);
-    let closed = maru(
+    giwa(data, &["booking", "block", "--day", &next]);
+    let closed = giwa(
         data,
         &["booking", "slots", "--service", "consult", "--day", &next],
     );
     assert_eq!(closed["slots"].as_array().unwrap().len(), 0);
     assert_eq!(closed["reason"], "쉬는 날입니다.");
-    let past = maru(
+    let past = giwa(
         data,
         &[
             "booking",
@@ -352,7 +352,7 @@ fn slots_race_cancel_link_deposit_and_release() {
     );
     assert_eq!(past["reason"], "지난 날짜입니다.");
 
-    maru(
+    giwa(
         data,
         &[
             "widget",
@@ -428,7 +428,7 @@ fn slots_race_cancel_link_deposit_and_release() {
     trap.push(("website", "x".into()));
     assert_eq!(post(&trap, true).status, 303);
     assert_eq!(
-        maru(data, &["booking", "list", "--day", &day])["items"]
+        giwa(data, &["booking", "list", "--day", &day])["items"]
             .as_array()
             .unwrap()
             .len(),
@@ -445,7 +445,7 @@ fn slots_race_cancel_link_deposit_and_release() {
     });
     codes.sort_unstable();
     assert_eq!(codes, [303, 409], "한 사람만 들어간다");
-    let list = maru(data, &["booking", "list", "--day", &day]);
+    let list = giwa(data, &["booking", "list", "--day", &day]);
     let items = list["items"].as_array().unwrap();
     assert_eq!(items.len(), 1);
     assert_eq!(list["untrusted"][0], "guest");
@@ -464,10 +464,10 @@ fn slots_race_cancel_link_deposit_and_release() {
     // 접수 편지의 취소 링크. 확정하면 새 링크가 가고 옛 링크는 쓸 수 없다.
     let old = cancel_link(data, "예약 신청");
     assert_eq!(http(bind, "GET", &old, &[], "").status, 200);
-    let confirmed = maru(data, &["booking", "confirm", "--id", &first]);
+    let confirmed = giwa(data, &["booking", "confirm", "--id", &first]);
     assert_eq!(confirmed["changed"], true);
     assert_eq!(
-        maru(data, &["booking", "confirm", "--id", &first])["changed"],
+        giwa(data, &["booking", "confirm", "--id", &first])["changed"],
         false
     );
     assert_eq!(http(bind, "GET", &old, &[], "").status, 404);
@@ -488,7 +488,7 @@ fn slots_race_cancel_link_deposit_and_release() {
         http(bind, "POST", path, &[FORM, SAME], &form(&[("k", k)])).status,
         404
     );
-    let slots = maru(
+    let slots = giwa(
         data,
         &["booking", "slots", "--service", "consult", "--day", &day],
     );
@@ -496,7 +496,7 @@ fn slots_race_cancel_link_deposit_and_release() {
     assert!(mails(data).iter().any(|(_, s, _)| s.contains("예약 취소")));
 
     // 취소 마감이 지나면 링크로 취소하지 못한다.
-    maru(
+    giwa(
         data,
         &["module", "set", "booking", "--field", "cancel_hours=720"],
     );
@@ -513,7 +513,7 @@ fn slots_race_cancel_link_deposit_and_release() {
         http(bind, "POST", path, &[FORM, SAME], &form(&[("k", k)])).status,
         409
     );
-    maru(
+    giwa(
         data,
         &["module", "set", "booking", "--field", "cancel_hours=24"],
     );
@@ -527,14 +527,14 @@ fn slots_race_cancel_link_deposit_and_release() {
     let res = post(&visit("10:00"), true);
     assert_eq!(res.status, 409, "{}", res.body);
     assert!(res.body.contains("예약금을 받을 수 없어"), "{}", res.body);
-    let slots = maru(
+    let slots = giwa(
         data,
         &["booking", "slots", "--service", "visit", "--day", &day],
     );
     assert_eq!(starts(&slots)[0], "10:00:1");
 
-    maru(data, &["module", "enable", "pay"]);
-    maru(
+    giwa(data, &["module", "enable", "pay"]);
+    giwa(
         data,
         &[
             "pay",
@@ -555,17 +555,17 @@ fn slots_race_cancel_link_deposit_and_release() {
     assert_eq!(res.status, 303, "{}", res.body);
     let location = res.header("location");
     assert!(location.starts_with("/m/pay/o/"), "{location}");
-    let held = maru(
+    let held = giwa(
         data,
         &["booking", "list", "--day", &day, "--status", "held"],
     );
     let held = &held["items"][0];
     let bid = held["id"].as_str().unwrap().to_owned();
     let order = held["order_id"].as_str().unwrap().to_owned();
-    let o = maru(data, &["pay", "order", "--id", &order]);
+    let o = giwa(data, &["pay", "order", "--id", &order]);
     assert_eq!(o["order"]["amount"], 10000, "예약금은 서비스 설정에서");
     assert_eq!(o["order"]["owner"], "booking");
-    let slots = maru(
+    let slots = giwa(
         data,
         &["booking", "slots", "--service", "visit", "--day", &day],
     );
@@ -580,8 +580,8 @@ fn slots_race_cancel_link_deposit_and_release() {
         &form(&[("k", k), ("depositor", "예약시험")]),
     );
     assert_eq!(res.status, 303, "{}", res.body);
-    maru(data, &["module", "deliver"]);
-    let b = &maru(
+    giwa(data, &["module", "deliver"]);
+    let b = &giwa(
         data,
         &["booking", "list", "--day", &day, "--status", "held"],
     )["items"][0];
@@ -590,10 +590,10 @@ fn slots_race_cancel_link_deposit_and_release() {
         "입금 기한까지: {b}"
     );
     // 입금 확인 → 확정, 확정 편지에 예약금.
-    maru(data, &["pay", "mark_paid", "--id", &order]);
-    maru(data, &["module", "deliver"]);
-    maru(data, &["module", "deliver"]);
-    let list = maru(
+    giwa(data, &["pay", "mark_paid", "--id", &order]);
+    giwa(data, &["module", "deliver"]);
+    giwa(data, &["module", "deliver"]);
+    let list = giwa(
         data,
         &["booking", "list", "--day", &day, "--status", "confirmed"],
     );
@@ -624,7 +624,7 @@ fn slots_race_cancel_link_deposit_and_release() {
     later[1].1 = other.clone();
     let res = post(&later, true);
     assert_eq!(res.status, 303, "{}", res.body);
-    let late = maru(
+    let late = giwa(
         data,
         &["booking", "list", "--day", &other, "--status", "held"],
     );
@@ -635,7 +635,7 @@ fn slots_race_cancel_link_deposit_and_release() {
         "UPDATE mod_booking_booking SET hold_until = '2000-01-01T00:00:00.000000Z' WHERE id = ?",
         &late_id,
     );
-    let slots = maru(
+    let slots = giwa(
         data,
         &["booking", "slots", "--service", "visit", "--day", &other],
     );
@@ -647,7 +647,7 @@ fn slots_race_cancel_link_deposit_and_release() {
     );
     let done = http(bind, "GET", &format!("/m/booking/done/{late_id}"), &[], "");
     assert!(done.body.contains("기한이 지났습니다"), "{}", done.body);
-    let expired = maru(
+    let expired = giwa(
         data,
         &["booking", "list", "--day", &other, "--status", "expired"],
     );
@@ -656,7 +656,7 @@ fn slots_race_cancel_link_deposit_and_release() {
     // 운영자 취소: 예약금 받은 예약이면 환불 안내, 사유 필수.
     let no_reason = run(data, &["booking", "cancel", "--id", &bid, "--reason", ""]);
     assert_eq!(no_reason["ok"], false);
-    let canceled = maru(
+    let canceled = giwa(
         data,
         &["booking", "cancel", "--id", &bid, "--reason", "원장 휴진"],
     );
@@ -668,7 +668,7 @@ fn slots_race_cancel_link_deposit_and_release() {
         .unwrap();
     assert!(letter.2.contains("사유: 원장 휴진"));
     assert!(letter.2.contains("돌려드립니다"));
-    let signals = maru(data, &["signals"]);
+    let signals = giwa(data, &["signals"]);
     assert!(
         signals.to_string().contains("booking_refund"),
         "예약금 환불 신호: {signals}"
@@ -708,7 +708,7 @@ fn slots_race_cancel_link_deposit_and_release() {
         ]),
     );
     assert_eq!(saved.status, 303, "{}", saved.body);
-    let hours = maru(data, &["booking", "hours"]);
+    let hours = giwa(data, &["booking", "hours"]);
     assert_eq!(hours["hours"][0]["open"], "09:00");
     assert_eq!(hours["hours"][6]["closed"], true);
     assert_eq!(hours["hours"][1]["closed"], true, "빈 칸은 쉬는 요일");

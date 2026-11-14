@@ -12,16 +12,16 @@ use axum::http::{HeaderMap, StatusCode, header};
 use axum::middleware;
 use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
-use maru_core::actor::Permission;
-use maru_core::model::{Board, Post, PostStatus};
-use maru_core::output::Success;
-use maru_core::services::auth::SignedIn;
-use maru_core::services::board_posts::{self, BoardEdit, BoardWrite, Editable};
-use maru_core::services::comments::GuestAuthor;
-use maru_core::services::{boards, captcha, categories, settings};
-use maru_core::urls::{self, Target};
-use maru_core::{Actor, Code};
-use maru_themes::tr;
+use giwa_core::actor::Permission;
+use giwa_core::model::{Board, Post, PostStatus};
+use giwa_core::output::Success;
+use giwa_core::services::auth::SignedIn;
+use giwa_core::services::board_posts::{self, BoardEdit, BoardWrite, Editable};
+use giwa_core::services::comments::GuestAuthor;
+use giwa_core::services::{boards, captcha, categories, settings};
+use giwa_core::urls::{self, Target};
+use giwa_core::{Actor, Code};
+use giwa_themes::tr;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -257,7 +257,7 @@ async fn attach(
         .unwrap_or_default();
     if !same_origin(&headers) || !csrf_ok(&headers, who.as_ref(), sent) {
         return Err(ApiError(
-            maru_core::Error::new(Code::Forbidden).with_message("error.csrf"),
+            giwa_core::Error::new(Code::Forbidden).with_message("error.csrf"),
         ));
     }
     let out = board_posts::attach(&state.ctx, &actor, &slug, q.filename, body.to_vec()).await?;

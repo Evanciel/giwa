@@ -1,6 +1,6 @@
 [package]
-name = "maru-themes"
-description = "Maru 기본 테마와 프리셋"
+name = "giwa-themes"
+description = "Giwa 기본 테마와 프리셋"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,7 +11,7 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
-maru-core.workspace = true
+giwa-core.workspace = true
 minijinja.workspace = true
 rust-embed.workspace = true
 serde.workspace = true

@@ -4,9 +4,9 @@
 use axum::Json;
 use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse, Response};
-use maru_core::output::Failure;
-use maru_core::{Code, Error, clock};
-use maru_themes::tr;
+use giwa_core::output::Failure;
+use giwa_core::{Code, Error, clock};
+use giwa_themes::tr;
 use serde_json::json;
 
 use crate::AppState;
@@ -56,7 +56,7 @@ pub async fn page(state: &AppState, err: &Error) -> Response {
         .render(
             "error.html",
             &json!({
-                "meta": { "title": format!("{} · {}", code.as_u16(), site["name"].as_str().unwrap_or("Maru")), "noindex": true },
+                "meta": { "title": format!("{} · {}", code.as_u16(), site["name"].as_str().unwrap_or("Giwa")), "noindex": true },
                 "site": site,
                 "status": code.as_u16(),
                 "message": message,

@@ -1,8 +1,8 @@
 #![allow(clippy::expect_used, clippy::unwrap_used)]
 
-use maru_core::Code;
-use maru_core::config::Config;
-use maru_storage::{DataDir, Db};
+use giwa_core::Code;
+use giwa_core::config::Config;
+use giwa_storage::{DataDir, Db};
 
 /// 한글과 공백이 섞인 경로 (Windows 사용자 폴더 대비).
 fn data_dir() -> (tempfile::TempDir, DataDir) {
@@ -150,7 +150,7 @@ async fn migrate_repairs_crlf_checksums() {
     use sha2::{Digest, Sha384};
     let (_tmp, dir) = data_dir();
     let db = open(&dir).await;
-    let m = maru_storage::db::MIGRATOR
+    let m = giwa_storage::db::MIGRATOR
         .iter()
         .find(|m| {
             let sql = m.sql.as_str();

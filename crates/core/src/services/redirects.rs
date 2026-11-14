@@ -59,7 +59,7 @@ fn bad(key: &'static str, path: &str) -> Error {
     Error::new(Code::Validation)
         .with_message(key)
         .arg("path", path)
-        .next("maru redirect list")
+        .next("giwa redirect list")
 }
 
 fn check_from(from: &str) -> Result<()> {
@@ -138,7 +138,7 @@ pub async fn remove(ctx: &Ctx, actor: &Actor, from: &str) -> Result<Redirect> {
         Error::new(Code::NotFound)
             .with_message("error.redirect_not_found")
             .arg("path", from.clone())
-            .next("maru redirect list")
+            .next("giwa redirect list")
     })?;
     let mut tx = Tx::begin(ctx).await?;
     tx.delete_redirect(&from).await?;

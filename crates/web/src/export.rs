@@ -1,4 +1,4 @@
-//! `maru export static` (SPEC §12, ADR-0131). 손님이 보는 화면을 파일로 내려 정적 호스팅에 올린다.
+//! `giwa export static` (SPEC §12, ADR-0131). 손님이 보는 화면을 파일로 내려 정적 호스팅에 올린다.
 //!
 //! 라우터를 이 프로세스 안에서 직접 불러 첫 화면과 sitemap 에서 링크를 따라간다. 쿠키 없는 손님으로
 //! 묻기 때문에 회원 전용 게시판과 초안은 나오지 않는다. 쿼리 있는 링크 중 `?page=N` 만 파일이 된다.
@@ -11,9 +11,9 @@ use axum::Router;
 use axum::body::{Body, to_bytes};
 use axum::extract::ConnectInfo;
 use axum::http::{Request, StatusCode, header};
-use maru_core::actor::Actor;
-use maru_core::services::redirects;
-use maru_core::{Error, Result};
+use giwa_core::actor::Actor;
+use giwa_core::services::redirects;
+use giwa_core::{Error, Result};
 use percent_encoding::{AsciiSet, CONTROLS, percent_decode_str, utf8_percent_encode};
 use serde::Serialize;
 use tower::ServiceExt;

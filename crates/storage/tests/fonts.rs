@@ -3,12 +3,12 @@
 
 use std::sync::Arc;
 
-use maru_core::actor::{Actor, Scope};
-use maru_core::markdown;
-use maru_core::services::fonts::{self, FontPatch, FontUpload, NewFont};
-use maru_core::services::{anonymous_actor, design};
-use maru_core::{Code, Ctx};
-use maru_storage::{DataDir, Db, FsBlobs, SqliteStore};
+use giwa_core::actor::{Actor, Scope};
+use giwa_core::markdown;
+use giwa_core::services::fonts::{self, FontPatch, FontUpload, NewFont};
+use giwa_core::services::{anonymous_actor, design};
+use giwa_core::{Code, Ctx};
+use giwa_storage::{DataDir, Db, FsBlobs, SqliteStore};
 use serde_json::json;
 
 const PEN: &[u8] = include_bytes!("../../themes/builtin/static/fonts/maru-pen-1.woff2");
@@ -30,7 +30,7 @@ async fn env() -> Env {
         store: Arc::new(SqliteStore::new(db.clone())),
         blobs: Arc::new(FsBlobs::new(dir.media_dir())),
         site_url: "http://127.0.0.1:8080".into(),
-        extensions: maru_core::store::no_extensions(),
+        extensions: giwa_core::store::no_extensions(),
     };
     Env {
         _tmp: tmp,
@@ -192,7 +192,7 @@ async fn add_upload_replace_remove_with_blobs_and_audit() {
     let (format, bytes) = fonts::file(&e.ctx, "company-gothic", &name).await.unwrap();
     assert_eq!((format.as_str(), bytes.len()), ("ttf", 44));
     for (slug, name) in [
-        ("company-gothic", "../../maru.db"),
+        ("company-gothic", "../../giwa.db"),
         ("company-gothic", "LICENSE.txt"),
         ("Company", "x.ttf"),
     ] {
@@ -348,7 +348,7 @@ async fn design_tokens_use_uploaded_fonts_and_block_removal() {
     .await
     .unwrap_err();
     assert_eq!(err.code(), Code::Validation);
-    assert!(err.next_commands().iter().any(|c| c == "maru font list"));
+    assert!(err.next_commands().iter().any(|c| c == "giwa font list"));
 
     fonts::add(&e.ctx, &a, new_font("Company Gothic", None))
         .await
@@ -370,7 +370,7 @@ async fn design_tokens_use_uploaded_fonts_and_block_removal() {
     assert!(
         err.next_commands()
             .iter()
-            .any(|c| c == "maru design set --set font.body=Pretendard")
+            .any(|c| c == "giwa design set --set font.body=Pretendard")
     );
     design::update(
         &e.ctx,

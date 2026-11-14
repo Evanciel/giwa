@@ -4,16 +4,16 @@
 
 use std::sync::Arc;
 
-use maru_core::actor::{Actor, Permission, rank};
-use maru_core::model::{Approval, BoardPolicy, CommentStatus, PageReq};
-use maru_core::services::boards::{self, BoardPatch, NewBoard};
-use maru_core::services::comments::{self, GuestAuthor, Moderation, NewComment};
-use maru_core::services::members::{self, SignupInput};
-use maru_core::services::posts::{self, NewPost};
-use maru_core::services::settings::{self, SettingsPatch};
-use maru_core::services::{anonymous_actor, captcha};
-use maru_core::{Code, Ctx};
-use maru_storage::{DataDir, Db, FsBlobs, SqliteStore};
+use giwa_core::actor::{Actor, Permission, rank};
+use giwa_core::model::{Approval, BoardPolicy, CommentStatus, PageReq};
+use giwa_core::services::boards::{self, BoardPatch, NewBoard};
+use giwa_core::services::comments::{self, GuestAuthor, Moderation, NewComment};
+use giwa_core::services::members::{self, SignupInput};
+use giwa_core::services::posts::{self, NewPost};
+use giwa_core::services::settings::{self, SettingsPatch};
+use giwa_core::services::{anonymous_actor, captcha};
+use giwa_core::{Code, Ctx};
+use giwa_storage::{DataDir, Db, FsBlobs, SqliteStore};
 
 struct Env {
     _tmp: tempfile::TempDir,
@@ -34,7 +34,7 @@ async fn env(policy: BoardPolicy) -> Env {
         store: Arc::new(SqliteStore::new(db.clone())),
         blobs: Arc::new(FsBlobs::new(dir.media_dir())),
         site_url: "http://127.0.0.1:8080".into(),
-        extensions: maru_core::store::no_extensions(),
+        extensions: giwa_core::store::no_extensions(),
     };
     let local = Actor::local();
     settings::update(
@@ -154,7 +154,7 @@ fn text(post: &str, body: &str) -> NewComment {
 /// 질문을 받고 2초 기다려 답한다. 테스트는 저장된 답을 DB 에서 읽는다.
 async fn solved(e: &Env) -> captcha::Answer {
     let ch = captcha::issue(&e.ctx).await.unwrap();
-    let hash = maru_core::services::tokens::hash(&ch.token);
+    let hash = giwa_core::services::tokens::hash(&ch.token);
     let answer: String = sqlx::query_scalar("SELECT answer FROM challenges WHERE id_hash = ?")
         .bind(hash)
         .fetch_one(e.db.read_pool())
@@ -203,7 +203,7 @@ async fn member_comment_is_public_and_counted() {
         .await
         .unwrap_err();
     assert_eq!(err.code(), Code::Unauthorized);
-    let agent = Actor::agent("t".into(), &maru_core::actor::Scope::ALL, None);
+    let agent = Actor::agent("t".into(), &giwa_core::actor::Scope::ALL, None);
     let err = comments::create(&e.ctx, &agent, text(&e.post, "에이전트"))
         .await
         .unwrap_err();
@@ -281,7 +281,7 @@ async fn guest_comment_needs_captcha_and_review() {
 
     // 너무 빨리 낸 답·틀린 답은 거부, 도전은 한 번만 쓴다.
     let ch = captcha::issue(&e.ctx).await.unwrap();
-    let hash = maru_core::services::tokens::hash(&ch.token);
+    let hash = giwa_core::services::tokens::hash(&ch.token);
     let answer: String = sqlx::query_scalar("SELECT answer FROM challenges WHERE id_hash = ?")
         .bind(&hash)
         .fetch_one(e.db.read_pool())

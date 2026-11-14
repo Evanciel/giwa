@@ -11,7 +11,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 const FORM: (&str, &str) = ("Content-Type", "application/x-www-form-urlencoded");
 const SAME: (&str, &str) = ("Sec-Fetch-Site", "same-origin");
 const CROSS: (&str, &str) = ("Sec-Fetch-Site", "cross-site");
@@ -32,12 +32,12 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -130,13 +130,13 @@ fn form(pairs: &[(&str, &str)]) -> String {
         .join("&")
 }
 
-fn db<T>(data: &Path, f: impl AsyncFnOnce(&maru_storage::Db) -> T) -> T {
+fn db<T>(data: &Path, f: impl AsyncFnOnce(&giwa_storage::Db) -> T) -> T {
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .unwrap();
     rt.block_on(async {
-        let db = maru_storage::Db::open(&data.join("maru.db"), false)
+        let db = giwa_storage::Db::open(&data.join("giwa.db"), false)
             .await
             .unwrap();
         let v = f(&db).await;
@@ -159,12 +159,12 @@ fn mails(data: &Path) -> Vec<(String, String, String)> {
 
 /// 로그인 링크로 운영자 세션 쿠키를 받는다.
 fn owner_cookie(data: &Path, bind: &str) -> String {
-    let link = maru(data, &["login-link"]);
+    let link = giwa(data, &["login-link"]);
     let rest = link["url"].as_str().unwrap().split_once("://").unwrap().1;
     let path = &rest[rest.find('/').unwrap()..];
     let first = http(bind, "GET", path, &[], "");
-    let pre = first.cookie("maru_csrf").unwrap();
-    let cookie = format!("maru_csrf={pre}");
+    let pre = first.cookie("giwa_csrf").unwrap();
+    let cookie = format!("giwa_csrf={pre}");
     let res = http(
         bind,
         "POST",
@@ -173,9 +173,9 @@ fn owner_cookie(data: &Path, bind: &str) -> String {
         &form(&[("_csrf", &pre)]),
     );
     let session = res
-        .cookie("maru_session")
+        .cookie("giwa_session")
         .unwrap_or_else(|| panic!("로그인 실패: {}", res.body));
-    format!("maru_session={session}")
+    format!("giwa_session={session}")
 }
 
 /// 제목에 `subject` 가 든 마지막 편지 본문.
@@ -203,8 +203,8 @@ fn add_new(bind: &str, product: &str, option: &str, qty: &str) -> String {
         ]),
     );
     assert_eq!(res.status, 303, "{}", res.body);
-    let key = res.cookie("maru_cart").expect("장바구니 쿠키");
-    format!("maru_cart={key}")
+    let key = res.cookie("giwa_cart").expect("장바구니 쿠키");
+    format!("giwa_cart={key}")
 }
 
 fn add(bind: &str, cookie: &str, product: &str, option: &str, qty: &str) -> Res {
@@ -254,7 +254,7 @@ fn order_by_bank(data: &Path, bind: &str, cookie: &str) -> (String, String) {
     assert!(location.starts_with("/m/pay/o/"), "{location}");
     let (path, k) = location.split_once("?k=").unwrap();
     let pay_id = path.trim_start_matches("/m/pay/o/").to_owned();
-    let o = maru(data, &["pay", "order", "--id", &pay_id]);
+    let o = giwa(data, &["pay", "order", "--id", &pay_id]);
     let shop_id = o["order"]["ref_id"].as_str().unwrap().to_owned();
     assert_eq!(o["order"]["owner"], "shop");
     let res = http(
@@ -269,17 +269,17 @@ fn order_by_bank(data: &Path, bind: &str, cookie: &str) -> (String, String) {
 }
 
 fn paid(data: &Path, pay_id: &str) {
-    maru(data, &["pay", "mark_paid", "--id", pay_id]);
-    maru(data, &["module", "deliver"]);
-    maru(data, &["module", "deliver"]);
+    giwa(data, &["pay", "mark_paid", "--id", pay_id]);
+    giwa(data, &["module", "deliver"]);
+    giwa(data, &["module", "deliver"]);
 }
 
 fn order(data: &Path, id: &str) -> Value {
-    maru(data, &["shop", "order", "--id", id])["order"].clone()
+    giwa(data, &["shop", "order", "--id", id])["order"].clone()
 }
 
 fn stock(data: &Path, id: &str) -> Value {
-    maru(data, &["shop", "products"])["products"]
+    giwa(data, &["shop", "products"])["products"]
         .as_array()
         .unwrap()
         .iter()
@@ -293,10 +293,10 @@ fn cart_price_stock_race_shipping_cancel_and_lookup() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
     let data = data.as_path();
-    maru(data, &["init", "--no-samples", "--preset", "blog", "--yes"]);
-    maru(data, &["module", "enable", "shop"]);
-    maru(data, &["module", "enable", "pay"]);
-    maru(
+    giwa(data, &["init", "--no-samples", "--preset", "blog", "--yes"]);
+    giwa(data, &["module", "enable", "shop"]);
+    giwa(data, &["module", "enable", "pay"]);
+    giwa(
         data,
         &[
             "pay",
@@ -314,7 +314,7 @@ fn cart_price_stock_race_shipping_cancel_and_lookup() {
         ],
     );
 
-    let made = maru(
+    let made = giwa(
         data,
         &[
             "shop",
@@ -338,7 +338,7 @@ fn cart_price_stock_race_shipping_cancel_and_lookup() {
         made["product"]["options"],
         serde_json::json!(["S", "M", "L"])
     );
-    maru(
+    giwa(
         data,
         &[
             "shop",
@@ -353,7 +353,7 @@ fn cart_price_stock_race_shipping_cancel_and_lookup() {
             "1",
         ],
     );
-    maru(
+    giwa(
         data,
         &[
             "shop",
@@ -389,7 +389,7 @@ fn cart_price_stock_race_shipping_cancel_and_lookup() {
     );
     assert_eq!(bad_id["ok"], false, "{bad_id}");
 
-    maru(
+    giwa(
         data,
         &[
             "widget",
@@ -447,7 +447,7 @@ fn cart_price_stock_race_shipping_cancel_and_lookup() {
     assert!(cart.body.contains("3,000원"), "배송비: {}", cart.body);
 
     // 담은 뒤 가격이 올랐다: 주문은 새 가격으로.
-    maru(
+    giwa(
         data,
         &["shop", "product_set", "--id", "tee", "--price", "12000"],
     );
@@ -467,7 +467,7 @@ fn cart_price_stock_race_shipping_cancel_and_lookup() {
     no_address.retain(|(k, _)| *k != "address");
     assert_eq!(place(bind, cookie, &no_address, true).status, 422);
     assert_eq!(
-        maru(data, &["shop", "orders"])["items"]
+        giwa(data, &["shop", "orders"])["items"]
             .as_array()
             .unwrap()
             .len(),
@@ -476,7 +476,7 @@ fn cart_price_stock_race_shipping_cancel_and_lookup() {
     );
 
     let (pay_id, first) = order_by_bank(data, bind, cookie);
-    let p = maru(data, &["pay", "order", "--id", &pay_id]);
+    let p = giwa(data, &["pay", "order", "--id", &pay_id]);
     assert_eq!(
         p["order"]["amount"], 27000,
         "새 가격 12,000 × 2 + 배송비 3,000"
@@ -515,16 +515,16 @@ fn cart_price_stock_race_shipping_cancel_and_lookup() {
     let (pay_a, order_a) = order_by_bank(data, bind, &a);
     let (pay_b, order_b) = order_by_bank(data, bind, &b);
     assert_eq!(
-        maru(data, &["pay", "order", "--id", &pay_a])["order"]["amount"],
+        giwa(data, &["pay", "order", "--id", &pay_a])["order"]["amount"],
         60000,
         "5만 원 넘으면 배송비 무료"
     );
     std::thread::scope(|s| {
-        s.spawn(|| maru(data, &["pay", "mark_paid", "--id", &pay_a]));
-        s.spawn(|| maru(data, &["pay", "mark_paid", "--id", &pay_b]));
+        s.spawn(|| giwa(data, &["pay", "mark_paid", "--id", &pay_a]));
+        s.spawn(|| giwa(data, &["pay", "mark_paid", "--id", &pay_b]));
     });
-    maru(data, &["module", "deliver"]);
-    maru(data, &["module", "deliver"]);
+    giwa(data, &["module", "deliver"]);
+    giwa(data, &["module", "deliver"]);
     let (oa, ob) = (order(data, &order_a), order(data, &order_b));
     assert_eq!(
         (oa["status"].as_str(), ob["status"].as_str()),
@@ -542,7 +542,7 @@ fn cart_price_stock_race_shipping_cancel_and_lookup() {
     } else {
         &order_a
     };
-    let signals = maru(data, &["signals"]).to_string();
+    let signals = giwa(data, &["signals"]).to_string();
     assert!(
         signals.contains("shop_refund"),
         "재고 모자람 환불 신호: {signals}"
@@ -604,7 +604,7 @@ fn cart_price_stock_race_shipping_cancel_and_lookup() {
         ],
     );
     assert_eq!(back["ok"], false, "보내기 전에 배송 완료 없음: {back}");
-    maru(
+    giwa(
         data,
         &[
             "shop",
@@ -615,7 +615,7 @@ fn cart_price_stock_race_shipping_cancel_and_lookup() {
             "preparing",
         ],
     );
-    let shipped = maru(
+    let shipped = giwa(
         data,
         &[
             "shop",
@@ -634,7 +634,7 @@ fn cart_price_stock_race_shipping_cancel_and_lookup() {
     let body = letter(data, "상품 발송");
     assert!(body.contains("운송장 번호: 0000-1111-2222"), "{body}");
     assert_eq!(
-        maru(
+        giwa(
             data,
             &[
                 "shop",
@@ -648,7 +648,7 @@ fn cart_price_stock_race_shipping_cancel_and_lookup() {
         true
     );
     assert_eq!(
-        maru(
+        giwa(
             data,
             &[
                 "shop",
@@ -682,7 +682,7 @@ fn cart_price_stock_race_shipping_cancel_and_lookup() {
         run(data, &["shop", "cancel", "--id", winner, "--reason", ""])["ok"],
         false
     );
-    let canceled = maru(
+    let canceled = giwa(
         data,
         &["shop", "cancel", "--id", winner, "--reason", "상품 흠"],
     );

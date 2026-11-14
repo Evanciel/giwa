@@ -10,29 +10,29 @@ license = "MIT OR Apache-2.0"
 publish = false
 
 [workspace.dependencies]
-maru-core = { path = "crates/core" }
-maru-storage = { path = "crates/storage" }
-maru-themes = { path = "crates/themes" }
-maru-web = { path = "crates/web" }
-maru-modules = { path = "crates/modules" }
-maru-agent = { path = "crates/agent" }
-maru-mod-point = { path = "mods/point" }
-maru-mod-reaction = { path = "mods/reaction" }
-maru-mod-report = { path = "mods/report" }
-maru-mod-message = { path = "mods/message" }
-maru-mod-notify = { path = "mods/notify" }
-maru-mod-poll = { path = "mods/poll" }
-maru-mod-scrap = { path = "mods/scrap" }
-maru-mod-social = { path = "mods/social" }
-maru-mod-ads = { path = "mods/ads" }
-maru-mod-consult = { path = "mods/consult" }
-maru-mod-forms = { path = "mods/forms" }
-maru-mod-kakao = { path = "mods/kakao" }
-maru-mod-map = { path = "mods/map" }
-maru-mod-webhook = { path = "mods/webhook" }
-maru-mod-pay = { path = "mods/pay" }
-maru-mod-booking = { path = "mods/booking" }
-maru-mod-shop = { path = "mods/shop" }
+giwa-core = { path = "crates/core" }
+giwa-storage = { path = "crates/storage" }
+giwa-themes = { path = "crates/themes" }
+giwa-web = { path = "crates/web" }
+giwa-modules = { path = "crates/modules" }
+giwa-agent = { path = "crates/agent" }
+giwa-mod-point = { path = "mods/point" }
+giwa-mod-reaction = { path = "mods/reaction" }
+giwa-mod-report = { path = "mods/report" }
+giwa-mod-message = { path = "mods/message" }
+giwa-mod-notify = { path = "mods/notify" }
+giwa-mod-poll = { path = "mods/poll" }
+giwa-mod-scrap = { path = "mods/scrap" }
+giwa-mod-social = { path = "mods/social" }
+giwa-mod-ads = { path = "mods/ads" }
+giwa-mod-consult = { path = "mods/consult" }
+giwa-mod-forms = { path = "mods/forms" }
+giwa-mod-kakao = { path = "mods/kakao" }
+giwa-mod-map = { path = "mods/map" }
+giwa-mod-webhook = { path = "mods/webhook" }
+giwa-mod-pay = { path = "mods/pay" }
+giwa-mod-booking = { path = "mods/booking" }
+giwa-mod-shop = { path = "mods/shop" }
 
 # 웹
 axum = "0.8.9"

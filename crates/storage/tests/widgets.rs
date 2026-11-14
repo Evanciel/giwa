@@ -3,14 +3,14 @@
 
 use std::sync::Arc;
 
-use maru_core::actor::{Actor, Permission, rank};
-use maru_core::model::Post;
-use maru_core::services::boards::{self, NewBoard};
-use maru_core::services::posts::{self, NewPost};
-use maru_core::services::views;
-use maru_core::services::widgets::{self, NewWidget, Screen, WidgetPatch};
-use maru_core::{Code, Ctx};
-use maru_storage::{DataDir, Db, FsBlobs, SqliteStore};
+use giwa_core::actor::{Actor, Permission, rank};
+use giwa_core::model::Post;
+use giwa_core::services::boards::{self, NewBoard};
+use giwa_core::services::posts::{self, NewPost};
+use giwa_core::services::views;
+use giwa_core::services::widgets::{self, NewWidget, Screen, WidgetPatch};
+use giwa_core::{Code, Ctx};
+use giwa_storage::{DataDir, Db, FsBlobs, SqliteStore};
 use serde_json::{Value, json};
 
 struct Env {
@@ -29,7 +29,7 @@ async fn env() -> Env {
         store: Arc::new(SqliteStore::new(db.clone())),
         blobs: Arc::new(FsBlobs::new(dir.media_dir())),
         site_url: "http://127.0.0.1:8080".into(),
-        extensions: maru_core::store::no_extensions(),
+        extensions: giwa_core::store::no_extensions(),
     };
     for slug in ["notice", "free"] {
         boards::create(
@@ -352,7 +352,7 @@ async fn screens_get_matching_enabled_widgets_in_order() {
     .await
     .unwrap();
     let ids =
-        |list: Vec<maru_core::model::Widget>| list.into_iter().map(|w| w.id).collect::<Vec<_>>();
+        |list: Vec<giwa_core::model::Widget>| list.into_iter().map(|w| w.id).collect::<Vec<_>>();
     // 영역 → 순서: main 이 sidebar 보다 앞, sidebar 안에서는 position -1 이 먼저
     assert_eq!(
         ids(widgets::for_screen(&e.ctx, Screen::Home).await.unwrap()),
@@ -394,7 +394,7 @@ async fn popular_posts_order_by_views_then_recency_and_skip_secret() {
     views::set(&e.ctx, &local, &a.id, 5).await.unwrap();
     views::set(&e.ctx, &local, &b.id, 50).await.unwrap();
     views::set(&e.ctx, &local, &s.id, 500).await.unwrap();
-    let guest = maru_core::services::anonymous_actor(&e.ctx).await.unwrap();
+    let guest = giwa_core::services::anonymous_actor(&e.ctx).await.unwrap();
     let titles = |list: Vec<Post>| list.into_iter().map(|p| p.title).collect::<Vec<_>>();
     assert_eq!(
         titles(

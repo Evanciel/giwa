@@ -4,13 +4,13 @@
 use std::io::Cursor;
 use std::sync::Arc;
 
+use giwa_core::actor::{Actor, Scope};
+use giwa_core::model::PageReq;
+use giwa_core::services::anonymous_actor;
+use giwa_core::services::media::{self, Crop, MediaPatch, Transform, Upload};
+use giwa_core::{Code, Ctx};
+use giwa_storage::{DataDir, Db, FsBlobs, SqliteStore};
 use image::{DynamicImage, ImageFormat, Rgb, RgbImage};
-use maru_core::actor::{Actor, Scope};
-use maru_core::model::PageReq;
-use maru_core::services::anonymous_actor;
-use maru_core::services::media::{self, Crop, MediaPatch, Transform, Upload};
-use maru_core::{Code, Ctx};
-use maru_storage::{DataDir, Db, FsBlobs, SqliteStore};
 
 struct Env {
     _tmp: tempfile::TempDir,
@@ -29,7 +29,7 @@ async fn env() -> Env {
         store: Arc::new(SqliteStore::new(db.clone())),
         blobs: Arc::new(FsBlobs::new(dir.media_dir())),
         site_url: "http://127.0.0.1:8080".into(),
-        extensions: maru_core::store::no_extensions(),
+        extensions: giwa_core::store::no_extensions(),
     };
     Env {
         _tmp: tmp,

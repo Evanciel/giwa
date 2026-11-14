@@ -17,8 +17,8 @@ for (const input of Object.keys(meta.inputs)) {
 }
 
 const parts = [
-  "Maru 글 에디터(editor.js)에 들어간 오픈소스 패키지와 라이선스",
-  "에디터 자체 코드: MIT OR Apache-2.0 (Maru)",
+  "Giwa 글 에디터(editor.js)에 들어간 오픈소스 패키지와 라이선스",
+  "에디터 자체 코드: MIT OR Apache-2.0 (Giwa)",
   "",
 ];
 for (const name of [...names].sort()) {

@@ -12,7 +12,9 @@ use crate::model::Token;
 use crate::services::required_text;
 use crate::store::{Ctx, Tx};
 
-const PREFIX: &str = "maru_";
+const PREFIX: &str = "giwa_";
+/// 이름을 바꾸기 전(ADR-0173)에 만든 토큰의 접두. 저장은 해시라 그대로 받는다.
+const LEGACY_PREFIX: &str = "maru_";
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -92,9 +94,9 @@ pub async fn authenticate(ctx: &Ctx, secret: &str) -> Result<Actor> {
     let invalid = || {
         Error::new(Code::Unauthorized)
             .with_message("error.token_invalid")
-            .next("maru token create --name <이름> --yes")
+            .next("giwa token create --name <이름> --yes")
     };
-    if !secret.starts_with(PREFIX) {
+    if !known_prefix(secret) {
         return Err(invalid());
     }
     let token = ctx
@@ -129,7 +131,7 @@ pub async fn revoke(ctx: &Ctx, actor: &Actor, id: &str) -> Result<Token> {
         Error::new(Code::NotFound)
             .with_message("error.token_not_found")
             .arg("id", id.to_owned())
-            .next("maru token list")
+            .next("giwa token list")
     })?;
     if before.revoked_at.is_some() {
         return Ok(before);
@@ -161,6 +163,10 @@ fn require_operator(actor: &Actor) -> Result<()> {
     Ok(())
 }
 
+fn known_prefix(secret: &str) -> bool {
+    secret.starts_with(PREFIX) || secret.starts_with(LEGACY_PREFIX)
+}
+
 fn generate() -> Result<String> {
     let mut buf = [0u8; 32];
     getrandom::fill(&mut buf).map_err(|e| Error::internal(e.to_string()))?;
@@ -184,5 +190,12 @@ mod tests {
         assert_eq!(a.len(), PREFIX.len() + 64);
         assert_eq!(hash(&a).len(), 64);
         assert_eq!(hash(&a), hash(&a));
+    }
+
+    #[test]
+    fn tokens_made_before_the_rename_are_still_read() {
+        assert!(known_prefix("giwa_ab"));
+        assert!(known_prefix("maru_ab"));
+        assert!(!known_prefix("ab"));
     }
 }

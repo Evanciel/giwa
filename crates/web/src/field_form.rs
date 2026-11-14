@@ -5,7 +5,7 @@
 
 use std::collections::HashMap;
 
-use maru_core::fields::FieldDef;
+use giwa_core::fields::FieldDef;
 use serde_json::{Map, Value, json};
 
 /// 공개 글쓰기는 게시판이 하나라 `field.`, 관리 편집기는 게시판을 바꿀 수 있어 `field.<게시판>.`.
@@ -109,7 +109,7 @@ pub fn view(schema: &[FieldDef], values: &Map<String, Value>, prefix: &str) -> V
 mod tests {
     #![allow(clippy::unwrap_used)]
     use super::*;
-    use maru_core::fields::{FieldOption, check_schema};
+    use giwa_core::fields::{FieldOption, check_schema};
 
     fn schema() -> Vec<FieldDef> {
         let d = |key: &str, kind: &str| FieldDef {

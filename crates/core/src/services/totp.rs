@@ -2,7 +2,7 @@
 //!
 //! - HMAC-SHA1, 6자리, 30초. 앞뒤 한 순번까지 받고, 이미 받은 순번 이하는 받지 않는다(같은 코드 다시 쓰기 막기).
 //! - 비밀번호·메일 링크로 들어온 회원이 TOTP 를 켰으면 세션 대신 5분짜리 확인 단계를 만든다. 틀리면 5번까지.
-//! - 운영자 로그인 링크(`maru login-link`)는 거치지 않는다. 앱을 잃은 운영자가 돌아오는 길이다.
+//! - 운영자 로그인 링크(`giwa login-link`)는 거치지 않는다. 앱을 잃은 운영자가 돌아오는 길이다.
 //! - 복구 코드는 10개, 1회용, SHA-256 해시만 둔다. 원문은 만들 때 한 번만 보여 준다.
 //! - 감사에는 비밀·코드를 남기지 않는다.
 
@@ -342,7 +342,7 @@ async fn second_factor(tx: &mut Tx, t: &MemberTotp, code: &str) -> Result<&'stat
 async fn setup_of(ctx: &Ctx, member: &Member, secret: &str) -> Result<Setup> {
     let site = settings::site(ctx).await?;
     let issuer = if site.name.trim().is_empty() {
-        "Maru".to_owned()
+        "Giwa".to_owned()
     } else {
         site.name.trim().to_owned()
     };
@@ -359,7 +359,7 @@ async fn setup_of(ctx: &Ctx, member: &Member, secret: &str) -> Result<Setup> {
     })
 }
 
-/// `unix` 초에 앱이 보여 줄 6자리 코드. 시험과 진단(`maru doctor` 류)에 쓴다. 비밀이 틀리면 `None`.
+/// `unix` 초에 앱이 보여 줄 6자리 코드. 시험과 진단(`giwa doctor` 류)에 쓴다. 비밀이 틀리면 `None`.
 pub fn code_at(secret: &str, unix: i64) -> Option<String> {
     let step = u64::try_from(unix.div_euclid(STEP_SECONDS)).ok()?;
     hotp(&base32_decode(secret)?, step).map(|v| format!("{v:06}"))

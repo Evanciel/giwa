@@ -1,5 +1,5 @@
 # 나눔 폰트를 한글 11172자 + 호환 자모 + 영문·숫자·문장부호로 줄여 woff2 로 쓴다(힌팅 제거).
-# OFL 예약 글꼴 이름(Nanum…) 때문에 줄인 파일의 이름표를 Maru … 로 바꾼다.
+# OFL 예약 글꼴 이름(Nanum…) 때문에 줄인 파일의 이름표를 Giwa … 로 바꾼다.
 # 쓰는 법: python scripts/subset-fonts.py <google/fonts 의 ofl 폴더처럼 받은 곳> <출력 폴더>  (fonttools·brotli 필요)
 # 결과는 crates/themes/builtin/static/fonts/ 에 둔다. 파일 이름의 -1 은 내용이 바뀌면 올린다(오래 캐시).
 import sys
@@ -8,9 +8,9 @@ from fontTools.ttLib import TTFont
 
 SRC, OUT = sys.argv[1], sys.argv[2]  # 원본 TTF 폴더, 출력 폴더
 JOBS = [
-    ("nanumpenscript/NanumPenScript-Regular.ttf", "maru-pen-1.woff2", "Maru Pen"),
-    ("nanumbrushscript/NanumBrushScript-Regular.ttf", "maru-brush-1.woff2", "Maru Brush"),
-    ("nanummyeongjo/NanumMyeongjo-Regular.ttf", "maru-serif-1.woff2", "Maru Serif"),
+    ("nanumpenscript/NanumPenScript-Regular.ttf", "maru-pen-1.woff2", "Giwa Pen"),
+    ("nanumbrushscript/NanumBrushScript-Regular.ttf", "maru-brush-1.woff2", "Giwa Brush"),
+    ("nanummyeongjo/NanumMyeongjo-Regular.ttf", "maru-serif-1.woff2", "Giwa Serif"),
 ]
 
 chars = set(range(0x20, 0x7F))

@@ -12,20 +12,20 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
 use axum::{Extension, Router};
-use maru_core::actor::Actor;
-use maru_core::audit::{AuditRecord, Target};
-use maru_core::fields::FieldDef;
-use maru_core::model::{AuditEvent, Member, MemberStatus};
-use maru_core::services::settings;
-use maru_core::store::ModuleMigration;
-use maru_core::urls;
-use maru_core::{Code, Ctx, Error, Result, clock};
-use maru_modules::service::settings_of;
-use maru_modules::{
+use giwa_core::actor::Actor;
+use giwa_core::audit::{AuditRecord, Target};
+use giwa_core::fields::FieldDef;
+use giwa_core::model::{AuditEvent, Member, MemberStatus};
+use giwa_core::services::settings;
+use giwa_core::store::ModuleMigration;
+use giwa_core::urls;
+use giwa_core::{Code, Ctx, Error, Result, clock};
+use giwa_modules::service::settings_of;
+use giwa_modules::{
     ACCOUNT_BAR, ME_SECTIONS, Manifest, Module, ModuleState, SlotContent, SlotView, ToolDef,
     module_error, schema_of,
 };
-use maru_storage::Db;
+use giwa_storage::Db;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
@@ -254,7 +254,7 @@ impl MessageModule {
             Target::new("message", &id),
             json!({ "to": to.id, "chars": body.chars().count() }),
         );
-        maru_storage::sqlite::insert_audit(&mut tx, &audit).await?;
+        giwa_storage::sqlite::insert_audit(&mut tx, &audit).await?;
         tx.commit().await.map_err(Error::internal)?;
         Ok(id)
     }
@@ -379,7 +379,7 @@ impl MessageModule {
             .map_err(Error::internal)?;
             let audit =
                 AuditRecord::new(actor, "message.read", Target::new("message", id), json!({}));
-            maru_storage::sqlite::insert_audit(&mut tx, &audit).await?;
+            giwa_storage::sqlite::insert_audit(&mut tx, &audit).await?;
             tx.commit().await.map_err(Error::internal)?;
         }
         let other = if incoming {
@@ -443,7 +443,7 @@ impl MessageModule {
             Target::new("message", id),
             json!({}),
         );
-        maru_storage::sqlite::insert_audit(&mut tx, &audit).await?;
+        giwa_storage::sqlite::insert_audit(&mut tx, &audit).await?;
         tx.commit().await.map_err(Error::internal)
     }
 
@@ -502,7 +502,7 @@ impl MessageModule {
             Target::new("member", &other.id),
             json!({}),
         );
-        maru_storage::sqlite::insert_audit(&mut tx, &audit).await?;
+        giwa_storage::sqlite::insert_audit(&mut tx, &audit).await?;
         tx.commit().await.map_err(Error::internal)
     }
 
@@ -673,7 +673,7 @@ impl Module for MessageModule {
                 self.delete(actor, member, &input.id).await?;
                 Ok(json!({ "deleted": input.id }))
             }
-            other => Err(maru_modules::tool_not_found(MANIFEST.id, other)),
+            other => Err(giwa_modules::tool_not_found(MANIFEST.id, other)),
         }
     }
 

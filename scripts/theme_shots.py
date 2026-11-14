@@ -3,7 +3,7 @@
 프리셋마다 사이트를 만들고(`init` 이 예시 글과 그림을 넣는다, ADR-0142) 서버를 띄워 헤드리스
 크롬으로 첫 화면을 찍는다. 스킨은 같은 예시 사이트(회사 소개)에 스킨만 바꿔 입혀 찍는다.
 
-    python scripts/theme_shots.py --bin <maru.exe> --work <작업 폴더> [--port 3941] [--only shop,clinic]
+    python scripts/theme_shots.py --bin <giwa.exe> --work <작업 폴더> [--port 3941] [--only shop,clinic]
 
 결과: crates/themes/admin/static/shots/site-<프리셋>.webp, skin-<스킨>.webp
 프리셋이나 기본 테마 CSS 가 바뀌면 다시 돌려 커밋한다. 개발 도구라 Pillow 와 크롬(또는 엣지)이 필요하다.
@@ -34,7 +34,7 @@ BROWSERS = [
 ]
 
 
-def maru(bin_, data, *args):
+def giwa(bin_, data, *args):
     out = subprocess.run(
         [bin_, "--data", str(data), *args, "--json"],
         capture_output=True,
@@ -44,14 +44,14 @@ def maru(bin_, data, *args):
     try:
         res = json.loads(out.stdout)
     except json.JSONDecodeError:
-        sys.exit(f"maru {' '.join(args)}: {out.stdout} {out.stderr}")
+        sys.exit(f"giwa {' '.join(args)}: {out.stdout} {out.stderr}")
     if res.get("ok") is False:
-        sys.exit(f"maru {' '.join(args)}: {res}")
+        sys.exit(f"giwa {' '.join(args)}: {res}")
     return res.get("data", res)
 
 
 def seed(bin_, data, name):
-    maru(bin_, data, "site", "set", "--name", name)
+    giwa(bin_, data, "site", "set", "--name", name)
 
 
 def serve(bin_, data, port):
@@ -126,7 +126,7 @@ def main():
         shutil.rmtree(w, ignore_errors=True)
         w.mkdir(parents=True)
         data = w / "data"
-        maru(a.bin, data, "init", "--preset", pid, "--yes")
+        giwa(a.bin, data, "init", "--preset", pid, "--yes")
         seed(a.bin, data, preset_name(pid))
         proc = serve(a.bin, data, a.port)
         try:
@@ -140,25 +140,25 @@ def main():
     shutil.rmtree(w, ignore_errors=True)
     w.mkdir(parents=True)
     plain = w / "plain"
-    maru(a.bin, plain, "init", "--no-samples", "--yes")
-    base = maru(a.bin, plain, "theme", "tokens", "get")
+    giwa(a.bin, plain, "init", "--no-samples", "--yes")
+    base = giwa(a.bin, plain, "theme", "tokens", "get")
     default = w / "default.json"
     default.write_text(
         json.dumps({k: base[k] for k in ("color", "color_dark", "radius", "font") if k in base}),
         encoding="utf-8",
     )
     data = w / "data"
-    maru(a.bin, data, "init", "--preset", SKIN_DEMO, "--yes")
+    giwa(a.bin, data, "init", "--preset", SKIN_DEMO, "--yes")
     seed(a.bin, data, "회사 이름")
-    themes = [{"id": "default"}] + items(maru(a.bin, data, "theme", "list"))
+    themes = [{"id": "default"}] + items(giwa(a.bin, data, "theme", "list"))
     for t in themes:
         tid = t["id"]
         if only and tid not in only:
             continue
         if tid == "default":
-            maru(a.bin, data, "theme", "tokens", "set", "--from", str(default), "--yes")
+            giwa(a.bin, data, "theme", "tokens", "set", "--from", str(default), "--yes")
         else:
-            maru(a.bin, data, "theme", "apply", tid, "--yes")
+            giwa(a.bin, data, "theme", "apply", tid, "--yes")
         proc = serve(a.bin, data, a.port)
         try:
             shoot(browser, a.port, w, OUT / f"skin-{tid}.webp")

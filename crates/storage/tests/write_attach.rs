@@ -3,12 +3,12 @@
 
 use std::sync::Arc;
 
-use maru_core::actor::{Actor, Permission, rank};
-use maru_core::model::BoardPolicy;
-use maru_core::services::board_posts::{self, MEMBER_UPLOADS_PER_DAY};
-use maru_core::services::boards::{self, BoardPatch, NewBoard};
-use maru_core::{Code, Ctx};
-use maru_storage::{DataDir, Db, FsBlobs, SqliteStore};
+use giwa_core::actor::{Actor, Permission, rank};
+use giwa_core::model::BoardPolicy;
+use giwa_core::services::board_posts::{self, MEMBER_UPLOADS_PER_DAY};
+use giwa_core::services::boards::{self, BoardPatch, NewBoard};
+use giwa_core::{Code, Ctx};
+use giwa_storage::{DataDir, Db, FsBlobs, SqliteStore};
 
 struct Env {
     _tmp: tempfile::TempDir,
@@ -26,7 +26,7 @@ async fn env(upload: &str) -> Env {
         store: Arc::new(SqliteStore::new(db.clone())),
         blobs: Arc::new(FsBlobs::new(dir.media_dir())),
         site_url: "http://127.0.0.1:8080".into(),
-        extensions: maru_core::store::no_extensions(),
+        extensions: giwa_core::store::no_extensions(),
     };
     boards::create(
         &ctx,
@@ -108,8 +108,8 @@ async fn upload_follows_the_board_role_and_refuses_guests() {
     let agent = Actor::agent(
         "t".into(),
         &[
-            maru_core::actor::Scope::Read,
-            maru_core::actor::Scope::Draft,
+            giwa_core::actor::Scope::Read,
+            giwa_core::actor::Scope::Draft,
         ],
         None,
     );

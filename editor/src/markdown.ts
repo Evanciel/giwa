@@ -241,7 +241,7 @@ export const schema = new Schema({
     .addToEnd("font", spanMark("font", "ff")),
 });
 
-// 서식 편집기가 읽는 문법: CommonMark + 취소선 + Maru 확장. HTML 은 토큰으로 받아서 "다룰 수 없음" 으로 걸러낸다.
+// 서식 편집기가 읽는 문법: CommonMark + 취소선 + Giwa 확장. HTML 은 토큰으로 받아서 "다룰 수 없음" 으로 걸러낸다.
 const readMd = MarkdownIt("commonmark", { html: true })
   .enable(["strikethrough", "table"])
   .use(maruSyntax)

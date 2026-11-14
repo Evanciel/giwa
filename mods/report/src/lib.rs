@@ -13,21 +13,21 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
 use axum::{Extension, Router};
-use maru_core::actor::{Actor, Permission};
-use maru_core::audit::{AuditRecord, Target};
-use maru_core::fields::FieldDef;
-use maru_core::model::{AuditEvent, Board, CommentStatus, MemberStatus, PostStatus, Signal};
-use maru_core::services::comments::{self, Moderation};
-use maru_core::services::{auth, posts, settings};
-use maru_core::store::ModuleMigration;
-use maru_core::urls::{self, Target as UrlTarget};
-use maru_core::{Code, Ctx, Error, Result, clock};
-use maru_modules::service::settings_of;
-use maru_modules::{
+use giwa_core::actor::{Actor, Permission};
+use giwa_core::audit::{AuditRecord, Target};
+use giwa_core::fields::FieldDef;
+use giwa_core::model::{AuditEvent, Board, CommentStatus, MemberStatus, PostStatus, Signal};
+use giwa_core::services::comments::{self, Moderation};
+use giwa_core::services::{auth, posts, settings};
+use giwa_core::store::ModuleMigration;
+use giwa_core::urls::{self, Target as UrlTarget};
+use giwa_core::{Code, Ctx, Error, Result, clock};
+use giwa_modules::service::settings_of;
+use giwa_modules::{
     COMMENT_ACTIONS, Manifest, Module, ModuleState, POST_FOOTER, SlotContent, SlotView, ToolDef,
     module_error, schema_of,
 };
-use maru_storage::Db;
+use giwa_storage::Db;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
@@ -366,7 +366,7 @@ impl ReportModule {
                 Target::new(target_type, id),
                 json!({ "reason": reason }),
             );
-            maru_storage::sqlite::insert_audit(&mut tx, &audit).await?;
+            giwa_storage::sqlite::insert_audit(&mut tx, &audit).await?;
         }
         tx.commit().await.map_err(Error::internal)?;
         let hidden = added && self.auto_hide(ctx, &subject).await?;
@@ -442,7 +442,7 @@ impl ReportModule {
             Target::new(target_type, &s.id),
             json!({ "threshold": threshold }),
         );
-        maru_storage::sqlite::insert_audit(&mut tx, &audit).await?;
+        giwa_storage::sqlite::insert_audit(&mut tx, &audit).await?;
         tx.commit().await.map_err(Error::internal)?;
         Ok(true)
     }
@@ -561,7 +561,7 @@ impl ReportModule {
             Target::new(target_type, id),
             json!({ "count": n }),
         );
-        maru_storage::sqlite::insert_audit(&mut tx, &audit).await?;
+        giwa_storage::sqlite::insert_audit(&mut tx, &audit).await?;
         tx.commit().await.map_err(Error::internal)?;
         Ok(n)
     }
@@ -754,7 +754,7 @@ impl Module for ReportModule {
                     .await?;
                 Ok(json!({ "resolved": n }))
             }
-            other => Err(maru_modules::tool_not_found(MANIFEST.id, other)),
+            other => Err(giwa_modules::tool_not_found(MANIFEST.id, other)),
         }
     }
 

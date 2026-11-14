@@ -9,7 +9,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 const FORM: (&str, &str) = ("Content-Type", "application/x-www-form-urlencoded");
 
 struct Server(Child);
@@ -21,14 +21,14 @@ impl Drop for Server {
     }
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let out = Command::new(BIN)
         .arg("--data")
         .arg(data)
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     let v: Value =
         serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"));
@@ -164,8 +164,8 @@ fn sign_in(bind: &str, link_url: &str) -> String {
     let path = &rest[rest.find('/').unwrap()..];
     let page = http(bind, "GET", path, &[], "");
     assert_eq!(page.status, 200, "{}", page.body);
-    let csrf = page.cookie("maru_csrf").unwrap();
-    let cookie = format!("maru_csrf={csrf}");
+    let csrf = page.cookie("giwa_csrf").unwrap();
+    let cookie = format!("giwa_csrf={csrf}");
     let res = http(
         bind,
         "POST",
@@ -174,18 +174,18 @@ fn sign_in(bind: &str, link_url: &str) -> String {
         &format!("_csrf={csrf}"),
     );
     assert_eq!(res.status, 303, "{}", res.body);
-    res.cookie("maru_session").unwrap()
+    res.cookie("giwa_session").unwrap()
 }
 
 #[test]
 fn site_structure_members_settings_and_design_from_admin_screens() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    maru(
+    giwa(
         &data,
         &[
             "site",
@@ -198,10 +198,10 @@ fn site_structure_members_settings_and_design_from_admin_screens() {
             "false",
         ],
     );
-    let link = maru(&data, &["login-link"]);
+    let link = giwa(&data, &["login-link"]);
     let (_server, bind) = start_server(&data);
     let session = sign_in(&bind, link["url"].as_str().unwrap());
-    let cookie = format!("maru_session={session}");
+    let cookie = format!("giwa_session={session}");
     let get = |path: &str| {
         let r = http(&bind, "GET", path, &[("Cookie", &cookie)], "");
         assert_eq!(r.status, 200, "{path}: {}", r.body);
@@ -258,7 +258,7 @@ fn site_structure_members_settings_and_design_from_admin_screens() {
         .collect();
     let res = post("/admin/boards/market", &body);
     assert_eq!(res.status, 303, "{}", res.body);
-    let board = maru(&data, &["board", "show", "market"]);
+    let board = giwa(&data, &["board", "show", "market"]);
     assert_eq!(board["policy"]["write"], "editor", "{board}");
     assert_eq!(board["policy"]["comment"], "none");
     assert_eq!(board["layout"], "card");
@@ -272,7 +272,7 @@ fn site_structure_members_settings_and_design_from_admin_screens() {
     let res = post("/admin/boards/market/delete", &[]);
     assert_eq!(res.status, 303);
     assert!(
-        !maru(&data, &["board", "list"])
+        !giwa(&data, &["board", "list"])
             .as_array()
             .unwrap()
             .iter()
@@ -299,7 +299,7 @@ fn site_structure_members_settings_and_design_from_admin_screens() {
     assert_eq!(res.location(), "/admin/pages/terms?done=saved");
     let res = post("/admin/pages/terms/publish", &[]);
     assert_eq!(res.status, 303);
-    let page = maru(&data, &["page", "show", "terms"]);
+    let page = giwa(&data, &["page", "show", "terms"]);
     assert_eq!(page["status"], "published");
     assert_eq!(page["sort_order"], 5);
     let public = http(&bind, "GET", "/p/terms", &[], "");
@@ -316,7 +316,7 @@ fn site_structure_members_settings_and_design_from_admin_screens() {
     assert_eq!(res.status, 422);
 
     // ---- 메뉴: 첫 화면 / 블로그 / 그 아래 약관
-    let blog = maru(&data, &["board", "list"])[0]["slug"]
+    let blog = giwa(&data, &["board", "list"])[0]["slug"]
         .as_str()
         .unwrap()
         .to_owned();
@@ -343,7 +343,7 @@ fn site_structure_members_settings_and_design_from_admin_screens() {
         ],
     );
     assert_eq!(res.status, 303, "{}", res.body);
-    let menu = maru(&data, &["menu", "show", "header"]);
+    let menu = giwa(&data, &["menu", "show", "header"]);
     assert_eq!(menu.as_array().unwrap().len(), 2, "{menu}");
     assert_eq!(menu[1]["children"][0]["link"]["slug"], "terms");
     let res = post(
@@ -358,7 +358,7 @@ fn site_structure_members_settings_and_design_from_admin_screens() {
     assert_eq!(res.status, 422);
     assert!(res.body.contains("고아"), "보낸 줄을 다시 보인다");
     assert_eq!(
-        maru(&data, &["menu", "show", "header"])
+        giwa(&data, &["menu", "show", "header"])
             .as_array()
             .unwrap()
             .len(),
@@ -369,12 +369,12 @@ fn site_structure_members_settings_and_design_from_admin_screens() {
 
     // ---- 회원: 가입한 사람을 편집자로 → 사용 멈춤 → 다시
     let page = http(&bind, "GET", "/signup", &[], "");
-    let pre = page.cookie("maru_csrf").unwrap();
+    let pre = page.cookie("giwa_csrf").unwrap();
     let res = http(
         &bind,
         "POST",
         "/signup",
-        &[FORM, ("Cookie", &format!("maru_csrf={pre}"))],
+        &[FORM, ("Cookie", &format!("giwa_csrf={pre}"))],
         &form(&[
             ("_csrf", &pre),
             ("email", "seed@example.test"),
@@ -384,7 +384,7 @@ fn site_structure_members_settings_and_design_from_admin_screens() {
         ]),
     );
     assert!(res.status == 303 || res.status == 200, "{}", res.body);
-    let member = maru(&data, &["member", "show", "seed@example.test"]);
+    let member = giwa(&data, &["member", "show", "seed@example.test"]);
     let id = member["id"].as_str().unwrap().to_owned();
     let list = get("/admin/members");
     assert!(list.body.contains("seed@example.test"));
@@ -394,15 +394,15 @@ fn site_structure_members_settings_and_design_from_admin_screens() {
     );
     assert_eq!(res.status, 303, "{}", res.body);
     assert_eq!(
-        maru(&data, &["member", "show", &id])["roles"],
+        giwa(&data, &["member", "show", &id])["roles"],
         serde_json::json!(["editor"])
     );
     let res = post(&format!("/admin/members/{id}/disable"), &[("page", "1")]);
     assert_eq!(res.status, 303);
-    assert_eq!(maru(&data, &["member", "show", &id])["status"], "disabled");
+    assert_eq!(giwa(&data, &["member", "show", &id])["status"], "disabled");
     let res = post(&format!("/admin/members/{id}/enable"), &[]);
     assert_eq!(res.status, 303);
-    assert_eq!(maru(&data, &["member", "show", &id])["status"], "active");
+    assert_eq!(giwa(&data, &["member", "show", &id])["status"], "active");
 
     // ---- 설정: 언어·시간대는 고르기 목록이다 (ADR-0137)
     let page = get("/admin/settings").body;
@@ -426,7 +426,7 @@ fn site_structure_members_settings_and_design_from_admin_screens() {
         .collect();
     let res = post("/admin/settings", &body);
     assert_eq!(res.status, 303, "{}", res.body);
-    let site = maru(&data, &["site", "show"]);
+    let site = giwa(&data, &["site", "show"]);
     assert_eq!(site["name"], "새 이름 사이트");
     assert_eq!(site["posts_per_page"], 7);
     assert_eq!(site["show_views"], true);
@@ -447,7 +447,7 @@ fn site_structure_members_settings_and_design_from_admin_screens() {
     let res = post("/admin/design", &body);
     assert_eq!(res.status, 303, "{}", res.body);
     assert_eq!(
-        maru(&data, &["design", "show"])["color"]["primary"],
+        giwa(&data, &["design", "show"])["color"]["primary"],
         "#123456"
     );
     let bg = values
@@ -467,21 +467,21 @@ fn site_structure_members_settings_and_design_from_admin_screens() {
     let res = post("/admin/design/reset", &[]);
     assert_eq!(res.status, 303);
     assert_ne!(
-        maru(&data, &["design", "show"])["color"]["primary"],
+        giwa(&data, &["design", "show"])["color"]["primary"],
         "#123456"
     );
-    let audit = maru(&data, &["audit", "list", "--action", "design."]);
+    let audit = giwa(&data, &["audit", "list", "--action", "design."]);
     assert!(audit["total"].as_i64().unwrap() >= 2, "{audit}");
 
     // ---- 테마 카드: 입히면 바로 바뀌고, 다른 테마로 바꾸면 앞 테마의 바탕색이 남지 않는다
     let res = post("/admin/design/theme", &[("theme", "cafe")]);
     assert_eq!(res.status, 303, "{}", res.body);
-    assert_eq!(maru(&data, &["design", "show"])["color"]["bg"], "#fbf8f2");
+    assert_eq!(giwa(&data, &["design", "show"])["color"]["bg"], "#fbf8f2");
     let page = get("/admin/design").body;
     assert!(page.contains("지금 스킨") && page.contains("이 스킨 입히기"));
     let res = post("/admin/design/theme", &[("theme", "community")]);
     assert_eq!(res.status, 303, "{}", res.body);
-    let tokens = maru(&data, &["design", "show"]);
+    let tokens = giwa(&data, &["design", "show"]);
     assert_eq!(tokens["color"]["primary"], "#2754c5");
     assert_eq!(tokens["color"]["bg"], "#fbfbfa", "{tokens}");
     assert_eq!(
@@ -539,7 +539,7 @@ fn site_structure_members_settings_and_design_from_admin_screens() {
         ],
     );
     assert_eq!(res.status, 303, "{}", res.body);
-    let list = maru(&data, &["widget", "list"]);
+    let list = giwa(&data, &["widget", "list"]);
     let items = list
         .as_array()
         .or(list["items"].as_array())
@@ -559,7 +559,7 @@ fn site_structure_members_settings_and_design_from_admin_screens() {
         ],
     );
     assert_eq!(res.status, 303, "{}", res.body);
-    let list = maru(&data, &["widget", "list"]);
+    let list = giwa(&data, &["widget", "list"]);
     let items = list
         .as_array()
         .or(list["items"].as_array())

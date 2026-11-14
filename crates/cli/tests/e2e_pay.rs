@@ -13,10 +13,10 @@ use std::thread;
 
 use serde_json::{Value, json};
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 const FORM: (&str, &str) = ("Content-Type", "application/x-www-form-urlencoded");
 const SAME: (&str, &str) = ("Sec-Fetch-Site", "same-origin");
-const API_ENV: &str = "MARU_PAY_TOSS_API";
+const API_ENV: &str = "GIWA_PAY_TOSS_API";
 const CLIENT_KEY: &str = "test_gck_e2eclient";
 const SECRET_KEY: &str = "test_gsk_e2esecret9876";
 
@@ -37,12 +37,12 @@ fn run(data: &Path, api: &str, args: &[&str]) -> Value {
         .arg("--json")
         .env(API_ENV, api)
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, api: &str, args: &[&str]) -> Value {
+fn giwa(data: &Path, api: &str, args: &[&str]) -> Value {
     let v = run(data, api, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -320,13 +320,13 @@ fn respond(
     (404, json!({ "code": "NOT_FOUND", "message": "없음" }))
 }
 
-fn db<T>(data: &Path, f: impl AsyncFnOnce(&maru_storage::Db) -> T) -> T {
+fn db<T>(data: &Path, f: impl AsyncFnOnce(&giwa_storage::Db) -> T) -> T {
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .unwrap();
     rt.block_on(async {
-        let db = maru_storage::Db::open(&data.join("maru.db"), false)
+        let db = giwa_storage::Db::open(&data.join("giwa.db"), false)
             .await
             .unwrap();
         let v = f(&db).await;
@@ -361,7 +361,7 @@ fn link(v: &Value) -> (String, String) {
 }
 
 fn order(data: &Path, api: &str, id: &str) -> Value {
-    maru(data, api, &["pay", "order", "--id", id])
+    giwa(data, api, &["pay", "order", "--id", id])
 }
 
 fn open_toss(bind: &str, id: &str, k: &str) -> Res {
@@ -403,12 +403,12 @@ fn pay_link_toss_bank_refund_webhook_expiry() {
     let toss = Toss::start();
     let api = toss.api.clone();
     let data = data.as_path();
-    maru(
+    giwa(
         data,
         &api,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    maru(data, &api, &["module", "enable", "pay"]);
+    giwa(data, &api, &["module", "enable", "pay"]);
 
     // 결제 방법이 없으면 결제 요청을 만들지 않고 다음 명령을 알려 준다.
     let none = run(
@@ -448,7 +448,7 @@ fn pay_link_toss_bank_refund_webhook_expiry() {
         );
         assert_eq!(v["ok"], false, "{c}/{s} → {v}");
     }
-    let set = maru(
+    let set = giwa(
         data,
         &api,
         &[
@@ -471,7 +471,7 @@ fn pay_link_toss_bank_refund_webhook_expiry() {
             .unwrap()
             .ends_with("/m/pay/webhook/toss")
     );
-    let listed = maru(data, &api, &["pay", "provider_list"]);
+    let listed = giwa(data, &api, &["pay", "provider_list"]);
     assert!(!listed.to_string().contains(SECRET_KEY), "{listed}");
     let leaked = db(data, async |db| {
         sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM audit_log WHERE diff LIKE '%e2esecret%'")
@@ -495,7 +495,7 @@ fn pay_link_toss_bank_refund_webhook_expiry() {
         ],
     );
     assert_eq!(v["ok"], false, "{v}");
-    maru(
+    giwa(
         data,
         &api,
         &[
@@ -517,7 +517,7 @@ fn pay_link_toss_bank_refund_webhook_expiry() {
     let (_server, bind) = start_server(data, &api);
 
     // 1. 결제 요청 링크 → 주문 화면. 1회용 값이 틀리면 없는 주문처럼 보인다.
-    let created = maru(
+    let created = giwa(
         data,
         &api,
         &[
@@ -640,7 +640,7 @@ fn pay_link_toss_bank_refund_webhook_expiry() {
     assert_eq!(webhook(&bind, &json!("이상한 본문")).status, 200);
 
     // 6. 에이전트는 환불하지 못한다(사람만).
-    let token = maru(
+    let token = giwa(
         data,
         &api,
         &[
@@ -677,7 +677,7 @@ fn pay_link_toss_bank_refund_webhook_expiry() {
     );
 
     // 7. 부분 환불 → 나머지 전액 환불. 멱등 키는 환불마다 다르고, 전액이면 cancelAmount 를 싣지 않는다.
-    let part = maru(
+    let part = giwa(
         data,
         &api,
         &[
@@ -696,7 +696,7 @@ fn pay_link_toss_bank_refund_webhook_expiry() {
     assert_eq!(c1.body["cancelAmount"], 10000);
     assert_eq!(c1.body["cancelReason"], "일부 취소");
     assert_eq!(c1.idem, part["refund_id"].as_str().unwrap());
-    let rest = maru(
+    let rest = giwa(
         data,
         &api,
         &["pay", "refund", "--order", &id, "--reason", "나머지 취소"],
@@ -723,7 +723,7 @@ fn pay_link_toss_bank_refund_webhook_expiry() {
     assert_eq!(order(data, &api, &id)["order"]["status"], "refunded");
 
     // 8. 무통장 입금: 입금자 이름 → 입금 대기·계좌 안내 → 운영자가 입금 확인.
-    let b = maru(
+    let b = giwa(
         data,
         &api,
         &[
@@ -759,15 +759,15 @@ fn pay_link_toss_bank_refund_webhook_expiry() {
         order(data, &api, &bid)["order"]["status"],
         "awaiting_deposit"
     );
-    let signals = maru(data, &api, &["signals"]);
+    let signals = giwa(data, &api, &["signals"]);
     assert!(signals.to_string().contains("pay_deposit"), "{signals}");
-    let marked = maru(data, &api, &["pay", "mark_paid", "--id", &bid]);
+    let marked = giwa(data, &api, &["pay", "mark_paid", "--id", &bid]);
     assert_eq!(marked["changed"], true);
     assert_eq!(
-        maru(data, &api, &["pay", "mark_paid", "--id", &bid])["changed"],
+        giwa(data, &api, &["pay", "mark_paid", "--id", &bid])["changed"],
         false
     );
-    let bank_refund = maru(
+    let bank_refund = giwa(
         data,
         &api,
         &["pay", "refund", "--order", &bid, "--reason", "환불"],
@@ -780,7 +780,7 @@ fn pay_link_toss_bank_refund_webhook_expiry() {
     );
 
     // 9. 가상계좌: 승인하면 입금 대기, secret 이 틀린 입금 알림은 무시, 맞으면 조회로 확인해 결제 완료.
-    let v = maru(
+    let v = giwa(
         data,
         &api,
         &[
@@ -818,7 +818,7 @@ fn pay_link_toss_bank_refund_webhook_expiry() {
     assert_eq!(order(data, &api, &vid)["order"]["status"], "paid");
 
     // 10. 결제사가 승인을 거절하면 주문은 결제 대기 그대로, 까닭을 보여 주고 다시 결제할 수 있다.
-    let r = maru(
+    let r = giwa(
         data,
         &api,
         &["pay", "order_create", "--name", "거절", "--amount", "9000"],
@@ -847,7 +847,7 @@ fn pay_link_toss_bank_refund_webhook_expiry() {
     assert!(failed.body.contains("&lt;b&gt;실패"), "{}", failed.body);
 
     // 11. 기간이 지나면 끝나고 결제할 수 없다.
-    let e = maru(
+    let e = giwa(
         data,
         &api,
         &[
@@ -869,7 +869,7 @@ fn pay_link_toss_bank_refund_webhook_expiry() {
 
     // 12. 5년이 지난 주문의 구매자 정보는 지운다(결제 기록은 남는다).
     backdate(data, &id, true);
-    maru(data, &api, &["privacy", "run"]);
+    giwa(data, &api, &["privacy", "run"]);
     let o = order(data, &api, &id);
     assert_eq!(o["buyer"]["email"], "");
     assert_eq!(o["order"]["amount"], 30000);

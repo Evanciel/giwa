@@ -1,8 +1,8 @@
 //! 주문 편지 (ADR-0170). 상태를 바꾸는 트랜잭션 안에서 쌓는다: 상태가 한 번 바뀌면 편지도 한 번이다.
 //! 결제 완료 편지는 결제 모듈도 따로 보낸다(영수증). 이 편지는 상품·배송지·배송 상태를 알린다.
 
-use maru_core::model::{BusinessInfo, MailOut, MailStatus, SiteSettings};
-use maru_core::{Ctx, Result, clock};
+use giwa_core::model::{BusinessInfo, MailOut, MailStatus, SiteSettings};
+use giwa_core::{Ctx, Result, clock};
 
 use super::{HOME, ItemRow, OrderRow, ShopModule, Tx, won};
 
@@ -134,7 +134,7 @@ impl ShopModule {
             created_at: clock::now(),
             sent_at: None,
         };
-        maru_storage::mail::queue(tx, &out).await?;
+        giwa_storage::mail::queue(tx, &out).await?;
         Ok(())
     }
 }

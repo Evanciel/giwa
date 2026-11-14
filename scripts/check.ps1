@@ -1,4 +1,4 @@
-﻿# Maru 품질 게이트. pre-commit 과 CI 가 같은 스크립트를 부른다.
+﻿# Giwa 품질 게이트. pre-commit 과 CI 가 같은 스크립트를 부른다.
 # 사용: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1 [-Quick]
 #   -Quick : 테스트를 건너뛴다 (fmt, clippy, 의존 방향만)
 # 이 파일은 UTF-8 BOM + CRLF 로 저장한다 (PowerShell 5.1 이 한글을 깨뜨리지 않도록).
@@ -36,12 +36,12 @@ Step "clippy" { cargo clippy --workspace --all-targets --quiet -- -D warnings }
 
 # 의존 방향 (docs/PHASE1_PLAN.md 4.1). 왼쪽 크레이트의 정상 의존 트리에 오른쪽 크레이트가 있으면 실패.
 $forbidden = [ordered]@{
-    "maru-core"    = @("sqlx", "axum", "minijinja", "tokio", "maru-storage", "maru-web", "maru-themes")
-    "maru-storage" = @("axum", "minijinja", "maru-web", "maru-themes")
-    "maru-themes"  = @("sqlx", "axum", "maru-storage", "maru-web")
-    "maru-web"     = @("sqlx", "maru-storage", "maru-mod-point", "maru-mod-reaction", "maru-mod-scrap", "maru-mod-notify", "maru-mod-message", "maru-mod-poll", "maru-mod-report", "maru-mod-webhook")
-    "maru-modules" = @("sqlx", "maru-storage", "maru-web", "maru-themes")
-    "maru-agent"   = @("sqlx", "maru-storage", "maru-web")
+    "giwa-core"    = @("sqlx", "axum", "minijinja", "tokio", "giwa-storage", "giwa-web", "giwa-themes")
+    "giwa-storage" = @("axum", "minijinja", "giwa-web", "giwa-themes")
+    "giwa-themes"  = @("sqlx", "axum", "giwa-storage", "giwa-web")
+    "giwa-web"     = @("sqlx", "giwa-storage", "giwa-mod-point", "giwa-mod-reaction", "giwa-mod-scrap", "giwa-mod-notify", "giwa-mod-message", "giwa-mod-poll", "giwa-mod-report", "giwa-mod-webhook")
+    "giwa-modules" = @("sqlx", "giwa-storage", "giwa-web", "giwa-themes")
+    "giwa-agent"   = @("sqlx", "giwa-storage", "giwa-web")
 }
 Write-Host "[check] deps" -ForegroundColor Cyan
 foreach ($crate in $forbidden.Keys) {

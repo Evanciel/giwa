@@ -1,4 +1,4 @@
-//! `maru` 바이너리.
+//! `giwa` 바이너리.
 
 mod commands;
 mod doctor;
@@ -13,15 +13,15 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::{Args, Parser, Subcommand};
-use maru_core::{Code, Error};
+use giwa_core::{Code, Error};
 
 /// 에이전트가 설치하고 운영하는 한국형 CMS.
 #[derive(Debug, Parser)]
-#[command(name = "maru", version, about)]
+#[command(name = "giwa", version, about)]
 struct Cli {
-    /// 데이터 디렉터리
-    #[arg(long, global = true, env = "MARU_DATA", default_value = "./maru-data")]
-    data: PathBuf,
+    /// 데이터 디렉터리 [기본: ./giwa-data, 이름을 바꾸기 전의 ./maru-data 만 있으면 그것]
+    #[arg(long, global = true, env = "GIWA_DATA")]
+    data: Option<PathBuf>,
     /// 결과를 SPEC §10.1 JSON 형식으로 출력
     #[arg(long, global = true)]
     json: bool,
@@ -93,7 +93,7 @@ enum Command {
     /// 모듈 (켜기·끄기·제거·설정·실패 보관함)
     #[command(subcommand)]
     Module(ModuleCmd),
-    /// 모듈 툴: `maru <모듈> <툴> --칸 값`
+    /// 모듈 툴: `giwa <모듈> <툴> --칸 값`
     #[command(external_subcommand)]
     External(Vec<String>),
     /// 백업 파일 만들기·목록 (DB·media·themes·config 를 .tar.gz 하나로)
@@ -111,7 +111,7 @@ enum Command {
     Font(FontCmd),
     /// 내장 스티커 목록. 글에는 `![이름](src)`, 댓글에는 `:id:` 로 넣는다
     Stickers,
-    /// 사이트 검색 (공개 화면 `/search` 와 같은 결과). `maru search reindex` 는 색인 다시 만들기
+    /// 사이트 검색 (공개 화면 `/search` 와 같은 결과). `giwa search reindex` 는 색인 다시 만들기
     Search(SearchArgs),
     /// 회원 목록·상태·역할 (회원 관리 권한)
     #[command(subcommand)]
@@ -136,7 +136,7 @@ enum Command {
     /// 구조·디자인·모듈 변경을 묶어 적용하고 한 번에 되돌린다
     #[command(subcommand)]
     Changeset(ChangesetCmd),
-    /// 운영 신호: 댓글 급증·신고 집중·묵은 신고. `maru signals alert` 는 새 신호를 지금 메일로
+    /// 운영 신호: 댓글 급증·신고 집중·묵은 신고. `giwa signals alert` 는 새 신호를 지금 메일로
     Signals(SignalsArgs),
     /// 사이트 종류가 넣은 예시 글: 상태 보기·한 번에 지우기
     #[command(subcommand)]
@@ -367,7 +367,7 @@ pub struct MailSetupArgs {
     #[arg(long)]
     pub user: Option<String>,
     /// 표준 입력 첫 줄을 SMTP 비밀번호로 `secrets/smtp-password` 에 둔다(백업에 들어가지 않음).
-    /// 환경 변수 MARU_SMTP_PASSWORD 가 있으면 그것이 먼저다
+    /// 환경 변수 GIWA_SMTP_PASSWORD 가 있으면 그것이 먼저다
     #[arg(long)]
     pub password_stdin: bool,
     /// 보낸 사람 주소. 없으면 noreply@<site_url 호스트>
@@ -455,13 +455,13 @@ pub enum PostCmd {
     /// 리비전과 지금 글을 줄 단위로 비교한다 (바꾸는 것 없음)
     Diff {
         id: String,
-        /// 리비전 id (`maru post revisions <글>`)
+        /// 리비전 id (`giwa post revisions <글>`)
         revision: String,
     },
     /// 그 리비전의 제목·본문으로 되돌린다 (새 리비전이 하나 더 쌓인다)
     Revert {
         id: String,
-        /// 리비전 id (`maru post revisions <글>`)
+        /// 리비전 id (`giwa post revisions <글>`)
         revision: String,
     },
     /// 글을 다른 게시판으로 옮긴다. 댓글·조회수는 따라간다
@@ -484,7 +484,7 @@ pub enum PostCmd {
     /// 댓글을 답변으로 채택한다 (qna·forum 게시판). `--clear` 로 채택을 뺀다
     Accept {
         id: String,
-        /// 채택할 댓글 id (`maru comment list --post <글>`)
+        /// 채택할 댓글 id (`giwa comment list --post <글>`)
         #[arg(long, conflicts_with = "clear", required_unless_present = "clear")]
         comment: Option<String>,
         #[arg(long)]
@@ -580,10 +580,10 @@ pub struct PostEditArgs {
     #[arg(long)]
     pub cover: Option<String>,
     /// 예약 발행 시각. RFC3339(`2026-11-05T09:00:00+09:00`) 또는 사이트 시간대 `2026-11-05T09:00`.
-    /// 빈 문자열이면 예약을 취소한다. `maru serve` 가 돌고 있어야 그 시각에 발행된다
+    /// 빈 문자열이면 예약을 취소한다. `giwa serve` 가 돌고 있어야 그 시각에 발행된다
     #[arg(long)]
     pub schedule: Option<String>,
-    /// 분류 슬러그 (`maru category list --board <게시판>`). 빈 문자열이면 분류를 뺀다
+    /// 분류 슬러그 (`giwa category list --board <게시판>`). 빈 문자열이면 분류를 뺀다
     #[arg(long)]
     pub category: Option<String>,
     /// 태그를 이것들로 바꾼다 (여러 번 쓸 수 있다)
@@ -598,7 +598,7 @@ pub struct PostEditArgs {
     /// 비밀글 (true/false). 본문은 작성자와 관리자만 읽는다
     #[arg(long)]
     pub secret: Option<bool>,
-    /// 여분 칸 값 `키=값` (여러 번. `maru board show <게시판>` 의 칸 정의를 따른다. 값을 비우면 지운다)
+    /// 여분 칸 값 `키=값` (여러 번. `giwa board show <게시판>` 의 칸 정의를 따른다. 값을 비우면 지운다)
     #[arg(long = "field", value_name = "KEY=VALUE")]
     pub fields: Vec<String>,
 }
@@ -633,7 +633,7 @@ pub struct PostNewArgs {
     /// 같은 슬러그의 글이 있으면 만들지 않고 그 글을 돌려준다 (`--slug` 필요)
     #[arg(long, requires = "slug")]
     pub if_not_exists: bool,
-    /// 분류 슬러그 (`maru category list --board <게시판>`)
+    /// 분류 슬러그 (`giwa category list --board <게시판>`)
     #[arg(long)]
     pub category: Option<String>,
     /// 태그 (여러 번 쓸 수 있다: `--tag 제주 --tag 여행`)
@@ -645,7 +645,7 @@ pub struct PostNewArgs {
     /// 비밀글: 목록에는 제목만, 본문은 작성자와 관리자만
     #[arg(long)]
     pub secret: bool,
-    /// 여분 칸 값 `키=값` (여러 번. `maru board show <게시판>` 의 칸 정의를 따른다. 값을 비우면 지운다)
+    /// 여분 칸 값 `키=값` (여러 번. `giwa board show <게시판>` 의 칸 정의를 따른다. 값을 비우면 지운다)
     #[arg(long = "field", value_name = "KEY=VALUE")]
     pub fields: Vec<String>,
 }
@@ -923,7 +923,7 @@ pub enum TokenCmd {
     List,
     /// 토큰을 폐기한다. 이미 폐기됐으면 그대로 성공한다
     Revoke {
-        /// 토큰 id (`maru token list`)
+        /// 토큰 id (`giwa token list`)
         id: String,
     },
 }
@@ -943,7 +943,7 @@ pub struct ExposeArgs {
     #[arg(long, requires = "cloudflare")]
     pub hostname: Option<String>,
     /// --hostname 에 쓸 터널 이름
-    #[arg(long, default_value = "maru")]
+    #[arg(long, default_value = "giwa")]
     pub tunnel: String,
     /// 터널을 보낼 서버 주소 (생략하면 설정의 bind)
     #[arg(long)]
@@ -988,7 +988,7 @@ pub enum McpCmd {
 
 #[derive(Debug, Args)]
 pub struct McpServeArgs {
-    /// 토큰 원문이 든 파일 (`mcp install` 이 만든다). 없으면 환경 변수 MARU_TOKEN
+    /// 토큰 원문이 든 파일 (`mcp install` 이 만든다). 없으면 환경 변수 GIWA_TOKEN
     #[arg(long)]
     pub token_file: Option<PathBuf>,
 }
@@ -1246,7 +1246,7 @@ pub struct SavedBlockArgs {
     /// 보관함에 보일 이름 (40자)
     #[arg(long)]
     pub name: String,
-    /// 블록 종류 (`maru widget types`)
+    /// 블록 종류 (`giwa widget types`)
     pub kind: String,
     /// 놓을 자리
     #[arg(long, default_value = "main")]
@@ -1441,7 +1441,7 @@ pub struct SiteSetArgs {
 
 #[derive(Debug, Args)]
 pub struct UpdateArgs {
-    /// 릴리스 주소. 비우면 환경 변수 MARU_BASE_URL, 그다음 공식 릴리스
+    /// 릴리스 주소. 비우면 환경 변수 GIWA_BASE_URL, 그다음 공식 릴리스
     #[arg(long)]
     pub base_url: Option<String>,
     /// 새 판이 있으면 받아서 바꾼다
@@ -1468,7 +1468,7 @@ pub enum ThemeCmd {
     List,
     /// 테마의 색과 모양을 사이트에 입힌다. 글과 구조는 그대로다
     Apply { id: String },
-    /// 디자인 토큰. `maru design` 과 같다
+    /// 디자인 토큰. `giwa design` 과 같다
     #[command(subcommand)]
     Tokens(ThemeTokensCmd),
 }
@@ -1499,7 +1499,7 @@ pub enum DesignCmd {
     Reset,
     /// 디자인 모음: 프리셋의 첫 화면 블록과 색·모양. id 를 주면 그 디자인의 블록·토큰 (ADR-0158)
     Gallery {
-        /// `maru design gallery` 목록의 id
+        /// `giwa design gallery` 목록의 id
         id: Option<String>,
     },
 }
@@ -1586,6 +1586,21 @@ pub struct Global {
     pub quiet: bool,
 }
 
+/// `--data`·`GIWA_DATA` 가 없을 때 (ADR-0173). 예전 `MARU_DATA`, 그다음 `./giwa-data`.
+/// `./giwa-data` 가 없고 예전 기본 폴더 `./maru-data` 만 있으면 그것을 쓴다.
+fn default_data() -> PathBuf {
+    if let Some(d) = std::env::var_os("MARU_DATA").filter(|d| !d.is_empty()) {
+        return PathBuf::from(d);
+    }
+    let new = PathBuf::from("./giwa-data");
+    let old = PathBuf::from("./maru-data");
+    if !new.exists() && old.is_dir() {
+        old
+    } else {
+        new
+    }
+}
+
 fn main() -> ExitCode {
     // 로그는 stderr 로만 보낸다. stdout 은 --json 출력 계약 전용이다.
     tracing_subscriber::fmt()
@@ -1604,7 +1619,7 @@ fn main() -> ExitCode {
     };
     // 모든 명령은 비대화형이다. 확인이 필요한 명령은 묻지 않고 `--yes` 가 없으면 다음 명령을 안내한다.
     // 모듈 툴 명령은 clap 이 뒤쪽 인자를 읽지 않으므로 공통 칸(--data·--json·--yes·--quiet)을 여기서 살린다.
-    let mut data = cli.data;
+    let mut data = cli.data.unwrap_or_else(default_data);
     let (mut yes, mut quiet) = (cli.yes, cli.quiet);
     let external = matches!(cli.command, Some(Command::External(_)));
     if let Some(Command::External(args)) = &mut cli.command {
@@ -1626,7 +1641,7 @@ fn main() -> ExitCode {
         return output::error(
             &Error::new(Code::Usage)
                 .with_hint("hint.usage")
-                .next("maru --help"),
+                .next("giwa --help"),
             g.json,
         );
     };

@@ -1,7 +1,7 @@
 //! 공개 프로필 (GAP Q2, ADR-0087): 자기소개 `member_profiles` 와 회원의 공개 글.
 //! 「공개」 기준은 게시판 목록과 같다: 발행된 글, 비밀글 아님, 게시판 read 서열 이하.
 
-use maru_core::Result;
+use giwa_core::Result;
 use sqlx::SqliteExecutor;
 
 use crate::sqlite::db_error;

@@ -9,7 +9,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 const FORM: (&str, &str) = ("Content-Type", "application/x-www-form-urlencoded");
 const SAME: (&str, &str) = ("Sec-Fetch-Site", "same-origin");
 const PASSWORD: &str = "test-pass-1234";
@@ -30,14 +30,14 @@ impl Drop for Server {
     }
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let out = Command::new(BIN)
         .arg("--data")
         .arg(data)
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     let v: Value =
         serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"));
@@ -143,8 +143,8 @@ fn form(pairs: &[(&str, &str)]) -> String {
 
 fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
     let page = http(bind, "GET", "/signup", &[], "");
-    let pre = page.cookie("maru_csrf").unwrap();
-    let cookie = format!("maru_csrf={pre}");
+    let pre = page.cookie("giwa_csrf").unwrap();
+    let cookie = format!("giwa_csrf={pre}");
     let res = http(
         bind,
         "POST",
@@ -158,8 +158,8 @@ fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
             ("password2", PASSWORD),
         ]),
     );
-    if let Some(s) = res.cookie("maru_session") {
-        return format!("maru_session={s}");
+    if let Some(s) = res.cookie("giwa_session") {
+        return format!("giwa_session={s}");
     }
     let login = http(bind, "GET", "/login", &[("Cookie", &cookie)], "");
     let res = http(
@@ -175,9 +175,9 @@ fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
         ]),
     );
     let session = res
-        .cookie("maru_session")
+        .cookie("giwa_session")
         .unwrap_or_else(|| panic!("로그인 실패 {}: {}", res.status, res.body));
-    format!("maru_session={session}")
+    format!("giwa_session={session}")
 }
 
 fn upload(bind: &str, board: &str, name: &str, bytes: &[u8], cookie: Option<&str>) -> Res {
@@ -225,11 +225,11 @@ fn comment_id(location: &str) -> String {
 fn member_attaches_an_image_to_a_comment() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    maru(
+    giwa(
         &data,
         &[
             "site",
@@ -244,13 +244,13 @@ fn member_attaches_an_image_to_a_comment() {
             "0",
         ],
     );
-    maru(
+    giwa(
         &data,
         &[
             "board", "create", "free", "--name", "자유", "--kind", "free",
         ],
     );
-    maru(
+    giwa(
         &data,
         &["board", "update", "free", "--write-approval", "off"],
     );
@@ -286,7 +286,7 @@ fn member_attaches_an_image_to_a_comment() {
     drop(server);
 
     // 게시판을 열면 칸이 나오고, 회원만 된다.
-    maru(&data, &["board", "update", "free", "--upload", "member"]);
+    giwa(&data, &["board", "update", "free", "--upload", "member"]);
     let (server, bind) = start_server(&data);
     let post = http(&bind, "GET", &url, &[], "");
     assert!(post.body.contains("data-comment-image"), "{}", post.body);
@@ -343,7 +343,7 @@ fn member_attaches_an_image_to_a_comment() {
     assert!(shown.contains("달 사진입니다"), "{shown}");
 
     // 관리 경로(CLI)의 JSON 에도 주소가 나온다.
-    let listed = maru(&data, &["comment", "list", "--status", "published"]);
+    let listed = giwa(&data, &["comment", "list", "--status", "published"]);
     assert_eq!(listed["items"][0]["image"], image.as_str());
 
     // 쓰기 요청 제한(분당 10회)이 메모리에 있어 서버를 다시 띄운다. 세션은 DB 에 남는다.
@@ -400,12 +400,12 @@ fn member_attaches_an_image_to_a_comment() {
     assert_eq!(res.status, 303, "{}", res.body);
 
     // 역할을 닫아도 있던 그림은 그대로 두거나 뺄 수 있다. 새로 붙이지는 못한다.
-    maru(&data, &["board", "update", "free", "--upload", "none"]);
+    giwa(&data, &["board", "update", "free", "--upload", "none"]);
     let second = say(&bind, &url, &member, "새 그림", &image);
     assert_eq!(second.status, 403, "{}", second.body);
     let res = send_edit(&[("_csrf", &csrf), ("body", "또"), ("image", &image)]);
     assert_eq!(res.status, 303, "{}", res.body);
-    maru(&data, &["board", "update", "free", "--upload", "member"]);
+    giwa(&data, &["board", "update", "free", "--upload", "member"]);
 
     // 지우면 그림도 사라진다.
     let res = http(
@@ -418,10 +418,10 @@ fn member_attaches_an_image_to_a_comment() {
     assert!(res.status == 303 || res.status == 200, "{}", res.body);
     let post = http(&bind, "GET", &url, &[], "");
     assert!(!post.body.contains(&format!("<img src=\"{image}\"")));
-    let listed = maru(&data, &["comment", "list", "--status", "deleted"]);
+    let listed = giwa(&data, &["comment", "list", "--status", "deleted"]);
     assert!(listed["items"][0]["image"].is_null(), "{listed}");
 
     // 감사 기록에 올리기·붙이기가 남는다.
-    let audit = maru(&data, &["audit", "list", "--action", "media.upload"]);
+    let audit = giwa(&data, &["audit", "list", "--action", "media.upload"]);
     assert_eq!(audit["total"], 1, "{audit}");
 }

@@ -1,6 +1,6 @@
-# Maru 내장 테마
+# Giwa 내장 테마
 id = "default"
-name = "Maru 기본"
+name = "Giwa 기본"
 version = "0.1.0"
 license = "MIT OR Apache-2.0"
 # 이 테마가 따르는 템플릿 계약 번호. 사용자 테마의 값이 다르면 사용자 테마를 쓰지 않는다.

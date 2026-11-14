@@ -94,7 +94,7 @@ async fn create_inner(
         return Err(Error::new(Code::Conflict)
             .with_message("error.board_exists")
             .arg("slug", slug.clone())
-            .next(format!("maru board show {slug}")));
+            .next(format!("giwa board show {slug}")));
     }
     let now = clock::now();
     let board = Board {
@@ -232,7 +232,7 @@ pub async fn delete(ctx: &Ctx, actor: &Actor, slug: &str) -> Result<Board> {
             .with_message("error.board_not_empty")
             .arg("slug", slug)
             .arg("count", n.to_string())
-            .next(format!("maru post list --board {slug}")));
+            .next(format!("giwa post list --board {slug}")));
     }
     tx.delete_board(&board.id).await?;
     tx.audit(
@@ -351,5 +351,5 @@ pub(crate) fn not_found(slug: &str) -> Error {
     Error::new(Code::NotFound)
         .with_message("error.board_not_found")
         .arg("slug", slug)
-        .next("maru board list")
+        .next("giwa board list")
 }

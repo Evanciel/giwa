@@ -9,7 +9,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 
 struct Server(Child);
 
@@ -27,12 +27,12 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -137,13 +137,13 @@ fn enc(s: &str) -> String {
 
 const SAME: (&str, &str) = ("Sec-Fetch-Site", "same-origin");
 
-fn db<T>(data: &Path, f: impl AsyncFnOnce(&maru_storage::Db) -> T) -> T {
+fn db<T>(data: &Path, f: impl AsyncFnOnce(&giwa_storage::Db) -> T) -> T {
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .unwrap();
     rt.block_on(async {
-        let db = maru_storage::Db::open(&data.join("maru.db"), false)
+        let db = giwa_storage::Db::open(&data.join("giwa.db"), false)
             .await
             .unwrap();
         let v = f(&db).await;
@@ -182,20 +182,20 @@ const FIELDS: &str = r#"[
 fn board_fields_flow_from_cli_to_db_and_public_screens() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
     let file = tmp.path().join("fields.json");
     std::fs::write(&file, FIELDS).unwrap();
     let file = file.to_str().unwrap();
-    maru(
+    giwa(
         &data,
         &[
             "board", "create", "market", "--name", "장터", "--kind", "free", "--fields", file,
         ],
     );
-    let b = maru(
+    let b = giwa(
         &data,
         &[
             "board",
@@ -209,7 +209,7 @@ fn board_fields_flow_from_cli_to_db_and_public_screens() {
     );
     assert_eq!(b["field_schema"][0]["key"], "price");
     assert_eq!(b["field_schema"][1]["options"][1]["label"], "부산");
-    maru(&data, &["site", "set", "--captcha", "off"]);
+    giwa(&data, &["site", "set", "--captcha", "off"]);
 
     // 잘못된 정의는 원인과 함께 거부
     let bad = tmp.path().join("bad.json");
@@ -227,7 +227,7 @@ fn board_fields_flow_from_cli_to_db_and_public_screens() {
     assert_eq!(v["error"]["code"], "VALIDATION");
 
     // CLI 글: --field 값이 타입대로 DB 에 남는다.
-    let p = maru(
+    let p = giwa(
         &data,
         &[
             "post",
@@ -269,9 +269,9 @@ fn board_fields_flow_from_cli_to_db_and_public_screens() {
         "가격 칸 값이 올바르지 않습니다 (숫자)."
     );
     // 고치기: 준 칸만 바꾸고, 빈 값은 지운다
-    maru(&data, &["post", "edit", id, "--field", "area="]);
+    giwa(&data, &["post", "edit", id, "--field", "area="]);
     assert_eq!(meta_of(&data, id), serde_json::json!({"price": 120000}));
-    maru(&data, &["post", "edit", id, "--field", "area=seoul"]);
+    giwa(&data, &["post", "edit", id, "--field", "area=seoul"]);
 
     let (_server, started) = start_server(&data);
     let bind = started["bind"].as_str().unwrap().to_owned();
@@ -291,8 +291,8 @@ fn board_fields_flow_from_cli_to_db_and_public_screens() {
     assert_eq!(res.status, 200);
     assert!(res.body.contains("name=\"field.price\""));
     assert!(res.body.contains("원 단위"), "도움말");
-    let pre = res.cookie("maru_csrf").unwrap();
-    let cookie = format!("maru_csrf={pre}");
+    let pre = res.cookie("giwa_csrf").unwrap();
+    let cookie = format!("giwa_csrf={pre}");
     let csrf = res.csrf();
     let base = [
         ("_csrf", csrf.as_str()),

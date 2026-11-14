@@ -12,7 +12,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 /// 테스트 전용 값. 실제 비밀번호가 아니다.
 const PASSWORD: &str = "test-pass-1234";
 const EMAIL: &str = "dal@example.test";
@@ -33,12 +33,12 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -143,7 +143,7 @@ fn enc(s: &str) -> String {
 
 /// 보낼 편지함에서 `to` 에게 간 편지 중 `path` 링크가 든 것의 경로 부분 (`/verify/…`).
 fn link_in_outbox(data: &Path, to: &str, path: &str) -> String {
-    let list = maru(data, &["mail", "list"]);
+    let list = giwa(data, &["mail", "list"]);
     for m in list.as_array().unwrap() {
         if m["to_addr"] != to {
             continue;
@@ -162,12 +162,12 @@ fn link_in_outbox(data: &Path, to: &str, path: &str) -> String {
 fn signup_verify_login_and_profile_reach_the_db() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    let init = maru(
+    let init = giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
     let writer = format!("Bearer {}", init["token"]["secret"].as_str().unwrap());
-    let admin = maru(
+    let admin = giwa(
         &data,
         &[
             "token",
@@ -194,7 +194,7 @@ fn signup_verify_login_and_profile_reach_the_db() {
     );
     drop(server);
 
-    let set = maru(
+    let set = giwa(
         &data,
         &["site", "set", "--signup", "open", "--captcha", "off"],
     );
@@ -212,8 +212,8 @@ fn signup_verify_login_and_profile_reach_the_db() {
     // 폼의 CSRF 쿠키가 없으면 받지 않는다.
     let page = http(&bind, "GET", "/signup", &[], "");
     assert_eq!(page.status, 200);
-    let pre = page.cookie("maru_csrf").expect("가입 폼 CSRF 쿠키");
-    let pre_cookie = format!("maru_csrf={pre}");
+    let pre = page.cookie("giwa_csrf").expect("가입 폼 CSRF 쿠키");
+    let pre_cookie = format!("giwa_csrf={pre}");
     let signup = form(&[
         ("_csrf", &pre),
         ("email", EMAIL),
@@ -223,7 +223,7 @@ fn signup_verify_login_and_profile_reach_the_db() {
     ]);
     let res = http(&bind, "POST", "/signup", &[FORM], &signup);
     assert_eq!(res.status, 403);
-    assert_eq!(maru(&data, &["member", "list"])["total"], 1, "운영자만");
+    assert_eq!(giwa(&data, &["member", "list"])["total"], 1, "운영자만");
 
     let res = http(
         &bind,
@@ -250,7 +250,7 @@ fn signup_verify_login_and_profile_reach_the_db() {
         ]),
     );
     assert_ne!(res.status, 303, "인증 전 로그인이 됨");
-    assert!(res.cookie("maru_session").is_none());
+    assert!(res.cookie("giwa_session").is_none());
 
     // 서버가 편지를 파일로 남긴다 (5초마다).
     let deadline = Instant::now() + Duration::from_secs(20);
@@ -285,7 +285,7 @@ fn signup_verify_login_and_profile_reach_the_db() {
     );
     assert_eq!(res.status, 303, "{}", res.body);
     assert_eq!(res.header("location").as_deref(), Some("/me?done=verified"));
-    let session = format!("maru_session={}", res.cookie("maru_session").unwrap());
+    let session = format!("giwa_session={}", res.cookie("giwa_session").unwrap());
     let again = http(
         &bind,
         "POST",
@@ -293,7 +293,7 @@ fn signup_verify_login_and_profile_reach_the_db() {
         &[FORM, ("Cookie", &pre_cookie)],
         &form(&[("_csrf", &pre)]),
     );
-    assert!(again.cookie("maru_session").is_none(), "링크를 두 번 씀");
+    assert!(again.cookie("giwa_session").is_none(), "링크를 두 번 씀");
 
     // 내 정보에서 닉네임을 바꾸면 DB 에 남는다.
     let me = http(&bind, "GET", "/me", &[("Cookie", &session)], "");
@@ -315,7 +315,7 @@ fn signup_verify_login_and_profile_reach_the_db() {
         &form(&[("_csrf", &me.csrf()), ("display_name", "새벽달")]),
     );
     assert_eq!(res.status, 303, "{}", res.body);
-    let shown = maru(&data, &["member", "show", EMAIL]);
+    let shown = giwa(&data, &["member", "show", EMAIL]);
     assert_eq!(shown["display_name"], "새벽달");
     assert!(shown["email_verified_at"].is_string());
     assert_eq!(shown["roles"], serde_json::json!(["member"]));
@@ -343,7 +343,7 @@ fn signup_verify_login_and_profile_reach_the_db() {
     );
     assert_eq!(rest.status, 200);
     let rest: Value = serde_json::from_str(&rest.body).unwrap();
-    let cli = maru(&data, &["member", "list"]);
+    let cli = giwa(&data, &["member", "list"]);
     assert_eq!(rest["data"]["total"], cli["total"]);
     assert!(
         rest["data"]["items"]
@@ -369,9 +369,9 @@ fn signup_verify_login_and_profile_reach_the_db() {
         http(&bind, "GET", "/me", &[("Cookie", &session)], "").status,
         200
     );
-    let enabled = maru(&data, &["member", "enable", EMAIL]);
+    let enabled = giwa(&data, &["member", "enable", EMAIL]);
     assert_eq!(enabled["status"], "active");
-    let role = maru(&data, &["member", "role", EMAIL, "editor"]);
+    let role = giwa(&data, &["member", "role", EMAIL, "editor"]);
     assert_eq!(role["roles"], serde_json::json!(["editor"]));
     let bad = run(&data, &["member", "role", EMAIL, "owner"]);
     assert_eq!(bad["ok"], false);
@@ -402,7 +402,7 @@ fn db_count(data: &Path, sql: &'static str, arg: &str) -> i64 {
         .build()
         .unwrap();
     rt.block_on(async {
-        let db = maru_storage::Db::open(&data.join("maru.db"), false)
+        let db = giwa_storage::Db::open(&data.join("giwa.db"), false)
             .await
             .unwrap();
         let v: i64 = sqlx::query_scalar(sql)

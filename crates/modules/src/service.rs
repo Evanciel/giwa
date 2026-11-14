@@ -1,12 +1,12 @@
 //! 모듈 생명주기와 툴 호출 (SPEC §7.3, ADR-0066). 웹·REST·CLI 가 같은 함수를 부른다.
 
-use maru_core::actor::{Actor, Permission};
-use maru_core::audit::Target;
-use maru_core::clock;
-use maru_core::fields::{self, FieldDef};
-use maru_core::model::{ModuleFailure, ModuleRow};
-use maru_core::store::{Ctx, Tx};
-use maru_core::{Code, Error, Result};
+use giwa_core::actor::{Actor, Permission};
+use giwa_core::audit::Target;
+use giwa_core::clock;
+use giwa_core::fields::{self, FieldDef};
+use giwa_core::model::{ModuleFailure, ModuleRow};
+use giwa_core::store::{Ctx, Tx};
+use giwa_core::{Code, Error, Result};
 use schemars::JsonSchema;
 use serde::Serialize;
 use serde_json::{Map, Value, json};
@@ -56,14 +56,14 @@ fn not_found(id: &str) -> Error {
     Error::new(Code::NotFound)
         .with_message("error.module_not_found")
         .arg("id", id)
-        .next("maru module list")
+        .next("giwa module list")
 }
 
 fn disabled(id: &str) -> Error {
     Error::new(Code::Conflict)
         .with_message("error.module_disabled")
         .arg("id", id)
-        .next(format!("maru module enable {id}"))
+        .next(format!("giwa module enable {id}"))
 }
 
 fn merged(module: &dyn Module, row: Option<&ModuleRow>) -> Map<String, Value> {

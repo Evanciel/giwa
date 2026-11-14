@@ -3,9 +3,9 @@
 //!
 //! 주문 화면 주소의 1회용 값은 해시만 남으므로 편지에는 싣지 않는다. 주문 번호와 판매자 연락처를 적는다.
 
-use maru_core::model::{AuditEvent, BusinessInfo, MailOut, MailStatus};
-use maru_core::services::settings;
-use maru_core::{Ctx, Error, Result, clock};
+use giwa_core::model::{AuditEvent, BusinessInfo, MailOut, MailStatus};
+use giwa_core::services::settings;
+use giwa_core::{Ctx, Error, Result, clock};
 
 use super::{AWAITING, OrderRow, PAID, PayModule, local_time, won};
 
@@ -119,7 +119,7 @@ impl PayModule {
             .begin()
             .await
             .map_err(Error::internal)?;
-        maru_storage::mail::queue(&mut tx, &out).await?;
+        giwa_storage::mail::queue(&mut tx, &out).await?;
         tx.commit().await.map_err(Error::internal)?;
         Ok(())
     }

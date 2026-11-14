@@ -1,4 +1,4 @@
-# 제안서: 「어떤 사이트나 블로그든 Maru 코어로」
+# 제안서: 「어떤 사이트나 블로그든 Giwa 코어로」
 
 > 상태: **채택** (2026-11-02, 사용자 승인: 「해법대로. 네 제안대로 해서 다 가능하게」). §8 질문 Q1~Q7은 모두 추천안으로 확정됐고 ADR-0016~0027로 옮겼다.
 
@@ -44,7 +44,7 @@
 
 「어떤 사이트든」을 문자 그대로 받으면 쇼핑몰, 예약·결제, SaaS 대시보드까지 들어온다. SPEC §0은 쇼핑몰·SMS·본인확인·멀티 테넌트를 범위 밖으로 둔다. 이 제안은 그 경계를 유지하고 목표를 다음처럼 해석한다.
 
-> **콘텐츠 중심 사이트라면 유형을 가리지 않고 Maru 코어로 만든다.** 콘텐츠 중심이란 운영자가 글·페이지·항목을 발행하고, 방문자는 읽고, 필요하면 댓글·문의·신청 같은 짧은 입력을 남기는 사이트다. 돈이 오가는 거래(주문·결제·정산)와 개인 식별(본인확인)은 코어가 맡지 않는다.
+> **콘텐츠 중심 사이트라면 유형을 가리지 않고 Giwa 코어로 만든다.** 콘텐츠 중심이란 운영자가 글·페이지·항목을 발행하고, 방문자는 읽고, 필요하면 댓글·문의·신청 같은 짧은 입력을 남기는 사이트다. 돈이 오가는 거래(주문·결제·정산)와 개인 식별(본인확인)은 코어가 맡지 않는다.
 
 SPEC §0 비전 문구 수정안(사용자 결정):
 
@@ -128,7 +128,7 @@ SPEC §0 비전 문구 수정안(사용자 결정):
 - 걸림:
   - 첫 화면은 여러 섹션을 가로지르는 편집(헤드라인, 편집자 추천)이다. `latest_posts`의 설정 예는 `board: "notice"` 하나다(§8.3). 게시판 횡단 목록이나 「추천」 표시 기준이 없다.
   - 대표 이미지·부제·기자(저자) 프로필 페이지가 없다. `members`(§4)는 `email, display_name, password_hash, status`뿐이다.
-  - 예약 발행: `published_at`은 있지만 미래 시각을 발행 트리거로 쓰는 규칙이 없다. 외부 cron + `maru post publish`로 우회할 수 있다.
+  - 예약 발행: `published_at`은 있지만 미래 시각을 발행 트리거로 쓰는 규칙이 없다. 외부 cron + `giwa post publish`로 우회할 수 있다.
   - 연관 기사는 태그(Phase 2) 이후 가능.
 
 ### 2.10 이벤트·행사 — 막힌다
@@ -231,8 +231,8 @@ SPEC §0 비전 문구 수정안(사용자 결정):
 
 **참고한 다른 CMS** (2026-11-02 공식 문서 확인, 출처는 부록 B)
 
-- Strapi는 콘텐츠 타입을 다루는 엔트리 수에 따라 collection type과 single type으로 나누고, `schema.json`의 `attributes`에 `type`(string, media, relation, component, dynamiczone 등)과 검증(`required`, `min`, `max`…)을 둔다. Maru의 필드 타입 표는 이 구조를 축소한 형태다.
-- Payload는 collection마다 `slug`와 `fields`를 정의하면 Local·REST·GraphQL API를 자동 생성한다. Maru는 같은 발상으로 컬렉션 정의에서 REST·CLI·MCP 입력 스키마를 함께 만든다(원칙 1·3).
+- Strapi는 콘텐츠 타입을 다루는 엔트리 수에 따라 collection type과 single type으로 나누고, `schema.json`의 `attributes`에 `type`(string, media, relation, component, dynamiczone 등)과 검증(`required`, `min`, `max`…)을 둔다. Giwa의 필드 타입 표는 이 구조를 축소한 형태다.
+- Payload는 collection마다 `slug`와 `fields`를 정의하면 Local·REST·GraphQL API를 자동 생성한다. Giwa는 같은 발상으로 컬렉션 정의에서 REST·CLI·MCP 입력 스키마를 함께 만든다(원칙 1·3).
 - WordPress 블록 테마는 단일 항목 템플릿을 `single-{post_type}-{post_name}.html` → `single-{post_type}.html` → `single.html` → `singular.html` → `index.html` 순으로 찾는다. 6항의 선택 순서가 같은 구조다.
 
 **Phase.** Phase 2. SPEC §15 Phase 2에 「블록 기반 페이지」가 이미 있고, 블록과 컬렉션이 같은 필드 타입을 공유하므로 함께 들어가야 중복 구현이 없다.
@@ -324,9 +324,9 @@ items = [{ year = "2024", text = "설립" }]
 
 **참고한 다른 CMS** (부록 B)
 
-- WordPress `block.json`은 `namespace/block-name` 이름, `attributes`, `supports`, 그리고 서버 렌더용 `render`(PHP 파일, `$attributes`·`$content`·`$block`을 받음)를 한 메타데이터 파일에 둔다. Maru의 `block.toml` + `block.html`은 같은 분리를 minijinja로 옮긴 것이다. 다만 WordPress 속성은 저장된 마크업에서 값을 읽는 `source`/`selector` 방식을 쓰는 반면, Maru는 JSON 데이터를 원본으로 둔다(Markdown 원본 원칙과 같은 방향, 에이전트가 HTML을 파싱할 필요가 없다).
-- Payload의 Blocks 필드는 블록마다 `slug`와 `fields`를 두고, 저장 시 각 항목에 `blockType`으로 slug를 남긴다. 블록 정의를 최상위에 한 번 두고 slug로 재사용하는 block references도 있다. Maru 인스턴스의 `type` 키와 테마·모듈 단위 블록 등록이 같은 구조다.
-- Strapi의 dynamic zone은 허용할 component 목록을 받아 섞어 쓰는 영역이다. Maru 블록의 `contexts`와 영역별 허용 목록이 같은 역할이다.
+- WordPress `block.json`은 `namespace/block-name` 이름, `attributes`, `supports`, 그리고 서버 렌더용 `render`(PHP 파일, `$attributes`·`$content`·`$block`을 받음)를 한 메타데이터 파일에 둔다. Giwa의 `block.toml` + `block.html`은 같은 분리를 minijinja로 옮긴 것이다. 다만 WordPress 속성은 저장된 마크업에서 값을 읽는 `source`/`selector` 방식을 쓰는 반면, Giwa는 JSON 데이터를 원본으로 둔다(Markdown 원본 원칙과 같은 방향, 에이전트가 HTML을 파싱할 필요가 없다).
+- Payload의 Blocks 필드는 블록마다 `slug`와 `fields`를 두고, 저장 시 각 항목에 `blockType`으로 slug를 남긴다. 블록 정의를 최상위에 한 번 두고 slug로 재사용하는 block references도 있다. Giwa 인스턴스의 `type` 키와 테마·모듈 단위 블록 등록이 같은 구조다.
+- Strapi의 dynamic zone은 허용할 component 목록을 받아 섞어 쓰는 영역이다. Giwa 블록의 `contexts`와 영역별 허용 목록이 같은 역할이다.
 
 **Phase.** Phase 2(위젯·블록 페이지가 원래 Phase 2).
 
@@ -349,7 +349,7 @@ items = [{ year = "2024", text = "설립" }]
 7. **사용자 정의 라우트 표**(Ghost의 `routes` 같은 「임의 경로 → 페이지/목록」)는 위 1~4로 대부분의 수요가 풀리므로 Phase 3 이후로 미룬다.
 8. **다국어**: 설계하지 않는다(사용자 지침). 확인할 것은 하나다. 퍼머링크 패턴과 예약 경로 규칙이 나중에 `/{lang}/` 접두어를 앞에 붙이는 것을 막지 않는가. 위 설계는 막지 않는다.
 
-**참고한 다른 CMS** (부록 B). Ghost는 `routes.yaml`에 `routes`(임의 URL → 템플릿), `collections`(필터로 글 묶음, `permalink`·`template` 지정), `taxonomies`를 둔다. 글은 한 collection에만 속하고, 홈을 비우려면 `/: home` 라우트를 두고 메인 collection을 `/blog/`로 옮긴다. 「글이 속한 곳이 URL을 정한다」는 점이 Maru 「컬렉션 퍼머링크」와 같고, 「홈을 다른 것으로 바꾼다」는 Maru 1항과 같다. Maru는 파일 편집 대신 changeset op로 바꾼다.
+**참고한 다른 CMS** (부록 B). Ghost는 `routes.yaml`에 `routes`(임의 URL → 템플릿), `collections`(필터로 글 묶음, `permalink`·`template` 지정), `taxonomies`를 둔다. 글은 한 collection에만 속하고, 홈을 비우려면 `/: home` 라우트를 두고 메인 collection을 `/blog/`로 옮긴다. 「글이 속한 곳이 URL을 정한다」는 점이 Giwa 「컬렉션 퍼머링크」와 같고, 「홈을 다른 것으로 바꾼다」는 Giwa 1항과 같다. Giwa는 파일 편집 대신 changeset op로 바꾼다.
 
 **Phase.** 홈 설정·퍼머링크·리다이렉트·예약 경로는 Phase 2(컬렉션과 함께). 라우트 변경의 changeset 미리보기는 Phase 3. 사용자 정의 라우트 표는 Phase 3 이후.
 
@@ -398,7 +398,7 @@ target = { page = "{{ params.page_slug }}" }
 
 2. **멱등**: op은 `create`가 아니라 `ensure`(없으면 만들고, 있으면 정의와 같은지 확인)를 기본으로 한다. 원칙 3의 「여러 번 실행해도 안전」과 SPEC §10.1의 `--if-not-exists`를 레시피 수준으로 끌어올린 것이다. 다르면 diff를 보여 주고 덮어쓸지 묻는다(`--yes`면 정책대로).
 3. **프리셋** = 레시피 목록 + 테마 + 토큰. `cafe = ["site-profile", "notice-board", "gallery", "menu-price", "location-hours", "kakao-channel"]`. 기존 5개 프리셋(§8.6)은 레시피 조합으로 다시 정의한다.
-4. **인터페이스**: `maru recipe list/show/apply --param k=v --json`, MCP `list_recipes`, `apply_recipe`(스코프 `structure`·`design`, changeset 필수). 에이전트는 사용자 요청을 레시피 목록으로 번역한다. 「카페 + 블로그 + 문의」 → `apply_recipe` 세 번이 changeset 하나에 쌓인다.
+4. **인터페이스**: `giwa recipe list/show/apply --param k=v --json`, MCP `list_recipes`, `apply_recipe`(스코프 `structure`·`design`, changeset 필수). 에이전트는 사용자 요청을 레시피 목록으로 번역한다. 「카페 + 블로그 + 문의」 → `apply_recipe` 세 번이 changeset 하나에 쌓인다.
 5. **유형 매트릭스를 회귀 시험으로**: §2의 12개 유형을 각각 레시피 조합으로 정의하고, Phase 4 완료 기준에서 「에이전트 한마디로 구성 → 미리보기 렌더 → 승인 → 공개 페이지 HTTP 확인」을 유형별로 돌린다.
 
 **Phase.** 레시피 형식과 `apply_recipe`는 Phase 3(changeset op 어휘가 그때 확정). 프리셋 재정의와 유형 매트릭스는 Phase 4.
@@ -454,7 +454,7 @@ target = { page = "{{ params.page_slug }}" }
 
 **제안.** `site_settings`에 구조화 키 `profile`을 둔다. 필드는 P1 타입 체계로 정의한다: 상호, 대표 문구, 주소, 좌표, 전화, 이메일, 영업시간(`list` of 요일·시간), SNS 링크, 사업자 정보 표시 여부. 영업시간·오시는 길·푸터·연락처 블록은 값을 따로 들지 않고 프로필을 참조한다. 검색 메타 출력도 같은 값을 쓴다(구체 형식은 구현 시 검색 엔진 공식 문서로 확인).
 
-- Strapi의 single type(엔트리 하나만 관리하는 콘텐츠 타입)과 같은 역할이다. Maru는 범용 single type을 만들지 않고 「프로필」 하나로 시작한다. 필요가 반복되면 「단일 항목 컬렉션」으로 일반화한다.
+- Strapi의 single type(엔트리 하나만 관리하는 콘텐츠 타입)과 같은 역할이다. Giwa는 범용 single type을 만들지 않고 「프로필」 하나로 시작한다. 필요가 반복되면 「단일 항목 컬렉션」으로 일반화한다.
 
 **Phase.** Phase 2(블록이 참조) 또는 Phase 4(가게·기관 프리셋). 스키마 변경 없음(`site_settings` 키-값).
 
@@ -485,13 +485,13 @@ target = { page = "{{ params.page_slug }}" }
 | 콘텐츠 | 사용자의 글·페이지·댓글·분류·태그 | **허용**. 사용자 소유 |
 | 미디어 | 사용자가 올린 이미지·첨부 | **허용**. 단 원본 사이트에서 받아 오는 경우 소유 확인 필요(아래) |
 | URL 구조 | 옛 주소 | **허용**. 리다이렉트(P4)로 보존 |
-| 정보 구조 | 메뉴 트리, 페이지 계층 | **허용**. Maru 메뉴·페이지 트리로 재구성 |
+| 정보 구조 | 메뉴 트리, 페이지 계층 | **허용**. Giwa 메뉴·페이지 트리로 재구성 |
 | 브랜드 | 로고, 대표 색, 라이선스 확인된 폰트 | **허용**. 토큰과 미디어로 추출 |
-| 디자인 코드 | 옛 사이트의 HTML 템플릿·CSS·JS | **이전 도구가 자동으로 옮기지 않는다**. Maru 블록·토큰으로 재구성 |
+| 디자인 코드 | 옛 사이트의 HTML 템플릿·CSS·JS | **이전 도구가 자동으로 옮기지 않는다**. Giwa 블록·토큰으로 재구성 |
 | 상용 테마 자산 | 구매한 테마의 코드·이미지 | **금지**. 테마 라이선스가 이식을 허용하는지 코어가 판단할 수 없다 |
 | 제3자 사이트 | 남의 사이트 디자인·콘텐츠 | **금지**(원칙 7). 이전 도구의 대상이 아니다 |
 
-- 디자인 코드 행이 사용자 결정 Q4다. 원칙 7의 문구(「특정 웹사이트의 코드·이미지·일러스트·화면 구성을 복제하지 않는다」)는 사이트 소유자를 구분하지 않는다. 이 제안은 「Maru가 제공하는 도구는 디자인을 재구성만 한다. 사용자가 직접 쓴 자기 테마 코드를 사용자 테마(L2)로 손수 옮기는 것은 막지 않는다」를 추천한다.
+- 디자인 코드 행이 사용자 결정 Q4다. 원칙 7의 문구(「특정 웹사이트의 코드·이미지·일러스트·화면 구성을 복제하지 않는다」)는 사이트 소유자를 구분하지 않는다. 이 제안은 「Giwa가 제공하는 도구는 디자인을 재구성만 한다. 사용자가 직접 쓴 자기 테마 코드를 사용자 테마(L2)로 손수 옮기는 것은 막지 않는다」를 추천한다.
 
 **소유 확인**
 
@@ -508,7 +508,7 @@ target = { page = "{{ params.page_slug }}" }
 | Markdown 폴더 | 앞머리(front matter) + 본문 | 중간 | 정적 사이트 생성기 사용자 |
 | Ghost 등 기타 | 각 공식 내보내기 형식 | 낮음 | 구현 시 공식 문서 확인 |
 
-**흐름**: `maru import <source> --from <file> --dry-run --json` → 매핑 보고(컬렉션·필드·URL·건수·경고) → 구조는 changeset(컬렉션·페이지·메뉴·리다이렉트), 글은 ADR-0001에 따라 changeset 밖에서 `draft`로 일괄 생성(원래 발행일 보존) → `--publish`는 `publish` 스코프 필요. 재실행 멱등(원본 ID를 `meta.import_source`에 기록).
+**흐름**: `giwa import <source> --from <file> --dry-run --json` → 매핑 보고(컬렉션·필드·URL·건수·경고) → 구조는 changeset(컬렉션·페이지·메뉴·리다이렉트), 글은 ADR-0001에 따라 changeset 밖에서 `draft`로 일괄 생성(원래 발행일 보존) → `--publish`는 `publish` 스코프 필요. 재실행 멱등(원본 ID를 `meta.import_source`에 기록).
 
 **Phase.** 코어 일괄 생성 API(발행일 보존, 원본 ID, 리다이렉트 생성)는 Phase 4. 소스별 가져오기는 공식 모듈(`import_gnuboard`, `import_wordpress`)로 Phase 4 이후.
 
@@ -624,7 +624,7 @@ SPEC §0의 범위 밖(쇼핑몰, SMS, 본인확인, 멀티 테넌트)은 **바�
 ### ADR-0018 공통 필드 타입 체계
 
 - **배경:** SPEC §2·§4의 `field_schema`는 「JSON Schema」로만 정의돼 렌더·검증·조회 계약이 없다. 블록(§8.5), 위젯(§7.2 `config_schema`), 모듈 설정(§7.1 `settings_schema`), 폼도 같은 문제를 가진다.
-- **결정:** Maru 필드 타입(`text`, `textarea`, `markdown`, `number`, `boolean`, `date`, `datetime`, `select`, `multiselect`, `url`, `email`, `phone`, `media`, `ref`, `group`, `list`)을 정의하고 컬렉션·블록·위젯·폼·모듈 설정이 공유한다. JSON Schema는 필드 정의에서 생성해 MCP·REST 입력 스키마로 쓴다. 검증은 core에서 한다. `markdown` 타입만 정화된 HTML로 렌더한다.
+- **결정:** Giwa 필드 타입(`text`, `textarea`, `markdown`, `number`, `boolean`, `date`, `datetime`, `select`, `multiselect`, `url`, `email`, `phone`, `media`, `ref`, `group`, `list`)을 정의하고 컬렉션·블록·위젯·폼·모듈 설정이 공유한다. JSON Schema는 필드 정의에서 생성해 MCP·REST 입력 스키마로 쓴다. 검증은 core에서 한다. `markdown` 타입만 정화된 HTML로 렌더한다.
 - **대안:** 임의 JSON Schema 허용(렌더 계약 불가), 용도별 별도 스키마(중복).
 - **결과:** Phase 2 산출물. 모듈 매니페스트(§7.1)의 `settings_schema`도 이 형식으로 바꾼다.
 
@@ -659,14 +659,14 @@ SPEC §0의 범위 밖(쇼핑몰, SMS, 본인확인, 멀티 테넌트)은 **바�
 ### ADR-0023 프리셋을 조합 가능한 레시피로 재정의한다
 
 - **배경:** 프리셋(§8.6)은 유형별 고정 세트라 조합(「카페 + 블로그 + 문의」)을 표현하지 못한다.
-- **결정:** 레시피 = 매개변수화된 changeset op 묶음(`ensure` 의미로 멱등). 레시피 적용은 changeset 하나를 만든다. 프리셋 = 레시피 목록 + 테마 + 토큰. CLI `maru recipe`, MCP `list_recipes`·`apply_recipe`. 제안서 §2의 유형 매트릭스를 레시피 조합으로 정의해 Phase 4 회귀 시험으로 쓴다.
+- **결정:** 레시피 = 매개변수화된 changeset op 묶음(`ensure` 의미로 멱등). 레시피 적용은 changeset 하나를 만든다. 프리셋 = 레시피 목록 + 테마 + 토큰. CLI `giwa recipe`, MCP `list_recipes`·`apply_recipe`. 제안서 §2의 유형 매트릭스를 레시피 조합으로 정의해 Phase 4 회귀 시험으로 쓴다.
 - **대안:** 프리셋 추가(조합 폭발), 에이전트의 저수준 op 직접 조립(품질 편차).
 - **결과:** 형식은 Phase 3, 기존 5개 프리셋 재정의와 Phase 4 완료 기준 변경은 Phase 4.
 
 ### ADR-0024 기존 사이트 이전의 범위와 소유 확인
 
 - **배경:** 실사용자는 기존 사이트에서 옮겨 온다. 원칙 7은 디자인 복제를 금지하고, 원칙 6은 외부 입력을 데이터로만 다룬다.
-- **결정:** 이전 대상은 사용자 소유의 콘텐츠·미디어·URL·정보 구조·브랜드 토큰이다. 이전 도구는 디자인 코드(HTML·CSS·JS)를 자동으로 옮기지 않고 Maru 블록·토큰으로 재구성한다. 상용 테마 자산과 제3자 사이트는 대상이 아니다. 내보내기 파일(WXR, 그누보드 덤프, Markdown)은 사용자가 제공하고, 원본 사이트를 직접 읽는 기능은 소유 확인(`.well-known` 파일 또는 DNS TXT)한 도메인에만 허용한다. 가져온 본문은 정화하고 MCP에서 `untrusted`로 분리한다. 구조는 changeset, 글은 `draft` 일괄 생성(원 발행일 보존), 옛 URL은 리다이렉트.
+- **결정:** 이전 대상은 사용자 소유의 콘텐츠·미디어·URL·정보 구조·브랜드 토큰이다. 이전 도구는 디자인 코드(HTML·CSS·JS)를 자동으로 옮기지 않고 Giwa 블록·토큰으로 재구성한다. 상용 테마 자산과 제3자 사이트는 대상이 아니다. 내보내기 파일(WXR, 그누보드 덤프, Markdown)은 사용자가 제공하고, 원본 사이트를 직접 읽는 기능은 소유 확인(`.well-known` 파일 또는 DNS TXT)한 도메인에만 허용한다. 가져온 본문은 정화하고 MCP에서 `untrusted`로 분리한다. 구조는 changeset, 글은 `draft` 일괄 생성(원 발행일 보존), 옛 URL은 리다이렉트.
 - **대안:** 임의 URL 크롤링 가져오기. 에이전트가 제3자 사이트를 복제하는 통로가 된다.
 - **결과:** 코어 일괄 생성 API는 Phase 4, 소스별 가져오기는 공식 모듈(`import_gnuboard`, `import_wordpress`)로 Phase 4 이후. 사용자가 직접 쓴 자기 테마 코드를 손수 옮기는 것의 허용 여부는 사용자 결정(제안서 Q4)에 따라 이 ADR에 적는다.
 

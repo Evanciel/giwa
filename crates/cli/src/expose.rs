@@ -1,4 +1,4 @@
-//! `maru expose` (GAP S8, ADR-0118). 외부 공개는 터널로만 한다 (원칙 6). 포트포워딩은 다루지 않는다.
+//! `giwa expose` (GAP S8, ADR-0118). 외부 공개는 터널로만 한다 (원칙 6). 포트포워딩은 다루지 않는다.
 //!
 //! - `--quick`: 계정 없이 쓰는 임시 주소. 끌 때까지 앞에서 돈다(`serve` 처럼 첫 줄에 결과를 낸다).
 //! - `--hostname`: 내 도메인. 설정을 맞추고 `cloudflared` 명령 순서를 돌려준다. 로그인에 브라우저가 필요하다.
@@ -11,10 +11,10 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
 use std::time::Duration;
 
-use maru_core::config::{Config, is_loopback_host};
-use maru_core::services::settings;
-use maru_core::{Code, Error, Result, clock};
-use maru_storage::DataDir;
+use giwa_core::config::{Config, is_loopback_host};
+use giwa_core::services::settings;
+use giwa_core::{Code, Error, Result, clock};
+use giwa_storage::DataDir;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -47,7 +47,7 @@ pub(crate) async fn run(g: &Global, args: ExposeArgs) -> ExitCode {
         None if !args.cloudflare => Err(Error::new(Code::Usage)
             .with_message("error.usage_detail")
             .arg("detail", "공개 방식을 고르세요")
-            .next("maru expose --cloudflare")),
+            .next("giwa expose --cloudflare")),
         None if args.quick => return quick(g, args.to).await,
         None => match args.hostname {
             Some(host) => named(g, &host, &args.tunnel, args.to).await,
@@ -91,7 +91,7 @@ fn require_cloudflared(g: &Global) -> Result<PathBuf> {
             .with_message("error.cloudflared_missing")
             .arg("url", DOWNLOADS)
             .next(format!(
-                "maru --data \"{}\" expose status",
+                "giwa --data \"{}\" expose status",
                 g.data.display()
             ))
     })
@@ -139,7 +139,7 @@ fn no_server(g: &Global, target: SocketAddr) -> Error {
         .with_message("error.expose_no_server")
         .arg("target", target.to_string())
         .next(format!(
-            "maru serve --data \"{}\" --bind {target}",
+            "giwa serve --data \"{}\" --bind {target}",
             g.data.display()
         ))
 }
@@ -241,7 +241,7 @@ async fn quick_inner(g: &Global, to: Option<String>) -> Result<ExitCode> {
 
     if let Some(s) = read_state(g) {
         if tunnel_alive(&s.metrics).await {
-            let human = format!("이미 공개 중입니다: {}\n끄려면 maru expose stop", s.url);
+            let human = format!("이미 공개 중입니다: {}\n끄려면 giwa expose stop", s.url);
             let data = json!({
                 "mode": "quick",
                 "url": s.url,
@@ -255,7 +255,7 @@ async fn quick_inner(g: &Global, to: Option<String>) -> Result<ExitCode> {
         remove_state(g);
     }
 
-    if crate::doctor::probe_maru(target).await != Some(true) {
+    if crate::doctor::probe_giwa(target).await != Some(true) {
         return Err(no_server(g, target));
     }
     // 터널 뒤에서는 모든 방문자가 루프백으로 보인다. 건네주는 주소를 믿게 켠다 (ADR-0118).
@@ -269,7 +269,7 @@ async fn quick_inner(g: &Global, to: Option<String>) -> Result<ExitCode> {
     let quick_config = DataDir::new(&g.data).root().join(QUICK_CONFIG_FILE);
     std::fs::write(
         &quick_config,
-        "# maru expose --quick: 기본 설정을 읽지 않게 하는 빈 설정\n",
+        "# giwa expose --quick: 기본 설정을 읽지 않게 하는 빈 설정\n",
     )
     .map_err(Error::internal)?;
     let mut child = Command::new(&path)
@@ -324,7 +324,7 @@ async fn quick_inner(g: &Global, to: Option<String>) -> Result<ExitCode> {
                 .with_message("error.expose_failed")
                 .arg("detail", tail.into_iter().collect::<Vec<_>>().join(" / "))
                 .next(format!(
-                    "maru --data \"{}\" expose status",
+                    "giwa --data \"{}\" expose status",
                     g.data.display()
                 )));
         }
@@ -341,12 +341,12 @@ async fn quick_inner(g: &Global, to: Option<String>) -> Result<ExitCode> {
     std::fs::write(state_path(g), body).map_err(Error::internal)?;
 
     let notes = notes(&config.site_url);
-    let mut human = format!("공개했습니다: {url}\n멈추려면 Ctrl+C 또는 maru expose stop");
+    let mut human = format!("공개했습니다: {url}\n멈추려면 Ctrl+C 또는 giwa expose stop");
     for n in &notes {
         human.push_str(&format!("\n- {n}"));
     }
     if restart_required {
-        human.push_str("\n- 방문자 주소를 구분하려면 maru serve 를 다시 켜세요.");
+        human.push_str("\n- 방문자 주소를 구분하려면 giwa serve 를 다시 켜세요.");
     }
     let data = json!({
         "mode": "quick",
@@ -399,7 +399,7 @@ fn clean_hostname(raw: &str) -> Result<String> {
         Err(Error::new(Code::Validation)
             .with_message("error.expose_hostname")
             .arg("value", raw.to_owned())
-            .next("maru expose --cloudflare --hostname blog.example.com"))
+            .next("giwa expose --cloudflare --hostname blog.example.com"))
     }
 }
 
@@ -418,7 +418,7 @@ async fn named(g: &Global, raw: &str, tunnel: &str, to: Option<String>) -> Out {
                 "detail",
                 format!("터널 이름은 영문·숫자·-·_ 만 됩니다: {tunnel}"),
             )
-            .next("maru expose --cloudflare --hostname blog.example.com --tunnel maru"));
+            .next("giwa expose --cloudflare --hostname blog.example.com --tunnel giwa"));
     }
     let (ctx, mut config, db) = open(g).await?;
     let res = async {
@@ -437,7 +437,7 @@ async fn named(g: &Global, raw: &str, tunnel: &str, to: Option<String>) -> Out {
             config.trust_tunnel = true;
             DataDir::new(&g.data).write_config(&config)?;
         }
-        let running = crate::doctor::probe_maru(target).await == Some(true);
+        let running = crate::doctor::probe_giwa(target).await == Some(true);
         let steps = vec![
             json!({ "command": "cloudflared tunnel login", "note": "브라우저에서 Cloudflare 에 로그인하고 도메인을 고릅니다. 사람이 해야 합니다." }),
             json!({ "command": format!("cloudflared tunnel create {tunnel}") }),
@@ -476,8 +476,8 @@ fn guide(g: &Global, to: Option<String>) -> Out {
     let config = DataDir::new(&g.data).read_config()?;
     let target = target_addr(to.as_deref().unwrap_or(&config.bind))?;
     let data = g.data.display();
-    let quick = format!("maru --data \"{data}\" expose --cloudflare --quick");
-    let named = format!("maru --data \"{data}\" expose --cloudflare --hostname <내 도메인>");
+    let quick = format!("giwa --data \"{data}\" expose --cloudflare --quick");
+    let named = format!("giwa --data \"{data}\" expose --cloudflare --hostname <내 도메인>");
     let human = format!(
         "cloudflared: {}\n시험 삼아 임시 주소로: {quick}\n내 도메인으로: {named}",
         path.display()
@@ -499,7 +499,7 @@ async fn status(g: &Global) -> Out {
     let config: Config = DataDir::new(&g.data).read_config()?;
     let cloudflared = find_cloudflared();
     let server = match target_addr(&config.bind) {
-        Ok(addr) => crate::doctor::probe_maru(addr).await == Some(true),
+        Ok(addr) => crate::doctor::probe_giwa(addr).await == Some(true),
         Err(_) => false,
     };
     let tunnel = match read_state(g) {

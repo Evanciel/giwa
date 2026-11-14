@@ -111,7 +111,7 @@ pub async fn add(ctx: &Ctx, actor: &Actor, input: NewFont) -> Result<Font> {
     if !input.rights_confirmed {
         return Err(Error::new(Code::Validation)
             .with_message("error.font_rights")
-            .next("maru font add <파일> --name <이름> --license OFL-1.1 --yes"));
+            .next("giwa font add <파일> --name <이름> --license OFL-1.1 --yes"));
     }
     let name = clean_name(&input.name)?;
     let fallback = check_fallback(input.fallback.as_deref().unwrap_or("sans"))?;
@@ -249,7 +249,7 @@ pub async fn add_file(ctx: &Ctx, actor: &Actor, slug: &str, input: FontUpload) -
     })
 }
 
-/// 서체를 만들고(있으면 맞추고) 파일 하나를 붙인다. CLI `maru font add` 와 관리 화면 올리기가 쓴다.
+/// 서체를 만들고(있으면 맞추고) 파일 하나를 붙인다. CLI `giwa font add` 와 관리 화면 올리기가 쓴다.
 /// 파일을 먼저 검사해서 깨진 파일로 빈 서체가 생기지 않게 하고, 그래도 실패하면 이번에 만든 서체를 지운다.
 pub async fn add_with_file(
     ctx: &Ctx,
@@ -363,7 +363,7 @@ pub async fn remove_file(
             .with_message("error.font_file_not_found")
             .arg("slug", slug)
             .arg("weight", weight.to_string())
-            .next("maru font list --json"));
+            .next("giwa font list --json"));
     };
     tx.delete_font_file(&file.id).await?;
     tx.audit(
@@ -393,7 +393,7 @@ pub async fn remove(ctx: &Ctx, actor: &Actor, slug: &str) -> Result<Removed> {
                 .arg("slug", slug)
                 .arg("field", field)
                 .next(format!(
-                    "maru design set --set {field}={}",
+                    "giwa design set --set {field}={}",
                     if field == "font.mono" {
                         "D2Coding"
                     } else {
@@ -470,7 +470,7 @@ pub fn mime(format: &str) -> &'static str {
 
 /// `@font-face` 와 `.ff-{slug}` 규칙. slug·경로는 정해진 모양이라 CSS 에 그대로 넣어도 안전하다.
 pub fn css(fonts: &[Font]) -> String {
-    let mut css = String::from("/* Maru 올린 서체. 직접 고치지 말고 `maru font` 를 쓴다. */\n");
+    let mut css = String::from("/* Giwa 올린 서체. 직접 고치지 말고 `giwa font` 를 쓴다. */\n");
     for font in fonts {
         let family = uploaded_font_family(&font.slug);
         for f in &font.files {
@@ -605,7 +605,7 @@ fn check_license(s: &str) -> Result<String> {
             .with_message("error.font_license")
             .arg("value", s.chars().take(40).collect::<String>())
             .arg("allowed", LICENSES.join(", "))
-            .next("maru font add <파일> --name <이름> --license OFL-1.1 --yes"))
+            .next("giwa font add <파일> --name <이름> --license OFL-1.1 --yes"))
     }
 }
 
@@ -675,7 +675,7 @@ fn not_found(slug: &str) -> Error {
     Error::new(Code::NotFound)
         .with_message("error.font_not_found")
         .arg("slug", slug.chars().take(40).collect::<String>())
-        .next("maru font list")
+        .next("giwa font list")
 }
 
 #[cfg(test)]

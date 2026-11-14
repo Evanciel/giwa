@@ -9,7 +9,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 const FORM: (&str, &str) = ("Content-Type", "application/x-www-form-urlencoded");
 const PASSWORD: &str = "test-pass-1234";
 
@@ -29,12 +29,12 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -133,8 +133,8 @@ fn form(pairs: &[(&str, &str)]) -> String {
 
 fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
     let page = http(bind, "GET", "/signup", &[], "");
-    let pre = page.cookie("maru_csrf").unwrap();
-    let cookie = format!("maru_csrf={pre}");
+    let pre = page.cookie("giwa_csrf").unwrap();
+    let cookie = format!("giwa_csrf={pre}");
     let res = http(
         bind,
         "POST",
@@ -148,7 +148,7 @@ fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
             ("password2", PASSWORD),
         ]),
     );
-    if let Some(s) = res.cookie("maru_session") {
+    if let Some(s) = res.cookie("giwa_session") {
         return s;
     }
     let login = http(bind, "GET", "/login", &[("Cookie", &cookie)], "");
@@ -164,7 +164,7 @@ fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
             ("password", PASSWORD),
         ]),
     );
-    res.cookie("maru_session")
+    res.cookie("giwa_session")
         .unwrap_or_else(|| panic!("로그인 실패 {}: {}", res.status, res.body))
 }
 
@@ -184,11 +184,11 @@ fn header(res: &Res, name: &str) -> String {
 fn attendance_once_a_day_with_calendar() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    maru(
+    giwa(
         &data,
         &[
             "site",
@@ -201,7 +201,7 @@ fn attendance_once_a_day_with_calendar() {
             "false",
         ],
     );
-    maru(&data, &["module", "enable", "point"]);
+    giwa(&data, &["module", "enable", "point"]);
     let (_server, bind) = start_server(&data);
 
     // 손님: 목록은 보이고 출석 단추 대신 로그인 링크. 사람마다 다른 화면이라 공유 캐시 금지.
@@ -235,7 +235,7 @@ fn attendance_once_a_day_with_calendar() {
     assert_eq!(res.status, 303);
     assert!(res.location().starts_with("/login?next="), "{}", res.head);
     let cookie = format!(
-        "maru_session={}",
+        "giwa_session={}",
         signup_and_login(&bind, "moon@example.test", "달빛이")
     );
     let res = http(
@@ -338,11 +338,11 @@ fn attendance_once_a_day_with_calendar() {
     }
 
     // CLI 툴: 같은 서비스
-    let today = maru(&data, &["point", "attendance"]);
+    let today = giwa(&data, &["point", "attendance"]);
     assert_eq!(today["count"], 1, "{today}");
     assert_eq!(today["rows"][0]["name"], "달빛이");
     assert_eq!(today["rows"][0]["streak"], 1);
-    let mine = maru(
+    let mine = giwa(
         &data,
         &["point", "attendance", "--member", "moon@example.test"],
     );
@@ -367,7 +367,7 @@ fn attendance_once_a_day_with_calendar() {
     let refused = run(&data, &["point", "attend"]);
     assert_eq!(refused["error"]["code"], "UNAUTHORIZED", "{refused}");
     // 출석 점수는 한 번만
-    let history = maru(
+    let history = giwa(
         &data,
         &["point", "history", "--member", "moon@example.test"],
     );

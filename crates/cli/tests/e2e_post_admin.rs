@@ -10,7 +10,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 
 struct Server(Child);
 
@@ -28,12 +28,12 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -145,8 +145,8 @@ fn path_of(url: &str) -> String {
 fn sign_in_with_link(bind: &str, link_path: &str) -> String {
     let page = http(bind, "GET", link_path, &[], "");
     assert_eq!(page.status, 200, "{}", page.body);
-    let pre = page.cookie("maru_csrf").unwrap();
-    let cookie = format!("maru_csrf={pre}");
+    let pre = page.cookie("giwa_csrf").unwrap();
+    let cookie = format!("giwa_csrf={pre}");
     let res = http(
         bind,
         "POST",
@@ -155,7 +155,7 @@ fn sign_in_with_link(bind: &str, link_path: &str) -> String {
         &form(&[("_csrf", &pre)]),
     );
     assert_eq!(res.status, 303, "{}", res.body);
-    res.cookie("maru_session").unwrap()
+    res.cookie("giwa_session").unwrap()
 }
 
 fn board_of(data: &Path, id: &str) -> String {
@@ -164,7 +164,7 @@ fn board_of(data: &Path, id: &str) -> String {
         .build()
         .unwrap();
     rt.block_on(async {
-        let db = maru_storage::Db::open(&data.join("maru.db"), false)
+        let db = giwa_storage::Db::open(&data.join("giwa.db"), false)
             .await
             .unwrap();
         let v: String = sqlx::query_scalar(
@@ -180,7 +180,7 @@ fn board_of(data: &Path, id: &str) -> String {
 }
 
 fn new_post(data: &Path, title: &str, slug: &str, body: &str) -> String {
-    let p = maru(
+    let p = giwa(
         data,
         &[
             "post",
@@ -201,18 +201,18 @@ fn new_post(data: &Path, title: &str, slug: &str, body: &str) -> String {
 fn cli_revisions_move_copy_and_bulk() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    maru(
+    giwa(
         &data,
         &[
             "board", "create", "free", "--name", "자유", "--kind", "free",
         ],
     );
     let id = new_post(&data, "처음 제목", "first", "하나\n둘\n셋");
-    maru(
+    giwa(
         &data,
         &[
             "post",
@@ -224,25 +224,25 @@ fn cli_revisions_move_copy_and_bulk() {
             "하나\n둘둘\n셋",
         ],
     );
-    let revs = maru(&data, &["post", "revisions", &id]);
+    let revs = giwa(&data, &["post", "revisions", &id]);
     let revs = revs.as_array().unwrap();
     assert_eq!(revs.len(), 2);
     let oldest = revs[1]["id"].as_str().unwrap().to_owned();
-    let diff = maru(&data, &["post", "diff", &id, &oldest]);
+    let diff = giwa(&data, &["post", "diff", &id, &oldest]);
     assert_eq!(diff["title_changed"], true);
     assert_eq!(diff["body"]["added"], 1);
     assert_eq!(diff["body"]["removed"], 1);
-    let back = maru(&data, &["post", "revert", &id, &oldest]);
+    let back = giwa(&data, &["post", "revert", &id, &oldest]);
     assert_eq!(back["title"], "처음 제목");
     assert_eq!(
-        maru(&data, &["post", "show", &id])["body_md"],
+        giwa(&data, &["post", "show", &id])["body_md"],
         "하나\n둘\n셋"
     );
     let wrong = run(&data, &["post", "revert", &id, "nope"]);
     assert_eq!(wrong["ok"], false);
     assert_eq!(wrong["error"]["code"], "NOT_FOUND");
     assert!(
-        wrong["error"].to_string().contains("maru post revisions"),
+        wrong["error"].to_string().contains("giwa post revisions"),
         "{wrong}"
     );
 
@@ -250,7 +250,7 @@ fn cli_revisions_move_copy_and_bulk() {
     let (_server, started) = start_server(&data);
     let bind = started["bind"].as_str().unwrap().to_owned();
     assert_eq!(http(&bind, "GET", "/b/blog/first", &[], "").status, 200);
-    let moved = maru(&data, &["post", "move", &id, "--board", "free"]);
+    let moved = giwa(&data, &["post", "move", &id, "--board", "free"]);
     assert_eq!(moved["id"], id.as_str());
     assert_eq!(board_of(&data, &id), "free");
     assert_eq!(http(&bind, "GET", "/b/free/first", &[], "").status, 200);
@@ -260,13 +260,13 @@ fn cli_revisions_move_copy_and_bulk() {
     assert_eq!(old.header("location").as_deref(), Some("/b/free/first"));
 
     // 복사는 초안.
-    let copy = maru(&data, &["post", "copy", &id, "--board", "blog"]);
+    let copy = giwa(&data, &["post", "copy", &id, "--board", "blog"]);
     assert_eq!(copy["status"], "draft");
     assert_ne!(copy["id"], id.as_str());
 
     // 일괄: 하나는 숨기고 초안은 그대로(실패로 알림).
     let draft = copy["id"].as_str().unwrap().to_owned();
-    let bulk = maru(
+    let bulk = giwa(
         &data,
         &["post", "bulk", "hide", "--id", &id, "--id", &draft],
     );
@@ -274,7 +274,7 @@ fn cli_revisions_move_copy_and_bulk() {
     assert_eq!(items[0]["ok"], true);
     assert_eq!(items[1]["ok"], false);
     assert_eq!(items[1]["error"]["code"], "CONFLICT");
-    assert_eq!(maru(&data, &["post", "show", &id])["status"], "hidden");
+    assert_eq!(giwa(&data, &["post", "show", &id])["status"], "hidden");
     let no_board = run(&data, &["post", "bulk", "move", "--id", &id]);
     assert_eq!(no_board["ok"], false);
 }
@@ -283,11 +283,11 @@ fn cli_revisions_move_copy_and_bulk() {
 fn admin_revision_screen_reverts_and_list_moves_in_bulk() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    maru(
+    giwa(
         &data,
         &[
             "board", "create", "free", "--name", "자유", "--kind", "free",
@@ -295,12 +295,12 @@ fn admin_revision_screen_reverts_and_list_moves_in_bulk() {
     );
     let a = new_post(&data, "가 글", "a", "옛 줄\n같은 줄");
     let b = new_post(&data, "나 글", "b", "본문");
-    maru(&data, &["post", "edit", &a, "--body", "새 줄\n같은 줄"]);
+    giwa(&data, &["post", "edit", &a, "--body", "새 줄\n같은 줄"]);
     let (_server, started) = start_server(&data);
     let bind = started["bind"].as_str().unwrap().to_owned();
-    let link = maru(&data, &["login-link"]);
+    let link = giwa(&data, &["login-link"]);
     let session = sign_in_with_link(&bind, &path_of(link["url"].as_str().unwrap()));
-    let cookie = format!("maru_session={session}");
+    let cookie = format!("giwa_session={session}");
 
     let edit = http(
         &bind,
@@ -343,7 +343,7 @@ fn admin_revision_screen_reverts_and_list_moves_in_bulk() {
     assert_eq!(res.status, 303, "{}", res.body);
     assert!(res.header("location").unwrap().ends_with("?done=reverted"));
     assert_eq!(
-        maru(&data, &["post", "show", &a])["body_md"],
+        giwa(&data, &["post", "show", &a])["body_md"],
         "옛 줄\n같은 줄"
     );
 

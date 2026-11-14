@@ -9,7 +9,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 
 /// 테스트가 실패해도 서버 프로세스를 남기지 않는다.
 struct Server(Child);
@@ -21,14 +21,14 @@ impl Drop for Server {
     }
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let out = Command::new(BIN)
         .arg("--data")
         .arg(data)
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     let v: Value = serde_json::from_str(stdout.trim()).unwrap_or_else(|e| {
         panic!(
@@ -103,15 +103,15 @@ fn e2e1_init_rest_draft_cli_publish_public_page() {
     let data = tmp.path().join("내 블로그");
 
     // 1. init
-    let init = maru(
+    let init = giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
     assert_eq!(init["created"], true);
     let token = init["token"]["secret"].as_str().unwrap().to_owned();
-    assert!(token.starts_with("maru_"));
+    assert!(token.starts_with("giwa_"));
     // 다시 실행해도 안전하고 토큰이 늘지 않는다.
-    let again = maru(
+    let again = giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
@@ -164,7 +164,7 @@ fn e2e1_init_rest_draft_cli_publish_public_page() {
     assert_eq!(status, 404);
 
     // 4. CLI 로 발행 (서버 실행 중, 다른 프로세스)
-    let published = maru(&data, &["post", "publish", &id]);
+    let published = giwa(&data, &["post", "publish", &id]);
     assert_eq!(published["status"], "published");
     assert!(published["url"].as_str().unwrap().ends_with(&public_path));
 
@@ -183,7 +183,7 @@ fn e2e1_init_rest_draft_cli_publish_public_page() {
         .build()
         .unwrap();
     rt.block_on(async {
-        let db = maru_storage::Db::open(&data.join("maru.db"), false).await.unwrap();
+        let db = giwa_storage::Db::open(&data.join("giwa.db"), false).await.unwrap();
         let status: String = sqlx::query_scalar("SELECT status FROM posts WHERE id = ?")
             .bind(&id)
             .fetch_one(db.read_pool())
@@ -219,7 +219,7 @@ fn e2e1_init_rest_draft_cli_publish_public_page() {
 fn serve_reports_port_in_use() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("site");
-    maru(&data, &["init", "--no-samples", "--yes"]);
+    giwa(&data, &["init", "--no-samples", "--yes"]);
     let busy = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let port = busy.local_addr().unwrap().port();
     let out = Command::new(BIN)
@@ -250,7 +250,7 @@ fn uninitialized_dir_points_to_init() {
         v["error"]["next"][0]
             .as_str()
             .unwrap()
-            .starts_with("maru init")
+            .starts_with("giwa init")
     );
 }
 
@@ -258,12 +258,12 @@ fn uninitialized_dir_points_to_init() {
 fn cli_post_lifecycle_and_input_paths() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("site");
-    maru(&data, &["init", "--no-samples", "--yes"]);
+    giwa(&data, &["init", "--no-samples", "--yes"]);
 
     // UTF-8 BOM 이 붙은 파일
     let md = tmp.path().join("글.md");
     std::fs::write(&md, "\u{feff}# 제목\n\n한글 본문").unwrap();
-    let p = maru(
+    let p = giwa(
         &data,
         &[
             "post",
@@ -319,12 +319,12 @@ fn cli_post_lifecycle_and_input_paths() {
     assert_eq!(v["data"]["body_md"], "표준 입력 본문");
 
     // 고치기 → 발행 → 삭제 → 되돌리기
-    let edited = maru(&data, &["post", "edit", &id, "--title", "고친 제목"]);
+    let edited = giwa(&data, &["post", "edit", &id, "--title", "고친 제목"]);
     assert_eq!(edited["title"], "고친 제목");
-    maru(&data, &["post", "publish", &id]);
-    assert_eq!(maru(&data, &["post", "delete", &id])["status"], "deleted");
+    giwa(&data, &["post", "publish", &id]);
+    assert_eq!(giwa(&data, &["post", "delete", &id])["status"], "deleted");
     assert_eq!(
-        maru(&data, &["post", "restore", &id])["status"],
+        giwa(&data, &["post", "restore", &id])["status"],
         "published"
     );
 
@@ -338,8 +338,8 @@ fn cli_post_lifecycle_and_input_paths() {
         "about",
         "--if-not-exists",
     ];
-    assert_eq!(maru(&data, &args)["created"], true);
-    assert_eq!(maru(&data, &args)["created"], false);
+    assert_eq!(giwa(&data, &args)["created"], true);
+    assert_eq!(giwa(&data, &args)["created"], false);
     let b = [
         "board",
         "create",
@@ -350,9 +350,9 @@ fn cli_post_lifecycle_and_input_paths() {
         "notice",
         "--if-not-exists",
     ];
-    assert_eq!(maru(&data, &b)["created"], true);
-    assert_eq!(maru(&data, &b)["created"], false);
-    let list = maru(&data, &["board", "list"]);
+    assert_eq!(giwa(&data, &b)["created"], true);
+    assert_eq!(giwa(&data, &b)["created"], false);
+    let list = giwa(&data, &["board", "list"]);
     assert_eq!(list.as_array().unwrap().len(), 2);
 }
 
@@ -361,32 +361,32 @@ fn cli_post_lifecycle_and_input_paths() {
 fn site_pages_and_menus_show_on_public_pages() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("site");
-    let init = maru(
+    let init = giwa(
         &data,
         &["init", "--no-samples", "--yes", "--name", "테스트 블로그"],
     );
     let token = init["token"]["secret"].as_str().unwrap().to_owned();
     // init 이 기본 헤더 메뉴를 깐다.
-    let menu = maru(&data, &["menu", "show", "header"]);
+    let menu = giwa(&data, &["menu", "show", "header"]);
     assert_eq!(menu[0]["link"]["kind"], "board");
 
     // blog 프리셋이 만든 소개 초안을 고쳐서 공개한다.
-    maru(
+    giwa(
         &data,
         &["page", "edit", "about", "--body", "**안녕하세요**"],
     );
-    let about = maru(&data, &["page", "publish", "about"]);
+    let about = giwa(&data, &["page", "publish", "about"]);
     assert_eq!(about["status"], "published");
     assert!(about["url"].as_str().unwrap().ends_with("/p/about"));
-    maru(&data, &["page", "new", "secret", "--title", "비공개"]);
+    giwa(&data, &["page", "new", "secret", "--title", "비공개"]);
     // 다시 실행해도 안전
-    let again = maru(
+    let again = giwa(
         &data,
         &["page", "new", "about", "--title", "소개", "--if-not-exists"],
     );
     assert_eq!(again["created"], false);
 
-    maru(
+    giwa(
         &data,
         &[
             "menu",
@@ -400,7 +400,7 @@ fn site_pages_and_menus_show_on_public_pages() {
             "깃허브=https://github.com",
         ],
     );
-    let s = maru(
+    let s = giwa(
         &data,
         &[
             "site",
@@ -451,14 +451,14 @@ fn site_pages_and_menus_show_on_public_pages() {
 fn design_tokens_flow_to_css() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("site");
-    let init = maru(&data, &["init", "--no-samples", "--yes"]);
+    let init = giwa(&data, &["init", "--no-samples", "--yes"]);
     assert_eq!(init["preset"], "blog");
     // 블로그 프리셋은 소개 페이지를 초안으로 만든다.
-    let pages = maru(&data, &["page", "list"]);
+    let pages = giwa(&data, &["page", "list"]);
     assert_eq!(pages[0]["slug"], "about");
     assert_eq!(pages[0]["status"], "draft");
     // 다시 init 해도 아무것도 바뀌지 않는다.
-    let again = maru(&data, &["init", "--no-samples", "--yes"]);
+    let again = giwa(&data, &["init", "--no-samples", "--yes"]);
     assert!(
         again["applied"]
             .as_array()
@@ -467,7 +467,7 @@ fn design_tokens_flow_to_css() {
             .all(|r| r["changed"] == false)
     );
 
-    let t = maru(
+    let t = giwa(
         &data,
         &[
             "design",
@@ -531,7 +531,7 @@ fn design_tokens_flow_to_css() {
 fn seo_outputs_follow_public_state() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("site");
-    maru(
+    giwa(
         &data,
         &[
             "init",
@@ -543,7 +543,7 @@ fn seo_outputs_follow_public_state() {
             "https://blog.example.test",
         ],
     );
-    maru(
+    giwa(
         &data,
         &[
             "site",
@@ -554,7 +554,7 @@ fn seo_outputs_follow_public_state() {
             "abc123",
         ],
     );
-    let post = maru(
+    let post = giwa(
         &data,
         &[
             "post",
@@ -610,7 +610,7 @@ fn seo_outputs_follow_public_state() {
     assert!(missing.contains(r#"<meta name="robots" content="noindex">"#));
 
     // 숨기면 화면·사이트맵·RSS 에서 함께 빠진다 (서버를 다시 띄우지 않아도).
-    maru(&data, &["post", "hide", &id]);
+    giwa(&data, &["post", "hide", &id]);
     let (status, _) = http(&bind, "GET", "/b/blog/cdata", &[], "");
     assert_eq!(status, 404);
     let (_, sitemap) = http(&bind, "GET", "/sitemap.xml", &[], "");
@@ -623,7 +623,7 @@ fn seo_outputs_follow_public_state() {
 fn scheduled_post_goes_public_when_server_runs() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("예약");
-    let init = maru(
+    let init = giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
@@ -632,7 +632,7 @@ fn scheduled_post_goes_public_when_server_runs() {
     let tomorrow = (time::OffsetDateTime::now_utc() + time::Duration::days(1))
         .format(&time::format_description::well_known::Rfc3339)
         .unwrap();
-    let p = maru(
+    let p = giwa(
         &data,
         &[
             "post",
@@ -675,7 +675,7 @@ fn scheduled_post_goes_public_when_server_runs() {
         .build()
         .unwrap();
     rt.block_on(async {
-        let db = maru_storage::Db::open(&data.join("maru.db"), false)
+        let db = giwa_storage::Db::open(&data.join("giwa.db"), false)
             .await
             .unwrap();
         sqlx::query("UPDATE posts SET scheduled_at = '2000-01-01T00:00:00.000000Z' WHERE id = ?")
@@ -695,7 +695,7 @@ fn scheduled_post_goes_public_when_server_runs() {
         std::thread::sleep(std::time::Duration::from_millis(100));
     }
     assert_eq!(status, 200, "예약 글이 발행되지 않음");
-    let shown = maru(&data, &["post", "show", &id]);
+    let shown = giwa(&data, &["post", "show", &id]);
     assert_eq!(shown["status"], "published");
     assert!(shown["scheduled_at"].is_null());
 
@@ -714,13 +714,13 @@ fn scheduled_post_goes_public_when_server_runs() {
 fn post_templates_through_cli_and_rest() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("틀");
-    let init = maru(
+    let init = giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
     let token = init["token"]["secret"].as_str().unwrap().to_owned();
 
-    let a = maru(
+    let a = giwa(
         &data,
         &[
             "template",
@@ -731,7 +731,7 @@ fn post_templates_through_cli_and_rest() {
             "## 한 일\n\n- ",
         ],
     );
-    let b = maru(
+    let b = giwa(
         &data,
         &[
             "template",
@@ -743,7 +743,7 @@ fn post_templates_through_cli_and_rest() {
         ],
     );
     assert_eq!(a["id"], b["id"]);
-    let list = maru(&data, &["template", "list"]);
+    let list = giwa(&data, &["template", "list"]);
     let names: Vec<&str> = list
         .as_array()
         .unwrap()
@@ -782,6 +782,6 @@ fn post_templates_through_cli_and_rest() {
     );
     assert_eq!(status, 403, "{res}");
 
-    let del = maru(&data, &["template", "delete", "주간 회고"]);
+    let del = giwa(&data, &["template", "delete", "주간 회고"]);
     assert_eq!(del["name"], "주간 회고");
 }

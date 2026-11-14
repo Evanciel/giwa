@@ -15,12 +15,12 @@ use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, header};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::get;
-use maru_core::model::{Changeset, ChangesetStatus};
-use maru_core::services::auth;
-use maru_core::services::changesets::{self, Sandbox};
-use maru_core::services::stats::StatCounter;
-use maru_core::services::views::ViewCounter;
-use maru_core::{Error, Result};
+use giwa_core::model::{Changeset, ChangesetStatus};
+use giwa_core::services::auth;
+use giwa_core::services::changesets::{self, Sandbox};
+use giwa_core::services::stats::StatCounter;
+use giwa_core::services::views::ViewCounter;
+use giwa_core::{Error, Result};
 use serde::Deserialize;
 use tokio::sync::Mutex as AsyncMutex;
 use tower::Service;
@@ -28,7 +28,7 @@ use tower::Service;
 use crate::admin::{self, cookie, set_cookie};
 use crate::{AppState, router};
 
-pub(crate) const COOKIE: &str = "maru_preview";
+pub(crate) const COOKIE: &str = "giwa_preview";
 /// 사본은 파일이고 연결을 쥔다. 넘치면 오래된 것부터 닫는다.
 const MAX_OPEN: usize = 3;
 const GRANT_LIFE: Duration = Duration::from_secs(60 * 60);

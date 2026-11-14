@@ -1,6 +1,6 @@
 [package]
-name = "maru-mod-pay"
-description = "Maru 공식 모듈: 주문·결제·환불 (무통장 입금, 토스페이먼츠)"
+name = "giwa-mod-pay"
+description = "Giwa 공식 모듈: 주문·결제·환불 (무통장 입금, 토스페이먼츠)"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,9 +11,9 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
-maru-core.workspace = true
-maru-modules.workspace = true
-maru-storage.workspace = true
+giwa-core.workspace = true
+giwa-modules.workspace = true
+giwa-storage.workspace = true
 async-trait.workspace = true
 axum.workspace = true
 schemars.workspace = true

@@ -17,18 +17,18 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use axum::routing::{get, post};
 use axum::{Extension, Router};
-use maru_core::actor::{Actor, ActorKind, Permission};
-use maru_core::audit::{AuditRecord, Target};
-use maru_core::fields::FieldDef;
-use maru_core::model::{AuditEvent, Signal};
-use maru_core::services::widgets::WidgetType;
-use maru_core::services::{auth, settings, tokens};
-use maru_core::store::ModuleMigration;
-use maru_core::{Code, Ctx, Error, Result, clock};
-use maru_modules::checkout::{Checkout, CheckoutRequest};
-use maru_modules::service::settings_of;
-use maru_modules::{Manifest, Module, ModuleState, ToolDef, module_error, schema_of};
-use maru_storage::Db;
+use giwa_core::actor::{Actor, ActorKind, Permission};
+use giwa_core::audit::{AuditRecord, Target};
+use giwa_core::fields::FieldDef;
+use giwa_core::model::{AuditEvent, Signal};
+use giwa_core::services::widgets::WidgetType;
+use giwa_core::services::{auth, settings, tokens};
+use giwa_core::store::ModuleMigration;
+use giwa_core::{Code, Ctx, Error, Result, clock};
+use giwa_modules::checkout::{Checkout, CheckoutRequest};
+use giwa_modules::service::settings_of;
+use giwa_modules::{Manifest, Module, ModuleState, ToolDef, module_error, schema_of};
+use giwa_storage::Db;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
@@ -102,7 +102,7 @@ fn no_booking(id: &str) -> Error {
             id.chars().take(40).collect::<String>()
         ),
     )
-    .next("maru booking list")
+    .next("giwa booking list")
 }
 
 fn no_service(id: &str) -> Error {
@@ -113,7 +113,7 @@ fn no_service(id: &str) -> Error {
             id.chars().take(40).collect::<String>()
         ),
     )
-    .next("maru booking services")
+    .next("giwa booking services")
 }
 
 fn parse<T: for<'de> Deserialize<'de>>(input: Value) -> Result<T> {
@@ -131,7 +131,7 @@ fn require_person(actor: &Actor) -> Result<()> {
             Code::Forbidden,
             "예약 취소는 사람이 합니다. 운영자가 관리 화면이나 이 컴퓨터의 CLI 로 실행하세요.",
         )
-        .next("maru booking cancel --id <예약> --reason <사유>"));
+        .next("giwa booking cancel --id <예약> --reason <사유>"));
     }
     actor.require(Permission::SiteAdmin)
 }
@@ -835,7 +835,7 @@ impl BookingModule {
             Target::new("booking", id.clone()),
             json!({ "service": svc.id, "day": key_day, "start": hhmm(start), "status": status, "deposit": svc.deposit }),
         );
-        maru_storage::sqlite::insert_audit(&mut tx, &audit).await?;
+        giwa_storage::sqlite::insert_audit(&mut tx, &audit).await?;
         if let Some(key) = &cancel {
             let row = self.row_in(&mut tx, &id).await?;
             let kind = if status == CONFIRMED {
@@ -1010,7 +1010,7 @@ impl BookingModule {
             Target::new("booking", id),
             json!({ "from": b.status, "to": ch.to, "service": b.service_id, "day": b.day, "start": hhmm(b.start_min), "paid": paid != 0 }),
         );
-        maru_storage::sqlite::insert_audit(&mut tx, &audit).await?;
+        giwa_storage::sqlite::insert_audit(&mut tx, &audit).await?;
         if let Some(kind) = ch.letter {
             let row = self.row_in(&mut tx, id).await?;
             self.letter(&mut tx, ctx, &site, &conf, kind, &row, key.as_deref())
@@ -1315,7 +1315,7 @@ impl BookingModule {
             Target::new("booking_service", s.id.clone()),
             s.view(),
         );
-        maru_storage::sqlite::insert_audit(&mut tx, &audit).await?;
+        giwa_storage::sqlite::insert_audit(&mut tx, &audit).await?;
         tx.commit().await.map_err(Error::internal)?;
         Ok(json!({ "service": s.view(), "created": fresh }))
     }
@@ -1369,7 +1369,7 @@ impl BookingModule {
             Target::new("booking_hours", names.join(",")),
             json!({ "days": names, "open": range.map(|r| hhmm(r.0)), "close": range.map(|r| hhmm(r.1)) }),
         );
-        maru_storage::sqlite::insert_audit(&mut tx, &audit).await?;
+        giwa_storage::sqlite::insert_audit(&mut tx, &audit).await?;
         tx.commit().await.map_err(Error::internal)?;
         Ok(json!({ "hours": hours_view(&self.hours().await?) }))
     }
@@ -1420,7 +1420,7 @@ impl BookingModule {
             Target::new("booking_block", id.clone()),
             json!({ "day": key, "start": hhmm(start), "end": hhmm(end), "reason": reason }),
         );
-        maru_storage::sqlite::insert_audit(&mut tx, &audit).await?;
+        giwa_storage::sqlite::insert_audit(&mut tx, &audit).await?;
         tx.commit().await.map_err(Error::internal)?;
         // 이미 잡힌 예약은 그대로 둔다. 운영자가 보고 직접 취소하게 알려 준다.
         let caught = self
@@ -1455,7 +1455,7 @@ impl BookingModule {
             .rows_affected();
         if gone == 0 {
             return Err(
-                module_error(Code::NotFound, "없는 막은 시간입니다.").next("maru booking hours")
+                module_error(Code::NotFound, "없는 막은 시간입니다.").next("giwa booking hours")
             );
         }
         let audit = AuditRecord::new(
@@ -1464,7 +1464,7 @@ impl BookingModule {
             Target::new("booking_block", id),
             json!({}),
         );
-        maru_storage::sqlite::insert_audit(&mut tx, &audit).await?;
+        giwa_storage::sqlite::insert_audit(&mut tx, &audit).await?;
         tx.commit().await.map_err(Error::internal)?;
         Ok(json!({ "removed": id }))
     }
@@ -1800,7 +1800,7 @@ impl Module for BookingModule {
                                 "예약을 받는 날이 없습니다. 영업 시간을 먼저 정하세요.",
                             )
                             .next(
-                                "maru booking set_hours --days weekdays --open 10:00 --close 19:00",
+                                "giwa booking set_hours --days weekdays --open 10:00 --close 19:00",
                             ));
                         }
                     }
@@ -1845,7 +1845,7 @@ impl Module for BookingModule {
                 let i: CancelInput = parse(input)?;
                 self.cancel(ctx, actor, i.id.trim(), &i.reason).await
             }
-            _ => Err(maru_modules::tool_not_found(MANIFEST.id, tool)),
+            _ => Err(giwa_modules::tool_not_found(MANIFEST.id, tool)),
         }
     }
 

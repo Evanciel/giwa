@@ -9,7 +9,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 
 struct Server(Child);
 
@@ -26,15 +26,15 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .arg(data)
         .args(args)
         .arg("--json")
-        .env_remove("MARU_TOKEN")
-        .env_remove("MARU_LANG")
+        .env_remove("GIWA_TOKEN")
+        .env_remove("GIWA_LANG")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -45,7 +45,7 @@ fn start_server(data: &Path) -> (Server, String) {
         .arg("--data")
         .arg(data)
         .args(["serve", "--bind", "127.0.0.1:0", "--json"])
-        .env_remove("MARU_LANG")
+        .env_remove("GIWA_LANG")
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .spawn()
@@ -90,7 +90,7 @@ fn hangul_lines(html: &str) -> Vec<String> {
 fn 영어_사이트는_손님_화면과_오류가_영어다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("site");
-    maru(
+    giwa(
         &data,
         &[
             "init",
@@ -102,7 +102,7 @@ fn 영어_사이트는_손님_화면과_오류가_영어다() {
             "--yes",
         ],
     );
-    maru(
+    giwa(
         &data,
         &[
             "site",
@@ -118,8 +118,8 @@ fn 영어_사이트는_손님_화면과_오류가_영어다() {
         ],
     );
     // 프리셋이 만든 한국어 내용을 영어로 바꾼다. 남은 한글은 화면 틀에서 온 것이다.
-    maru(&data, &["board", "update", "blog", "--name", "Blog"]);
-    maru(
+    giwa(&data, &["board", "update", "blog", "--name", "Blog"]);
+    giwa(
         &data,
         &[
             "page",
@@ -131,11 +131,11 @@ fn 영어_사이트는_손님_화면과_오류가_영어다() {
             "About us.",
         ],
     );
-    maru(
+    giwa(
         &data,
         &["menu", "set", "header", "--item", "Posts=board:blog"],
     );
-    let post = maru(
+    let post = giwa(
         &data,
         &[
             "post",
@@ -182,7 +182,7 @@ fn 영어_사이트는_손님_화면과_오류가_영어다() {
     assert!(!message.chars().any(|c| ('가'..='힣').contains(&c)), "{v}");
 
     // 한국어로 돌리면 다시 한국어다.
-    maru(&data, &["site", "set", "--lang", "ko"]);
+    giwa(&data, &["site", "set", "--lang", "ko"]);
     let (_, html) = get(&bind, "/login");
     assert!(html.contains("<html lang=\"ko\""));
     assert!(!hangul_lines(&html).is_empty());

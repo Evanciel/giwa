@@ -1,5 +1,5 @@
 //! GAP S5: 편지를 SMTP 로 보내기 (ADR-0083). 실제 바이너리·실제 DB 파일과 이 테스트가 띄운 작은 SMTP 서버로
-//! `maru mail setup`·`maru mail test`·`serve` 시작 정보가 맞는지, 비밀번호가 설정 파일에 들어가지 않는지 본다.
+//! `giwa mail setup`·`giwa mail test`·`serve` 시작 정보가 맞는지, 비밀번호가 설정 파일에 들어가지 않는지 본다.
 #![allow(clippy::expect_used, clippy::unwrap_used)]
 
 use std::io::{BufRead, BufReader, Write};
@@ -11,7 +11,7 @@ use std::thread;
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 
 fn run(data: &Path, args: &[&str]) -> Value {
     run_with_stdin(data, args, "")
@@ -23,12 +23,12 @@ fn run_with_stdin(data: &Path, args: &[&str], input: &str) -> Value {
         .arg(data)
         .args(args)
         .arg("--json")
-        .env_remove("MARU_SMTP_PASSWORD")
+        .env_remove("GIWA_SMTP_PASSWORD")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .spawn()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     child
         .stdin
         .take()
@@ -40,7 +40,7 @@ fn run_with_stdin(data: &Path, args: &[&str], input: &str) -> Value {
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -100,7 +100,7 @@ fn serve_smtp(stream: TcpStream, log: &Mutex<String>) {
 fn smtp_setup_and_test_mail() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path();
-    maru(data, &["init", "--no-samples", "--preset", "blog", "--yes"]);
+    giwa(data, &["init", "--no-samples", "--preset", "blog", "--yes"]);
 
     // 암호화 없는 SMTP 는 이 컴퓨터 밖으로 못 보낸다
     let v = run(
@@ -166,7 +166,7 @@ fn smtp_setup_and_test_mail() {
         .copied()
         .filter(|a| *a != "--password-stdin")
         .collect();
-    let d = maru(data, &again);
+    let d = giwa(data, &again);
     assert_eq!(d["password"], "file");
     assert_eq!(
         std::fs::read_to_string(data.join("config.toml")).unwrap(),
@@ -174,7 +174,7 @@ fn smtp_setup_and_test_mail() {
     );
 
     // 로그인 이름·비밀번호(secrets 에 둔 값)로 로그인하고 보낸다
-    let d = maru(data, &["mail", "test", "--to", "sun@example.test"]);
+    let d = giwa(data, &["mail", "test", "--to", "sun@example.test"]);
     assert_eq!(d["status"], "sent", "{d}");
     assert_eq!(d["transport"], "smtp");
     server.join().unwrap();
@@ -195,10 +195,10 @@ fn smtp_setup_and_test_mail() {
     );
     assert!(!talk.contains("test-smtp-pass-2026"), "{talk}");
 
-    let list = maru(data, &["mail", "list"]);
+    let list = giwa(data, &["mail", "list"]);
     assert_eq!(list[0]["status"], "sent", "{list}");
     assert_eq!(list[0]["to_addr"], "sun@example.test");
-    let audit = maru(data, &["audit", "list", "--action", "mail.setup"]);
+    let audit = giwa(data, &["audit", "list", "--action", "mail.setup"]);
     assert!(
         !audit.to_string().contains("test-smtp-pass-2026"),
         "{audit}"
@@ -208,7 +208,7 @@ fn smtp_setup_and_test_mail() {
     let closed = TcpListener::bind("127.0.0.1:0").unwrap();
     let dead = closed.local_addr().unwrap().port().to_string();
     drop(closed);
-    maru(
+    giwa(
         data,
         &[
             "mail",
@@ -230,7 +230,7 @@ fn smtp_setup_and_test_mail() {
         v["error"]["message"].as_str().unwrap().contains("SMTP"),
         "{v}"
     );
-    let queued = maru(data, &["mail", "list", "--status", "queued"]);
+    let queued = giwa(data, &["mail", "list", "--status", "queued"]);
     assert_eq!(queued[0]["to_addr"], "moon@example.test", "{queued}");
 
     // serve 시작 정보에 지금 방식이 보인다(비밀번호 값은 없다)
@@ -254,7 +254,7 @@ fn smtp_setup_and_test_mail() {
     assert_eq!(mail["password"], "not_needed", "{started}");
 
     // 파일 방식으로 되돌리면 [mail] 이 빠진다
-    let d = maru(data, &["mail", "setup", "--transport", "file"]);
+    let d = giwa(data, &["mail", "setup", "--transport", "file"]);
     assert_eq!(d["transport"], "file");
     let config = std::fs::read_to_string(data.join("config.toml")).unwrap();
     assert!(

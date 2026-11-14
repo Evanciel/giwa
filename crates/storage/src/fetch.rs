@@ -11,7 +11,7 @@ use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
 
-use maru_core::services::links::{Fetched, FetchedImage, LinkFetcher};
+use giwa_core::services::links::{Fetched, FetchedImage, LinkFetcher};
 use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 use reqwest::{Client, Url, redirect};
 
@@ -20,7 +20,7 @@ const TOTAL_TIMEOUT: Duration = Duration::from_secs(8);
 const MAX_PAGE: usize = 512 * 1024;
 const MAX_IMAGE: usize = 5 * 1024 * 1024;
 const MAX_REDIRECTS: usize = 3;
-const USER_AGENT: &str = concat!("Maru-LinkCard/", env!("CARGO_PKG_VERSION"));
+const USER_AGENT: &str = concat!("Giwa-LinkCard/", env!("CARGO_PKG_VERSION"));
 
 /// 공개 인터넷 주소인가
 pub fn is_public_ip(ip: IpAddr) -> bool {
@@ -68,7 +68,7 @@ pub fn is_public_ip(ip: IpAddr) -> bool {
 /// 시험(디버그 빌드)에서만 이 컴퓨터 주소를 허락한다. 배포 빌드는 이 값을 보지 않는다.
 fn allow_loopback() -> bool {
     cfg!(debug_assertions)
-        && std::env::var("MARU_TEST_ALLOW_LOOPBACK_FETCH").is_ok_and(|v| v == "1")
+        && std::env::var("GIWA_TEST_ALLOW_LOOPBACK_FETCH").is_ok_and(|v| v == "1")
 }
 
 fn ip_allowed(ip: IpAddr) -> bool {
@@ -206,7 +206,7 @@ impl IndexNowClient {
             .redirect(redirect::Policy::none())
             .connect_timeout(CONNECT_TIMEOUT)
             .timeout(TOTAL_TIMEOUT)
-            .user_agent(concat!("Maru-IndexNow/", env!("CARGO_PKG_VERSION")))
+            .user_agent(concat!("Giwa-IndexNow/", env!("CARGO_PKG_VERSION")))
             .build()
             .map_err(|e| e.to_string())?;
         Ok(Self { client })
@@ -214,7 +214,7 @@ impl IndexNowClient {
 }
 
 #[async_trait::async_trait]
-impl maru_core::services::indexnow::IndexNowSender for IndexNowClient {
+impl giwa_core::services::indexnow::IndexNowSender for IndexNowClient {
     async fn submit(&self, endpoint: &str, body: Vec<u8>) -> Result<u16, String> {
         let url = Url::parse(endpoint).map_err(|e| format!("주소를 읽지 못했습니다: {e}"))?;
         url_allowed(&url)?;
@@ -257,7 +257,7 @@ impl WebhookPoster {
             .redirect(redirect::Policy::none())
             .connect_timeout(CONNECT_TIMEOUT)
             .timeout(TOTAL_TIMEOUT)
-            .user_agent(concat!("Maru-Webhook/", env!("CARGO_PKG_VERSION")))
+            .user_agent(concat!("Giwa-Webhook/", env!("CARGO_PKG_VERSION")))
             .build()
             .map_err(|e| e.to_string())?;
         Ok(Self { client })
@@ -327,7 +327,7 @@ impl OAuthClient {
             .redirect(redirect::Policy::none())
             .connect_timeout(CONNECT_TIMEOUT)
             .timeout(TOTAL_TIMEOUT)
-            .user_agent(concat!("Maru-Login/", env!("CARGO_PKG_VERSION")))
+            .user_agent(concat!("Giwa-Login/", env!("CARGO_PKG_VERSION")))
             .build()
             .map_err(|e| e.to_string())?;
         Ok(Self { client })
@@ -402,7 +402,7 @@ impl PayClient {
             .redirect(redirect::Policy::none())
             .connect_timeout(CONNECT_TIMEOUT)
             .timeout(Duration::from_secs(30))
-            .user_agent(concat!("Maru-Pay/", env!("CARGO_PKG_VERSION")))
+            .user_agent(concat!("Giwa-Pay/", env!("CARGO_PKG_VERSION")))
             .build()
             .map_err(|e| e.to_string())?;
         Ok(Self { client })

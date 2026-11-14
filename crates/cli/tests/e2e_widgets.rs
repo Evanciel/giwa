@@ -9,7 +9,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 
 struct Server(Child);
 
@@ -27,12 +27,12 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -72,7 +72,7 @@ fn widget_rows(data: &Path) -> i64 {
         .build()
         .unwrap();
     rt.block_on(async {
-        let db = maru_storage::Db::open(&data.join("maru.db"), false)
+        let db = giwa_storage::Db::open(&data.join("giwa.db"), false)
             .await
             .unwrap();
         let n: i64 = sqlx::query_scalar("SELECT count(*) FROM widgets")
@@ -88,20 +88,20 @@ fn widget_rows(data: &Path) -> i64 {
 fn widgets_render_by_scope_and_disappear_when_turned_off() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
     // 프리셋의 소개 페이지는 초안으로 만들어진다.
-    maru(&data, &["page", "publish", "about"]);
+    giwa(&data, &["page", "publish", "about"]);
     for (title, body) in [("첫 소식", "하나"), ("둘째 소식", "둘")] {
-        maru(
+        giwa(
             &data,
             &["post", "new", "--publish", "--title", title, "--body", body],
         );
     }
 
-    let types = maru(&data, &["widget", "types"]);
+    let types = giwa(&data, &["widget", "types"]);
     assert_eq!(types.as_array().unwrap().len(), 31);
     assert!(types[0]["config_schema"].is_object(), "{types}");
 
@@ -127,7 +127,7 @@ fn widgets_render_by_scope_and_disappear_when_turned_off() {
         "{bad}"
     );
 
-    let latest = maru(
+    let latest = giwa(
         &data,
         &[
             "widget",
@@ -141,7 +141,7 @@ fn widgets_render_by_scope_and_disappear_when_turned_off() {
             r#"{"board":"blog","limit":5}"#,
         ],
     );
-    let again = maru(
+    let again = giwa(
         &data,
         &[
             "widget",
@@ -156,7 +156,7 @@ fn widgets_render_by_scope_and_disappear_when_turned_off() {
         ],
     );
     assert_eq!(latest["id"], again["id"], "같은 설정은 한 번만 놓인다");
-    maru(
+    giwa(
         &data,
         &[
             "widget",
@@ -170,7 +170,7 @@ fn widgets_render_by_scope_and_disappear_when_turned_off() {
             r#"{"body":"**첫 화면** 안내 <script>x()</script>"}"#,
         ],
     );
-    let page_only = maru(
+    let page_only = giwa(
         &data,
         &[
             "widget",
@@ -214,14 +214,14 @@ fn widgets_render_by_scope_and_disappear_when_turned_off() {
     assert!(about.contains("role=\"note\""));
 
     let id = page_only["id"].as_str().unwrap();
-    maru(&data, &["widget", "configure", id, "--disable"]);
+    giwa(&data, &["widget", "configure", id, "--disable"]);
     let (_, about) = get(&bind, "/p/about");
     assert!(!about.contains("소개 페이지 알림"), "끈 위젯은 빠진다");
 
-    let list = maru(&data, &["widget", "list"]);
+    let list = giwa(&data, &["widget", "list"]);
     assert_eq!(list.as_array().unwrap().len(), 3);
     for w in list.as_array().unwrap() {
-        maru(&data, &["widget", "remove", w["id"].as_str().unwrap()]);
+        giwa(&data, &["widget", "remove", w["id"].as_str().unwrap()]);
     }
     assert_eq!(widget_rows(&data), 0);
     let (_, home) = get(&bind, "/");
@@ -237,7 +237,7 @@ fn widgets_render_by_scope_and_disappear_when_turned_off() {
 fn popups_render_hidden_with_script_only_in_period_and_scope() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
@@ -253,7 +253,7 @@ fn popups_render_hidden_with_script_only_in_period_and_scope() {
             r#"{"body":"x"}"#,
         ],
     );
-    maru(
+    giwa(
         &data,
         &[
             "post",
@@ -266,7 +266,7 @@ fn popups_render_hidden_with_script_only_in_period_and_scope() {
         ],
     );
     assert_eq!(bad["ok"], false, "팝업은 popup 영역에만");
-    maru(
+    giwa(
         &data,
         &[
             "widget",
@@ -282,7 +282,7 @@ fn popups_render_hidden_with_script_only_in_period_and_scope() {
             r#"{"body":"**11일** 새벽 점검","dismiss_days":3,"position":"bottom-right","ends_at":"2099-01-01T00:00:00Z"}"#,
         ],
     );
-    maru(
+    giwa(
         &data,
         &[
             "widget",
@@ -295,7 +295,7 @@ fn popups_render_hidden_with_script_only_in_period_and_scope() {
         ],
     );
     // 사진 모음 열 수는 style 속성이 아니라 클래스로 (CSP style-src 'self')
-    maru(
+    giwa(
         &data,
         &[
             "widget",
@@ -343,13 +343,13 @@ fn popups_render_hidden_with_script_only_in_period_and_scope() {
 fn home_panels_page_rotate_and_scroll() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
     for n in 1..=5 {
         let title = format!("소식 {n}");
-        maru(
+        giwa(
             &data,
             &[
                 "post",
@@ -391,7 +391,7 @@ fn home_panels_page_rotate_and_scroll() {
         ],
     );
     assert_eq!(bad["ok"], false, "{bad}");
-    maru(
+    giwa(
         &data,
         &[
             "widget",
@@ -405,7 +405,7 @@ fn home_panels_page_rotate_and_scroll() {
             r#"{"limit":2,"pages":3,"auto":true}"#,
         ],
     );
-    maru(
+    giwa(
         &data,
         &[
             "widget",
@@ -419,7 +419,7 @@ fn home_panels_page_rotate_and_scroll() {
             r#"{"limit":2,"pages":2,"days":0}"#,
         ],
     );
-    maru(
+    giwa(
         &data,
         &[
             "widget",

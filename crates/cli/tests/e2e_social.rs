@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 
 use serde_json::{Value, json};
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 const FORM: (&str, &str) = ("Content-Type", "application/x-www-form-urlencoded");
 const SAME: (&str, &str) = ("Sec-Fetch-Site", "same-origin");
 const PASSWORD: &str = "test-pass-1234";
@@ -34,12 +34,12 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -173,8 +173,8 @@ fn query_value(url: &str, name: &str) -> Option<String> {
 /// 비밀번호로 가입하고 `Cookie` 머리글 값을 돌려준다.
 fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
     let page = http(bind, "GET", "/signup", &[], "");
-    let pre = page.cookie("maru_csrf").unwrap();
-    let cookie = format!("maru_csrf={pre}");
+    let pre = page.cookie("giwa_csrf").unwrap();
+    let cookie = format!("giwa_csrf={pre}");
     let res = http(
         bind,
         "POST",
@@ -188,8 +188,8 @@ fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
             ("password2", PASSWORD),
         ]),
     );
-    if let Some(s) = res.cookie("maru_session") {
-        return format!("maru_session={s}");
+    if let Some(s) = res.cookie("giwa_session") {
+        return format!("giwa_session={s}");
     }
     let login = http(bind, "GET", "/login", &[("Cookie", &cookie)], "");
     let res = http(
@@ -205,9 +205,9 @@ fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
         ]),
     );
     let session = res
-        .cookie("maru_session")
+        .cookie("giwa_session")
         .unwrap_or_else(|| panic!("로그인 실패 {}: {}", res.status, res.body));
-    format!("maru_session={session}")
+    format!("giwa_session={session}")
 }
 
 /// 가짜 OIDC 공급자. `/authorize` 는 돌아갈 주소로 보내고, `/token` 은 PKCE 값이 있는 코드만 받고,
@@ -331,7 +331,7 @@ fn begin(bind: &str, idp: &Idp, query: &str, session: &str) -> Flow {
     let to_idp = start.location();
     let prefix = format!("http://{}", idp.addr);
     assert!(to_idp.starts_with(&prefix), "{to_idp}");
-    let cookie = start.cookie("maru_social").expect("state 쿠키");
+    let cookie = start.cookie("giwa_social").expect("state 쿠키");
     let back = http(&idp.addr, "GET", &to_idp[prefix.len()..], &[], "");
     assert_eq!(back.status, 302, "{}", back.body);
     let back = back.location();
@@ -345,9 +345,9 @@ fn begin(bind: &str, idp: &Idp, query: &str, session: &str) -> Flow {
 /// 공급자에서 돌아온다 (브라우저처럼 state 쿠키와 로그인 쿠키를 함께 보낸다).
 fn finish(bind: &str, flow: &Flow, session: &str) -> Res {
     let cookie = if session.is_empty() {
-        format!("maru_social={}", flow.cookie)
+        format!("giwa_social={}", flow.cookie)
     } else {
-        format!("maru_social={}; {session}", flow.cookie)
+        format!("giwa_social={}; {session}", flow.cookie)
     };
     http(bind, "GET", &flow.callback, &[("Cookie", &cookie)], "")
 }
@@ -359,8 +359,8 @@ fn join_as(bind: &str, idp: &Idp, sub: &str, email: &str, name: &str) -> String 
     assert_eq!(back.status, 303, "{}", back.body);
     assert_eq!(back.location(), "/m/social/join");
     let join = format!(
-        "maru_social_join={}",
-        back.cookie("maru_social_join").unwrap()
+        "giwa_social_join={}",
+        back.cookie("giwa_social_join").unwrap()
     );
     let res = http(
         bind,
@@ -370,13 +370,13 @@ fn join_as(bind: &str, idp: &Idp, sub: &str, email: &str, name: &str) -> String 
         &form(&[("email", email), ("display_name", name)]),
     );
     let session = res
-        .cookie("maru_session")
+        .cookie("giwa_session")
         .unwrap_or_else(|| panic!("가입 뒤 세션 없음 {}: {}", res.status, res.body));
-    format!("maru_session={session}")
+    format!("giwa_session={session}")
 }
 
 fn member_id(data: &Path, email: &str) -> String {
-    let list = maru(data, &["member", "list"]);
+    let list = giwa(data, &["member", "list"]);
     let found = list["items"]
         .as_array()
         .unwrap()
@@ -387,7 +387,7 @@ fn member_id(data: &Path, email: &str) -> String {
 }
 
 fn identities(data: &Path, member: &str) -> Vec<Value> {
-    maru(data, &["social", "identities", "--member", member])["items"]
+    giwa(data, &["social", "identities", "--member", member])["items"]
         .as_array()
         .unwrap()
         .clone()
@@ -399,7 +399,7 @@ fn set_oidc(data: &Path, idp: &Idp) -> Value {
         format!("http://{}/token", idp.addr),
         format!("http://{}/userinfo", idp.addr),
     );
-    maru(
+    giwa(
         data,
         &[
             "social",
@@ -426,11 +426,11 @@ fn set_oidc(data: &Path, idp: &Idp) -> Value {
 fn social_login_signup_link_unlink_withdraw() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    maru(
+    giwa(
         &data,
         &[
             "site",
@@ -443,7 +443,7 @@ fn social_login_signup_link_unlink_withdraw() {
             "false",
         ],
     );
-    maru(&data, &["module", "enable", "social"]);
+    giwa(&data, &["module", "enable", "social"]);
     let idp = Idp::start();
     let (server, bind) = start_server(&data);
 
@@ -494,7 +494,7 @@ fn social_login_signup_link_unlink_withdraw() {
     set_oidc(&data, &idp);
 
     // 목록에 비밀값 원문은 없고 끝 네 글자와 돌아올 주소가 있다.
-    let list = maru(&data, &["social", "provider_list"]);
+    let list = giwa(&data, &["social", "provider_list"]);
     assert!(!list.to_string().contains(SECRET), "{list}");
     let item = &list["items"][0];
     assert_eq!(item["provider"], "oidc");
@@ -547,14 +547,14 @@ fn social_login_signup_link_unlink_withdraw() {
         .lines()
         .find(|l| {
             l.to_ascii_lowercase()
-                .starts_with("set-cookie: maru_social=")
+                .starts_with("set-cookie: giwa_social=")
         })
         .unwrap();
     assert!(set_cookie.contains("HttpOnly"), "{set_cookie}");
     assert!(set_cookie.contains("SameSite=Lax"), "{set_cookie}");
     assert!(set_cookie.contains("Path=/m/social"), "{set_cookie}");
     // 원문은 쿠키에만 — 쿠키와 공급자로 보낸 state 가 같다.
-    assert_eq!(query_value(&to_idp, "state"), start.cookie("maru_social"));
+    assert_eq!(query_value(&to_idp, "state"), start.cookie("giwa_social"));
 
     // 다른 브라우저(쿠키 없음·다른 쿠키)에서 돌아오면 받지 않는다.
     idp.set_user("sub-sora", "sora@example.test", "소라");
@@ -565,7 +565,7 @@ fn social_login_signup_link_unlink_withdraw() {
             &bind,
             "GET",
             &flow.callback,
-            &[("Cookie", "maru_social=other")],
+            &[("Cookie", "giwa_social=other")],
             ""
         )
         .status,
@@ -585,8 +585,8 @@ fn social_login_signup_link_unlink_withdraw() {
         "http://127.0.0.1:8080/m/social/oidc/callback"
     );
     let join_cookie = format!(
-        "maru_social_join={}",
-        back.cookie("maru_social_join").unwrap()
+        "giwa_social_join={}",
+        back.cookie("giwa_social_join").unwrap()
     );
 
     // state 는 한 번만 쓴다.
@@ -601,7 +601,7 @@ fn social_login_signup_link_unlink_withdraw() {
     };
     let res = finish(&bind, &denied, "");
     assert_eq!(res.status, 401, "{}", res.body);
-    assert!(res.cookie("maru_session").is_none());
+    assert!(res.cookie("giwa_session").is_none());
     let bad = begin(&bind, &idp, "", "");
     let state = query_value(&bad.callback, "state").unwrap();
     let bad = Flow {
@@ -610,7 +610,7 @@ fn social_login_signup_link_unlink_withdraw() {
     };
     let res = finish(&bind, &bad, "");
     assert_eq!(res.status, 401, "{}", res.body);
-    assert!(res.cookie("maru_session").is_none());
+    assert!(res.cookie("giwa_session").is_none());
 
     // 가입 화면은 공급자가 준 이메일·이름을 미리 채운다. 쿠키 없이는 못 본다.
     assert_eq!(http(&bind, "GET", "/m/social/join", &[], "").status, 401);
@@ -650,7 +650,7 @@ fn social_login_signup_link_unlink_withdraw() {
         &form(&[("email", "sora@example.test"), ("display_name", "소")]),
     );
     assert!(short.body.contains("form-error"), "{}", short.body);
-    assert!(short.cookie("maru_session").is_none());
+    assert!(short.cookie("giwa_session").is_none());
 
     // 가입하면 바로 로그인된다.
     let done = http(
@@ -662,7 +662,7 @@ fn social_login_signup_link_unlink_withdraw() {
     );
     assert_eq!(done.status, 303, "{}", done.body);
     assert_eq!(done.location(), "/me");
-    let sora = format!("maru_session={}", done.cookie("maru_session").unwrap());
+    let sora = format!("giwa_session={}", done.cookie("giwa_session").unwrap());
     let sora_id = member_id(&data, "sora@example.test");
     let linked = identities(&data, &sora_id);
     assert_eq!(linked.len(), 1, "{linked:?}");
@@ -695,7 +695,7 @@ fn social_login_signup_link_unlink_withdraw() {
     let again = finish(&bind, &begin(&bind, &idp, "?next=/b/free", ""), "");
     assert_eq!(again.status, 303, "{}", again.body);
     assert_eq!(again.location(), "/b/free");
-    assert!(again.cookie("maru_session").is_some());
+    assert!(again.cookie("giwa_session").is_some());
     let evil = finish(
         &bind,
         &begin(&bind, &idp, "?next=https://evil.example.test/", ""),
@@ -758,7 +758,7 @@ fn social_login_signup_link_unlink_withdraw() {
     // 연결된 공급자 계정으로 로그인하면 그 회원이다.
     let res = finish(&bind, &begin(&bind, &idp, "", ""), "");
     assert_eq!(res.status, 303, "{}", res.body);
-    let via_link = format!("maru_session={}", res.cookie("maru_session").unwrap());
+    let via_link = format!("giwa_session={}", res.cookie("giwa_session").unwrap());
     assert!(
         http(&bind, "GET", "/me", &[("Cookie", &via_link)], "")
             .body
@@ -810,14 +810,14 @@ fn social_login_signup_link_unlink_withdraw() {
     idp.set_user("sub-fake-moon", "moon@example.test", "가짜달");
     let res = finish(&bind, &begin(&bind, &idp, "", ""), "");
     assert_eq!(res.status, 409, "{}", res.body);
-    assert!(res.cookie("maru_session").is_none());
+    assert!(res.cookie("giwa_session").is_none());
     assert!(identities(&data, &moon_id).is_empty());
     // 가입 화면에서 기존 이메일로 바꿔 적어도 마찬가지다.
     idp.set_user("sub-sneak", "sneak@example.test", "몰래");
     let back = finish(&bind, &begin(&bind, &idp, "", ""), "");
     let cookie = format!(
-        "maru_social_join={}",
-        back.cookie("maru_social_join").unwrap()
+        "giwa_social_join={}",
+        back.cookie("giwa_social_join").unwrap()
     );
     let res = http(
         &bind,
@@ -827,7 +827,7 @@ fn social_login_signup_link_unlink_withdraw() {
         &form(&[("email", "moon@example.test"), ("display_name", "몰래")]),
     );
     assert!(res.body.contains("form-error"), "{}", res.body);
-    assert!(res.cookie("maru_session").is_none());
+    assert!(res.cookie("giwa_session").is_none());
     assert!(identities(&data, &moon_id).is_empty());
 
     // 비밀번호 없는 회원이 비밀번호를 정하면 이메일로도 로그인하고 마지막 연결도 끊을 수 있다.
@@ -846,7 +846,7 @@ fn social_login_signup_link_unlink_withdraw() {
         ]),
     );
     assert_eq!(res.status, 303, "{}", res.body);
-    let hana = format!("maru_session={}", res.cookie("maru_session").unwrap());
+    let hana = format!("giwa_session={}", res.cookie("giwa_session").unwrap());
     let me = http(&bind, "GET", "/me", &[("Cookie", &hana)], "");
     assert!(me.body.contains("name=\"current\""), "{}", me.body);
     let res = http(&bind, "POST", unlink, &[SAME, ("Cookie", &hana)], "");
@@ -894,13 +894,13 @@ fn social_login_signup_link_unlink_withdraw() {
     drop(server);
 
     // 메일 인증이 켜진 사이트: oidc 이메일은 믿지 않으므로 메일을 확인해야 로그인된다.
-    maru(&data, &["site", "set", "--signup-verify", "true"]);
+    giwa(&data, &["site", "set", "--signup-verify", "true"]);
     let (server, bind) = start_server(&data);
     idp.set_user("sub-mail", "mail@example.test", "메일");
     let back = finish(&bind, &begin(&bind, &idp, "", ""), "");
     let cookie = format!(
-        "maru_social_join={}",
-        back.cookie("maru_social_join").unwrap()
+        "giwa_social_join={}",
+        back.cookie("giwa_social_join").unwrap()
     );
     let res = http(
         &bind,
@@ -911,14 +911,14 @@ fn social_login_signup_link_unlink_withdraw() {
     );
     assert_eq!(res.status, 200, "{}", res.body);
     assert!(res.body.contains("메일을 확인하세요"), "{}", res.body);
-    assert!(res.cookie("maru_session").is_none());
+    assert!(res.cookie("giwa_session").is_none());
     let res = finish(&bind, &begin(&bind, &idp, "", ""), "");
     assert_eq!(res.status, 403, "{}", res.body);
-    assert!(res.cookie("maru_session").is_none());
+    assert!(res.cookie("giwa_session").is_none());
     drop(server);
 
     // 가입을 닫으면 새 계정은 못 들어오지만 연결된 회원은 그대로 로그인한다.
-    maru(
+    giwa(
         &data,
         &["site", "set", "--signup", "off", "--signup-verify", "false"],
     );
@@ -926,22 +926,22 @@ fn social_login_signup_link_unlink_withdraw() {
     idp.set_user("sub-late", "late@example.test", "늦은이");
     let res = finish(&bind, &begin(&bind, &idp, "", ""), "");
     assert_eq!(res.status, 403, "{}", res.body);
-    assert!(res.cookie("maru_social_join").is_none());
+    assert!(res.cookie("giwa_social_join").is_none());
     idp.set_user("sub-mail", "mail@example.test", "메일");
     let res = finish(&bind, &begin(&bind, &idp, "", ""), "");
     assert_eq!(res.status, 303, "{}", res.body);
-    assert!(res.cookie("maru_session").is_some());
+    assert!(res.cookie("giwa_session").is_some());
 
     // 공급자를 다시 넣어도 하나이고, 빼면 단추가 사라지되 연결은 남는다.
     set_oidc(&data, &idp);
     assert_eq!(
-        maru(&data, &["social", "provider_list"])["items"]
+        giwa(&data, &["social", "provider_list"])["items"]
             .as_array()
             .unwrap()
             .len(),
         1
     );
-    maru(&data, &["social", "provider_remove", "--provider", "oidc"]);
+    giwa(&data, &["social", "provider_remove", "--provider", "oidc"]);
     assert!(
         !http(&bind, "GET", "/login", &[], "")
             .body

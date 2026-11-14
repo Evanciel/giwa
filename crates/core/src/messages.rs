@@ -22,11 +22,9 @@ fn code(lang: &str) -> u8 {
     }
 }
 
-/// 이 프로세스의 언어를 사이트 언어로 맞춘다. 환경 변수 `MARU_LANG` 이 있으면 그것이 먼저다.
+/// 이 프로세스의 언어를 사이트 언어로 맞춘다. 환경 변수 `GIWA_LANG` 이 있으면 그것이 먼저다.
 pub fn set_lang(site_lang: &str) {
-    let env = std::env::var("MARU_LANG")
-        .ok()
-        .filter(|l| !l.trim().is_empty());
+    let env = crate::env::var("LANG").filter(|l| !l.trim().is_empty());
     LANG.store(code(env.as_deref().unwrap_or(site_lang)), Ordering::Relaxed);
 }
 
@@ -34,7 +32,7 @@ pub fn set_lang(site_lang: &str) {
 pub fn lang() -> &'static str {
     let mut c = LANG.load(Ordering::Relaxed);
     if c == UNSET {
-        c = std::env::var("MARU_LANG").map_or(KO, |l| code(&l));
+        c = crate::env::var("LANG").map_or(KO, |l| code(&l));
     }
     if c == EN { "en" } else { "ko" }
 }
@@ -65,14 +63,14 @@ fn lookup_ko(key: &str) -> Option<&'static str> {
         "error.forbidden" => "이 작업을 할 권한이 없습니다.",
         "error.conflict" => "이미 존재하거나 현재 상태와 충돌합니다.",
         "error.port_in_use" => "{port} 포트를 다른 프로그램이 사용 중입니다.",
-        "error.schema_too_new" => "데이터베이스가 이 maru 버전보다 새롭습니다.",
+        "error.schema_too_new" => "데이터베이스가 이 giwa 버전보다 새롭습니다.",
         "error.rate_limited" => "요청이 너무 많습니다. 잠시 후 다시 시도하세요.",
         "error.external" => "외부 연결에 실패했습니다.",
         "error.service" => "서비스 등록에 실패했습니다: {detail}",
         "hint.port_in_use" => "다른 포트로 실행하세요.",
         "error.usage_detail" => "명령 사용법이 올바르지 않습니다: {detail}",
-        "hint.usage" => "`maru --help` 로 사용법을 확인하세요.",
-        "hint.schema_too_new" => "더 새로운 maru 로 실행하거나 백업에서 복원하세요.",
+        "hint.usage" => "`giwa --help` 로 사용법을 확인하세요.",
+        "hint.schema_too_new" => "더 새로운 giwa 로 실행하거나 백업에서 복원하세요.",
         "error.io" => "파일을 읽거나 쓰지 못했습니다: {path}",
         "error.config_parse" => "설정 파일을 해석하지 못했습니다 ({path}): {detail}",
         "error.config_site_url" => "site_url 은 http:// 또는 https:// 로 시작해야 합니다: {value}",
@@ -209,7 +207,7 @@ fn lookup_ko(key: &str) -> Option<&'static str> {
             "암호화 없는 SMTP(security = none)는 이 컴퓨터 안의 중계 서버에만 쓸 수 있습니다: {host}"
         }
         "error.link_not_found" => {
-            "링크 카드 `{url}` 정보가 없습니다. 본문에 넣은 글을 한 번 연 뒤(또는 `maru link list`) 다시 하세요."
+            "링크 카드 `{url}` 정보가 없습니다. 본문에 넣은 글을 한 번 연 뒤(또는 `giwa link list`) 다시 하세요."
         }
         "error.link_status" => "링크 상태 `{value}` 는 없습니다. 가능한 값: pending, ok, failed",
         "error.mail_test_failed" => "시험 편지를 보내지 못했습니다: {detail}",
@@ -223,7 +221,7 @@ fn lookup_ko(key: &str) -> Option<&'static str> {
             "{site}에서 보낸 시험 편지입니다. 이 편지가 왔다면 편지 보내기 설정이 맞습니다.\n\n가입 인증·비밀번호 찾기 편지도 같은 길로 나갑니다.\n"
         }
         "error.mail_local_only" => {
-            "편지 본문에는 1회용 링크가 들어 있어 이 컴퓨터의 `maru mail` 로만 볼 수 있습니다."
+            "편지 본문에는 1회용 링크가 들어 있어 이 컴퓨터의 `giwa mail` 로만 볼 수 있습니다."
         }
         "error.banned_word" => "금지어 「{word}」가 들어 있어 저장할 수 없습니다.",
         "error.banned_word_long" => "금지어는 {max}자까지 적을 수 있습니다.",
@@ -241,7 +239,7 @@ fn lookup_ko(key: &str) -> Option<&'static str> {
             "cloudflared 가 없습니다. 공식 안내대로 설치한 뒤 다시 실행하세요: {url}"
         }
         "error.expose_no_server" => {
-            "{target} 에서 maru 서버가 답하지 않습니다. 서버를 먼저 켜세요."
+            "{target} 에서 giwa 서버가 답하지 않습니다. 서버를 먼저 켜세요."
         }
         "error.expose_failed" => "터널을 열지 못했습니다: {detail}",
         "error.expose_hostname" => "도메인 이름이 올바르지 않습니다: {value}",
@@ -377,7 +375,7 @@ fn lookup_ko(key: &str) -> Option<&'static str> {
         "error.widget_config" => "`{kind}` 위젯 설정이 올바르지 않습니다: {reason}",
         "error.widget_device" => "숨길 기기는 {allowed} 중에서 고릅니다: {value}",
         "error.widget_hidden_everywhere" => {
-            "모든 기기에서 숨기려면 기기를 고르지 말고 위젯을 끄세요 (`maru widget configure <id> --disable`)."
+            "모든 기기에서 숨기려면 기기를 고르지 말고 위젯을 끄세요 (`giwa widget configure <id> --disable`)."
         }
         "error.audit_actor_type" => "행위자 종류는 {allowed} 중 하나입니다 (받은 값 {value}).",
         "error.audit_name" => {
@@ -407,9 +405,9 @@ fn lookup_ko(key: &str) -> Option<&'static str> {
             "고치지 않은 예시 글과 그 그림을 아주 지웁니다. 고친 글은 남습니다. 확인했으면 --yes 를 붙여 다시 실행하세요."
         }
         "error.backup_not_found" => "`{name}` 백업 파일이 없습니다.",
-        "error.backup_invalid" => "Maru 백업 파일이 아니거나 깨졌습니다: {path} ({detail})",
+        "error.backup_invalid" => "Giwa 백업 파일이 아니거나 깨졌습니다: {path} ({detail})",
         "error.backup_newer" => {
-            "이 백업은 더 새 Maru({version}, 스키마 {schema})로 만들었습니다. 이 바이너리는 스키마 {known} 까지 압니다. Maru 를 올린 뒤 복원하세요."
+            "이 백업은 더 새 Giwa({version}, 스키마 {schema})로 만들었습니다. 이 바이너리는 스키마 {known} 까지 압니다. Giwa 를 올린 뒤 복원하세요."
         }
         "error.server_running" => {
             "이 데이터 디렉터리({path})로 서버가 이미 켜져 있습니다. 서버를 끈 뒤 다시 실행하세요."

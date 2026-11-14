@@ -10,7 +10,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 
 struct Server(Child);
 
@@ -28,12 +28,12 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -79,13 +79,13 @@ fn http(bind: &str, method: &str, path: &str, headers: &[(&str, &str)], body: &s
     }
 }
 
-fn db<T>(data: &Path, f: impl AsyncFnOnce(&maru_storage::Db) -> T) -> T {
+fn db<T>(data: &Path, f: impl AsyncFnOnce(&giwa_storage::Db) -> T) -> T {
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .unwrap();
     rt.block_on(async {
-        let db = maru_storage::Db::open(&data.join("maru.db"), false)
+        let db = giwa_storage::Db::open(&data.join("giwa.db"), false)
             .await
             .unwrap();
         let v = f(&db).await;
@@ -108,11 +108,11 @@ fn board_layout(data: &Path, slug: &str) -> String {
 fn board_layouts_follow_kind_then_cli_and_mark_new_posts() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    let free = maru(
+    let free = giwa(
         &data,
         &[
             "board", "create", "free", "--name", "자유", "--kind", "free",
@@ -120,7 +120,7 @@ fn board_layouts_follow_kind_then_cli_and_mark_new_posts() {
     );
     assert_eq!(free["layout"], "", "따로 정하지 않으면 빈 값(종류 기본값)");
     for (title, slug) in [("첫째 글", "one"), ("둘째 글", "two"), ("셋째 글", "three")] {
-        maru(
+        giwa(
             &data,
             &[
                 "post",
@@ -135,7 +135,7 @@ fn board_layouts_follow_kind_then_cli_and_mark_new_posts() {
             ],
         );
     }
-    maru(
+    giwa(
         &data,
         &[
             "post",
@@ -186,7 +186,7 @@ fn board_layouts_follow_kind_then_cli_and_mark_new_posts() {
     assert!(home.body.contains("class=\"post-list\""));
 
     // CLI 로 갤러리 → DB 열에 남고, 그림 없는 글은 대체 타일.
-    let g = maru(&data, &["board", "update", "free", "--layout", "gallery"]);
+    let g = giwa(&data, &["board", "update", "free", "--layout", "gallery"]);
     assert_eq!(g["layout"], "gallery");
     assert_eq!(board_layout(&data, "free"), "gallery");
     let gallery = http(&bind, "GET", "/b/free", &[], "");
@@ -196,7 +196,7 @@ fn board_layouts_follow_kind_then_cli_and_mark_new_posts() {
         gallery.body.contains("class=\"tile-fallback\">첫</span>"),
         "제목 첫 글자"
     );
-    let card = maru(&data, &["board", "update", "free", "--layout", "card"]);
+    let card = giwa(&data, &["board", "update", "free", "--layout", "card"]);
     assert_eq!(card["layout"], "card");
     let cards = http(&bind, "GET", "/b/free", &[], "");
     assert!(cards.body.contains("post-grid-card"));
@@ -213,7 +213,7 @@ fn board_layouts_follow_kind_then_cli_and_mark_new_posts() {
     );
     assert_eq!(board_layout(&data, "free"), "card");
     // 빈 값은 종류 기본값으로.
-    maru(&data, &["board", "update", "free", "--layout", ""]);
+    giwa(&data, &["board", "update", "free", "--layout", ""]);
     let shown = run(&data, &["board", "show", "free"]);
     assert_eq!(shown["data"]["layout"], "");
 

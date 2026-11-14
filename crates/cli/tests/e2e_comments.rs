@@ -10,7 +10,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 
 struct Server(Child);
 
@@ -28,12 +28,12 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -145,7 +145,7 @@ fn latest_answer(data: &Path) -> String {
         .build()
         .unwrap();
     rt.block_on(async {
-        let db = maru_storage::Db::open(&data.join("maru.db"), false)
+        let db = giwa_storage::Db::open(&data.join("giwa.db"), false)
             .await
             .unwrap();
         let v: String =
@@ -168,17 +168,17 @@ fn hidden(body: &str, name: &str) -> String {
 
 /// 게시판 `free`(비회원 댓글, 비회원 것은 승인 뒤)와 공개 글 하나.
 fn site(data: &Path) -> (String, String) {
-    maru(data, &["init", "--no-samples", "--preset", "blog", "--yes"]);
-    maru(
+    giwa(data, &["init", "--no-samples", "--preset", "blog", "--yes"]);
+    giwa(
         data,
         &[
             "board", "create", "free", "--name", "자유", "--kind", "free",
         ],
     );
-    let b = maru(data, &["board", "update", "free", "--comment", "guest"]);
+    let b = giwa(data, &["board", "update", "free", "--comment", "guest"]);
     assert_eq!(b["policy"]["comment"], "guest");
     assert_eq!(b["policy"]["comment_approval"], "guest");
-    let p = maru(
+    let p = giwa(
         data,
         &[
             "post",
@@ -202,7 +202,7 @@ fn guest_comment_captcha_review_approve_and_edit() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
     let (post_id, url) = site(&data);
-    let moderator = maru(
+    let moderator = giwa(
         &data,
         &[
             "token", "create", "--name", "관리", "--scope", "read", "--scope", "publish",
@@ -274,7 +274,7 @@ fn guest_comment_captcha_review_approve_and_edit() {
     assert!(!pending.body.contains("댓글입니다"), "승인 전에 보임");
 
     // 승인 큐: CLI 와 REST 가 같은 답.
-    let queue = maru(&data, &["comment", "list"]);
+    let queue = giwa(&data, &["comment", "list"]);
     assert_eq!(queue["total"], 1);
     let id = queue["items"][0]["id"].as_str().unwrap().to_owned();
     assert_eq!(queue["items"][0]["untrusted"], true);
@@ -323,8 +323,8 @@ fn guest_comment_captcha_review_approve_and_edit() {
     let edit_url = format!("/c/{id}/edit");
     let form_page = http(&bind, "GET", &edit_url, &[], "");
     assert_eq!(form_page.status, 200);
-    let pre = form_page.cookie("maru_csrf").unwrap();
-    let cookie = format!("maru_csrf={pre}");
+    let pre = form_page.cookie("giwa_csrf").unwrap();
+    let cookie = format!("giwa_csrf={pre}");
     let res = http(
         &bind,
         "POST",
@@ -341,7 +341,7 @@ fn guest_comment_captcha_review_approve_and_edit() {
         &form(&[("_csrf", &pre), ("body", "고친 댓글"), ("password", "1234")]),
     );
     assert_eq!(res.status, 303, "{}", res.body);
-    let published = maru(&data, &["comment", "list", "--status", "published"]);
+    let published = giwa(&data, &["comment", "list", "--status", "published"]);
     assert_eq!(published["items"][0]["body"], "고친 댓글");
     let page = http(&bind, "GET", &url, &[], "");
     assert!(page.body.contains("고친 댓글"));
@@ -353,7 +353,7 @@ fn member_comment_is_public_at_once() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
     let (_, url) = site(&data);
-    maru(
+    giwa(
         &data,
         &[
             "site",
@@ -370,8 +370,8 @@ fn member_comment_is_public_at_once() {
     // 가입 폼에도 확인 질문이 있다.
     let page = http(&bind, "GET", "/signup", &[], "");
     assert!(page.body.contains("확인 질문"));
-    let pre = page.cookie("maru_csrf").unwrap();
-    let cookie = format!("maru_csrf={pre}");
+    let pre = page.cookie("giwa_csrf").unwrap();
+    let cookie = format!("giwa_csrf={pre}");
     let token = hidden(&page.body, "captcha_token");
     let answer = latest_answer(&data);
     std::thread::sleep(std::time::Duration::from_millis(2100));
@@ -405,7 +405,7 @@ fn member_comment_is_public_at_once() {
         ]),
     );
     assert_eq!(res.status, 303, "{}", res.body);
-    let session = format!("maru_session={}", res.cookie("maru_session").unwrap());
+    let session = format!("giwa_session={}", res.cookie("giwa_session").unwrap());
 
     // 회원은 질문 없이 바로 공개.
     let res = http(

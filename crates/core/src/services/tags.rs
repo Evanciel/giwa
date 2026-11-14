@@ -82,5 +82,5 @@ fn not_found(slug: &str) -> Error {
     Error::new(Code::NotFound)
         .with_message("error.tag_not_found")
         .arg("slug", slug)
-        .next("maru tag list")
+        .next("giwa tag list")
 }

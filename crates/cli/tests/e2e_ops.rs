@@ -8,7 +8,7 @@ use std::process::{Child, Command, Output, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 
 struct Server(Child);
 
@@ -25,7 +25,7 @@ fn run(data: &Path, args: &[&str]) -> Output {
         .arg(data)
         .args(args)
         .output()
-        .expect("maru 실행")
+        .expect("giwa 실행")
 }
 
 /// `--json` 출력 한 줄을 읽는다. 성공 여부는 따지지 않는다.
@@ -92,7 +92,7 @@ fn doctor_reports_unknown_when_not_initialized() {
     assert_eq!(status_of(d, "database"), "unknown");
     assert!(d["summary"]["unknown"].as_u64().unwrap() >= 4);
     let next = d["checks"][1]["next"].as_str().unwrap();
-    assert!(next.starts_with("maru init"), "{next}");
+    assert!(next.starts_with("giwa init"), "{next}");
 
     // 사람용 출력도 「못 쟀다」를 드러낸다.
     let human = run(&data, &["doctor"]);
@@ -143,7 +143,7 @@ fn doctor_on_fresh_site_and_port_states() {
         assert!(c["next"].as_str().unwrap().contains("--bind"), "{c}");
     }
 
-    // maru 서버가 떠 있으면 통과.
+    // giwa 서버가 떠 있으면 통과.
     let mut child = Command::new(BIN)
         .arg("--data")
         .arg(&data)
@@ -214,7 +214,7 @@ fn token_list_and_revoke() {
         .arg("--data")
         .arg(&data)
         .args(["token", "list", "--json"])
-        .env("MARU_TOKEN", &init_secret)
+        .env("GIWA_TOKEN", &init_secret)
         .output()
         .unwrap();
     assert_eq!(json(&out)["error"]["code"], "FORBIDDEN");
@@ -248,7 +248,7 @@ fn token_list_and_revoke() {
     let out = run(&data, &["token", "revoke", "nope", "--json"]);
     let v = json(&out);
     assert_eq!(v["error"]["code"], "NOT_FOUND");
-    assert_eq!(v["error"]["next"][0], "maru token list");
+    assert_eq!(v["error"]["next"][0], "giwa token list");
 }
 
 #[test]
@@ -299,7 +299,7 @@ fn quiet_prints_only_one_time_secrets() {
         .map(str::to_owned)
         .collect();
     assert_eq!(lines.len(), 2, "{lines:?}");
-    assert!(lines[0].starts_with("maru_"));
+    assert!(lines[0].starts_with("giwa_"));
     assert!(lines[1].contains("/admin/link/"));
 
     let out = run(
@@ -308,7 +308,7 @@ fn quiet_prints_only_one_time_secrets() {
     );
     let text = String::from_utf8_lossy(&out.stdout);
     assert_eq!(text.lines().count(), 1);
-    assert!(text.starts_with("maru_"));
+    assert!(text.starts_with("giwa_"));
 
     let out = run(&data, &["post", "list", "--quiet"]);
     assert!(out.status.success());

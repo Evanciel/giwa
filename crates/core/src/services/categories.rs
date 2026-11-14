@@ -194,5 +194,5 @@ fn not_found(board: &Board, slug: &str) -> Error {
         .with_message("error.category_not_found")
         .arg("board", board.slug.clone())
         .arg("slug", slug)
-        .next(format!("maru category list --board {}", board.slug))
+        .next(format!("giwa category list --board {}", board.slug))
 }

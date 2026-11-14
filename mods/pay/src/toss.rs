@@ -6,14 +6,14 @@
 //!   취소 `POST /v1/payments/{paymentKey}/cancel`.
 
 use crate::pg::{Payment, State, path_part};
-use maru_storage::fetch::{PayClient, basic_auth};
+use giwa_storage::fetch::{PayClient, basic_auth};
 use serde_json::{Value, json};
 
 pub use crate::pg::Answer;
 
 const API: &str = "https://api.tosspayments.com";
 /// 시험용으로 결제사 주소를 바꾼다 (`pg::api_base`).
-const API_ENV: &str = "MARU_PAY_TOSS_API";
+const API_ENV: &str = "GIWA_PAY_TOSS_API";
 
 /// 브라우저 SDK 주소 (공식 예제).
 pub const SDK: &str = "https://js.tosspayments.com/v2/standard";

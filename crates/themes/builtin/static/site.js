@@ -1,9 +1,9 @@
-// Maru 내장 테마 스크립트 (ADR-0060). 팝업과 최근 본 게시판(ADR-0096), 로그인 상자(ADR-0100).
+// Giwa 내장 테마 스크립트 (ADR-0060). 팝업과 최근 본 게시판(ADR-0096), 로그인 상자(ADR-0100).
 // 「N일 보지 않기」 기한은 이 브라우저의 localStorage 에만 둔다. 저장소를 못 쓰면 닫기만 된다.
-// 아래 이름(MARU_EN, T)이 전역으로 새지 않게 파일 전체를 블록으로 감싼다. 사용자 테마 스크립트와 겹치지 않는다.
+// 아래 이름(GIWA_EN, T)이 전역으로 새지 않게 파일 전체를 블록으로 감싼다. 사용자 테마 스크립트와 겹치지 않는다.
 {
 // 영어 사이트 문구 (ADR-0134). `<html lang>` 을 보고, 표에 없으면 한국어 그대로. {n} 은 값 자리.
-const MARU_EN = document.documentElement.lang.startsWith("en") ? {
+const GIWA_EN = document.documentElement.lang.startsWith("en") ? {
   "{n} 지우기": "Remove {n}",
   "공유": "Share",
   "글 화면으로": "Open post",
@@ -37,7 +37,7 @@ const MARU_EN = document.documentElement.lang.startsWith("en") ? {
   "최근 본 게시판": "Recently viewed",
   "펼치기": "More",
 } : null;
-const T = (s, n) => ((MARU_EN && MARU_EN[s]) || s).replace("{n}", n);
+const T = (s, n) => ((GIWA_EN && GIWA_EN[s]) || s).replace("{n}", n);
 
 (() => {
   const PREFIX = "maru-popup:";
@@ -81,7 +81,7 @@ const T = (s, n) => ((MARU_EN && MARU_EN[s]) || s).replace("{n}", n);
 // 최근 본 게시판 (GAP Q11, ADR-0096). 게시판 화면의 [data-visit] 을 이 브라우저 localStorage 에 쌓고
 // 머리글 아래 [data-recent-boards] 에 링크로 보인다. 서버에는 아무것도 보내지 않는다.
 (() => {
-  const KEY = "maru.recentBoards";
+  const KEY = "giwa.recentBoards";
   const MAX = 8;
   const load = () => {
     try {
@@ -202,7 +202,7 @@ const T = (s, n) => ((MARU_EN && MARU_EN[s]) || s).replace("{n}", n);
       hello.className = "account-box-hello";
       const name = document.createElement("strong");
       name.textContent = b.name;
-      hello.append(...(MARU_EN ? ["Welcome, ", name, "."] : [name, "님, 반갑습니다."]));
+      hello.append(...(GIWA_EN ? ["Welcome, ", name, "."] : [name, "님, 반갑습니다."]));
       me.append(hello);
       for (const i of items) {
         if (!i.note) continue;
@@ -517,7 +517,7 @@ const T = (s, n) => ((MARU_EN && MARU_EN[s]) || s).replace("{n}", n);
   if (band) {
     const btn = band.querySelector(".sponsor-toggle");
     const items = band.querySelector(".sponsor-items");
-    const KEY = "maru.sponsorFolded";
+    const KEY = "giwa.sponsorFolded";
     const paint = (folded) => {
       items.hidden = folded;
       btn.setAttribute("aria-expanded", folded ? "false" : "true");
@@ -533,7 +533,7 @@ const T = (s, n) => ((MARU_EN && MARU_EN[s]) || s).replace("{n}", n);
   }
   const sticky = document.querySelector("[data-sticky-ad]");
   if (sticky) {
-    const KEY = "maru.stickyClosed";
+    const KEY = "giwa.stickyClosed";
     if (read(sessionStorage, KEY) === "1") {
       sticky.hidden = true;
     } else {

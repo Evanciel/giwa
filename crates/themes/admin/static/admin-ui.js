@@ -237,10 +237,10 @@
     wrap.appendChild(input);
     if ((key === "image" || key === "bg_image") && input.tagName === "INPUT") wrap.appendChild(this.upload(input, set));
     // 링크 고르기 (ADR-0147): 게시판·페이지 목록에서 고른다. media-picker.js 가 있는 화면에서만.
-    if (key === "link" && input.tagName === "INPUT" && window.MaruLinks) {
+    if (key === "link" && input.tagName === "INPUT" && window.GiwaLinks) {
       var lb = el("button", { type: "button", cls: "secondary small", text: "고르기" });
       lb.addEventListener("click", function () {
-        window.MaruLinks.open({
+        window.GiwaLinks.open({
           link: input.value,
           targets: { pages: self.data.pages || [], boards: self.data.boards || [], anchors: self.data.anchors },
           onPick: function (v) { input.value = v; set(v); }
@@ -249,10 +249,10 @@
       wrap.appendChild(lb);
     }
     // 동영상 섹션의 주소 칸 (ADR-0161): 유튜브 주소를 쓰거나 올린 동영상을 고른다.
-    if (key === "url" && input.tagName === "INPUT" && /올린 .*동영상/.test(hint) && window.MaruMedia) {
+    if (key === "url" && input.tagName === "INPUT" && /올린 .*동영상/.test(hint) && window.GiwaMedia) {
       var vb = el("button", { type: "button", cls: "secondary small", text: "동영상 올리기·고르기" });
       vb.addEventListener("click", function () {
-        window.MaruMedia.open({
+        window.GiwaMedia.open({
           kind: "video", url: /^\/media\//.test(input.value) ? input.value : "", alt: null,
           csrf: self.csrf, required: true,
           onPick: function (url) { input.value = url; set(url); }
@@ -290,10 +290,10 @@
     show();
     var kids = [btn, file, preview];
     // 올려 둔 그림에서 고르기 (ADR-0147). media-picker.js 가 있는 화면에서만.
-    if (window.MaruMedia) {
+    if (window.GiwaMedia) {
       var pick = el("button", { type: "button", cls: "secondary small", text: "올린 그림에서 고르기" });
       pick.addEventListener("click", function () {
-        window.MaruMedia.open({
+        window.GiwaMedia.open({
           url: input.value, alt: null, csrf: self.csrf, required: true,
           onPick: function (url) { input.value = url; set(url); show(); }
         });
@@ -428,8 +428,8 @@
   }
 
   // 화면 편집기(page-editor.js, ADR-0138)가 오른쪽 판에서 같은 칸을 쓴다.
-  window.MaruForm = Form;
-  window.MaruBlank = blank;
+  window.GiwaForm = Form;
+  window.GiwaBlank = blank;
 
   function init() { widgets(); menus(); }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);

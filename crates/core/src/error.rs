@@ -310,20 +310,20 @@ mod tests {
         let err = Error::new(Code::PortInUse)
             .arg("port", "8080")
             .with_hint("hint.port_in_use")
-            .next("maru serve --bind 127.0.0.1:8081");
+            .next("giwa serve --bind 127.0.0.1:8081");
         insta::assert_json_snapshot!(err.body(None));
     }
 
     #[test]
     fn internal_body_hides_source_and_details() {
-        let source = std::io::Error::other("near \"SELEC\": syntax error at C:\\data\\maru.db");
+        let source = std::io::Error::other("near \"SELEC\": syntax error at C:\\data\\giwa.db");
         let err = Error::internal(source)
-            .arg("path", "C:\\data\\maru.db")
+            .arg("path", "C:\\data\\giwa.db")
             .next("secret command");
         let body = err.body(Some("req_01J"));
         let text = serde_json::to_string(&body).unwrap();
         assert!(!text.contains("SELEC"), "{text}");
-        assert!(!text.contains("maru.db"), "{text}");
+        assert!(!text.contains("giwa.db"), "{text}");
         assert!(!text.contains("secret"), "{text}");
         insta::assert_json_snapshot!(body);
         assert!(std::error::Error::source(&err).is_some());

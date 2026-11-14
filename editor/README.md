@@ -1,6 +1,6 @@
-# Maru 글 에디터
+# Giwa 글 에디터
 
-관리 화면 글쓰기 에디터. ProseMirror 위에 Maru 층(도구 막대·단축키·이미지 업로드·자동 저장)을 얹었다. 설계와 이유는 `docs/DECISIONS.md` ADR-0033.
+관리 화면 글쓰기 에디터. ProseMirror 위에 Giwa 층(도구 막대·단축키·이미지 업로드·자동 저장)을 얹었다. 설계와 이유는 `docs/DECISIONS.md` ADR-0033.
 
 Node 는 **빌드할 때만** 필요하다. 바이너리는 커밋된 번들을 rust-embed 로 품으므로 `cargo build`·실행에는 필요 없다.
 

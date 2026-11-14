@@ -9,17 +9,17 @@ use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 
 use serde_json::{Value, json};
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let out = Command::new(BIN)
         .arg("--data")
         .arg(data)
         .args(args)
         .arg("--json")
-        .env_remove("MARU_TOKEN")
+        .env_remove("GIWA_TOKEN")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     let v: Value =
         serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"));
@@ -27,15 +27,15 @@ fn maru(data: &Path, args: &[&str]) -> Value {
     v["data"].clone()
 }
 
-fn maru_fail(data: &Path, args: &[&str]) -> Value {
+fn giwa_fail(data: &Path, args: &[&str]) -> Value {
     let out = Command::new(BIN)
         .arg("--data")
         .arg(data)
         .args(args)
         .arg("--json")
-        .env_remove("MARU_TOKEN")
+        .env_remove("GIWA_TOKEN")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     assert!(!out.status.success(), "실패해야 한다: {args:?}");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
@@ -53,7 +53,7 @@ fn install(data: &Path, client: &str, config: &Path, scopes: &[&str]) -> Value {
     for s in scopes {
         args.extend(["--scope", s]);
     }
-    maru(data, &args)
+    giwa(data, &args)
 }
 
 /// 표준 입출력 MCP 클라이언트.
@@ -78,7 +78,7 @@ impl Stdio2 {
             .arg(data)
             .args(["mcp", "serve", "--token-file"])
             .arg(token_file)
-            .env_remove("MARU_TOKEN")
+            .env_remove("GIWA_TOKEN")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
@@ -100,7 +100,7 @@ impl Stdio2 {
                 "clientInfo": { "name": "e2e", "version": "0" },
             }),
         );
-        assert_eq!(init["serverInfo"]["name"], "maru", "{init}");
+        assert_eq!(init["serverInfo"]["name"], "giwa", "{init}");
         assert!(init["capabilities"]["tools"].is_object(), "{init}");
         assert!(
             init["instructions"].as_str().unwrap().contains("지시"),
@@ -244,12 +244,12 @@ fn secret(install: &Value) -> (PathBuf, String) {
 fn 토큰이_없으면_서버는_돌지_않고_다음_명령을_말한다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
 
-    let e = maru_fail(&data, &["mcp", "serve"]);
+    let e = giwa_fail(&data, &["mcp", "serve"]);
     assert_eq!(e["ok"], false, "{e}");
     assert!(
         e["error"]["next"].to_string().contains("mcp install"),
@@ -259,7 +259,7 @@ fn 토큰이_없으면_서버는_돌지_않고_다음_명령을_말한다() {
     // 틀린 토큰도 시작하지 않는다.
     let bad = tmp.path().join("bad.token");
     std::fs::write(&bad, "maru_틀린_토큰").unwrap();
-    let e = maru_fail(
+    let e = giwa_fail(
         &data,
         &["mcp", "serve", "--token-file", bad.to_str().unwrap()],
     );
@@ -273,7 +273,7 @@ fn 토큰이_없으면_서버는_돌지_않고_다음_명령을_말한다() {
 fn 설치는_다른_서버를_지키고_비밀을_적지_않으며_여러_번_해도_같다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
@@ -307,7 +307,7 @@ fn 설치는_다른_서버를_지키고_비밀을_적지_않으며_여러_번_�
     let v: Value = serde_json::from_str(&saved).unwrap();
     assert_eq!(v["other"], 1, "{v}");
     assert_eq!(v["mcpServers"]["딴서버"]["command"], "x", "{v}");
-    let args = v["mcpServers"]["maru"]["args"].as_array().unwrap();
+    let args = v["mcpServers"]["giwa"]["args"].as_array().unwrap();
     assert!(args.iter().any(|a| a == "--token-file"), "{v}");
 
     // 다시 해도 토큰도 파일도 그대로다.
@@ -319,7 +319,7 @@ fn 설치는_다른_서버를_지키고_비밀을_적지_않으며_여러_번_�
 
     // --print 는 설정을 건드리지 않는다.
     let elsewhere = tmp.path().join("없는.json");
-    let printed = maru(
+    let printed = giwa(
         &data,
         &[
             "mcp",
@@ -337,7 +337,7 @@ fn 설치는_다른_서버를_지키고_비밀을_적지_않으며_여러_번_�
     // 읽을 수 없는 설정은 덮어쓰지 않는다.
     let broken = tmp.path().join("broken.json");
     std::fs::write(&broken, "{ 고장").unwrap();
-    let e = maru_fail(
+    let e = giwa_fail(
         &data,
         &[
             "mcp",
@@ -352,12 +352,12 @@ fn 설치는_다른_서버를_지키고_비밀을_적지_않으며_여러_번_�
     assert_eq!(std::fs::read_to_string(&broken).unwrap(), "{ 고장");
 
     // 모르는 클라이언트·스코프는 원인을 말한다.
-    let e = maru_fail(&data, &["mcp", "install", "--client", "모르는"]);
+    let e = giwa_fail(&data, &["mcp", "install", "--client", "모르는"]);
     assert!(
         e["error"]["message"].as_str().unwrap().contains("모르는"),
         "{e}"
     );
-    let e = maru_fail(
+    let e = giwa_fail(
         &data,
         &[
             "mcp",
@@ -377,11 +377,11 @@ fn 설치는_다른_서버를_지키고_비밀을_적지_않으며_여러_번_�
 fn 표준_입출력으로_스코프만큼_툴이_보이고_서비스의_권한이_막는다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    let board = maru(&data, &["board", "list"])[0]["slug"]
+    let board = giwa(&data, &["board", "list"])[0]["slug"]
         .as_str()
         .unwrap()
         .to_owned();
@@ -464,7 +464,7 @@ fn 표준_입출력으로_스코프만큼_툴이_보이고_서비스의_권한�
     assert!(err);
 
     // 감사 기록에 에이전트 토큰으로 남는다.
-    let audit = maru(&data, &["audit", "list", "--action", "post.create"]);
+    let audit = giwa(&data, &["audit", "list", "--action", "post.create"]);
     assert_eq!(audit["items"][0]["actor_type"], "agent", "{audit}");
     assert_eq!(
         audit["items"][0]["actor_name"], "mcp-claude-code",
@@ -473,7 +473,7 @@ fn 표준_입출력으로_스코프만큼_툴이_보이고_서비스의_권한�
 
     // 모듈을 켜면 같은 세션에서 모듈 툴이 나타난다.
     assert!(!c.tools().iter().any(|t| t.starts_with("point__")));
-    maru(&data, &["module", "enable", "point"]);
+    giwa(&data, &["module", "enable", "point"]);
     let tools = c.tools();
     assert!(tools.iter().any(|t| t == "point__balance"), "{tools:?}");
     assert!(tools.iter().any(|t| t == "point__ranking"), "{tools:?}");
@@ -490,7 +490,7 @@ fn 표준_입출력으로_스코프만큼_툴이_보이고_서비스의_권한�
     assert_ne!(secret(&wider).1, old_secret);
     let stale = tmp.path().join("old.token");
     std::fs::write(&stale, &old_secret).unwrap();
-    maru_fail(
+    giwa_fail(
         &data,
         &["mcp", "serve", "--token-file", stale.to_str().unwrap()],
     );
@@ -510,7 +510,7 @@ fn 표준_입출력으로_스코프만큼_툴이_보이고_서비스의_권한�
     // 돌고 있는 세션의 토큰을 폐기하면 다음 호출부터 막힌다.
     let (err, _) = c.call("get_site", json!({}));
     assert!(!err);
-    maru(
+    giwa(
         &data,
         &["token", "revoke", wider["token"]["id"].as_str().unwrap()],
     );
@@ -522,11 +522,11 @@ fn 표준_입출력으로_스코프만큼_툴이_보이고_서비스의_권한�
 fn http_입구는_토큰으로만_열리고_터널의_host도_받는다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    let issued = maru(&data, &["token", "create", "--name", "http-시험"]);
+    let issued = giwa(&data, &["token", "create", "--name", "http-시험"]);
     let token = issued["secret"].as_str().unwrap().to_owned();
     let (_server, bind) = start_server(&data);
 
@@ -557,7 +557,7 @@ fn http_입구는_토큰으로만_열리고_터널의_host도_받는다() {
         assert_eq!(status, 200, "{host}: {head}\n{body}");
         assert_eq!(
             json_of(&body)["result"]["serverInfo"]["name"],
-            "maru",
+            "giwa",
             "{body}"
         );
     }
@@ -580,7 +580,7 @@ fn http_입구는_토큰으로만_열리고_터널의_host도_받는다() {
     assert!(!err, "{site}");
 
     // 폐기하면 바로 닫힌다.
-    maru(&data, &["token", "revoke", issued["id"].as_str().unwrap()]);
+    giwa(&data, &["token", "revoke", issued["id"].as_str().unwrap()]);
     let (status, _, _) = post_mcp(&bind, &bind, Some(&token), &call);
     assert_eq!(status, 401);
 }
@@ -589,7 +589,7 @@ fn http_입구는_토큰으로만_열리고_터널의_host도_받는다() {
 fn 변경_툴은_묶음에_담기만_하고_사람이_적용한다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
@@ -618,7 +618,7 @@ fn 변경_툴은_묶음에_담기만_하고_사람이_적용한다() {
         assert!(!tools.iter().any(|t| t == not), "{not}: {tools:?}");
     }
     let has = |data: &Path, slug: &str| {
-        maru(data, &["board", "list"])
+        giwa(data, &["board", "list"])
             .as_array()
             .unwrap()
             .iter()
@@ -669,11 +669,11 @@ fn 변경_툴은_묶음에_담기만_하고_사람이_적용한다() {
     assert!(err, "{denied}");
     assert!(!has(&data, "from-mcp"));
     assert_eq!(
-        maru(&data, &["changeset", "apply", &id])["status"],
+        giwa(&data, &["changeset", "apply", &id])["status"],
         "applied"
     );
     assert_eq!(
-        maru(&data, &["board", "show", "from-mcp"])["name"],
+        giwa(&data, &["board", "show", "from-mcp"])["name"],
         "고친 판"
     );
 
@@ -696,11 +696,11 @@ fn 변경_툴은_묶음에_담기만_하고_사람이_적용한다() {
 fn 자동_적용_토큰은_표준_입출력과_http_모두에서_적용한다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    let issued = maru(
+    let issued = giwa(
         &data,
         &[
             "token",
@@ -760,7 +760,7 @@ fn 자동_적용_토큰은_표준_입출력과_http_모두에서_적용한다() 
     assert!(!err, "{applied}");
     assert_eq!(applied["status"], "applied");
     assert_eq!(
-        maru(&data, &["board", "show", "auto-http"])["name"],
+        giwa(&data, &["board", "show", "auto-http"])["name"],
         "자동 판"
     );
 }

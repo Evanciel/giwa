@@ -9,12 +9,12 @@
 //!   그래서 웹훅 서명 시크릿은 받지 않는다.
 
 use crate::pg::{Answer, Payment, State, path_part};
-use maru_storage::fetch::PayClient;
+use giwa_storage::fetch::PayClient;
 use serde_json::{Value, json};
 
 const API: &str = "https://api.portone.io";
 /// 시험용으로 결제사 주소를 바꾼다 (`pg::api_base`).
-const API_ENV: &str = "MARU_PAY_PORTONE_API";
+const API_ENV: &str = "GIWA_PAY_PORTONE_API";
 
 /// 브라우저 SDK 주소 (공식 문서).
 pub const SDK: &str = "https://cdn.portone.io/v2/browser-sdk.js";

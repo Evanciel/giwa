@@ -1,4 +1,4 @@
-//! 명령 구현. 모든 명령은 `maru_core::services` 를 부르고 결과를 출력 계약으로 낸다.
+//! 명령 구현. 모든 명령은 `giwa_core::services` 를 부르고 결과를 출력 계약으로 낸다.
 
 use std::io::Read;
 use std::net::SocketAddr;
@@ -6,20 +6,20 @@ use std::path::Path;
 use std::process::ExitCode;
 use std::sync::Arc;
 
-use maru_core::actor::Scope;
-use maru_core::config::{Config, DEFAULT_BIND};
-use maru_core::model::{MenuItem, MenuLink, Page, PageReq, PageStatus, PostStatus};
-use maru_core::services::boards::{self, NewBoard};
-use maru_core::services::posts::{self, NewPost};
-use maru_core::services::tokens::{self, NewToken};
-use maru_core::services::{
+use giwa_core::actor::Scope;
+use giwa_core::config::{Config, DEFAULT_BIND};
+use giwa_core::model::{MenuItem, MenuLink, Page, PageReq, PageStatus, PostStatus};
+use giwa_core::services::boards::{self, NewBoard};
+use giwa_core::services::posts::{self, NewPost};
+use giwa_core::services::tokens::{self, NewToken};
+use giwa_core::services::{
     anonymous_actor, audit_log, auth, backups, categories, comments, design, designs, files, fonts,
     indexnow, mail, media, members, menus, pages, presets, retention, samples, saved_blocks,
     search, settings, signals, stats, tags, templates, views, widgets, wiki,
 };
-use maru_core::urls::{self, Target};
-use maru_core::{Actor, Code, Ctx, Error, Result};
-use maru_storage::{DataDir, Db};
+use giwa_core::urls::{self, Target};
+use giwa_core::{Actor, Code, Ctx, Error, Result};
+use giwa_storage::{DataDir, Db};
 use serde_json::{Value, json};
 
 use crate::output;
@@ -111,20 +111,20 @@ fn essentials(data: &Value) -> Vec<String> {
     .collect()
 }
 
-/// 로컬 CLI 는 운영자다. `MARU_TOKEN` 이 있으면 그 토큰의 스코프로 제한한다 (Q2).
+/// 로컬 CLI 는 운영자다. `GIWA_TOKEN` 이 있으면 그 토큰의 스코프로 제한한다 (Q2).
 pub(crate) async fn actor(ctx: &Ctx) -> Result<Actor> {
-    match std::env::var("MARU_TOKEN") {
-        Ok(t) if !t.trim().is_empty() => tokens::authenticate(ctx, t.trim()).await,
+    match giwa_core::env::var("TOKEN") {
+        Some(t) if !t.trim().is_empty() => tokens::authenticate(ctx, t.trim()).await,
         _ => Ok(Actor::local()),
     }
 }
 
 /// 데이터 디렉터리를 연다. 코어가 모듈(위젯 종류 등)을 물을 수 있게 레지스트리를 붙인다.
 pub(crate) async fn open(g: &Global) -> Result<(Ctx, Config, Db)> {
-    let (mut ctx, config, db) = maru_storage::open(&DataDir::new(&g.data)).await?;
+    let (mut ctx, config, db) = giwa_storage::open(&DataDir::new(&g.data)).await?;
     ctx.extensions = crate::modules::registry(&db)?;
     // 오류 문장의 언어를 사이트 언어로 맞춘다 (ADR-0134). 못 읽으면 한국어 그대로.
-    let _ = maru_core::services::settings::site(&ctx).await;
+    let _ = giwa_core::services::settings::site(&ctx).await;
     Ok((ctx, config, db))
 }
 
@@ -136,7 +136,7 @@ fn to_value<T: serde::Serialize>(v: &T) -> Result<Value> {
 
 async fn init(g: &Global, args: InitArgs) -> Out {
     let mut preset =
-        maru_themes::preset(&args.preset).map_err(|e| e.next("maru init --preset blog --yes"))?;
+        giwa_themes::preset(&args.preset).map_err(|e| e.next("giwa init --preset blog --yes"))?;
     if args.no_samples {
         preset
             .ops
@@ -161,8 +161,8 @@ async fn init(g: &Global, args: InitArgs) -> Out {
     let db = Db::open(&dir.db_path(), true).await?;
     db.migrate().await?;
     let ctx = Ctx {
-        store: Arc::new(maru_storage::SqliteStore::new(db.clone())),
-        blobs: Arc::new(maru_storage::FsBlobs::new(dir.media_dir())),
+        store: Arc::new(giwa_storage::SqliteStore::new(db.clone())),
+        blobs: Arc::new(giwa_storage::FsBlobs::new(dir.media_dir())),
         site_url: config.site_url.clone(),
         extensions: crate::modules::registry(&db)?,
     };
@@ -217,10 +217,10 @@ async fn init(g: &Global, args: InitArgs) -> Out {
     db.close().await;
 
     let data_dir = dir.root().display().to_string();
-    let serve_cmd = format!("maru serve --data \"{data_dir}\"");
+    let serve_cmd = format!("giwa serve --data \"{data_dir}\"");
     let mut next = vec![serve_cmd.clone()];
     next.push(format!(
-        "maru post new --data \"{data_dir}\" --title \"첫 글\" --from post.md --publish"
+        "giwa post new --data \"{data_dir}\" --title \"첫 글\" --from post.md --publish"
     ));
     let data = json!({
         "data_dir": data_dir,
@@ -312,9 +312,9 @@ pub(crate) async fn running_url(g: &Global, config: &Config, url: &str) -> Strin
         .ok()
         .and_then(|text| serde_json::from_str::<Value>(&text).ok())
         .and_then(|v| v["bind"].as_str()?.parse::<SocketAddr>().ok());
-    // 강제 종료되면 기록이 남는다: 실제로 답하는 maru 일 때만 믿는다.
+    // 강제 종료되면 기록이 남는다: 실제로 답하는 giwa 일 때만 믿는다.
     match bind {
-        Some(addr) if crate::doctor::probe_maru(addr).await == Some(true) => {
+        Some(addr) if crate::doctor::probe_giwa(addr).await == Some(true) => {
             format!("http://{addr}{path}")
         }
         _ => url.to_owned(),
@@ -332,15 +332,15 @@ async fn serve(g: &Global, args: ServeArgs) -> ExitCode {
 
 async fn serve_inner(g: &Global, args: ServeArgs) -> Result<()> {
     let dir = DataDir::new(&g.data);
-    // 서버가 켜져 있는 동안 복원(`maru restore`)과 두 번째 서버를 막는다 (ADR-0063).
+    // 서버가 켜져 있는 동안 복원(`giwa restore`)과 두 번째 서버를 막는다 (ADR-0063).
     let _serve_lock = if dir.is_initialized() {
-        Some(maru_storage::backup::lock_serve(&dir)?)
+        Some(giwa_storage::backup::lock_serve(&dir)?)
     } else {
         None
     };
     let (ctx, config, db) = open(g).await?;
     let modules = crate::modules::registry(&db)?;
-    maru_modules::service::upgrade_enabled(&ctx, &modules).await?;
+    giwa_modules::service::upgrade_enabled(&ctx, &modules).await?;
     let bind = args.bind.unwrap_or_else(|| config.bind.clone());
     let addr: SocketAddr = bind.parse().map_err(|_| {
         Error::new(Code::Validation)
@@ -356,7 +356,7 @@ async fn serve_inner(g: &Global, args: ServeArgs) -> Result<()> {
                 .arg("port", addr.port().to_string())
                 .with_hint("hint.port_in_use")
                 .next(format!(
-                    "maru serve --data \"{}\" --bind {other}",
+                    "giwa serve --data \"{}\" --bind {other}",
                     dir.root().display()
                 )));
         }
@@ -372,20 +372,20 @@ async fn serve_inner(g: &Global, args: ServeArgs) -> Result<()> {
     );
 
     let theme_dir = dir.themes_dir().join("default");
-    let theme = maru_themes::Theme::with_templates(
+    let theme = giwa_themes::Theme::with_templates(
         theme_dir.is_dir().then_some(theme_dir),
         modules.iter().flat_map(|m| m.templates()).collect(),
     );
     // 편지: 설정 [mail] 대로 파일 또는 SMTP (ADR-0051·0083)
-    let (mailer, mail_about) = maru_storage::mailer::from_config(&dir, &config)?;
+    let (mailer, mail_about) = giwa_storage::mailer::from_config(&dir, &config)?;
     let mail_info = mail_json(&dir, &config);
-    let archiver = maru_storage::backup::FsArchiver::new(dir.clone(), db.clone());
-    let fetcher = maru_storage::fetch::HttpFetcher::new().map_err(Error::internal)?;
-    let announcer = maru_storage::fetch::IndexNowClient::new().map_err(Error::internal)?;
-    let sandbox = maru_storage::sandbox::FsSandbox::new(&dir, db.clone());
+    let archiver = giwa_storage::backup::FsArchiver::new(dir.clone(), db.clone());
+    let fetcher = giwa_storage::fetch::HttpFetcher::new().map_err(Error::internal)?;
+    let announcer = giwa_storage::fetch::IndexNowClient::new().map_err(Error::internal)?;
+    let sandbox = giwa_storage::sandbox::FsSandbox::new(&dir, db.clone());
     sandbox.clear();
-    let state = maru_web::AppState::new(ctx, theme)
-        .with_previews(Arc::new(maru_web::preview::Previews::new(Arc::new(
+    let state = giwa_web::AppState::new(ctx, theme)
+        .with_previews(Arc::new(giwa_web::preview::Previews::new(Arc::new(
             sandbox,
         ))))
         .with_mailer(mailer)
@@ -415,7 +415,7 @@ async fn serve_inner(g: &Global, args: ServeArgs) -> Result<()> {
         let _ = stopping.send(());
     };
     let leftover = state.clone();
-    let serve = maru_web::serve(state, listener, shutdown);
+    let serve = giwa_web::serve(state, listener, shutdown);
     tokio::pin!(serve);
     let res = tokio::select! {
         r = &mut serve => r,
@@ -427,7 +427,7 @@ async fn serve_inner(g: &Global, args: ServeArgs) -> Result<()> {
             }
         } => {
             tracing::warn!("진행 중인 요청이 끝나지 않아 강제로 멈춥니다");
-            maru_web::flush_views(&leftover).await;
+            giwa_web::flush_views(&leftover).await;
             Ok(())
         }
     };
@@ -493,7 +493,7 @@ async fn post(g: &Global, cmd: PostCmd) -> Out {
             let (data, human) = post_out(&ctx, &p, "삭제했습니다").await?;
             Ok((
                 data,
-                format!("{human}\n되돌리기: maru post restore {}", p.id),
+                format!("{human}\n되돌리기: giwa post restore {}", p.id),
             ))
         }
         PostCmd::Restore { id } => {
@@ -561,9 +561,9 @@ async fn post(g: &Global, cmd: PostCmd) -> Out {
             );
             for l in &c.body.lines {
                 let mark = match l.op {
-                    maru_core::diff::Op::Same => ' ',
-                    maru_core::diff::Op::Add => '+',
-                    maru_core::diff::Op::Del => '-',
+                    giwa_core::diff::Op::Same => ' ',
+                    giwa_core::diff::Op::Add => '+',
+                    giwa_core::diff::Op::Del => '-',
                 };
                 human.push_str(&format!("\n{mark} {}", l.text));
             }
@@ -647,7 +647,7 @@ async fn post(g: &Global, cmd: PostCmd) -> Out {
                     board: args.board.ok_or_else(|| {
                         Error::new(Code::Validation)
                             .with_message("error.bulk_board")
-                            .next("maru post bulk move --board <게시판> --id <글>")
+                            .next("giwa post bulk move --board <게시판> --id <글>")
                     })?,
                     category: args.category,
                 },
@@ -689,7 +689,7 @@ async fn post(g: &Global, cmd: PostCmd) -> Out {
         PostCmd::Nearby { board, slug } => {
             let (board, p) = posts::public_post(&ctx, &actor, &board, &slug).await?;
             let near = posts::nearby(&ctx, &actor, &board, &p).await?;
-            let line = |label: &str, q: &Option<maru_core::model::Post>| match q {
+            let line = |label: &str, q: &Option<giwa_core::model::Post>| match q {
                 Some(q) => format!("{label}: {} ({})", q.title, q.slug),
                 None => format!("{label}: 없음"),
             };
@@ -748,7 +748,7 @@ async fn post(g: &Global, cmd: PostCmd) -> Out {
 }
 
 /// 글 결과에 공개 URL 을 붙여 낸다.
-async fn post_out(ctx: &Ctx, p: &maru_core::model::Post, verb: &str) -> Out {
+async fn post_out(ctx: &Ctx, p: &giwa_core::model::Post, verb: &str) -> Out {
     let url = post_url(ctx, &p.board_id, &p.slug).await?;
     let mut data = to_value(p)?;
     data["url"] = Value::String(url.clone());
@@ -768,7 +768,7 @@ async fn schedule_arg(ctx: &Ctx, value: Option<String>) -> Result<Option<String>
         return Ok(Some(String::new()));
     }
     let tz = settings::site(ctx).await?.tz_offset_min;
-    maru_core::clock::from_local_input(&v, tz)
+    giwa_core::clock::from_local_input(&v, tz)
         .map(Some)
         .ok_or_else(|| {
             Error::new(Code::Validation)
@@ -826,7 +826,7 @@ async fn post_new(ctx: &Ctx, actor: &Actor, args: PostNewArgs) -> Out {
     if let Some(at) = &p.scheduled_at {
         human.push_str(&format!("\n예약 발행: {at} (UTC)"));
     } else if !args.publish && created {
-        human.push_str(&format!("\n다음: maru post publish {}", p.id));
+        human.push_str(&format!("\n다음: giwa post publish {}", p.id));
     }
     Ok((data, human))
 }
@@ -867,7 +867,7 @@ fn field_args(
             Error::new(Code::Validation)
                 .with_message("error.field_arg")
                 .arg("value", a.clone())
-                .next("maru post edit <글> --field price=12000")
+                .next("giwa post edit <글> --field price=12000")
         })?;
         let k = k.trim().to_owned();
         if v.trim().is_empty() {
@@ -880,13 +880,13 @@ fn field_args(
 }
 
 /// 여분 칸 정의 JSON 배열 파일.
-fn read_fields(path: &Path) -> Result<Vec<maru_core::fields::FieldDef>> {
+fn read_fields(path: &Path) -> Result<Vec<giwa_core::fields::FieldDef>> {
     let text = read_body(path)?;
     serde_json::from_str(&text).map_err(|e| {
         Error::new(Code::Validation)
             .with_message("error.field_json")
             .arg("detail", e.to_string())
-            .next("maru board show <게시판> --json")
+            .next("giwa board show <게시판> --json")
     })
 }
 
@@ -1017,7 +1017,7 @@ async fn board(g: &Global, cmd: BoardCmd) -> Out {
                 let current = boards::show(&ctx, &actor, &args.slug).await?.policy;
                 let approval = |v: Option<&str>, now| match v {
                     None => Ok(now),
-                    Some(s) => maru_core::model::Approval::parse(s).ok_or_else(|| {
+                    Some(s) => giwa_core::model::Approval::parse(s).ok_or_else(|| {
                         Error::new(Code::Validation)
                             .with_message("error.comment_policy")
                             .arg("value", s)
@@ -1028,7 +1028,7 @@ async fn board(g: &Global, cmd: BoardCmd) -> Out {
                     approval(args.comment_approval.as_deref(), current.comment_approval)?;
                 let write_approval =
                     approval(args.write_approval.as_deref(), current.write_approval)?;
-                Some(maru_core::model::BoardPolicy {
+                Some(giwa_core::model::BoardPolicy {
                     read: args.read.unwrap_or(current.read),
                     write: args.write.unwrap_or(current.write),
                     comment: args.comment.unwrap_or(current.comment),
@@ -1085,7 +1085,7 @@ async fn token(g: &Global, cmd: TokenCmd) -> Out {
 
 async fn token_list(ctx: &Ctx, actor: &Actor) -> Out {
     let list = tokens::list(ctx, actor).await?;
-    let now = maru_core::clock::now();
+    let now = giwa_core::clock::now();
     let mut human = String::new();
     for t in &list {
         let state = if t.revoked_at.is_some() {
@@ -1174,7 +1174,7 @@ async fn page_inner(ctx: &Ctx, actor: &Actor, cmd: PageCmd) -> Out {
             let starter = args
                 .starter
                 .as_deref()
-                .map(maru_themes::starter)
+                .map(giwa_themes::starter)
                 .transpose()?;
             // 틀이 정한 모양(블록 페이지·글 페이지)을 따르되, 직접 준 본문·배치가 먼저다 (ADR-0167)
             let shaped = starter.as_ref().map(|s| s.page("", ""));
@@ -1222,7 +1222,7 @@ async fn page_inner(ctx: &Ctx, actor: &Actor, cmd: PageCmd) -> Out {
                 human.push_str(&format!("\n틀의 블록 {placed}개를 놓았습니다."));
             }
             if p.status == PageStatus::Draft {
-                human.push_str(&format!("\n다음: maru page publish {}", p.slug));
+                human.push_str(&format!("\n다음: giwa page publish {}", p.slug));
             }
             Ok((data, human))
         }
@@ -1285,7 +1285,7 @@ async fn page_inner(ctx: &Ctx, actor: &Actor, cmd: PageCmd) -> Out {
             let (data, human) = page_out(ctx, &p, "삭제했습니다")?;
             Ok((
                 data,
-                format!("{human}\n되돌리기: maru page restore {}", p.slug),
+                format!("{human}\n되돌리기: giwa page restore {}", p.slug),
             ))
         }
         PageCmd::Restore { slug } => page_out(
@@ -1317,7 +1317,7 @@ async fn redirect(g: &Global, cmd: RedirectCmd) -> Out {
 }
 
 async fn redirect_run(ctx: &Ctx, actor: &Actor, cmd: RedirectCmd) -> Out {
-    use maru_core::services::redirects::{self, NewRedirect};
+    use giwa_core::services::redirects::{self, NewRedirect};
     match cmd {
         RedirectCmd::List => {
             let list = redirects::list(ctx, actor).await?;
@@ -1373,7 +1373,7 @@ async fn menu_set(ctx: &Ctx, actor: &Actor, args: MenuSetArgs) -> Out {
         return Err(Error::new(Code::Usage)
             .with_hint("hint.usage")
             .next(format!(
-                "maru menu set {} --item \"글=board:blog\" --item \"소개=page:about\"",
+                "giwa menu set {} --item \"글=board:blog\" --item \"소개=page:about\"",
                 args.location
             )));
     } else {
@@ -1456,7 +1456,7 @@ fn menu_human(location: &str, items: &[MenuItem]) -> String {
 async fn backup_cmd(g: &Global, args: BackupArgs) -> Out {
     let dir = DataDir::new(&g.data);
     let (ctx, _config, db) = open(g).await?;
-    let archiver = maru_storage::backup::FsArchiver::new(dir.clone(), db.clone());
+    let archiver = giwa_storage::backup::FsArchiver::new(dir.clone(), db.clone());
     let res = async {
         let actor = actor(&ctx).await?;
         match args.cmd {
@@ -1472,7 +1472,7 @@ async fn backup_cmd(g: &Global, args: BackupArgs) -> Out {
                 .await?;
                 let path = dir.backups_dir().join(&b.name);
                 let human = format!(
-                    "백업을 만들었습니다: {} ({} 바이트{})\n되살리기: 서버를 끈 뒤 maru restore --data \"{}\" \"{}\" --yes",
+                    "백업을 만들었습니다: {} ({} 바이트{})\n되살리기: 서버를 끈 뒤 giwa restore --data \"{}\" \"{}\" --yes",
                     path.display(),
                     b.size,
                     if b.secrets { "" } else { ", 비밀 뺌" },
@@ -1486,7 +1486,7 @@ async fn backup_cmd(g: &Global, args: BackupArgs) -> Out {
             Some(BackupCmd::List) => {
                 let list = backups::list(&actor, &archiver).await?;
                 let human = if list.is_empty() {
-                    "백업이 없습니다. 만들기: maru backup".to_owned()
+                    "백업이 없습니다. 만들기: giwa backup".to_owned()
                 } else {
                     list.iter()
                         .map(|b| {
@@ -1519,13 +1519,13 @@ async fn restore_cmd(g: &Global, args: RestoreArgs) -> Out {
         return Err(Error::new(Code::Usage)
             .with_message("error.restore_confirm")
             .next(format!(
-                "maru restore --data \"{}\" \"{}\" --yes",
+                "giwa restore --data \"{}\" \"{}\" --yes",
                 g.data.display(),
                 args.file.display()
             )));
     }
     let dir = DataDir::new(&g.data);
-    let report = maru_storage::backup::restore(&dir, &args.file).await?;
+    let report = giwa_storage::backup::restore(&dir, &args.file).await?;
     // 옛 백업이면 여기서 최신 스키마로 올라간다.
     let (ctx, _config, db) = open(g).await?;
     // 백업의 VACUUM 이 감사 기록 순번을 바꿀 수 있어 모듈 커서를 끝으로 옮긴다 (ADR-0066).
@@ -1536,10 +1536,10 @@ async fn restore_cmd(g: &Global, args: RestoreArgs) -> Out {
     let (schema, _) = db.schema_versions().await?;
     db.close().await;
     let human = format!(
-        "되살렸습니다: {} (만든 때 {}, Maru {}{})\n이전 데이터: {}",
+        "되살렸습니다: {} (만든 때 {}, Giwa {}{})\n이전 데이터: {}",
         args.file.display(),
         report.manifest.created_at,
-        report.manifest.maru_version,
+        report.manifest.giwa_version,
         if report.manifest.secrets {
             ""
         } else {
@@ -1751,7 +1751,7 @@ async fn saved_block_run(ctx: &Ctx, actor: &Actor, cmd: SavedBlockCmd) -> Out {
         SavedBlockCmd::List => {
             let list = saved_blocks::list(ctx, actor).await?;
             let human = if list.is_empty() {
-                "내 블록이 없습니다. 저장: maru widget saved save <종류> --name <이름>".to_owned()
+                "내 블록이 없습니다. 저장: giwa widget saved save <종류> --name <이름>".to_owned()
             } else {
                 list.iter()
                     .map(|b| format!("{}  {} ({}, {})", b.id, b.name, b.kind, b.region))
@@ -1810,7 +1810,7 @@ fn widget_config(inline: Option<&str>, file: Option<&Path>) -> Result<Option<Val
     })
 }
 
-fn widget_line(w: &maru_core::model::Widget) -> String {
+fn widget_line(w: &giwa_core::model::Widget) -> String {
     format!(
         "{} {} [{}·{}]{}{}",
         w.id,
@@ -1829,7 +1829,7 @@ fn widget_line(w: &maru_core::model::Widget) -> String {
 // ---- stickers ----
 
 fn stickers_cmd() -> Out {
-    let items = maru_themes::stickers();
+    let items = giwa_themes::stickers();
     let mut human = format!("스티커 {}종. 글: ![이름](주소)  댓글: :id:", items.len());
     for s in items {
         human.push_str(&format!("\n{}  {}  {}", s.id, s.label, s.src));
@@ -1904,13 +1904,13 @@ async fn site(g: &Global, cmd: SiteCmd) -> Out {
         if s.show_views { "보임" } else { "숨김" },
         if s.show_search { "보임" } else { "숨김" },
         match s.signup {
-            maru_core::model::SignupMode::Off => "받지 않음",
-            maru_core::model::SignupMode::Open => "누구나",
+            giwa_core::model::SignupMode::Off => "받지 않음",
+            giwa_core::model::SignupMode::Open => "누구나",
         },
         if s.signup_verify { "필요" } else { "없음" },
         match s.captcha {
-            maru_core::model::CaptchaMode::Off => "끔",
-            maru_core::model::CaptchaMode::Guest => "비회원·가입",
+            giwa_core::model::CaptchaMode::Off => "끔",
+            giwa_core::model::CaptchaMode::Guest => "비회원·가입",
         }
     );
     Ok((to_value(&s)?, human))
@@ -1952,13 +1952,13 @@ async fn theme_cmd(g: &Global, cmd: ThemeCmd) -> Out {
     match cmd {
         ThemeCmd::List => {
             let mut items = Vec::new();
-            for id in maru_themes::preset_ids() {
-                let p = maru_themes::preset(&id)?;
+            for id in giwa_themes::preset_ids() {
+                let p = giwa_themes::preset(&id)?;
                 if presets::theme_tokens(&p).is_some() {
                     items.push(json!({ "id": p.id, "name": p.name, "description": p.description, "look": p.theme_note }));
                 }
             }
-            let mut human = format!("테마 {}개. 입히기: maru theme apply <id>", items.len());
+            let mut human = format!("테마 {}개. 입히기: giwa theme apply <id>", items.len());
             for t in &items {
                 human.push_str(&format!(
                     "{}{}  {}",
@@ -1970,12 +1970,12 @@ async fn theme_cmd(g: &Global, cmd: ThemeCmd) -> Out {
             Ok((json!({ "items": items }), human))
         }
         ThemeCmd::Apply { id } => {
-            let preset = maru_themes::preset(&id)?;
+            let preset = giwa_themes::preset(&id)?;
             let tokens = presets::theme_tokens(&preset).ok_or_else(|| {
                 Error::new(Code::Validation)
                     .with_message("error.usage_detail")
                     .arg("detail", format!("{id} 에는 입힐 색과 모양이 없습니다."))
-                    .next("maru theme list")
+                    .next("giwa theme list")
             })?;
             let (ctx, _config, db) = open(g).await?;
             let actor = actor(&ctx).await?;
@@ -2006,7 +2006,7 @@ async fn export_cmd(g: &Global, cmd: ExportCmd) -> Out {
                 format!("{} 가 비어 있지 않습니다.", out.display()),
             )
             .next(format!(
-                "maru export static --out \"{}\" --yes",
+                "giwa export static --out \"{}\" --yes",
                 out.display()
             )));
     }
@@ -2014,12 +2014,12 @@ async fn export_cmd(g: &Global, cmd: ExportCmd) -> Out {
     let modules = crate::modules::registry(&db)?;
     let dir = DataDir::new(&g.data);
     let theme_dir = dir.themes_dir().join("default");
-    let theme = maru_themes::Theme::with_templates(
+    let theme = giwa_themes::Theme::with_templates(
         theme_dir.is_dir().then_some(theme_dir),
         modules.iter().flat_map(|m| m.templates()).collect(),
     );
-    let state = maru_web::AppState::new(ctx, theme).with_modules(modules);
-    let res = maru_web::export::export_static(state, &out).await;
+    let state = giwa_web::AppState::new(ctx, theme).with_modules(modules);
+    let res = giwa_web::export::export_static(state, &out).await;
     db.close().await;
     let report = res?;
     let mut human = format!(
@@ -2030,7 +2030,7 @@ async fn export_cmd(g: &Global, cmd: ExportCmd) -> Out {
         "\n로그인·댓글·검색·폼은 동작하지 않습니다. 고치려면 사이트에서 고치고 다시 내보내세요.",
     );
     if config.site_url.contains("127.0.0.1") || config.site_url.contains("localhost") {
-        human.push_str("\n사이트 주소가 아직 이 컴퓨터를 가리킵니다. 공유 링크와 sitemap 에 그대로 들어갑니다: maru site set --site-url https://<주소>");
+        human.push_str("\n사이트 주소가 아직 이 컴퓨터를 가리킵니다. 공유 링크와 sitemap 에 그대로 들어갑니다: giwa site set --site-url https://<주소>");
     }
     Ok((
         serde_json::to_value(&report).map_err(Error::internal)?,
@@ -2049,8 +2049,8 @@ async fn design_cmd(g: &Global, cmd: DesignCmd) -> Out {
 /// 디자인 모음 (ADR-0158). id 가 없으면 목록, 있으면 그 디자인의 블록과 토큰.
 fn design_gallery(actor: &Actor, id: Option<&str>) -> Out {
     let Some(id) = id else {
-        let items = designs::list(actor, &maru_themes::presets()?)?;
-        let mut human = format!("디자인 {}개. 자세히: maru design gallery <id>", items.len());
+        let items = designs::list(actor, &giwa_themes::presets()?)?;
+        let mut human = format!("디자인 {}개. 자세히: giwa design gallery <id>", items.len());
         for d in &items {
             human.push_str(&format!(
                 "\n{}  {} (블록 {}개)  {}",
@@ -2059,7 +2059,7 @@ fn design_gallery(actor: &Actor, id: Option<&str>) -> Out {
         }
         return Ok((json!({ "items": items }), human));
     };
-    let d = designs::show(actor, &maru_themes::preset(id)?)?;
+    let d = designs::show(actor, &giwa_themes::preset(id)?)?;
     let mut human = format!(
         "{} 디자인: 블록 {}개. 첫 화면에 놓으려면 변경 묶음에 widget.place(region main, scope home)를, 색은 tokens.set 을 담습니다.",
         d.info.name, d.info.blocks
@@ -2097,7 +2097,7 @@ async fn design_inner(ctx: &Ctx, actor: &Actor, cmd: DesignCmd) -> Out {
             if args.sets.is_empty() && args.from.is_none() {
                 return Err(Error::new(Code::Usage)
                     .with_hint("hint.usage")
-                    .next("maru design set --set color.primary=#2f5d50"));
+                    .next("giwa design set --set color.primary=#2f5d50"));
             }
             (
                 design::update(ctx, actor, patch).await?,
@@ -2132,7 +2132,7 @@ fn set_path(patch: &mut Value, spec: &str) -> Result<()> {
             .with_message("error.token_value")
             .arg("field", spec.to_owned())
             .arg("value", "")
-            .next("maru design set --set color.primary=#2f5d50")
+            .next("giwa design set --set color.primary=#2f5d50")
     };
     let (path, raw) = spec.split_once('=').ok_or_else(bad)?;
     let value = match serde_json::from_str::<Value>(raw.trim()) {
@@ -2304,9 +2304,9 @@ async fn media_cmd(g: &Global, cmd: MediaCmd) -> Out {
             let crop = match crop.as_deref().map(parse_crop) {
                 Some(Some(c)) => Some(c),
                 Some(None) => {
-                    return Err(maru_core::Error::new(maru_core::Code::Validation)
+                    return Err(giwa_core::Error::new(giwa_core::Code::Validation)
                         .with_message("error.media_crop_arg")
-                        .next("maru media transform <ID> --crop 0,0,800,600"));
+                        .next("giwa media transform <ID> --crop 0,0,800,600"));
                 }
                 None => None,
             };
@@ -2452,7 +2452,7 @@ async fn font_inner(g: &Global, ctx: &Ctx, actor: &Actor, cmd: FontCmd) -> Out {
 }
 
 /// 사람용 출력에는 글 안에 쓰는 법과 사이트 본문 서체로 쓰는 명령을 같이 낸다.
-fn font_out(f: &maru_core::model::Font, verb: &str, warnings: &[String]) -> Out {
+fn font_out(f: &giwa_core::model::Font, verb: &str, warnings: &[String]) -> Out {
     let mut human = format!("{verb}: {} ({})  라이선스 {}", f.name, f.slug, f.license);
     for x in &f.files {
         human.push_str(&format!(
@@ -2465,7 +2465,7 @@ fn font_out(f: &maru_core::model::Font, verb: &str, warnings: &[String]) -> Out 
         ));
     }
     human.push_str(&format!(
-        "\n글에 쓰기: :font[글자]{{{0}}}\n사이트 본문 서체로: maru design set --set font.body={0}",
+        "\n글에 쓰기: :font[글자]{{{0}}}\n사이트 본문 서체로: giwa design set --set font.body={0}",
         f.slug
     ));
     for w in warnings {
@@ -2526,7 +2526,7 @@ async fn template_cmd(g: &Global, cmd: TemplateCmd) -> Out {
 async fn category_cmd(g: &Global, cmd: CategoryCmd) -> Out {
     let (ctx, _config, db) = open(g).await?;
     let actor = actor(&ctx).await?;
-    let one = |c: &maru_core::model::Category, verb: &str| -> Out {
+    let one = |c: &giwa_core::model::Category, verb: &str| -> Out {
         Ok((
             to_value(c)?,
             format!("{verb}: {} (주소 {})", c.name, c.slug),
@@ -2541,7 +2541,7 @@ async fn category_cmd(g: &Global, cmd: CategoryCmd) -> Out {
             }
             if list.is_empty() {
                 human.push_str(&format!(
-                    "\n만들기: maru category add --board {board} <이름>"
+                    "\n만들기: giwa category add --board {board} <이름>"
                 ));
             }
             Ok((to_value(&list)?, human))
@@ -2582,7 +2582,7 @@ async fn category_cmd(g: &Global, cmd: CategoryCmd) -> Out {
     res
 }
 
-/// 검색은 손님 기준(공개 화면과 같은 결과). 초안·비밀글까지 찾으려면 `maru post list --q`.
+/// 검색은 손님 기준(공개 화면과 같은 결과). 초안·비밀글까지 찾으려면 `giwa post list --q`.
 async fn search_cmd(g: &Global, args: SearchArgs) -> Out {
     if let Some(SearchCmd::Reindex) = args.cmd {
         let (ctx, _config, db) = open(g).await?;
@@ -2599,8 +2599,8 @@ async fn search_cmd(g: &Global, args: SearchArgs) -> Out {
     let Some(q) = args.q else {
         return Err(Error::new(Code::Usage)
             .with_hint("hint.usage")
-            .next("maru search \"제주 국밥\"")
-            .next("maru search reindex"));
+            .next("giwa search \"제주 국밥\"")
+            .next("giwa search reindex"));
     };
     let (range, sort) = search::parse_options(&args.range, &args.sort)?;
     let (ctx, _config, db) = open(g).await?;
@@ -2639,7 +2639,7 @@ async fn comment_cmd(g: &Global, cmd: CommentCmd) -> Out {
             CommentCmd::List { status, post, page } => {
                 let status = match status.as_str() {
                     "all" => None,
-                    s => Some(maru_core::model::CommentStatus::parse(s).ok_or_else(|| {
+                    s => Some(giwa_core::model::CommentStatus::parse(s).ok_or_else(|| {
                         Error::new(Code::Usage)
                             .with_message("error.usage_detail")
                             .arg(
@@ -2648,7 +2648,7 @@ async fn comment_cmd(g: &Global, cmd: CommentCmd) -> Out {
                                     "--status {s}: pending, published, hidden, spam, deleted, all"
                                 ),
                             )
-                            .next("maru comment list --status pending")
+                            .next("giwa comment list --status pending")
                     })?),
                 };
                 let list = comments::admin_list(
@@ -2732,18 +2732,18 @@ async fn member_cmd(g: &Global, cmd: MemberCmd) -> Out {
                 Ok((to_value(&p)?, human))
             }
             MemberCmd::Disable { who } => member_out(
-                members::set_status(&ctx, &actor, &who, maru_core::model::MemberStatus::Disabled)
+                members::set_status(&ctx, &actor, &who, giwa_core::model::MemberStatus::Disabled)
                     .await?,
             ),
             MemberCmd::Enable { who } => member_out(
-                members::set_status(&ctx, &actor, &who, maru_core::model::MemberStatus::Active)
+                members::set_status(&ctx, &actor, &who, giwa_core::model::MemberStatus::Active)
                     .await?,
             ),
             MemberCmd::Role { who, role } => {
                 member_out(members::set_role(&ctx, &actor, &who, &role).await?)
             }
             MemberCmd::TotpReset { who } => {
-                let (m, removed) = maru_core::services::totp::reset(&ctx, &actor, &who).await?;
+                let (m, removed) = giwa_core::services::totp::reset(&ctx, &actor, &who).await?;
                 let human = if removed {
                     format!(
                         "{} 의 2단계 인증을 껐습니다. 이제 비밀번호만으로 로그인합니다.",
@@ -2767,11 +2767,11 @@ async fn member_cmd(g: &Global, cmd: MemberCmd) -> Out {
     res
 }
 
-fn member_flags(m: &maru_core::model::Member) -> String {
+fn member_flags(m: &giwa_core::model::Member) -> String {
     let mut f = String::new();
     if m.withdrawn_at.is_some() {
         f.push_str("  탈퇴");
-    } else if m.status == maru_core::model::MemberStatus::Disabled {
+    } else if m.status == giwa_core::model::MemberStatus::Disabled {
         f.push_str("  비활성");
     }
     if m.email_verified_at.is_none() {
@@ -2796,7 +2796,7 @@ fn changeset_usage(detail: impl std::fmt::Display) -> Error {
     Error::new(Code::Usage)
         .with_message("error.changeset_op")
         .arg("detail", detail.to_string())
-        .next("maru changeset new --help")
+        .next("giwa changeset new --help")
 }
 
 fn changeset_ops(text: &str) -> Result<Vec<Value>> {
@@ -2806,7 +2806,7 @@ fn changeset_ops(text: &str) -> Result<Vec<Value>> {
     })
 }
 
-fn changeset_line(cs: &maru_core::model::Changeset) -> String {
+fn changeset_line(cs: &giwa_core::model::Changeset) -> String {
     let mut line = format!(
         "{}  {}  연산 {}개  {}",
         cs.id,
@@ -2821,10 +2821,10 @@ fn changeset_line(cs: &maru_core::model::Changeset) -> String {
 }
 
 async fn changeset_cmd(g: &Global, cmd: ChangesetCmd) -> Out {
-    use maru_core::model::ChangesetStatus;
-    use maru_core::services::changesets;
+    use giwa_core::model::ChangesetStatus;
+    use giwa_core::services::changesets;
     let (ctx, config, db) = open(g).await?;
-    let sandbox = maru_storage::sandbox::FsSandbox::new(&DataDir::new(&g.data), db.clone());
+    let sandbox = giwa_storage::sandbox::FsSandbox::new(&DataDir::new(&g.data), db.clone());
     let res = async {
         let actor = actor(&ctx).await?;
         let cs = match cmd {
@@ -2851,7 +2851,7 @@ async fn changeset_cmd(g: &Global, cmd: ChangesetCmd) -> Out {
                     None => None,
                     Some(s) => Some(ChangesetStatus::parse(s).ok_or_else(|| {
                         changeset_usage(format!("상태 `{s}` 는 없습니다"))
-                            .next("maru changeset list --status preview")
+                            .next("giwa changeset list --status preview")
                     })?),
                 };
                 let list = changesets::list(&ctx, &actor, status, limit).await?;
@@ -2885,7 +2885,7 @@ async fn changeset_cmd(g: &Global, cmd: ChangesetCmd) -> Out {
 }
 
 async fn link_cmd(g: &Global, cmd: LinkCmd) -> Out {
-    use maru_core::services::links;
+    use giwa_core::services::links;
     let (ctx, _config, db) = open(g).await?;
     let res = async {
         let actor = actor(&ctx).await?;
@@ -2893,11 +2893,11 @@ async fn link_cmd(g: &Global, cmd: LinkCmd) -> Out {
             LinkCmd::List { status, limit } => {
                 let status = match status.as_deref() {
                     None => None,
-                    Some(s) => Some(maru_core::model::LinkStatus::parse(s).ok_or_else(|| {
+                    Some(s) => Some(giwa_core::model::LinkStatus::parse(s).ok_or_else(|| {
                         Error::new(Code::Usage)
                             .with_message("error.link_status")
                             .arg("value", s)
-                            .next("maru link list --status pending")
+                            .next("giwa link list --status pending")
                     })?),
                 };
                 let list = links::list(&ctx, &actor, status, limit).await?;
@@ -2918,8 +2918,8 @@ async fn link_cmd(g: &Global, cmd: LinkCmd) -> Out {
                 Ok((to_value(&p)?, human))
             }
             LinkCmd::Fetch => {
-                actor.require(maru_core::actor::Permission::PostWrite)?;
-                let fetcher = maru_storage::fetch::HttpFetcher::new().map_err(Error::internal)?;
+                actor.require(giwa_core::actor::Permission::PostWrite)?;
+                let fetcher = giwa_storage::fetch::HttpFetcher::new().map_err(Error::internal)?;
                 let r = links::fetch_pending(&ctx, &fetcher).await?;
                 let human = format!(
                     "가져옴 {}개, 다시 시도 {}개, 실패 {}개",
@@ -2964,7 +2964,7 @@ async fn signals_cmd(g: &Global, args: SignalsArgs) -> Out {
         let actor = actor(&ctx).await?;
         match args.cmd {
             Some(SignalsCmd::Alert) => {
-                actor.require(maru_core::actor::Permission::PostModerate)?;
+                actor.require(giwa_core::actor::Permission::PostModerate)?;
                 let n = signals::alert(&ctx).await?;
                 Ok((
                     serde_json::json!({ "alerted": n }),
@@ -2995,7 +2995,7 @@ async fn seo_status(g: &Global) -> Out {
         let actor = actor(&ctx).await?;
         let s = indexnow::status(&ctx, &actor).await?;
         let human = if !s.enabled {
-            "검색엔진에 바로 알리기가 꺼져 있습니다. 켜기: maru site set --indexnow true".to_owned()
+            "검색엔진에 바로 알리기가 꺼져 있습니다. 켜기: giwa site set --indexnow true".to_owned()
         } else if !s.public_site {
             format!(
                 "사이트 주소({})가 공개 https 도메인이 아니라 검색엔진에 알리지 않습니다.",
@@ -3029,7 +3029,7 @@ async fn sample_cmd(g: &Global, cmd: SampleCmd) -> Out {
     if matches!(cmd, SampleCmd::Clear) && !g.yes {
         return Err(Error::new(Code::Usage)
             .with_message("error.sample_clear_confirm")
-            .next("maru sample clear --yes"));
+            .next("giwa sample clear --yes"));
     }
     let (ctx, _config, db) = open(g).await?;
     let res = async {
@@ -3041,7 +3041,7 @@ async fn sample_cmd(g: &Global, cmd: SampleCmd) -> Out {
                     "예시 글이 없습니다.".to_owned()
                 } else {
                     format!(
-                        "예시 글 {}개 (고치지 않은 글 {}개). 지우기: maru sample clear --yes",
+                        "예시 글 {}개 (고치지 않은 글 {}개). 지우기: giwa sample clear --yes",
                         s.posts, s.untouched
                     )
                 };
@@ -3088,11 +3088,11 @@ async fn mail_cmd(g: &Global, cmd: MailCmd) -> Out {
             MailCmd::List { status, limit } => {
                 let status = match status.as_deref() {
                     None => None,
-                    Some(s) => Some(maru_core::model::MailStatus::parse(s).ok_or_else(|| {
+                    Some(s) => Some(giwa_core::model::MailStatus::parse(s).ok_or_else(|| {
                         Error::new(Code::Usage)
                             .with_message("error.usage_detail")
                             .arg("detail", format!("--status {s}: queued, sent, failed"))
-                            .next("maru mail list --status queued")
+                            .next("giwa mail list --status queued")
                     })?),
                 };
                 let list = mail::list(&ctx, &actor, status, limit).await?;
@@ -3115,7 +3115,7 @@ async fn mail_cmd(g: &Global, cmd: MailCmd) -> Out {
             }
             MailCmd::Send => {
                 mail::list(&ctx, &actor, None, 1).await?; // 로컬 운영자만
-                let (mailer, about) = maru_storage::mailer::from_config(&dir, &config)?;
+                let (mailer, about) = giwa_storage::mailer::from_config(&dir, &config)?;
                 let r = mail::deliver_pending(&ctx, mailer.as_ref()).await?;
                 let human = format!(
                     "보냄 {}통, 다시 시도 {}통, 실패 {}통 — {about}",
@@ -3126,18 +3126,18 @@ async fn mail_cmd(g: &Global, cmd: MailCmd) -> Out {
             MailCmd::Setup(args) => mail_setup(&ctx, &actor, &dir, config, args).await,
             MailCmd::Test { to } => {
                 let key = mail::queue_test(&ctx, &actor, &to).await?;
-                let (mailer, about) = maru_storage::mailer::from_config(&dir, &config)?;
+                let (mailer, about) = giwa_storage::mailer::from_config(&dir, &config)?;
                 mail::deliver_pending(&ctx, mailer.as_ref()).await?;
                 let m = mail::list(&ctx, &actor, None, 200)
                     .await?
                     .into_iter()
                     .find(|m| m.idem_key == key)
                     .ok_or_else(|| Error::internal("시험 편지가 편지함에 없습니다"))?;
-                if m.status != maru_core::model::MailStatus::Sent {
+                if m.status != giwa_core::model::MailStatus::Sent {
                     return Err(Error::new(Code::External)
                         .with_message("error.mail_test_failed")
                         .arg("detail", m.last_error.unwrap_or_default())
-                        .next("maru mail setup --transport smtp --host <서버> --user <이름> --password-stdin"));
+                        .next("giwa mail setup --transport smtp --host <서버> --user <이름> --password-stdin"));
                 }
                 let v = json!({ "id": m.id, "to": m.to_addr, "status": "sent", "transport": mailer.kind() });
                 Ok((v, format!("시험 편지를 보냈습니다 → {} ({about})", m.to_addr)))
@@ -3151,8 +3151,8 @@ async fn mail_cmd(g: &Global, cmd: MailCmd) -> Out {
 
 /// 시작 JSON·`mail setup` 결과에 쓰는 지금 편지 설정(비밀번호 값은 넣지 않는다)
 fn mail_json(dir: &DataDir, config: &Config) -> Value {
-    use maru_core::config::MailTransport;
-    let from = maru_storage::mailer::from_address(config);
+    use giwa_core::config::MailTransport;
+    let from = giwa_storage::mailer::from_address(config);
     match config.mail.as_ref().map(|m| (m.transport, m.smtp.as_ref())) {
         Some((MailTransport::Smtp, Some(s))) => {
             let password = match (&s.username, dir.smtp_password()) {
@@ -3166,7 +3166,7 @@ fn mail_json(dir: &DataDir, config: &Config) -> Value {
                 "smtp": {
                     "host": s.host,
                     "port": s.port,
-                    "security": maru_storage::mailer::security_name(s.security),
+                    "security": giwa_storage::mailer::security_name(s.security),
                     "username": s.username,
                 },
                 "password": password,
@@ -3185,7 +3185,7 @@ async fn mail_setup(
     mut config: Config,
     args: MailSetupArgs,
 ) -> Result<(Value, String)> {
-    use maru_core::config::{MailConfig, MailTransport, SmtpConfig, SmtpSecurity};
+    use giwa_core::config::{MailConfig, MailTransport, SmtpConfig, SmtpSecurity};
     let transport = match args.transport.as_str() {
         "file" => MailTransport::File,
         "smtp" => MailTransport::Smtp,
@@ -3193,7 +3193,7 @@ async fn mail_setup(
             return Err(Error::new(Code::Usage)
                 .with_message("error.mail_transport")
                 .arg("value", other)
-                .next("maru mail setup --transport smtp --host smtp.example.test --user me --password-stdin"));
+                .next("giwa mail setup --transport smtp --host smtp.example.test --user me --password-stdin"));
         }
     };
     let smtp = match transport {
@@ -3203,12 +3203,12 @@ async fn mail_setup(
                 Error::new(Code::Usage)
                     .with_message("error.mail_security")
                     .arg("value", args.security.clone())
-                    .next("maru mail setup --transport smtp --security starttls …")
+                    .next("giwa mail setup --transport smtp --security starttls …")
             })?;
             let host = args.host.clone().ok_or_else(|| {
                 Error::new(Code::Usage)
                     .with_message("error.mail_smtp_missing")
-                    .next("maru mail setup --transport smtp --host smtp.example.test --port 587 --user me --password-stdin")
+                    .next("giwa mail setup --transport smtp --host smtp.example.test --port 587 --user me --password-stdin")
             })?;
             let port = args.port.unwrap_or(match security {
                 SmtpSecurity::Starttls => 587,
@@ -3247,7 +3247,7 @@ async fn mail_setup(
             return Err(Error::new(Code::Usage)
                 .with_message("error.usage_detail")
                 .arg("detail", "--password-stdin: 표준 입력이 비었습니다")
-                .next("printf '%s' \"$SMTP_PASSWORD\" | maru mail setup --transport smtp … --password-stdin"));
+                .next("printf '%s' \"$SMTP_PASSWORD\" | giwa mail setup --transport smtp … --password-stdin"));
         }
         dir.write_smtp_password(pw)?;
     }
@@ -3260,16 +3260,16 @@ async fn mail_setup(
             "편지를 SMTP {}:{} ({}) 로 보내도록 정했습니다.",
             s.host,
             s.port,
-            maru_storage::mailer::security_name(s.security)
+            giwa_storage::mailer::security_name(s.security)
         ),
         None => "편지를 파일로만 남기도록 정했습니다.".to_owned(),
     };
     if v["password"] == "missing" {
         human.push_str(
-            "\n비밀번호가 없습니다. --password-stdin 으로 넣거나 MARU_SMTP_PASSWORD 를 정하세요.",
+            "\n비밀번호가 없습니다. --password-stdin 으로 넣거나 GIWA_SMTP_PASSWORD 를 정하세요.",
         );
     }
-    human.push_str("\nserve 를 다시 시작하면 적용됩니다. 시험: maru mail test --to <받을 주소>");
+    human.push_str("\nserve 를 다시 시작하면 적용됩니다. 시험: giwa mail test --to <받을 주소>");
     Ok((v, human))
 }
 
@@ -3290,7 +3290,7 @@ async fn tag_cmd(g: &Global, cmd: TagCmd) -> Out {
     res
 }
 
-fn file_out(f: &maru_core::model::Attachment, verb: &str) -> Out {
+fn file_out(f: &giwa_core::model::Attachment, verb: &str) -> Out {
     let human = format!(
         "{verb}: {} ({}KB)\n{}\n본문에 넣기: [{}]({})",
         f.filename,
@@ -3303,7 +3303,7 @@ fn file_out(f: &maru_core::model::Attachment, verb: &str) -> Out {
 }
 
 /// 사람용 출력에는 본문에 바로 붙일 Markdown 한 줄을 같이 낸다.
-fn media_out(m: &maru_core::model::Media, verb: &str) -> Out {
+fn media_out(m: &giwa_core::model::Media, verb: &str) -> Out {
     let alt = m.alt_text.as_deref().unwrap_or("");
     let human = format!(
         "{verb}: {} ({}x{}, {}KB)\n{}\n본문에 넣기: ![{alt}]({})",

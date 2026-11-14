@@ -9,7 +9,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 const FORM: (&str, &str) = ("Content-Type", "application/x-www-form-urlencoded");
 const PASSWORD: &str = "test-pass-1234";
 
@@ -29,12 +29,12 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -133,8 +133,8 @@ fn form(pairs: &[(&str, &str)]) -> String {
 
 fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
     let page = http(bind, "GET", "/signup", &[], "");
-    let pre = page.cookie("maru_csrf").unwrap();
-    let cookie = format!("maru_csrf={pre}");
+    let pre = page.cookie("giwa_csrf").unwrap();
+    let cookie = format!("giwa_csrf={pre}");
     let res = http(
         bind,
         "POST",
@@ -148,7 +148,7 @@ fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
             ("password2", PASSWORD),
         ]),
     );
-    if let Some(s) = res.cookie("maru_session") {
+    if let Some(s) = res.cookie("giwa_session") {
         return s;
     }
     let login = http(bind, "GET", "/login", &[("Cookie", &cookie)], "");
@@ -164,7 +164,7 @@ fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
             ("password", PASSWORD),
         ]),
     );
-    res.cookie("maru_session")
+    res.cookie("giwa_session")
         .unwrap_or_else(|| panic!("로그인 실패 {}: {}", res.status, res.body))
 }
 
@@ -221,11 +221,11 @@ fn window() -> u64 {
 fn comments_replies_and_answers_notify_the_right_members() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    maru(
+    giwa(
         &data,
         &[
             "site",
@@ -238,21 +238,21 @@ fn comments_replies_and_answers_notify_the_right_members() {
             "false",
         ],
     );
-    maru(
+    giwa(
         &data,
         &[
             "board", "create", "free", "--name", "자유", "--kind", "free",
         ],
     );
-    maru(
+    giwa(
         &data,
         &["board", "update", "free", "--write-approval", "off"],
     );
-    maru(&data, &["module", "enable", "notify"]);
+    giwa(&data, &["module", "enable", "notify"]);
     let (server, bind) = start_server(&data);
 
     let session =
-        |email: &str, name: &str| format!("maru_session={}", signup_and_login(&bind, email, name));
+        |email: &str, name: &str| format!("giwa_session={}", signup_and_login(&bind, email, name));
     let moon = session("moon@example.test", "달빛이");
     let sun = session("sun@example.test", "햇살이");
     let star = session("star@example.test", "별빛이");
@@ -260,7 +260,7 @@ fn comments_replies_and_answers_notify_the_right_members() {
     drop(server);
     let (server, bind) = start_server(&data);
     let id_of = |email: &str| {
-        maru(&data, &["member", "show", email])["id"]
+        giwa(&data, &["member", "show", email])["id"]
             .as_str()
             .unwrap()
             .to_owned()
@@ -270,10 +270,10 @@ fn comments_replies_and_answers_notify_the_right_members() {
         id_of("sun@example.test"),
         id_of("star@example.test"),
     );
-    let deliver = || maru(&data, &["module", "deliver"]);
-    let list = |member: &str| maru(&data, &["notify", "list", "--member", member]);
+    let deliver = || giwa(&data, &["module", "deliver"]);
+    let list = |member: &str| giwa(&data, &["notify", "list", "--member", member]);
     let mails = |to: &str| {
-        let all = maru(&data, &["mail", "list", "--limit", "100"]);
+        let all = giwa(&data, &["mail", "list", "--limit", "100"]);
         let all = all
             .as_array()
             .cloned()
@@ -355,7 +355,7 @@ fn comments_replies_and_answers_notify_the_right_members() {
     assert_eq!(got["items"][0]["kind"], "reply", "{got}");
 
     // 같은 사건을 다시 받아도 한 건이다: 이미 공개된 댓글을 다시 승인한다.
-    maru(&data, &["comment", "approve", &second]);
+    giwa(&data, &["comment", "approve", &second]);
     deliver();
     assert_eq!(list(&moon_id)["total"], 3);
 
@@ -411,7 +411,7 @@ fn comments_replies_and_answers_notify_the_right_members() {
     assert_eq!(list(&moon_id)["unread"], 0);
 
     // 댓글을 가리면 알림을 거둔다.
-    maru(&data, &["comment", "hide", &third]);
+    giwa(&data, &["comment", "hide", &third]);
     deliver();
     assert_eq!(list(&moon_id)["total"], 2);
 
@@ -428,8 +428,8 @@ fn comments_replies_and_answers_notify_the_right_members() {
         .as_str()
         .unwrap()
         .to_owned();
-    maru(&data, &["board", "update", "free", "--reply", "editor"]);
-    let answer = maru(
+    giwa(&data, &["board", "update", "free", "--reply", "editor"]);
+    let answer = giwa(
         &data,
         &[
             "post",
@@ -444,16 +444,16 @@ fn comments_replies_and_answers_notify_the_right_members() {
     // 초안일 때는 알리지 않는다.
     deliver();
     assert_ne!(list(&moon_id)["items"][0]["kind"], "answer");
-    maru(&data, &["post", "publish", answer["id"].as_str().unwrap()]);
+    giwa(&data, &["post", "publish", answer["id"].as_str().unwrap()]);
     deliver();
     let got = list(&moon_id);
     assert_eq!(got["items"][0]["kind"], "answer", "{got}");
     assert_eq!(got["items"][0]["title"], "답변입니다", "{got}");
 
     // 끄면 화면이 없다. 켜면 다시 있다. 재시작하지 않았다.
-    maru(&data, &["module", "disable", "notify"]);
+    giwa(&data, &["module", "disable", "notify"]);
     assert_eq!(http(&bind, "GET", "/m/notify", &as_moon, "").status, 404);
-    maru(&data, &["module", "enable", "notify"]);
+    giwa(&data, &["module", "enable", "notify"]);
     assert_eq!(http(&bind, "GET", "/m/notify", &as_moon, "").status, 200);
 
     drop(server);

@@ -1,8 +1,8 @@
 //! 화면 편집기 초안 `editor_drafts` (ADR-0152). 사람마다 화면마다 한 줄.
 //! 그 사람의 작업 중 사본이라 감사 대상이 아니다. 발행이 변경 묶음과 감사 기록에 남는다.
 
-use maru_core::model::EditorDraft;
-use maru_core::{Error, Result};
+use giwa_core::model::EditorDraft;
+use giwa_core::{Error, Result};
 use sqlx::SqliteExecutor;
 
 use crate::sqlite::db_error;

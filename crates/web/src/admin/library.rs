@@ -6,11 +6,11 @@ use axum::extract::{Form, Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::post;
-use maru_core::actor::Permission;
-use maru_core::clock;
-use maru_core::model::PageReq;
-use maru_core::services::media::{self, LibraryQuery, MediaKind, MediaPatch, MediaUse};
-use maru_core::services::settings;
+use giwa_core::actor::Permission;
+use giwa_core::clock;
+use giwa_core::model::PageReq;
+use giwa_core::services::media::{self, LibraryQuery, MediaKind, MediaPatch, MediaUse};
+use giwa_core::services::settings;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -266,8 +266,8 @@ async fn delete(
 }
 
 /// 권한·없음은 오류 화면, 그 밖(쓰는 곳 있음·길이 초과)은 목록 위에 알린다.
-async fn failed(state: &AppState, who: &SignedIn, e: maru_core::Error) -> Response {
-    use maru_core::Code;
+async fn failed(state: &AppState, who: &SignedIn, e: giwa_core::Error) -> Response {
+    use giwa_core::Code;
     match e.code() {
         Code::Forbidden | Code::NotFound => fail(state, Some(who), &e).await,
         code => {

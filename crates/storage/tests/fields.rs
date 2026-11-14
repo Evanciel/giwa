@@ -3,16 +3,16 @@
 
 use std::sync::Arc;
 
-use maru_core::actor::{Actor, Permission, rank};
-use maru_core::fields::{FieldDef, FieldOption};
-use maru_core::model::PageReq;
-use maru_core::services::board_posts::{self, BoardWrite};
-use maru_core::services::boards::{self, BoardPatch, NewBoard};
-use maru_core::services::members::{self, SignupInput};
-use maru_core::services::posts::{self, CopyInput, MoveInput, NewPost, PostPatch};
-use maru_core::services::settings::{self, SettingsPatch};
-use maru_core::{Code, Ctx};
-use maru_storage::{DataDir, Db, FsBlobs, SqliteStore};
+use giwa_core::actor::{Actor, Permission, rank};
+use giwa_core::fields::{FieldDef, FieldOption};
+use giwa_core::model::PageReq;
+use giwa_core::services::board_posts::{self, BoardWrite};
+use giwa_core::services::boards::{self, BoardPatch, NewBoard};
+use giwa_core::services::members::{self, SignupInput};
+use giwa_core::services::posts::{self, CopyInput, MoveInput, NewPost, PostPatch};
+use giwa_core::services::settings::{self, SettingsPatch};
+use giwa_core::{Code, Ctx};
+use giwa_storage::{DataDir, Db, FsBlobs, SqliteStore};
 use serde_json::{Map, Value, json};
 
 struct Env {
@@ -58,7 +58,7 @@ async fn env() -> Env {
         store: Arc::new(SqliteStore::new(db.clone())),
         blobs: Arc::new(FsBlobs::new(dir.media_dir())),
         site_url: "http://127.0.0.1:8080".into(),
-        extensions: maru_core::store::no_extensions(),
+        extensions: giwa_core::store::no_extensions(),
     };
     let local = Actor::local();
     for (slug, schema) in [("market", Some(market())), ("free", None)] {
@@ -274,7 +274,7 @@ async fn moving_or_copying_keeps_only_fields_of_the_new_board() {
         json!({"price": 7, "area": "seoul"})
     );
     let b = boards::show(&e.ctx, &local, "market").await.unwrap();
-    let shown = maru_core::fields::display(
+    let shown = giwa_core::fields::display(
         &b.field_schema,
         &e.ctx.store.post_by_id(&q.id).await.unwrap().unwrap().meta,
     );
@@ -340,7 +340,7 @@ async fn public_writes_use_the_same_rules_and_secret_hides_values() {
         .unwrap();
     assert_eq!(stored_meta(&e.db, &p.id).await, json!({"price": 30000}));
     // 비밀글은 목록에서 값도 비운다.
-    let guest = maru_core::services::anonymous_actor(&e.ctx).await.unwrap();
+    let guest = giwa_core::services::anonymous_actor(&e.ctx).await.unwrap();
     let b = boards::show(&e.ctx, &Actor::local(), "market")
         .await
         .unwrap();

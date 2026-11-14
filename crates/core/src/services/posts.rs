@@ -40,7 +40,7 @@ pub struct NewPost {
     /// 대표 이미지 (`/media/...`). 비우면 본문 첫 사진
     #[serde(default)]
     pub cover: Option<String>,
-    /// 분류 슬러그 (`maru category list --board <게시판>`). 비우면 분류 없음
+    /// 분류 슬러그 (`giwa category list --board <게시판>`). 비우면 분류 없음
     #[serde(default)]
     pub category: Option<String>,
     /// 태그 이름. 앞의 `#` 은 떼고, 글마다 20개·태그마다 30자까지
@@ -52,7 +52,7 @@ pub struct NewPost {
     /// 비밀글: 목록에는 제목만 보이고 본문은 작성자와 관리자만 읽는다
     #[serde(default)]
     pub secret: bool,
-    /// 여분 칸 값 (`maru board show <게시판>` 의 `field_schema`, ADR-0057)
+    /// 여분 칸 값 (`giwa board show <게시판>` 의 `field_schema`, ADR-0057)
     #[serde(default)]
     pub meta: Map<String, Value>,
 }
@@ -143,7 +143,7 @@ pub(crate) async fn reply_spot(
     if board.policy.reply == "none" {
         return Err(Error::new(Code::Forbidden)
             .with_message("error.reply_closed")
-            .next(format!("maru board update {} --reply editor", board.slug)));
+            .next(format!("giwa board update {} --reply editor", board.slug)));
     }
     actor.require_rank(Permission::PostWrite, &board.policy.reply)?;
     if parent.is_secret && !can_read_secret(actor, board, &parent) {
@@ -807,7 +807,7 @@ pub async fn update(ctx: &Ctx, actor: &Actor, id: &str, patch: PostPatch) -> Res
                     .with_message("error.post_schedule_status")
                     .arg("status", before.status.as_str())
                     .with_hint("hint.post_schedule_status")
-                    .next(format!("maru post hide {}", before.id)));
+                    .next(format!("giwa post hide {}", before.id)));
             }
         }
     }
@@ -1156,7 +1156,7 @@ fn revision_not_found(post: &str, rev: &str) -> Error {
     Error::new(Code::NotFound)
         .with_message("error.revision_not_found")
         .arg("id", rev.to_owned())
-        .next(format!("maru post revisions {post}"))
+        .next(format!("giwa post revisions {post}"))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -1347,7 +1347,7 @@ pub(crate) fn check_unlocked(actor: &Actor, board: &Board, post: &Post) -> Resul
     if post.is_locked && !comments::can_moderate(actor, board) {
         return Err(Error::new(Code::Forbidden)
             .with_message("error.post_locked")
-            .next(format!("maru post lock {} --off", post.id)));
+            .next(format!("giwa post lock {} --off", post.id)));
     }
     Ok(())
 }
@@ -1447,7 +1447,7 @@ pub(crate) fn may_accept(actor: &Actor, board: &Board, post: &Post) -> Result<()
     if !board.accepts_answers() {
         return Err(Error::new(Code::Validation)
             .with_message("error.accept_kind")
-            .next(format!("maru board update {} --kind forum", board.slug)));
+            .next(format!("giwa board update {} --kind forum", board.slug)));
     }
     if post.status != PostStatus::Published {
         return Err(not_found(&post.id));
@@ -1725,7 +1725,7 @@ pub(crate) fn not_found(id: &str) -> Error {
     Error::new(Code::NotFound)
         .with_message("error.post_not_found")
         .arg("id", id)
-        .next("maru post list")
+        .next("giwa post list")
 }
 
 fn slug_conflict(board: &Board, slug: &str) -> Error {

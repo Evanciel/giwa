@@ -9,7 +9,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 const FORM: (&str, &str) = ("Content-Type", "application/x-www-form-urlencoded");
 const PASSWORD: &str = "test-pass-1234";
 
@@ -29,12 +29,12 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -133,8 +133,8 @@ fn form(pairs: &[(&str, &str)]) -> String {
 
 fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
     let page = http(bind, "GET", "/signup", &[], "");
-    let pre = page.cookie("maru_csrf").unwrap();
-    let cookie = format!("maru_csrf={pre}");
+    let pre = page.cookie("giwa_csrf").unwrap();
+    let cookie = format!("giwa_csrf={pre}");
     let res = http(
         bind,
         "POST",
@@ -148,7 +148,7 @@ fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
             ("password2", PASSWORD),
         ]),
     );
-    if let Some(s) = res.cookie("maru_session") {
+    if let Some(s) = res.cookie("giwa_session") {
         return s;
     }
     let login = http(bind, "GET", "/login", &[("Cookie", &cookie)], "");
@@ -164,7 +164,7 @@ fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
             ("password", PASSWORD),
         ]),
     );
-    res.cookie("maru_session")
+    res.cookie("giwa_session")
         .unwrap_or_else(|| panic!("로그인 실패 {}: {}", res.status, res.body))
 }
 
@@ -191,11 +191,11 @@ fn write_post(bind: &str, cookie: &str, title: &str) -> String {
 fn reactions_and_scraps_from_the_public_post_page() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    maru(
+    giwa(
         &data,
         &[
             "site",
@@ -208,24 +208,24 @@ fn reactions_and_scraps_from_the_public_post_page() {
             "false",
         ],
     );
-    maru(
+    giwa(
         &data,
         &[
             "board", "create", "free", "--name", "자유", "--kind", "free",
         ],
     );
-    maru(
+    giwa(
         &data,
         &["board", "update", "free", "--write-approval", "off"],
     );
     let (server, bind) = start_server(&data);
 
     let author = format!(
-        "maru_session={}",
+        "giwa_session={}",
         signup_and_login(&bind, "moon@example.test", "달빛이")
     );
     let reader_session = signup_and_login(&bind, "sun@example.test", "햇살이");
-    let reader = format!("maru_session={reader_session}");
+    let reader = format!("giwa_session={reader_session}");
     let url = write_post(&bind, &author, "반응 받을 글");
     let as_reader = [("Cookie", reader.as_str())];
 
@@ -233,8 +233,8 @@ fn reactions_and_scraps_from_the_public_post_page() {
     let page = http(&bind, "GET", &url, &as_reader, "").body;
     assert!(!page.contains("react-bar"), "{page}");
 
-    maru(&data, &["module", "enable", "reaction"]);
-    maru(&data, &["module", "enable", "scrap"]);
+    giwa(&data, &["module", "enable", "reaction"]);
+    giwa(&data, &["module", "enable", "scrap"]);
 
     // 켜면 글 화면에 단추가 생긴다. 재시작하지 않았다.
     let page = http(&bind, "GET", &url, &as_reader, "").body;
@@ -257,7 +257,7 @@ fn reactions_and_scraps_from_the_public_post_page() {
         )
     };
     let counts = |post: &str| {
-        maru(
+        giwa(
             &data,
             &[
                 "reaction",
@@ -329,7 +329,7 @@ fn reactions_and_scraps_from_the_public_post_page() {
     let board = url[..url.rfind('/').unwrap()].to_owned();
     let list = http(&bind, "GET", &board, &[], "").body;
     assert!(!list.contains("has-votes"), "{list}");
-    let s = maru(&data, &["site", "set", "--list-votes", "true"]);
+    let s = giwa(&data, &["site", "set", "--list-votes", "true"]);
     assert_eq!(s["list_votes"], true, "{s}");
     let list = http(&bind, "GET", &board, &[], "").body;
     assert!(
@@ -340,10 +340,10 @@ fn reactions_and_scraps_from_the_public_post_page() {
         list.contains("<span class=\"vote-box\" title=\"추천 1\">1</span>"),
         "{list}"
     );
-    maru(&data, &["site", "set", "--list-votes", "false"]);
+    giwa(&data, &["site", "set", "--list-votes", "false"]);
 
     // 설정: 종류를 늘리고 손님을 받으면 손님 단추가 동작한다. 같은 브라우저는 한 번만.
-    maru(
+    giwa(
         &data,
         &[
             "module",
@@ -412,7 +412,7 @@ fn reactions_and_scraps_from_the_public_post_page() {
     );
     assert_eq!(res.status, 303, "{}", res.body);
     assert_eq!(res.location(), format!("{url}#comment-{comment_id}"));
-    let c = maru(
+    let c = giwa(
         &data,
         &[
             "reaction",
@@ -425,7 +425,7 @@ fn reactions_and_scraps_from_the_public_post_page() {
     );
     assert_eq!(c["kinds"][0]["count"], 1);
     // 댓글 반응을 끄면 단추가 사라진다.
-    maru(
+    giwa(
         &data,
         &["module", "set", "reaction", "--field", "comments=false"],
     );
@@ -558,18 +558,18 @@ fn reactions_and_scraps_from_the_public_post_page() {
     );
 
     // 감사 기록.
-    let audit = maru(&data, &["audit", "list", "--action", "reaction"]);
+    let audit = giwa(&data, &["audit", "list", "--action", "reaction"]);
     assert!(audit["total"].as_i64().unwrap() >= 5, "{audit}");
     assert!(
-        maru(&data, &["audit", "list", "--action", "scrap"])["total"]
+        giwa(&data, &["audit", "list", "--action", "scrap"])["total"]
             .as_i64()
             .unwrap()
             >= 3
     );
 
     // 끄면 단추가 사라지고 주소가 없어지며 글·내 정보는 그대로다. 다시 켜면 그대로 있다.
-    maru(&data, &["module", "disable", "reaction"]);
-    maru(&data, &["module", "disable", "scrap"]);
+    giwa(&data, &["module", "disable", "reaction"]);
+    giwa(&data, &["module", "disable", "scrap"]);
     let page = http(&bind, "GET", &url, &as_reader, "");
     assert_eq!(page.status, 200);
     assert!(
@@ -584,8 +584,8 @@ fn reactions_and_scraps_from_the_public_post_page() {
             .contains("me-scrap")
     );
     assert_eq!(hit("").status, 404);
-    maru(&data, &["module", "enable", "reaction"]);
-    maru(&data, &["module", "enable", "scrap"]);
+    giwa(&data, &["module", "enable", "reaction"]);
+    giwa(&data, &["module", "enable", "scrap"]);
     assert_eq!(counts(&post_id)[0]["count"], 1);
     assert!(
         http(&bind, "GET", &url, &as_reader, "")
@@ -616,8 +616,8 @@ fn reactions_and_scraps_from_the_public_post_page() {
     // 제거해도 코어 글은 그대로다.
     let refused = run(&data, &["module", "remove", "reaction"]);
     assert_eq!(refused["error"]["code"], "VALIDATION");
-    maru(&data, &["module", "remove", "reaction", "--purge", "--yes"]);
-    maru(&data, &["module", "remove", "scrap", "--purge", "--yes"]);
+    giwa(&data, &["module", "remove", "reaction", "--purge", "--yes"]);
+    giwa(&data, &["module", "remove", "scrap", "--purge", "--yes"]);
     let page = http(&bind, "GET", &url, &[], "");
     assert_eq!(page.status, 200);
     assert!(page.body.contains("반응 받을 글"));

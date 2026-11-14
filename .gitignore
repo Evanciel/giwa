@@ -4,7 +4,7 @@
 /.cargo/config.toml
 # 개발 데이터 디렉터리
 /dev-data/
-/maru-data/
+/giwa-data/
 # 비밀 값
 .env
 .env.*

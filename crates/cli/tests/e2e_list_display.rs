@@ -9,7 +9,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 const FORM: (&str, &str) = ("Content-Type", "application/x-www-form-urlencoded");
 const PASSWORD: &str = "test-pass-1234";
 
@@ -29,12 +29,12 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -133,8 +133,8 @@ fn form(pairs: &[(&str, &str)]) -> String {
 
 fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
     let page = http(bind, "GET", "/signup", &[], "");
-    let pre = page.cookie("maru_csrf").unwrap();
-    let cookie = format!("maru_csrf={pre}");
+    let pre = page.cookie("giwa_csrf").unwrap();
+    let cookie = format!("giwa_csrf={pre}");
     let res = http(
         bind,
         "POST",
@@ -148,7 +148,7 @@ fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
             ("password2", PASSWORD),
         ]),
     );
-    if let Some(s) = res.cookie("maru_session") {
+    if let Some(s) = res.cookie("giwa_session") {
         return s;
     }
     let login = http(bind, "GET", "/login", &[("Cookie", &cookie)], "");
@@ -164,7 +164,7 @@ fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
             ("password", PASSWORD),
         ]),
     );
-    res.cookie("maru_session")
+    res.cookie("giwa_session")
         .unwrap_or_else(|| panic!("로그인 실패 {}: {}", res.status, res.body))
 }
 
@@ -191,11 +191,11 @@ fn write_post(bind: &str, cookie: &str, title: &str) -> String {
 fn relative_time_short_counts_and_recent_boards_slot() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    maru(
+    giwa(
         &data,
         &[
             "site",
@@ -208,20 +208,20 @@ fn relative_time_short_counts_and_recent_boards_slot() {
             "false",
         ],
     );
-    maru(
+    giwa(
         &data,
         &[
             "board", "create", "free", "--name", "자유", "--kind", "free",
         ],
     );
-    maru(
+    giwa(
         &data,
         &["board", "update", "free", "--write-approval", "off"],
     );
     let (_server, bind) = start_server(&data);
 
     let author = format!(
-        "maru_session={}",
+        "giwa_session={}",
         signup_and_login(&bind, "moon@example.test", "달빛이")
     );
     let url = write_post(&bind, &author, "많이 본 글");
@@ -248,11 +248,11 @@ fn relative_time_short_counts_and_recent_boards_slot() {
             .unwrap()
             .to_owned()
     };
-    maru(
+    giwa(
         &data,
         &["post", "views", &id_of("많이 본 글"), "--set", "12345"],
     );
-    maru(
+    giwa(
         &data,
         &["post", "views", &id_of("조금 본 글"), "--set", "1234"],
     );
@@ -299,7 +299,7 @@ fn relative_time_short_counts_and_recent_boards_slot() {
     assert!(recent.contains("1.2만"), "{recent}");
 
     // 시간대를 바꿔도 상대 시간은 그대로(하루가 넘은 날짜에만 쓴다)
-    maru(&data, &["site", "set", "--tz-offset", "0"]);
+    giwa(&data, &["site", "set", "--tz-offset", "0"]);
     let board = http(&bind, "GET", "/b/free", &[], "").body;
     assert!(board.contains("\">방금 전</time>"), "{board}");
 }

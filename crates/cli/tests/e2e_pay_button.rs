@@ -10,7 +10,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 const FORM: (&str, &str) = ("Content-Type", "application/x-www-form-urlencoded");
 const SAME: (&str, &str) = ("Sec-Fetch-Site", "same-origin");
 const CROSS: (&str, &str) = ("Sec-Fetch-Site", "cross-site");
@@ -31,12 +31,12 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -129,13 +129,13 @@ fn form(pairs: &[(&str, &str)]) -> String {
         .join("&")
 }
 
-fn db<T>(data: &Path, f: impl AsyncFnOnce(&maru_storage::Db) -> T) -> T {
+fn db<T>(data: &Path, f: impl AsyncFnOnce(&giwa_storage::Db) -> T) -> T {
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .unwrap();
     rt.block_on(async {
-        let db = maru_storage::Db::open(&data.join("maru.db"), false)
+        let db = giwa_storage::Db::open(&data.join("giwa.db"), false)
             .await
             .unwrap();
         let v = f(&db).await;
@@ -158,12 +158,12 @@ fn mails(data: &Path) -> Vec<(String, String, String)> {
 
 /// 로그인 링크로 운영자 세션 쿠키를 받는다.
 fn owner_cookie(data: &Path, bind: &str) -> String {
-    let link = maru(data, &["login-link"]);
+    let link = giwa(data, &["login-link"]);
     let rest = link["url"].as_str().unwrap().split_once("://").unwrap().1;
     let path = &rest[rest.find('/').unwrap()..];
     let first = http(bind, "GET", path, &[], "");
-    let pre = first.cookie("maru_csrf").unwrap();
-    let cookie = format!("maru_csrf={pre}");
+    let pre = first.cookie("giwa_csrf").unwrap();
+    let cookie = format!("giwa_csrf={pre}");
     let res = http(
         bind,
         "POST",
@@ -172,9 +172,9 @@ fn owner_cookie(data: &Path, bind: &str) -> String {
         &form(&[("_csrf", &pre)]),
     );
     let session = res
-        .cookie("maru_session")
+        .cookie("giwa_session")
         .unwrap_or_else(|| panic!("로그인 실패: {}", res.body));
-    format!("maru_session={session}")
+    format!("giwa_session={session}")
 }
 
 /// `/m/pay/o/<id>?k=<값>` 에서 (주문, 1회용 값).
@@ -189,15 +189,15 @@ fn business_info_button_admin_and_letters() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
     let data = data.as_path();
-    maru(data, &["init", "--no-samples", "--preset", "blog", "--yes"]);
-    maru(data, &["module", "enable", "pay"]);
+    giwa(data, &["init", "--no-samples", "--preset", "blog", "--yes"]);
+    giwa(data, &["module", "enable", "pay"]);
 
     // 에이전트는 공통 칸을 명령 뒤에 붙이기 쉽다. 모듈 툴도 --data 를 어디서나 읽는다.
     let out = Command::new(BIN)
         .args(["pay", "provider_list", "--json", "--data"])
         .arg(data)
         .current_dir(tmp.path())
-        .env_remove("MARU_DATA")
+        .env_remove("GIWA_DATA")
         .output()
         .unwrap();
     let v: Value = serde_json::from_slice(&out.stdout).unwrap();
@@ -224,7 +224,7 @@ fn business_info_button_admin_and_letters() {
     let bad = run(data, &["site", "set", "--business-reg-no", "12345"]);
     assert_eq!(bad["ok"], false, "{bad}");
     assert!(bad.to_string().contains("사업자등록번호"), "{bad}");
-    let s = maru(
+    let s = giwa(
         data,
         &[
             "site",
@@ -252,7 +252,7 @@ fn business_info_button_admin_and_letters() {
     assert!(v.to_string().contains("https"), "{v}");
 
     // 약관 틀: 글로 된 보통 페이지가 초안으로 생긴다.
-    let page = maru(
+    let page = giwa(
         data,
         &[
             "page",
@@ -269,7 +269,7 @@ fn business_info_button_admin_and_letters() {
         page["body_md"].as_str().unwrap().contains("제1조"),
         "{page}"
     );
-    let refund_page = maru(
+    let refund_page = giwa(
         data,
         &[
             "page",
@@ -288,7 +288,7 @@ fn business_info_button_admin_and_letters() {
             .contains("청약철회")
     );
 
-    maru(
+    giwa(
         data,
         &[
             "pay",
@@ -306,7 +306,7 @@ fn business_info_button_admin_and_letters() {
         ],
     );
     // 결제 단추 두 개: 정한 금액, 구매자가 적는 금액(최소·최대).
-    let fixed = maru(
+    let fixed = giwa(
         data,
         &[
             "widget",
@@ -321,7 +321,7 @@ fn business_info_button_admin_and_letters() {
         ],
     );
     assert_eq!(fixed["config"]["key"], "consult");
-    let custom = maru(
+    let custom = giwa(
         data,
         &[
             "widget",
@@ -396,7 +396,7 @@ fn business_info_button_admin_and_letters() {
     let mut trap = good.to_vec();
     trap.push(("website", "x"));
     assert_eq!(buy("consult", &trap, true).status, 303);
-    assert_eq!(maru(data, &["pay", "orders"])["total"], 0);
+    assert_eq!(giwa(data, &["pay", "orders"])["total"], 0);
 
     // 브라우저가 금액을 보내도 정한 금액을 쓴다.
     let mut forged = good.to_vec();
@@ -405,7 +405,7 @@ fn business_info_button_admin_and_letters() {
     assert_eq!(res.status, 303, "{}", res.body);
     let location = res.header("location");
     let (id, k) = order_of(&location);
-    let o = maru(data, &["pay", "order", "--id", &id]);
+    let o = giwa(data, &["pay", "order", "--id", &id]);
     assert_eq!(o["order"]["amount"], 30000, "{o}");
     assert_eq!(o["order"]["ref_id"], "button:consult");
     assert_eq!(o["buyer"]["email"], "buyer@example.test");
@@ -424,7 +424,7 @@ fn business_info_button_admin_and_letters() {
     assert_eq!(res.status, 303, "{}", res.body);
     let (gift, _) = order_of(&res.header("location"));
     assert_eq!(
-        maru(data, &["pay", "order", "--id", &gift])["order"]["amount"],
+        giwa(data, &["pay", "order", "--id", &gift])["order"]["amount"],
         12000
     );
 
@@ -438,7 +438,7 @@ fn business_info_button_admin_and_letters() {
     );
     assert_eq!(res.status, 303, "{}", res.body);
     // 단추 주문은 한 시간 안에 결제 방법을 고르게 하지만, 무통장 입금은 사흘을 기다린다.
-    let o = maru(data, &["pay", "order", "--id", &id]);
+    let o = giwa(data, &["pay", "order", "--id", &id]);
     let rfc = &time::format_description::well_known::Rfc3339;
     let expires =
         time::OffsetDateTime::parse(o["order"]["expires_at"].as_str().unwrap(), rfc).unwrap();
@@ -446,7 +446,7 @@ fn business_info_button_admin_and_letters() {
         expires > time::OffsetDateTime::now_utc() + time::Duration::days(2),
         "{o}"
     );
-    maru(data, &["module", "deliver"]);
+    giwa(data, &["module", "deliver"]);
     let m = mails(data);
     assert_eq!(m.len(), 1, "{m:?}");
     assert_eq!(m[0].0, "buyer@example.test");
@@ -455,7 +455,7 @@ fn business_info_button_admin_and_letters() {
     assert!(m[0].2.contains(&id), "{m:?}");
     assert!(m[0].2.contains("123-45-67890"), "판매자 정보: {m:?}");
     // 다시 배달해도 한 번만.
-    maru(data, &["module", "deliver"]);
+    giwa(data, &["module", "deliver"]);
     assert_eq!(mails(data).len(), 1);
 
     // 결제 관리 화면: 손님은 로그인으로, 운영자는 본다.
@@ -482,7 +482,7 @@ fn business_info_button_admin_and_letters() {
     let res = http(bind, "POST", &format!("/m/pay/admin/{id}/paid"), &auth, "");
     assert_eq!(res.status, 303, "{}", res.body);
     assert_eq!(
-        maru(data, &["pay", "order", "--id", &id])["order"]["status"],
+        giwa(data, &["pay", "order", "--id", &id])["order"]["status"],
         "paid"
     );
     // 부분 환불(사유 없으면 거절), 그다음 남은 금액 전부.
@@ -502,10 +502,10 @@ fn business_info_button_admin_and_letters() {
         &form(&[("amount", "10,000"), ("reason", "일정 변경")]),
     );
     assert_eq!(res.status, 303, "{}", res.body);
-    let o = maru(data, &["pay", "order", "--id", &id]);
+    let o = giwa(data, &["pay", "order", "--id", &id]);
     assert_eq!(o["order"]["status"], "partial_refunded", "{o}");
     assert_eq!(o["order"]["refunded"], 10000);
-    maru(data, &["module", "deliver"]);
+    giwa(data, &["module", "deliver"]);
     let m = mails(data);
     let subjects: Vec<&str> = m.iter().map(|x| x.1.as_str()).collect();
     assert!(
@@ -557,7 +557,7 @@ fn business_info_button_admin_and_letters() {
     let admin = http(bind, "GET", "/m/pay", &[("Cookie", &cookie)], "");
     assert!(admin.body.contains("…7777"));
     assert!(!admin.body.contains("test_gsk_screen7777"));
-    let listed = maru(data, &["pay", "provider_list"]);
+    let listed = giwa(data, &["pay", "provider_list"]);
     assert!(listed.to_string().contains("…7777"), "{listed}");
 
     // 편지에도 감사 기록에도 시크릿 키는 없다.

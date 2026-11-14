@@ -10,7 +10,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 
 struct Server(Child);
 
@@ -28,12 +28,12 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -101,11 +101,11 @@ fn place(data: &Path, kind: &str, region: &str, scope: &str, config: &str) -> Va
 fn ad_slots_scope_the_strict_csp_and_consult_button_tells_where_it_goes() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    maru(
+    giwa(
         &data,
         &[
             "post",
@@ -127,8 +127,8 @@ fn ad_slots_scope_the_strict_csp_and_consult_button_tells_where_it_goes() {
         r#"{"channel":"kakao","value":"_abc"}"#,
     );
     assert_eq!(off["ok"], false, "{off}");
-    maru(&data, &["module", "enable", "consult"]);
-    maru(&data, &["module", "enable", "ads"]);
+    giwa(&data, &["module", "enable", "consult"]);
+    giwa(&data, &["module", "enable", "ads"]);
 
     // 설정 검사는 모듈 몫이다.
     let bad = place(
@@ -223,7 +223,7 @@ fn ad_slots_scope_the_strict_csp_and_consult_button_tells_where_it_goes() {
     assert_ne!(again, csp);
 
     // 모듈을 끄면 위젯과 정책이 함께 빠진다.
-    maru(&data, &["module", "disable", "ads"]);
+    giwa(&data, &["module", "disable", "ads"]);
     let board = get(&bind, "/b/blog");
     assert!(
         board
@@ -238,17 +238,17 @@ fn ad_slots_scope_the_strict_csp_and_consult_button_tells_where_it_goes() {
 fn 지도와_카카오는_키를_넣은_화면만_바깥을_부른다() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "company", "--yes"],
     );
-    maru(&data, &["module", "enable", "map"]);
-    maru(&data, &["module", "enable", "kakao"]);
-    maru(
+    giwa(&data, &["module", "enable", "map"]);
+    giwa(&data, &["module", "enable", "kakao"]);
+    giwa(
         &data,
         &["page", "new", "visit", "--title", "오시는 길", "--publish"],
     );
-    maru(
+    giwa(
         &data,
         &["page", "new", "visit-map", "--title", "지도", "--publish"],
     );
@@ -304,7 +304,7 @@ fn 지도와_카카오는_키를_넣은_화면만_바깥을_부른다() {
     assert!(home.body.contains("https://pf.kakao.com/_abC12/chat"));
 
     // 키를 넣으면 그 위젯을 건 화면에서만 SDK 를 부른다.
-    let widgets = maru(&data, &["widget", "list"]);
+    let widgets = giwa(&data, &["widget", "list"]);
     assert!(widgets.to_string().contains("kakao_channel"), "{widgets}");
     let ok = place(
         &data,

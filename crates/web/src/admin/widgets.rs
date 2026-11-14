@@ -7,12 +7,12 @@ use axum::extract::{Form, Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
-use maru_core::model::{PageStatus, WIDGET_REGIONS, Widget};
-use maru_core::services::auth::SignedIn;
-use maru_core::services::widgets::{self, NewWidget, WidgetPatch, WidgetType};
-use maru_core::services::{boards, pages, settings};
-use maru_core::urls;
-use maru_core::{Code, Error};
+use giwa_core::model::{PageStatus, WIDGET_REGIONS, Widget};
+use giwa_core::services::auth::SignedIn;
+use giwa_core::services::widgets::{self, NewWidget, WidgetPatch, WidgetType};
+use giwa_core::services::{boards, pages, settings};
+use giwa_core::urls;
+use giwa_core::{Code, Error};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
@@ -371,7 +371,7 @@ pub(super) fn script_json(v: &Value) -> String {
         .replace('&', "\\u0026")
 }
 
-fn parse_config(text: &str) -> maru_core::Result<Value> {
+fn parse_config(text: &str) -> giwa_core::Result<Value> {
     if text.trim().is_empty() {
         return Ok(Value::Null);
     }
@@ -502,7 +502,7 @@ async fn action(
 }
 
 /// 같은 영역의 바로 앞(뒤) 위젯과 자리를 바꾼다. 순서 값을 0, 1, 2… 로 다시 매긴다.
-async fn swap(state: &AppState, who: &SignedIn, id: &str, up: bool) -> maru_core::Result<()> {
+async fn swap(state: &AppState, who: &SignedIn, id: &str, up: bool) -> giwa_core::Result<()> {
     let all = widgets::list(&state.ctx, &who.actor).await?;
     let me = widgets::get(&state.ctx, &who.actor, id).await?;
     let mut same: Vec<_> = all.into_iter().filter(|w| w.region == me.region).collect();

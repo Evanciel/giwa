@@ -345,15 +345,15 @@ mod tests {
     #[test]
     fn only_public_https_domains_are_announced() {
         assert_eq!(
-            public_host("https://maru.example.co.kr").as_deref(),
-            Some("maru.example.co.kr")
+            public_host("https://giwa.example.co.kr").as_deref(),
+            Some("giwa.example.co.kr")
         );
         assert_eq!(
             public_host("https://Blog.Site.com/").as_deref(),
             Some("blog.site.com")
         );
         for no in [
-            "http://maru.co.kr",
+            "http://giwa.co.kr",
             "https://localhost",
             "https://127.0.0.1",
             "https://127.0.0.1:8080",

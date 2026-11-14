@@ -9,7 +9,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 
 struct Server(Child);
 
@@ -27,12 +27,12 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -79,12 +79,12 @@ fn place(data: &Path, kind: &str, config: &str) -> Value {
 fn new_sections_render_and_reject_bad_values() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "company", "--yes"],
     );
 
-    let types = maru(&data, &["widget", "types"]);
+    let types = giwa(&data, &["widget", "types"]);
     for kind in ["video", "gallery", "logos", "countdown", "social", "quote"] {
         let t = types
             .as_array()
@@ -184,13 +184,13 @@ const PNG: &[u8] = &[
 fn section_backgrounds_and_motion() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "company", "--yes"],
     );
     let file = tmp.path().join("배경.png");
     std::fs::write(&file, PNG).unwrap();
-    let up = maru(&data, &["media", "upload", file.to_str().unwrap()]);
+    let up = giwa(&data, &["media", "upload", file.to_str().unwrap()]);
     let url = up["url"].as_str().unwrap().to_owned();
 
     for (kind, config) in [

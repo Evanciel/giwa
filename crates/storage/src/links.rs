@@ -1,8 +1,8 @@
 //! 링크 카드 정보 `link_previews` (GAP E12, ADR-0084). 주소마다 한 줄, 여러 글이 함께 쓴다.
 //! 적기·가져온 결과는 감사 대상이 아닌 시스템 기록이고, 다시 가져오기(`reset`)만 감사와 같은 트랜잭션이다.
 
-use maru_core::model::{LinkPreview, LinkStatus};
-use maru_core::{Error, Result};
+use giwa_core::model::{LinkPreview, LinkStatus};
+use giwa_core::{Error, Result};
 use sqlx::{Sqlite, SqliteExecutor, Transaction};
 
 use crate::sqlite::db_error;

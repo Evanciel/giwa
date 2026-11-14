@@ -1,5 +1,5 @@
 //! GAP M19: 운영 신호 (ADR-0074). 실제 바이너리·실제 포트·실제 DB 파일로 신고 모듈의 신고 집중·묵은 신고가
-//! CLI·REST·관리 화면 첫 쪽에 보이고, `maru signals alert` 가 소유자에게 메일을 한 번만 쌓는지 본다.
+//! CLI·REST·관리 화면 첫 쪽에 보이고, `giwa signals alert` 가 소유자에게 메일을 한 번만 쌓는지 본다.
 #![allow(clippy::expect_used, clippy::unwrap_used)]
 
 use std::io::{BufRead, BufReader, Read, Write};
@@ -9,7 +9,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 const FORM: (&str, &str) = ("Content-Type", "application/x-www-form-urlencoded");
 const PASSWORD: &str = "test-pass-1234";
 
@@ -29,12 +29,12 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -133,8 +133,8 @@ fn form(pairs: &[(&str, &str)]) -> String {
 
 fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
     let page = http(bind, "GET", "/signup", &[], "");
-    let pre = page.cookie("maru_csrf").unwrap();
-    let cookie = format!("maru_csrf={pre}");
+    let pre = page.cookie("giwa_csrf").unwrap();
+    let cookie = format!("giwa_csrf={pre}");
     let res = http(
         bind,
         "POST",
@@ -148,7 +148,7 @@ fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
             ("password2", PASSWORD),
         ]),
     );
-    if let Some(s) = res.cookie("maru_session") {
+    if let Some(s) = res.cookie("giwa_session") {
         return s;
     }
     let login = http(bind, "GET", "/login", &[("Cookie", &cookie)], "");
@@ -164,7 +164,7 @@ fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
             ("password", PASSWORD),
         ]),
     );
-    res.cookie("maru_session")
+    res.cookie("giwa_session")
         .unwrap_or_else(|| panic!("로그인 실패 {}: {}", res.status, res.body))
 }
 
@@ -188,8 +188,8 @@ fn write_post(bind: &str, cookie: &str, title: &str) -> String {
 }
 
 fn setup(data: &Path) {
-    maru(data, &["init", "--no-samples", "--preset", "blog", "--yes"]);
-    maru(
+    giwa(data, &["init", "--no-samples", "--preset", "blog", "--yes"]);
+    giwa(
         data,
         &[
             "site",
@@ -202,13 +202,13 @@ fn setup(data: &Path) {
             "false",
         ],
     );
-    maru(
+    giwa(
         data,
         &[
             "board", "create", "free", "--name", "자유", "--kind", "free",
         ],
     );
-    maru(
+    giwa(
         data,
         &["board", "update", "free", "--write-approval", "off"],
     );
@@ -216,7 +216,7 @@ fn setup(data: &Path) {
 
 /// 가입하고 로그인해 쿠키 머리글 값을 돌려준다.
 fn member(bind: &str, email: &str, name: &str) -> String {
-    format!("maru_session={}", signup_and_login(bind, email, name))
+    format!("giwa_session={}", signup_and_login(bind, email, name))
 }
 
 /// 신고 폼으로 낸다.
@@ -231,7 +231,7 @@ fn report(bind: &str, cookie: &str, kind: &str, id: &str, reason: &str) -> Res {
 }
 
 fn post_id(data: &Path, title: &str) -> String {
-    let list = maru(data, &["post", "list", "--board", "free"]);
+    let list = giwa(data, &["post", "list", "--board", "free"]);
     let items = list["items"].as_array().unwrap();
     items
         .iter()
@@ -248,7 +248,7 @@ fn db_exec(data: &Path, sql: &'static str) {
         .build()
         .unwrap();
     rt.block_on(async {
-        let db = maru_storage::Db::open(&data.join("maru.db"), false)
+        let db = giwa_storage::Db::open(&data.join("giwa.db"), false)
             .await
             .unwrap();
         sqlx::query(sql).execute(db.write_pool()).await.unwrap();
@@ -261,16 +261,16 @@ fn sign_in(bind: &str, link_url: &str) -> String {
     let rest = link_url.split_once("://").unwrap().1;
     let path = &rest[rest.find('/').unwrap()..];
     let page = http(bind, "GET", path, &[], "");
-    let csrf = page.cookie("maru_csrf").unwrap();
+    let csrf = page.cookie("giwa_csrf").unwrap();
     let res = http(
         bind,
         "POST",
         path,
-        &[FORM, ("Cookie", &format!("maru_csrf={csrf}"))],
+        &[FORM, ("Cookie", &format!("giwa_csrf={csrf}"))],
         &format!("_csrf={csrf}"),
     );
     assert_eq!(res.status, 303, "{}", res.body);
-    format!("maru_session={}", res.cookie("maru_session").unwrap())
+    format!("giwa_session={}", res.cookie("giwa_session").unwrap())
 }
 
 fn kinds(list: &Value) -> Vec<String> {
@@ -286,8 +286,8 @@ fn report_signals_reach_cli_rest_admin_and_mail() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
     setup(&data);
-    maru(&data, &["module", "enable", "report"]);
-    maru(
+    giwa(&data, &["module", "enable", "report"]);
+    giwa(
         &data,
         &[
             "module",
@@ -299,17 +299,17 @@ fn report_signals_reach_cli_rest_admin_and_mail() {
             "crowd=2",
         ],
     );
-    let admin = maru(
+    let admin = giwa(
         &data,
         &["token", "create", "--name", "운영", "--scope", "publish"],
     );
     let admin = format!("Bearer {}", admin["secret"].as_str().unwrap());
-    let reader = maru(
+    let reader = giwa(
         &data,
         &["token", "create", "--name", "읽기", "--scope", "read"],
     );
     let reader = format!("Bearer {}", reader["secret"].as_str().unwrap());
-    let link = maru(&data, &["login-link"]);
+    let link = giwa(&data, &["login-link"]);
     let (server, bind) = start_server(&data);
     let writer = member(&bind, "w@example.test", "글쓴이");
     let one = member(&bind, "b@example.test", "신고일");
@@ -321,9 +321,9 @@ fn report_signals_reach_cli_rest_admin_and_mail() {
 
     // 한 건이면 아직 신호가 아니다. 두 사람이 신고하면 「신고 집중」.
     assert_eq!(report(&bind, &one, "post", &id, "spam").status, 200);
-    assert!(maru(&data, &["signals"]).as_array().unwrap().is_empty());
+    assert!(giwa(&data, &["signals"]).as_array().unwrap().is_empty());
     assert_eq!(report(&bind, &two, "post", &id, "abuse").status, 200);
-    let list = maru(&data, &["signals"]);
+    let list = giwa(&data, &["signals"]);
     assert_eq!(kinds(&list), ["report_crowd"], "{list}");
     assert_eq!(list[0]["count"], 2);
     assert!(list[0]["message"].as_str().unwrap().contains("몰린 글"));
@@ -334,7 +334,7 @@ fn report_signals_reach_cli_rest_admin_and_mail() {
         &data,
         "UPDATE mod_report_item SET at = '2000-01-01T00:00:00Z'",
     );
-    let list = maru(&data, &["signals"]);
+    let list = giwa(&data, &["signals"]);
     assert_eq!(kinds(&list), ["report_crowd", "report_stale"], "{list}");
     assert_eq!(list[1]["count"], 1, "대상 하나에 신고 둘이면 한 건");
 
@@ -368,10 +368,10 @@ fn report_signals_reach_cli_rest_admin_and_mail() {
     );
 
     // 메일은 한 번만 쌓인다.
-    let a = maru(&data, &["signals", "alert"]);
+    let a = giwa(&data, &["signals", "alert"]);
     assert_eq!(a["alerted"], 2, "{a}");
-    assert_eq!(maru(&data, &["signals", "alert"])["alerted"], 0);
-    let mails = maru(&data, &["mail", "list"]);
+    assert_eq!(giwa(&data, &["signals", "alert"])["alerted"], 0);
+    let mails = giwa(&data, &["mail", "list"]);
     let ours: Vec<&Value> = mails
         .as_array()
         .unwrap()
@@ -381,7 +381,7 @@ fn report_signals_reach_cli_rest_admin_and_mail() {
     assert_eq!(ours.len(), 1, "{mails}");
 
     // 처리하면 신호가 사라진다.
-    maru(
+    giwa(
         &data,
         &[
             "report",
@@ -394,5 +394,5 @@ fn report_signals_reach_cli_rest_admin_and_mail() {
             "dismiss",
         ],
     );
-    assert!(maru(&data, &["signals"]).as_array().unwrap().is_empty());
+    assert!(giwa(&data, &["signals"]).as_array().unwrap().is_empty());
 }

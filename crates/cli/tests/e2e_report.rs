@@ -9,7 +9,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 const FORM: (&str, &str) = ("Content-Type", "application/x-www-form-urlencoded");
 const PASSWORD: &str = "test-pass-1234";
 
@@ -29,12 +29,12 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -133,8 +133,8 @@ fn form(pairs: &[(&str, &str)]) -> String {
 
 fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
     let page = http(bind, "GET", "/signup", &[], "");
-    let pre = page.cookie("maru_csrf").unwrap();
-    let cookie = format!("maru_csrf={pre}");
+    let pre = page.cookie("giwa_csrf").unwrap();
+    let cookie = format!("giwa_csrf={pre}");
     let res = http(
         bind,
         "POST",
@@ -148,7 +148,7 @@ fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
             ("password2", PASSWORD),
         ]),
     );
-    if let Some(s) = res.cookie("maru_session") {
+    if let Some(s) = res.cookie("giwa_session") {
         return s;
     }
     let login = http(bind, "GET", "/login", &[("Cookie", &cookie)], "");
@@ -164,7 +164,7 @@ fn signup_and_login(bind: &str, email: &str, name: &str) -> String {
             ("password", PASSWORD),
         ]),
     );
-    res.cookie("maru_session")
+    res.cookie("giwa_session")
         .unwrap_or_else(|| panic!("로그인 실패 {}: {}", res.status, res.body))
 }
 
@@ -188,8 +188,8 @@ fn write_post(bind: &str, cookie: &str, title: &str) -> String {
 }
 
 fn setup(data: &Path) {
-    maru(data, &["init", "--no-samples", "--preset", "blog", "--yes"]);
-    maru(
+    giwa(data, &["init", "--no-samples", "--preset", "blog", "--yes"]);
+    giwa(
         data,
         &[
             "site",
@@ -202,13 +202,13 @@ fn setup(data: &Path) {
             "false",
         ],
     );
-    maru(
+    giwa(
         data,
         &[
             "board", "create", "free", "--name", "자유", "--kind", "free",
         ],
     );
-    maru(
+    giwa(
         data,
         &["board", "update", "free", "--write-approval", "off"],
     );
@@ -216,7 +216,7 @@ fn setup(data: &Path) {
 
 /// 가입하고 로그인해 쿠키 머리글 값을 돌려준다.
 fn member(bind: &str, email: &str, name: &str) -> String {
-    format!("maru_session={}", signup_and_login(bind, email, name))
+    format!("giwa_session={}", signup_and_login(bind, email, name))
 }
 
 /// 글 쪽의 댓글 폼으로 쓴다.
@@ -247,7 +247,7 @@ fn report(bind: &str, cookie: &str, kind: &str, id: &str, reason: &str) -> Res {
 }
 
 fn post_id(data: &Path, title: &str) -> String {
-    let list = maru(data, &["post", "list", "--board", "free"]);
+    let list = giwa(data, &["post", "list", "--board", "free"]);
     let items = list["items"].as_array().unwrap();
     items
         .iter()
@@ -263,7 +263,7 @@ fn banned_words_and_flood_limit_public_writes_only() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
     setup(&data);
-    maru(&data, &["site", "set", "--banned-words", "바보,Spam Word"]);
+    giwa(&data, &["site", "set", "--banned-words", "바보,Spam Word"]);
     let (server, bind) = start_server(&data);
     let cookie = member(&bind, "a@example.test", "회원가");
     let post = write_post(&bind, &cookie, "처음 글");
@@ -295,7 +295,7 @@ fn banned_words_and_flood_limit_public_writes_only() {
     assert!(res.body.contains("금지어"), "{}", res.body);
 
     // 로컬 CLI 는 걸리지 않는다.
-    let created = maru(
+    let created = giwa(
         &data,
         &[
             "post",
@@ -313,7 +313,7 @@ fn banned_words_and_flood_limit_public_writes_only() {
     assert!(created["id"].is_string(), "{created}");
 
     // 도배 방지를 켜면 바로 이어 쓸 수 없고, 쓴 글은 남는다.
-    maru(&data, &["site", "set", "--flood-seconds", "600"]);
+    giwa(&data, &["site", "set", "--flood-seconds", "600"]);
     let res = comment(&bind, &cookie, &post, "또 씁니다");
     assert_eq!(res.status, 429, "{}", res.body);
     assert!(res.body.contains("너무 빨리"), "{}", res.body);
@@ -322,7 +322,7 @@ fn banned_words_and_flood_limit_public_writes_only() {
     // 범위를 벗어나면 받지 않는다. 비우면 모두 지운다.
     let v = run(&data, &["site", "set", "--flood-seconds", "3601"]);
     assert_eq!(v["ok"], false, "{v}");
-    let s = maru(
+    let s = giwa(
         &data,
         &["site", "set", "--flood-seconds", "1", "--banned-words", ""],
     );
@@ -343,8 +343,8 @@ fn reports_hide_content_and_a_moderator_decides() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
     setup(&data);
-    maru(&data, &["module", "enable", "report"]);
-    maru(
+    giwa(&data, &["module", "enable", "report"]);
+    giwa(
         &data,
         &["module", "set", "report", "--field", "auto_hide=2"],
     );
@@ -386,17 +386,17 @@ fn reports_hide_content_and_a_moderator_decides() {
     let res = report(&bind, &one, "post", &id, "abuse");
     assert!(res.body.contains("신고를 받았습니다"), "{}", res.body);
     assert_eq!(http(&bind, "GET", &post, &[], "").status, 200);
-    let list = maru(&data, &["report", "list"]);
+    let list = giwa(&data, &["report", "list"]);
     assert_eq!(list["untrusted"], true, "{list}");
     assert_eq!(list["items"][0]["count"], 1, "{list}");
 
     // 다른 사람 신고가 모이면 자동으로 가린다.
     report(&bind, &two, "post", &id, "abuse");
     assert_eq!(http(&bind, "GET", &post, &[], "").status, 404);
-    let list = maru(&data, &["report", "list"]);
+    let list = giwa(&data, &["report", "list"]);
     assert_eq!(list["items"][0]["auto_hidden"], true, "{list}");
     assert_eq!(list["items"][0]["count"], 2, "{list}");
-    let audit = maru(&data, &["audit", "list", "--action", "report.auto_hide"]);
+    let audit = giwa(&data, &["audit", "list", "--action", "report.auto_hide"]);
     assert_eq!(audit["items"].as_array().unwrap().len(), 1, "{audit}");
 
     // 가려진 글은 더 신고할 수 없다.
@@ -408,7 +408,7 @@ fn reports_hide_content_and_a_moderator_decides() {
     assert_eq!(res.status, 403, "{}", res.body);
 
     // 기각하면 자동으로 가린 것을 되살리고, 신고가 닫힌다.
-    let done = maru(
+    let done = giwa(
         &data,
         &[
             "report",
@@ -423,7 +423,7 @@ fn reports_hide_content_and_a_moderator_decides() {
     );
     assert_eq!(done["resolved"], 2, "{done}");
     assert_eq!(http(&bind, "GET", &post, &[], "").status, 200);
-    let list = maru(&data, &["report", "list"]);
+    let list = giwa(&data, &["report", "list"]);
     assert_eq!(list["total"], 0, "{list}");
 
     // 댓글: 신고가 모이면 가리고, 가림으로 처리하면 그대로다.
@@ -437,7 +437,7 @@ fn reports_hide_content_and_a_moderator_decides() {
     report(&bind, &two, "comment", &cid, "abuse");
     let page = http(&bind, "GET", &post, &[], "");
     assert!(!page.body.contains("신고될 댓글"));
-    let done = maru(
+    let done = giwa(
         &data,
         &[
             "report",
@@ -453,13 +453,13 @@ fn reports_hide_content_and_a_moderator_decides() {
     assert_eq!(done["resolved"], 2, "{done}");
     let page = http(&bind, "GET", &post, &[], "");
     assert!(!page.body.contains("신고될 댓글"));
-    let list = maru(&data, &["report", "list", "--status", "upheld"]);
+    let list = giwa(&data, &["report", "list", "--status", "upheld"]);
     assert_eq!(list["total"], 1, "{list}");
     drop(server);
 
     // 운영자 글은 몰려서 신고해도 가려지지 않는다.
     let (server, bind) = start_server(&data);
-    let staff = maru(
+    let staff = giwa(
         &data,
         &[
             "post",
@@ -475,10 +475,10 @@ fn reports_hide_content_and_a_moderator_decides() {
         ],
     );
     let staff = staff["id"].as_str().unwrap().to_owned();
-    maru(&data, &["post", "publish", &staff]);
+    giwa(&data, &["post", "publish", &staff]);
     report(&bind, &one, "post", &staff, "spam");
     report(&bind, &two, "post", &staff, "spam");
-    let list = maru(&data, &["report", "list"]);
+    let list = giwa(&data, &["report", "list"]);
     assert_eq!(list["items"][0]["auto_hidden"], false, "{list}");
     assert_eq!(list["items"][0]["public"], true, "{list}");
     drop(server);

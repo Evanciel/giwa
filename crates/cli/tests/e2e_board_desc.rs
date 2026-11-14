@@ -9,7 +9,7 @@ use std::process::{Child, Command, Stdio};
 
 use serde_json::Value;
 
-const BIN: &str = env!("CARGO_BIN_EXE_maru");
+const BIN: &str = env!("CARGO_BIN_EXE_giwa");
 
 struct Server(Child);
 
@@ -27,12 +27,12 @@ fn run(data: &Path, args: &[&str]) -> Value {
         .args(args)
         .arg("--json")
         .output()
-        .expect("maru 실행");
+        .expect("giwa 실행");
     let stdout = String::from_utf8(out.stdout).expect("UTF-8 출력");
     serde_json::from_str(stdout.trim()).unwrap_or_else(|e| panic!("JSON 아님: {e}\n{stdout}"))
 }
 
-fn maru(data: &Path, args: &[&str]) -> Value {
+fn giwa(data: &Path, args: &[&str]) -> Value {
     let v = run(data, args);
     assert_eq!(v["ok"], true, "{args:?} → {v}");
     v["data"].clone()
@@ -70,17 +70,17 @@ fn get(bind: &str, path: &str) -> (u16, String) {
 fn board_description_and_best_cards() {
     let tmp = tempfile::tempdir().unwrap();
     let data = tmp.path().join("사이트");
-    maru(
+    giwa(
         &data,
         &["init", "--no-samples", "--preset", "blog", "--yes"],
     );
-    maru(
+    giwa(
         &data,
         &[
             "board", "create", "free", "--name", "자유", "--kind", "free",
         ],
     );
-    maru(
+    giwa(
         &data,
         &[
             "post",
@@ -96,7 +96,7 @@ fn board_description_and_best_cards() {
     );
 
     // 안내 문구: 평문, 줄바꿈 유지, 300자까지, 제어 문자 거부
-    let b = maru(
+    let b = giwa(
         &data,
         &[
             "board",
@@ -120,7 +120,7 @@ fn board_description_and_best_cards() {
     );
     assert_eq!(bad["error"]["code"], "VALIDATION", "{bad}");
     assert_eq!(
-        maru(&data, &["board", "show", "free"])["description"],
+        giwa(&data, &["board", "show", "free"])["description"],
         b["description"]
     );
 
@@ -142,7 +142,7 @@ fn board_description_and_best_cards() {
         bad["error"]["message"].to_string().contains("style"),
         "{bad}"
     );
-    let w = maru(
+    let w = giwa(
         &data,
         &[
             "widget",
@@ -157,7 +157,7 @@ fn board_description_and_best_cards() {
         ],
     );
     assert_eq!(w["config"]["style"], "cards", "{w}");
-    let plain = maru(
+    let plain = giwa(
         &data,
         &[
             "widget",
@@ -204,7 +204,7 @@ fn board_description_and_best_cards() {
     );
 
     // 빈 값이면 지운다
-    let b = maru(&data, &["board", "update", "free", "--description", ""]);
+    let b = giwa(&data, &["board", "update", "free", "--description", ""]);
     assert_eq!(b["description"], "");
     let (_, page) = get(&bind, "/b/free");
     assert!(!page.contains("board-desc"), "{page}");

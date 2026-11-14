@@ -1,5 +1,5 @@
 //! 백업 (GAP S6, ADR-0063). 파일 작업은 [`Archiver`] 구현(storage)이 하고, 여기서는 권한·이름·감사를 맡는다.
-//! 복원은 서버가 꺼진 상태에서 CLI 만 한다(`maru restore`, storage 의 `backup::restore`).
+//! 복원은 서버가 꺼진 상태에서 CLI 만 한다(`giwa restore`, storage 의 `backup::restore`).
 
 use std::path::PathBuf;
 
@@ -49,7 +49,7 @@ pub trait Archiver: Send + Sync {
 /// `maru-YYYYMMDD-HHMMSS[-N][-nosecrets].tar.gz` 만 받는다(경로 조각·숨은 파일 없음).
 pub fn check_name(name: &str) -> Result<&str> {
     let ok = name.len() <= 64
-        && name.starts_with("maru-")
+        && (name.starts_with("giwa-") || name.starts_with("maru-"))
         && name.ends_with(".tar.gz")
         && name
             .bytes()
@@ -62,7 +62,7 @@ fn not_found(name: &str) -> Error {
     Error::new(Code::NotFound)
         .with_message("error.backup_not_found")
         .arg("name", name.chars().take(64).collect::<String>())
-        .next("maru backup list")
+        .next("giwa backup list")
 }
 
 /// 지금 백업한다. 운영자만. 서버가 켜져 있어도 DB 는 한 시점의 사본이다(`VACUUM INTO`).
@@ -124,13 +124,14 @@ mod tests {
     #[test]
     fn only_backup_names_pass() {
         for ok in [
+            "giwa-20261114-091500.tar.gz",
             "maru-20261104-091500.tar.gz",
             "maru-20261104-091500-2-nosecrets.tar.gz",
         ] {
             assert_eq!(check_name(ok).unwrap(), ok);
         }
         for bad in [
-            "../maru.db",
+            "../giwa.db",
             "maru-../../x.tar.gz",
             "maru-1.tar",
             "x.tar.gz",

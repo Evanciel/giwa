@@ -2,13 +2,13 @@
 // 스크립트가 없으면 칸이 숨은 채로 남고 글쓰기는 그대로 된다.
 (function () {
   // 영어 사이트 문구 (ADR-0134). `<html lang>` 을 보고, 표에 없으면 한국어 그대로. {n} 은 값 자리.
-  var MARU_EN = document.documentElement.lang.indexOf("en") === 0 ? {
+  var GIWA_EN = document.documentElement.lang.indexOf("en") === 0 ? {
     "{n} 올리는 중…": "Uploading {n}…",
     "내용에 넣었습니다: {n}": "Added to the post: {n}",
     "올리지 못했습니다.": "Upload failed.",
     "올리지 못했습니다. 연결을 확인하세요.": "Upload failed. Check your connection.",
   } : null;
-  function T(s, n) { return ((MARU_EN && MARU_EN[s]) || s).replace("{n}", n); }
+  function T(s, n) { return ((GIWA_EN && GIWA_EN[s]) || s).replace("{n}", n); }
   var box = document.querySelector("[data-attach-url]");
   var body = document.getElementById("body");
   var csrf = document.querySelector('.write-form input[name="_csrf"]');

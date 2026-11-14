@@ -1,4 +1,4 @@
-//! Maru 도메인 모델, 서비스, 권한 (DB·웹 비의존)
+//! Giwa 도메인 모델, 서비스, 권한 (DB·웹 비의존)
 
 pub mod actor;
 pub mod audit;
@@ -8,6 +8,7 @@ pub mod config;
 pub mod design;
 pub mod diff;
 pub mod directives;
+pub mod env;
 pub mod error;
 pub mod fields;
 pub mod markdown;

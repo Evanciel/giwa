@@ -10,20 +10,20 @@ use axum::extract::{Form, Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
-use maru_core::design::{FONTS, Tokens};
-use maru_core::fields::FieldDef;
-use maru_core::model::{
+use giwa_core::design::{FONTS, Tokens};
+use giwa_core::fields::FieldDef;
+use giwa_core::model::{
     Approval, BOARD_KINDS, BOARD_LAYOUTS, BOARD_ORDERS, Board, BoardPolicy, CaptchaMode,
     MENU_LOCATIONS, MemberStatus, MenuItem, MenuLink, PAGE_LAYOUTS, Page, PageReq, PageStatus,
     SignupMode, SiteSettings,
 };
-use maru_core::services::boards::{self, BoardPatch, NewBoard};
-use maru_core::services::pages::{self, NewPage, PagePatch};
-use maru_core::services::redirects;
-use maru_core::services::settings::{self, SettingsPatch};
-use maru_core::services::{design, fonts, members, menus, presets};
-use maru_core::urls::{self, Target};
-use maru_core::{Code, Error};
+use giwa_core::services::boards::{self, BoardPatch, NewBoard};
+use giwa_core::services::pages::{self, NewPage, PagePatch};
+use giwa_core::services::redirects;
+use giwa_core::services::settings::{self, SettingsPatch};
+use giwa_core::services::{design, fonts, members, menus, presets};
+use giwa_core::urls::{self, Target};
+use giwa_core::{Code, Error};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
@@ -554,7 +554,7 @@ fn page_json(p: &Page, tz: i32) -> Value {
         "title": p.title,
         "status": p.status.as_str(),
         "status_label": page_status_label(p.status),
-        "updated": maru_core::clock::display_datetime(&p.updated_at, tz),
+        "updated": giwa_core::clock::display_datetime(&p.updated_at, tz),
         "url": urls::path(&Target::Page { page: &p.slug }),
         "actions": page_actions(p.status).into_iter().map(|(id, label)| json!({ "id": id, "label": label })).collect::<Vec<_>>(),
     })
@@ -1127,7 +1127,7 @@ async fn members_page(
             let top = v
                 .roles
                 .iter()
-                .max_by_key(|r| maru_core::actor::rank::of_role(r).unwrap_or(0))
+                .max_by_key(|r| giwa_core::actor::rank::of_role(r).unwrap_or(0))
                 .cloned()
                 .unwrap_or_else(|| "member".into());
             json!({
@@ -1143,8 +1143,8 @@ async fn members_page(
                 "verified": m.email_verified_at.is_some(),
                 "two_factor": v.two_factor,
                 "dormant": v.dormant,
-                "joined": maru_core::clock::display_datetime(&m.created_at, tz),
-                "last_login": v.last_login_at.as_deref().map(|t| maru_core::clock::display_datetime(t, tz)),
+                "joined": giwa_core::clock::display_datetime(&m.created_at, tz),
+                "last_login": v.last_login_at.as_deref().map(|t| giwa_core::clock::display_datetime(t, tz)),
             })
         })
         .collect::<Vec<_>>();
@@ -1166,7 +1166,7 @@ async fn members_page(
             "page": page,
             "pages": pages,
             "roles": choices(&[("member", "회원"), ("editor", "편집자"), ("admin", "운영자")]),
-            "can_reset_totp": who.actor.has(maru_core::actor::Permission::SiteAdmin),
+            "can_reset_totp": who.actor.has(giwa_core::actor::Permission::SiteAdmin),
         }),
     );
     render(&state, StatusCode::OK, "members.html", &ctx)
@@ -1201,7 +1201,7 @@ async fn member_action(
         "enable" => members::set_status(ctx, actor, &id, MemberStatus::Active)
             .await
             .map(drop),
-        "totp_reset" => maru_core::services::totp::reset(ctx, actor, &id)
+        "totp_reset" => giwa_core::services::totp::reset(ctx, actor, &id)
             .await
             .map(drop),
         _ => return fail(&state, Some(&who), &Error::new(Code::NotFound)).await,
@@ -1532,9 +1532,9 @@ async fn settings_render(
 
 /// 검색 엔진 카드의 제출 주소와 IndexNow 상태 (ADR-0143).
 async fn seo_card(state: &AppState, who: &SignedIn) -> Value {
-    use maru_core::urls::{self, Target};
+    use giwa_core::urls::{self, Target};
     let site = &state.ctx.site_url;
-    let status = maru_core::services::indexnow::status(&state.ctx, &who.actor)
+    let status = giwa_core::services::indexnow::status(&state.ctx, &who.actor)
         .await
         .ok();
     let tz = settings::site(&state.ctx)
@@ -1545,7 +1545,7 @@ async fn seo_card(state: &AppState, who: &SignedIn) -> Value {
         "sitemap_url": urls::absolute(site, &Target::Sitemap),
         "rss_url": urls::absolute(site, &Target::Rss),
         "public_site": status.as_ref().is_some_and(|s| s.public_site),
-        "last_at": status.as_ref().and_then(|s| s.last_at.as_deref()).map(|t| maru_core::clock::display_datetime(t, tz)),
+        "last_at": status.as_ref().and_then(|s| s.last_at.as_deref()).map(|t| giwa_core::clock::display_datetime(t, tz)),
         "last_count": status.as_ref().map_or(0, |s| s.last_count),
         "last_error": status.as_ref().and_then(|s| s.last_error.clone()),
         "sent_total": status.as_ref().map_or(0, |s| s.sent_total),
@@ -1763,7 +1763,7 @@ async fn design_render(
         .await
         .map(|s| s.skin)
         .unwrap_or_default();
-    let skins: Vec<Value> = maru_core::model::SKINS
+    let skins: Vec<Value> = giwa_core::model::SKINS
         .iter()
         .map(|(id, label)| json!({ "id": id, "label": label, "current": *id == skin }))
         .collect();
@@ -1843,7 +1843,7 @@ impl Theme {
             "name": self.name,
             "description": self.description,
             "current": self.is_current(tokens),
-            "shot": maru_themes::has_shot(&format!("skin-{}", self.id)),
+            "shot": giwa_themes::has_shot(&format!("skin-{}", self.id)),
             "c": self.patch["color"],
             "d": self.patch["color_dark"],
             "rs": radius("sm").min(8),
@@ -1860,8 +1860,8 @@ pub(super) fn themes() -> Vec<Theme> {
         description: "차분한 초록과 흰 바탕".into(),
         patch: design::theme_patch(&json!({})),
     }];
-    for id in maru_themes::preset_ids() {
-        let Ok(p) = maru_themes::preset(&id) else {
+    for id in giwa_themes::preset_ids() {
+        let Ok(p) = giwa_themes::preset(&id) else {
             continue;
         };
         if let Some(patch) = presets::theme_tokens(&p) {
@@ -1883,7 +1883,7 @@ struct ThemeForm {
     theme: String,
 }
 
-/// 테마 카드 하나를 눌러 입힌다. CLI `maru theme apply` 와 같은 패치를 쓴다.
+/// 테마 카드 하나를 눌러 입힌다. CLI `giwa theme apply` 와 같은 패치를 쓴다.
 async fn theme_save(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -1966,7 +1966,7 @@ fn site_type_card(p: &presets::Preset, fit: &str) -> Value {
         "fit": fit,
         "description": p.description,
         "has": has,
-        "shot": maru_themes::has_shot(&format!("site-{}", p.id)),
+        "shot": giwa_themes::has_shot(&format!("site-{}", p.id)),
     })
 }
 
@@ -1985,7 +1985,7 @@ async fn site_types_page(State(state): State<AppState>, headers: HeaderMap) -> R
     let cards: Vec<Value> = SITE_TYPES
         .iter()
         .filter_map(|(id, fit)| {
-            maru_themes::preset(id)
+            giwa_themes::preset(id)
                 .ok()
                 .map(|p| site_type_card(&p, fit))
         })
@@ -2010,7 +2010,7 @@ async fn site_type_start(
     headers: HeaderMap,
     Form(f): Form<SiteTypeForm>,
 ) -> Response {
-    use maru_core::services::changesets;
+    use giwa_core::services::changesets;
     let who = match require_post(&state, &headers, &f.csrf).await {
         Ok(w) => w,
         Err(r) => return *r,
@@ -2019,7 +2019,7 @@ async fn site_type_start(
         let e = Error::new(Code::NotFound).with_message("error.not_found");
         return fail(&state, Some(&who), &e).await;
     }
-    let made = match maru_themes::preset(&f.preset) {
+    let made = match giwa_themes::preset(&f.preset) {
         Ok(p) => changesets::create_from_preset(&state.ctx, &who.actor, &p).await,
         Err(e) => Err(e),
     };

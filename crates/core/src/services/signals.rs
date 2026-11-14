@@ -71,7 +71,7 @@ pub async fn list(ctx: &Ctx, actor: &Actor) -> Result<Vec<Signal>> {
 }
 
 /// 새 신호가 있으면 운영자(관리자·소유자)에게 메일을 쌓는다. 쌓은 신호 수.
-/// 서버가 정리 루프마다 부르고, `maru signals alert` 로 바로 부를 수도 있다. 여러 번 불러도 같은 신호는 한 번만.
+/// 서버가 정리 루프마다 부르고, `giwa signals alert` 로 바로 부를 수도 있다. 여러 번 불러도 같은 신호는 한 번만.
 pub async fn alert(ctx: &Ctx) -> Result<u32> {
     ctx.store
         .purge_signal_sent(&clock::hours_ago(KEEP_SENT_DAYS * 24))

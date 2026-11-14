@@ -1,7 +1,7 @@
 //! 변경 묶음 `changesets` (ADR-0121).
 
-use maru_core::model::{Changeset, ChangesetStatus};
-use maru_core::{Error, Result};
+use giwa_core::model::{Changeset, ChangesetStatus};
+use giwa_core::{Error, Result};
 use serde_json::Value;
 use sqlx::SqliteExecutor;
 

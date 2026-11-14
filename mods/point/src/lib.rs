@@ -15,20 +15,20 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::get;
 use axum::{Extension, Router};
-use maru_core::actor::{Actor, Permission};
-use maru_core::audit::{AuditRecord, Target};
-use maru_core::fields::FieldDef;
-use maru_core::model::{AuditEvent, CommentStatus, Member, MemberStatus, PostStatus};
-use maru_core::services::widgets::WidgetType;
-use maru_core::store::ModuleMigration;
-use maru_core::urls;
-use maru_core::{Code, Ctx, Error, Result, clock};
-use maru_modules::service::settings_of;
-use maru_modules::{
+use giwa_core::actor::{Actor, Permission};
+use giwa_core::audit::{AuditRecord, Target};
+use giwa_core::fields::FieldDef;
+use giwa_core::model::{AuditEvent, CommentStatus, Member, MemberStatus, PostStatus};
+use giwa_core::services::widgets::WidgetType;
+use giwa_core::store::ModuleMigration;
+use giwa_core::urls;
+use giwa_core::{Code, Ctx, Error, Result, clock};
+use giwa_modules::service::settings_of;
+use giwa_modules::{
     ACCOUNT_BAR, MEMBER_BADGE, Manifest, Module, ModuleState, SlotContent, SlotView, ToolDef,
     module_error, schema_of,
 };
-use maru_storage::Db;
+use giwa_storage::Db;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
@@ -122,7 +122,7 @@ impl PointModule {
             .await
             .map_err(Error::internal)?;
             if let Some(rec) = &audit {
-                maru_storage::sqlite::insert_audit(&mut tx, rec).await?;
+                giwa_storage::sqlite::insert_audit(&mut tx, rec).await?;
             }
         }
         tx.commit().await.map_err(Error::internal)?;
@@ -321,7 +321,7 @@ impl PointModule {
                 Target::new("member", &member.id),
                 json!({ "day": day, "streak": streak }),
             );
-            maru_storage::sqlite::insert_audit(&mut tx, &rec).await?;
+            giwa_storage::sqlite::insert_audit(&mut tx, &rec).await?;
         }
         tx.commit().await.map_err(Error::internal)?;
         let row = sqlx::query!(

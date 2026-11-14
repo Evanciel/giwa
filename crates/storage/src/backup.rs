@@ -1,6 +1,6 @@
 //! 백업·복원 파일 작업 (GAP S6, ADR-0063).
 //!
-//! 백업 파일은 `.tar.gz` 하나다: `manifest.json`, `maru.db`(`VACUUM INTO` 사본), `config.toml`,
+//! 백업 파일은 `.tar.gz` 하나다: `manifest.json`, `giwa.db`(`VACUUM INTO` 사본), `config.toml`,
 //! `media/`, `themes/`. 복원은 서버가 꺼져 있을 때만 한다 — `serve` 가 [`lock_serve`] 로 잡는
 //! `serve.lock` 을 복원도 잡아 본다.
 
@@ -12,8 +12,8 @@ use async_trait::async_trait;
 use flate2::Compression;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
-use maru_core::services::backups::{Archiver, BackupInfo, check_name};
-use maru_core::{Code, Error, Result, clock};
+use giwa_core::services::backups::{Archiver, BackupInfo, check_name};
+use giwa_core::{Code, Error, Result, clock};
 use serde::{Deserialize, Serialize};
 use sqlx::Connection;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteConnection};
@@ -26,7 +26,15 @@ pub const FORMAT: u32 = 1;
 /// 서버가 켜져 있는 동안 잡고 있는 잠금 파일.
 pub const SERVE_LOCK: &str = "serve.lock";
 /// 백업에 넣는 맨 위 이름. 복원은 이것 말고는 풀지 않는다.
-const ENTRIES: [&str; 5] = ["manifest.json", "maru.db", "config.toml", "media", "themes"];
+/// `maru.db` 는 이름을 바꾸기 전(ADR-0173)에 만든 백업이다. 풀고 나서 `giwa.db` 로 옮긴다.
+const ENTRIES: [&str; 6] = [
+    "manifest.json",
+    "giwa.db",
+    "maru.db",
+    "config.toml",
+    "media",
+    "themes",
+];
 /// 비밀 빼기: 남에게 줄 사본에서 지우는 것.
 const STRIP: [&str; 8] = [
     "DELETE FROM sessions",
@@ -42,7 +50,8 @@ const STRIP: [&str; 8] = [
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Manifest {
     pub format: u32,
-    pub maru_version: String,
+    #[serde(alias = "maru_version")]
+    pub giwa_version: String,
     /// 백업한 DB 의 최신 마이그레이션 번호
     pub schema: i64,
     pub created_at: String,
@@ -61,7 +70,7 @@ impl FsArchiver {
 
     async fn build(&self, work: &Path, secrets: bool) -> Result<BackupInfo> {
         let created_at = clock::now();
-        let copy = work.join("maru.db");
+        let copy = work.join("giwa.db");
         // 읽기 연결 하나에서 한 시점의 사본을 만든다. 서버가 쓰는 중이어도 일관된다.
         sqlx::query("VACUUM INTO ?")
             .bind(copy.to_string_lossy().into_owned())
@@ -78,7 +87,7 @@ impl FsArchiver {
         }
         let manifest = Manifest {
             format: FORMAT,
-            maru_version: env!("CARGO_PKG_VERSION").to_owned(),
+            giwa_version: env!("CARGO_PKG_VERSION").to_owned(),
             schema: schema.unwrap_or(0),
             created_at: created_at.clone(),
             secrets,
@@ -86,10 +95,10 @@ impl FsArchiver {
         let backups = self.dir.backups_dir();
         let stamp = stamp_of(&created_at);
         let suffix = if secrets { "" } else { "-nosecrets" };
-        let mut name = format!("maru-{stamp}{suffix}.tar.gz");
+        let mut name = format!("giwa-{stamp}{suffix}.tar.gz");
         let mut n = 2;
         while backups.join(&name).exists() {
-            name = format!("maru-{stamp}-{n}{suffix}.tar.gz");
+            name = format!("giwa-{stamp}-{n}{suffix}.tar.gz");
             n += 1;
         }
         let out = backups.join(&name);
@@ -173,7 +182,10 @@ fn stamp_of(at: &str) -> String {
 
 /// 파일 이름의 시각 → RFC3339 (UTC). 모르면 빈 값.
 fn created_of(name: &str) -> String {
-    let s = name.trim_start_matches("maru-");
+    let s = name
+        .strip_prefix("giwa-")
+        .or_else(|| name.strip_prefix("maru-"))
+        .unwrap_or(name);
     let b = s.as_bytes();
     if b.len() < 15 || b[8] != b'-' || !b[..8].iter().chain(&b[9..15]).all(u8::is_ascii_digit) {
         return String::new();
@@ -221,7 +233,7 @@ fn pack(dir: &DataDir, work: &Path, manifest: &Manifest, out: &Path) -> Result<(
     header.set_cksum();
     tar.append_data(&mut header, "manifest.json", body.as_slice())
         .map_err(io(&part))?;
-    tar.append_path_with_name(work.join("maru.db"), "maru.db")
+    tar.append_path_with_name(work.join("giwa.db"), "giwa.db")
         .map_err(io(&part))?;
     let config = dir.config_path();
     if config.is_file() {
@@ -342,13 +354,13 @@ fn inspect(archive: &Path) -> Result<Manifest> {
                         .map_err(|e| invalid(archive, e.to_string()))?,
                 );
             }
-            "maru.db" => has_db = true,
+            "giwa.db" | "maru.db" => has_db = true,
             _ => {}
         }
     }
     let manifest = manifest.ok_or_else(|| invalid(archive, "manifest.json 이 없습니다"))?;
     if !has_db {
-        return Err(invalid(archive, "maru.db 가 없습니다"));
+        return Err(invalid(archive, "giwa.db 가 없습니다"));
     }
     if manifest.format != FORMAT {
         return Err(invalid(archive, format!("모르는 형식 {}", manifest.format)));
@@ -359,7 +371,7 @@ fn inspect(archive: &Path) -> Result<Manifest> {
             .with_message("error.backup_newer")
             .arg("schema", manifest.schema.to_string())
             .arg("known", known.to_string())
-            .arg("version", manifest.maru_version.clone()));
+            .arg("version", manifest.giwa_version.clone()));
     }
     Ok(manifest)
 }
@@ -372,9 +384,9 @@ fn restore_blocking(dir: &DataDir, archive: &Path) -> Result<RestoreReport> {
         .join(format!("before-restore-{}", stamp_of(&clock::now())));
     fs::create_dir_all(&previous).map_err(|e| io_error(&previous, e))?;
     for name in [
-        "maru.db",
-        "maru.db-wal",
-        "maru.db-shm",
+        "giwa.db",
+        "giwa.db-wal",
+        "giwa.db-shm",
         "config.toml",
         "media",
         "themes",
@@ -399,6 +411,7 @@ fn restore_blocking(dir: &DataDir, archive: &Path) -> Result<RestoreReport> {
             .unpack_in(root)
             .map_err(|e| invalid(archive, e.to_string()))?;
     }
+    dir.adopt_legacy_db()?;
     dir.ensure_layout()?;
     Ok(RestoreReport { manifest, previous })
 }
@@ -416,5 +429,9 @@ mod tests {
             "2026-11-04T09:15:07Z"
         );
         assert_eq!(created_of("maru-x.tar.gz"), "");
+        assert_eq!(
+            created_of("giwa-20261114-091507.tar.gz"),
+            "2026-11-14T09:15:07Z"
+        );
     }
 }

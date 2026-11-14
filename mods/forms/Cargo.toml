@@ -1,6 +1,6 @@
 [package]
-name = "maru-mod-forms"
-description = "Maru 공식 모듈: 문의·신청 폼"
+name = "giwa-mod-forms"
+description = "Giwa 공식 모듈: 문의·신청 폼"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,9 +11,9 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
-maru-core.workspace = true
-maru-modules.workspace = true
-maru-storage.workspace = true
+giwa-core.workspace = true
+giwa-modules.workspace = true
+giwa-storage.workspace = true
 async-trait.workspace = true
 axum.workspace = true
 schemars.workspace = true

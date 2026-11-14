@@ -5,8 +5,8 @@ use std::sync::Arc;
 use axum::extract::{Path, State};
 use axum::http::header;
 use axum::response::{IntoResponse, Response};
-use maru_core::sample_art;
-use maru_core::services::{design, indexnow};
+use giwa_core::sample_art;
+use giwa_core::services::{design, indexnow};
 use serde_json::{Value, json};
 
 use crate::AppState;
@@ -70,7 +70,7 @@ pub(crate) fn script_json(v: &Value) -> String {
 fn graph(site_url: &str, name: &str, v: &Value) -> Vec<Value> {
     let site = site_url.trim_end_matches('/');
     let home = format!("{site}/");
-    let site_name = text(&v["site"]["name"]).unwrap_or("Maru");
+    let site_name = text(&v["site"]["name"]).unwrap_or("Giwa");
     let org_id = format!("{home}#organization");
     let lang = text(&v["site"]["lang"]).unwrap_or("ko");
     let canonical = text(&v["canonical"]).map(str::to_owned);
@@ -187,7 +187,7 @@ pub(crate) async fn share_picture(State(state): State<AppState>) -> Response {
             let Ok(Ok(jpeg)) = drawn else {
                 return crate::error::page(
                     &state,
-                    &maru_core::Error::new(maru_core::Code::Internal),
+                    &giwa_core::Error::new(giwa_core::Code::Internal),
                 )
                 .await;
             };
@@ -223,7 +223,7 @@ pub(crate) async fn root_file(State(state): State<AppState>, Path(file): Path<St
         )
             .into_response();
     }
-    crate::error::page(&state, &maru_core::Error::new(maru_core::Code::NotFound)).await
+    crate::error::page(&state, &giwa_core::Error::new(giwa_core::Code::NotFound)).await
 }
 
 #[cfg(test)]

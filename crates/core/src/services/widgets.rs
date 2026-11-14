@@ -368,7 +368,7 @@ pub struct NewWidget {
     pub scope: String,
     #[serde(default)]
     pub title: String,
-    /// 종류마다 다른 설정 (`maru widget types`)
+    /// 종류마다 다른 설정 (`giwa widget types`)
     #[serde(default)]
     pub config: Value,
     /// 영역 안 순서. 비우면 맨 뒤
@@ -607,7 +607,7 @@ fn not_found(id: &str) -> Error {
     Error::new(Code::NotFound)
         .with_message("error.widget_not_found")
         .arg("id", id)
-        .next("maru widget list")
+        .next("giwa widget list")
 }
 
 async fn check_kind(ctx: &Ctx, kind: &str) -> Result<String> {
@@ -627,7 +627,7 @@ async fn check_kind(ctx: &Ctx, kind: &str) -> Result<String> {
                 .collect::<Vec<_>>()
                 .join(", "),
         )
-        .next("maru widget types"))
+        .next("giwa widget types"))
 }
 
 fn check_region(region: &str) -> Result<String> {
@@ -708,7 +708,7 @@ pub(super) fn bad_config(kind: &str, reason: impl Into<String>) -> Error {
         .arg("kind", kind)
         .arg("reason", reason.into())
         .next(format!(
-            "maru widget types --json  # {kind} 의 config_schema"
+            "giwa widget types --json  # {kind} 의 config_schema"
         ))
 }
 
@@ -739,7 +739,7 @@ async fn check_board(ctx: &Ctx, kind: &str, board: &str, allow_empty: bool) -> R
         return Err(Error::new(Code::NotFound)
             .with_message("error.board_not_found")
             .arg("slug", s)
-            .next("maru board list"));
+            .next("giwa board list"));
     }
     Ok(s)
 }
