@@ -2487,3 +2487,25 @@
 - 덧붙임: `--no-fail-fast` 로 처음 보인 Linux 실패 둘.
   - `serve_stops_on_sigterm`: `shutdown_signal` 이 `async fn` 이라 신호 처리기가 처음 기다릴 때 걸렸다. 「시작했다」 줄을 내보낸 직후 온 SIGTERM 은 처리기가 없어 프로세스를 그대로 죽였다(종료 상태 15). systemd 같은 서비스 관리자가 띄우자마자 멈추는 경우에도 같다. 처리기를 부르는 순간 거는 함수로 바꾸고 `serve`·`expose` 는 시작을 알리기 전에 부른다.
   - `e2e_release`: Linux 디버그 빌드는 디버그 정보를 실행 파일에 넣어 200MB 업데이트 한도를 넘는다(Windows 는 76MB + 따로 pdb). 실제 릴리스는 35MB 라 한도는 그대로 두고, CI 의 Ubuntu 작업만 `CARGO_PROFILE_DEV_DEBUG=none` 으로 디버그 정보를 넣지 않는다. 처음에는 `split-debuginfo=unpacked` 로 밖으로만 빼 봤지만 여전히 200MB 를 넘었다. 실패한 assert 의 파일·줄은 디버그 정보 없이도 나온다.
+
+## ADR-0175: Postgres 로 갈 문은 열어 두고 SQLite 로 간다, SQLite 보안 판은 sqlx-sqlite 복사본으로 받는다
+
+- 날짜: 2026-11-16
+- 배경:
+  - 큰 서비스도 염두에 두자는 이야기가 나왔다. 지금 저장소가 SQLite 에 얼마나 묶였는지 재 봤다.
+    - core·web·agent 에는 sqlx 가 없다. 게이트의 의존 방향 검사가 이미 막는다.
+    - storage 와 mods 의 SQL: 약 2만 8600줄, 컴파일 타임 검증 질의 452개, 동적 질의 105개, 마이그레이션 106개.
+    - SQLite 전용 문법: JSON 함수 52곳, `rowid` 15곳(대부분 FTS5 검색), `WITHOUT ROWID` 18곳, `INSERT OR IGNORE/REPLACE` 7곳, FTS5. `ON CONFLICT` 29곳은 Postgres 에서도 그대로 된다.
+  - 단일 바이너리·셀프호스팅(원칙 5)이 제품의 핵심이고, 한 사이트의 쓰기 양은 SQLite 한 파일로 충분하다. 여러 사이트를 맡는 호스팅도 사이트마다 SQLite 파일 하나로 나누면 된다.
+  - RUSTSEC-2026-0459(ADR-0174)는 sqlx 0.9.0 의 sqlx-sqlite 가 libsqlite3-sys 를 `<0.38` 로 묶어 미뤘다. sqlx 상류 커밋 10462fa44(2026-11-08)는 이 범위만 `<0.40` 으로 넓혔고 아직 공개판이 없다.
+- 결정:
+  - SQLite 는 그대로 쓴다. Postgres 는 나중에 저장 계층의 두 번째 구현으로 더하는 길만 열어 둔다. 지금 옮기지 않는다.
+  - 문을 닫지 않게 새 코드는 공통 문법을 먼저 쓴다: `INSERT OR IGNORE` 대신 `ON CONFLICT DO NOTHING`, `rowid` 대신 명시한 id 열. JSON 함수·FTS5 처럼 대체가 없는 것은 storage 안에 가둔다.
+  - 게이트(`scripts/check.ps1`)에 `sqlite-only` 단계를 더한다. storage·mods 의 `INSERT OR (IGNORE|REPLACE)` 와 `rowid` 수가 기준(7, 15)보다 늘면 실패하고, 줄면 기준을 낮추라고 알린다.
+  - SQLite 보안 판: crates.io 의 sqlx-sqlite 0.9.0 을 `vendor/sqlx-sqlite` 로 복사해 libsqlite3-sys 범위만 `<0.40` 으로 넓히고 `[patch.crates-io]` 로 쓴다. 상류 커밋과 같은 한 줄이다. libsqlite3-sys 0.39.1(SQLite 3.54.1)로 올리고 `deny.toml` ignore 와 CI `cargo audit --ignore` 를 지운다. 이 범위를 담은 sqlx 판이 나오면 `vendor/` 와 `[patch]` 를 지운다.
+  - `vendor` 는 워크스페이스에서 뺀다(`exclude`). 남의 코드라 fmt·clippy 를 돌리지 않는다.
+- 대안:
+  - 지금 Postgres 로 옮기기: 원칙 5(외부 DB 서버 없음)를 깨고, 질의 557개와 마이그레이션 106개를 다시 써야 한다. 얻는 것은 아직 없는 규모다.
+  - SQLite·Postgres 둘 다 지금 지원: 모든 기능을 두 번 시험해야 한다. 필요해지면 그때 한다.
+  - sqlx 를 git main 으로 고정: 공개되지 않은 판에 DB 계층 전체를 건다(ADR-0174).
+- 결과: `cargo deny --all-features check` advisories·bans·licenses·sources 모두 ok, `cargo audit` 예외 없이 통과. 게이트 `sqlite-only` 는 7·15 로 통과.

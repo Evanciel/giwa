@@ -57,6 +57,26 @@ foreach ($crate in $forbidden.Keys) {
     }
 }
 
+# Postgres 로 옮길 문을 열어 둔다 (ADR-0175). 저장 계층의 SQLite 전용 문법이 늘면 실패한다.
+# 같은 일을 하는 공통 문법을 쓴다: INSERT OR IGNORE -> ON CONFLICT DO NOTHING, rowid -> 명시한 id 열.
+# 줄였으면 아래 기준 수도 함께 낮춘다 (다시 늘지 않게). 정말 필요하면 이유를 ADR 에 적고 올린다.
+$sqliteOnly = [ordered]@{
+    'INSERT OR (IGNORE|REPLACE)' = 7
+    '(?i)\browid\b'              = 15
+}
+Write-Host "[check] sqlite-only" -ForegroundColor Cyan
+$storageFiles = @(Get-ChildItem crates/storage/src -Recurse -Filter *.rs) + @(Get-ChildItem mods -Recurse -Filter *.rs | Where-Object { $_.FullName -match '[\\/]src[\\/]' })
+foreach ($pattern in $sqliteOnly.Keys) {
+    $count = ($storageFiles | Select-String -Pattern $pattern -CaseSensitive | Measure-Object).Count
+    $limit = $sqliteOnly[$pattern]
+    if ($count -gt $limit) {
+        Write-Host "[check] SQLite 전용 문법이 늘었습니다: $pattern $count 곳 (기준 $limit). 공통 문법을 쓰세요 (ADR-0175)." -ForegroundColor Red
+        $failed += "sqlite-only($pattern)"
+    } elseif ($count -lt $limit) {
+        Write-Host "[check] $pattern 가 $count 곳으로 줄었습니다. scripts/check.ps1 의 기준을 $count 로 낮추세요." -ForegroundColor Yellow
+    }
+}
+
 if ($Quick) {
     $skipped += "test"
 } else {

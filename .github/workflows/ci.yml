@@ -41,5 +41,4 @@ jobs:
       - name: cargo audit
         run: |
           cargo install --locked cargo-audit --version 0.22.2
-          # RUSTSEC-2026-0459: deny.toml 의 ignore 와 같은 이유 (ADR-0174)
-          cargo audit --ignore RUSTSEC-2026-0459
+          cargo audit

@@ -153,7 +153,7 @@ All four entry points call the same service layer, so permissions and results ar
 | [AGENTS.md](AGENTS.md) | Install and operations playbook for agents |
 | [llms.txt](llms.txt) | Summary index for agents |
 | [docs/SPEC.md](docs/SPEC.md) | Full design (permissions, changesets, CLI, MCP) |
-| [docs/DECISIONS.md](docs/DECISIONS.md) | 173 architecture decision records |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | 175 architecture decision records |
 
 The docs above are written in Korean; agents read them fine either way.
 

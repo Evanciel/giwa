@@ -3,6 +3,7 @@
 Giwa 바이너리에 포함되는 외부 자산(폰트, 아이콘, 이미지, CSS)과 라이선스를 적는다.
 원칙 7에 따라 재배포 가능한 라이선스(MIT, Apache-2.0, OFL, CC0 등)만 쓴다.
 Rust 크레이트 라이선스는 `cargo deny check licenses` 로 따로 검사한다.
+`vendor/sqlx-sqlite` 는 sqlx-sqlite 0.9.0(https://github.com/launchbadge/sqlx, MIT OR Apache-2.0)의 복사본이고 libsqlite3-sys 범위 한 줄만 바꿨다. 라이선스 전문은 그 폴더에 함께 있다 (ADR-0175).
 
 | 자산 | 위치 | 출처 | 라이선스 | 비고 |
 |---|---|---|---|---|

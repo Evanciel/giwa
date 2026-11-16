@@ -153,7 +153,7 @@ flowchart LR
 | [AGENTS.md](AGENTS.md) | 에이전트가 따라 하는 설치·운영 절차 |
 | [llms.txt](llms.txt) | 에이전트용 요약 색인 |
 | [docs/SPEC.md](docs/SPEC.md) | 전체 설계 (권한, 변경 묶음, CLI, MCP) |
-| [docs/DECISIONS.md](docs/DECISIONS.md) | 설계 결정 기록 173개 |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | 설계 결정 기록 175개 |
 
 ## 개발
 

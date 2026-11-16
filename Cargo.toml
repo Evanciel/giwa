@@ -1,6 +1,7 @@
 [workspace]
 resolver = "3"
 members = ["crates/*", "mods/*"]
+exclude = ["vendor"]
 
 [workspace.package]
 version = "0.1.0"
@@ -107,3 +108,8 @@ opt-level = "z"
 lto = "fat"
 codegen-units = 1
 strip = true
+
+# SQLite 보안 판(3.54, RUSTSEC-2026-0459)을 받으려고 sqlx-sqlite 의 libsqlite3-sys 범위만 넓힌 복사본을 쓴다.
+# 이 범위를 담은 sqlx 판이 나오면 지운다 (ADR-0175).
+[patch.crates-io]
+sqlx-sqlite = { path = "vendor/sqlx-sqlite" }
