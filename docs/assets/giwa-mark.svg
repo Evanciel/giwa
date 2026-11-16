@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="6 12 188 94" width="188" height="94" role="img" aria-label="Giwa">
+  <style>
+    .ridge { stroke: #2b3a55; }
+    .roof { fill: #b4533a; }
+    .rows { stroke: #d98a6f; }
+    .tile { fill: #8e3b28; }
+    .tile-in { fill: #d98a6f; }
+    @media (prefers-color-scheme: dark) {
+      .ridge { stroke: #c9d4e8; }
+      .roof { fill: #c8644a; }
+      .tile { fill: #a5452f; }
+    }
+  </style>
+  <defs>
+    <clipPath id="roof">
+      <path d="M12 66 Q38 72 58 52 L100 28 L142 52 Q162 72 188 66 Q172 86 150 86 L50 86 Q28 86 12 66 Z"/>
+    </clipPath>
+  </defs>
+  <path class="roof" d="M12 66 Q38 72 58 52 L100 28 L142 52 Q162 72 188 66 Q172 86 150 86 L50 86 Q28 86 12 66 Z"/>
+  <g class="rows" clip-path="url(#roof)" stroke-width="3" stroke-linecap="round">
+    <path d="M40 40 L40 90 M54 40 L54 90 M68 30 L68 90 M82 24 L82 90 M96 20 L96 90 M110 20 L110 90 M124 24 L124 90 M138 30 L138 90 M152 40 L152 90 M166 40 L166 90"/>
+  </g>
+  <path class="ridge" d="M66 44 Q100 18 134 44" fill="none" stroke-width="9" stroke-linecap="round"/>
+  <g>
+    <circle class="tile" cx="47" cy="92" r="7"/><circle class="tile-in" cx="47" cy="92" r="2.6"/>
+    <circle class="tile" cx="68" cy="92" r="7"/><circle class="tile-in" cx="68" cy="92" r="2.6"/>
+    <circle class="tile" cx="89" cy="92" r="7"/><circle class="tile-in" cx="89" cy="92" r="2.6"/>
+    <circle class="tile" cx="110" cy="92" r="7"/><circle class="tile-in" cx="110" cy="92" r="2.6"/>
+    <circle class="tile" cx="131" cy="92" r="7"/><circle class="tile-in" cx="131" cy="92" r="2.6"/>
+    <circle class="tile" cx="152" cy="92" r="7"/><circle class="tile-in" cx="152" cy="92" r="2.6"/>
+  </g>
+</svg>
