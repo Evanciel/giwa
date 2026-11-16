@@ -60,7 +60,7 @@ foreach ($crate in $forbidden.Keys) {
 if ($Quick) {
     $skipped += "test"
 } else {
-    Step "test" { cargo test --workspace --quiet }
+    Step "test" { cargo test --workspace --quiet --no-fail-fast }
 }
 
 # 쿼리 메타데이터: 마이그레이션이 생긴 뒤부터 검사한다.

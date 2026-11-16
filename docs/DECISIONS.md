@@ -2464,3 +2464,23 @@
   - CSS 접두까지 바꾸고 저장된 내용을 마이그레이션. 범위가 크고 사용자 테마 파일은 고칠 수 없다.
 - 결과:
   - e2e `e2e_legacy_name`: `maru.db` 만 있는 데이터 디렉터리가 첫 명령에서 `giwa.db` 로 옮겨져 그대로 열림, `MARU_TOKEN`·`MARU_LANG` 읽기, `GIWA_` 가 먼저. 단위: 예전 토큰 접두, 예전 백업 이름의 시각. 그 밖의 e2e 는 새 이름(바이너리·쿠키·토큰)으로 모두 통과.
+
+## ADR-0174: 공급망 검사 통과: ammonia 보안 판, SQLite 권고는 사유를 적어 미룬다
+
+- 날짜: 2026-11-16
+- 배경:
+  - 저장소를 GitHub 에 올리자 처음으로 CI 가 돌았고 세 군데서 실패했다. 내 컴퓨터 게이트(`scripts/check.ps1`)에는 `cargo deny`·`cargo audit` 가 없어 그동안 보이지 않았다.
+  - RUSTSEC-2026-0533: ammonia 4.2.4 의 MathML·SVG 이름공간 섞기 mutation XSS. 우리 정화 목록은 raw text 태그(script·style·textarea 등)를 허용하지 않아 알려진 공격 조건에는 들지 않지만, 글·댓글 정화의 마지막 방어선이라 바로 올린다.
+  - RUSTSEC-2026-0459: 번들 SQLite 3.53 이하에서 페이지 크기가 다른 DB 와 `-wal` 짝을 열면 초기화되지 않은 메모리가 질의 결과로 샌다. 고친 판은 libsqlite3-sys 0.39 인데 sqlx 0.9.0(최신 공개판)이 `<0.38` 로 묶는다. sqlx main 은 `<0.40` 으로 풀었지만 아직 공개판이 없다.
+  - 라이선스 검사: lettre·sqlx 의 작은 의존이 0BSD, CDLA-Permissive-2.0 이라 허용 목록에 없었다.
+  - Linux 의 `e2e_expose` 실패: 가짜 cloudflared 가 `sleep` 을 PATH 로 찾는데 시험이 PATH 를 가짜 폴더로만 두어 곧바로 끝났다. Windows 가짜는 ping.exe 를 절대 경로로 불러 통과했다.
+- 결정:
+  - ammonia 4.2.5 로 올린다.
+  - RUSTSEC-2026-0459 는 `deny.toml` ignore 와 CI `cargo audit --ignore` 에 사유를 적어 미룬다. 기와가 여는 DB 는 데이터 디렉터리의 자기 파일과 자기가 만든 백업 사본뿐이고, 복원은 정해진 이름(`giwa.db` 등)만 풀며 `-wal` 은 풀지 않고 기존 `-wal` 은 옆으로 옮긴다. 데이터 디렉터리에 파일을 심을 수 있는 사람은 이미 모든 것을 가진다. sqlx 가 0.39 를 받는 판을 내면 올리고 ignore 를 지운다.
+  - 0BSD, CDLA-Permissive-2.0 을 허용한다. 둘 다 출처 표기 의무도 없는 허용형이다.
+  - 가짜 cloudflared 는 `/bin/sleep` 을 절대 경로로 부른다. 게이트의 `cargo test` 에 `--no-fail-fast` 를 붙여 한 시험 바이너리가 실패해도 나머지 실패까지 한 번에 보이게 한다.
+- 대안:
+  - sqlx 를 git main 으로 고정: `unknown-git = "deny"` 를 풀어야 하고 공개되지 않은 판에 DB 계층 전체를 건다.
+  - `[patch]` 로 libsqlite3-sys 만 올리기: sqlx 0.9.0 의 의존 범위 밖이라 해석되지 않는다.
+  - 시스템 SQLite 링크: 단일 바이너리 원칙(5)에 어긋난다.
+- 결과: 로컬 `cargo deny --all-features check` advisories·bans·licenses·sources 모두 ok, `cargo audit --ignore RUSTSEC-2026-0459` 통과.

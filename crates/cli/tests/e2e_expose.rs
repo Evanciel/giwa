@@ -68,6 +68,7 @@ fn fake_cloudflared(dir: &Path) {
         ),
     )
     .unwrap();
+    // PATH 를 이 폴더로만 두고 돌리므로 sleep 은 절대 경로로 부른다 (Windows 쪽 ping.exe 와 같다).
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -79,7 +80,7 @@ fn fake_cloudflared(dir: &Path) {
                  if [ \"$1\" = \"--version\" ]; then echo cloudflared version 0.0.0-fake; exit 0; fi\n\
                  echo 'INF |  {FAKE_URL}  |' 1>&2\n\
                  echo 'INF Registered tunnel connection connIndex=0' 1>&2\n\
-                 exec sleep 30\n"
+                 exec /bin/sleep 30\n"
             ),
         )
         .unwrap();
