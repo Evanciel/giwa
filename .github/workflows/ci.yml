@@ -15,14 +15,15 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            split: packed
+            debug: full
           # Linux 는 디버그 정보를 실행 파일 안에 넣어 시험용 바이너리가 200MB 를 넘는다.
-          # e2e_release 가 그 파일을 업데이트 파일로 내려받으므로 밖으로 뺀다 (ADR-0174).
+          # e2e_release 가 그 파일을 업데이트 파일로 내려받으므로 디버그 정보를 넣지 않는다.
+          # 실패한 assert 의 파일·줄은 디버그 정보 없이도 나온다 (ADR-0174).
           - os: ubuntu-latest
-            split: unpacked
+            debug: none
     runs-on: ${{ matrix.os }}
     env:
-      CARGO_PROFILE_DEV_SPLIT_DEBUGINFO: ${{ matrix.split }}
+      CARGO_PROFILE_DEV_DEBUG: ${{ matrix.debug }}
     steps:
       - uses: actions/checkout@v4
       # rust-toolchain.toml 의 버전을 rustup 이 자동으로 설치한다
