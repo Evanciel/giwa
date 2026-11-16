@@ -2484,3 +2484,6 @@
   - `[patch]` 로 libsqlite3-sys 만 올리기: sqlx 0.9.0 의 의존 범위 밖이라 해석되지 않는다.
   - 시스템 SQLite 링크: 단일 바이너리 원칙(5)에 어긋난다.
 - 결과: 로컬 `cargo deny --all-features check` advisories·bans·licenses·sources 모두 ok, `cargo audit --ignore RUSTSEC-2026-0459` 통과.
+- 덧붙임: `--no-fail-fast` 로 처음 보인 Linux 실패 둘.
+  - `serve_stops_on_sigterm`: `shutdown_signal` 이 `async fn` 이라 신호 처리기가 처음 기다릴 때 걸렸다. 「시작했다」 줄을 내보낸 직후 온 SIGTERM 은 처리기가 없어 프로세스를 그대로 죽였다(종료 상태 15). systemd 같은 서비스 관리자가 띄우자마자 멈추는 경우에도 같다. 처리기를 부르는 순간 거는 함수로 바꾸고 `serve`·`expose` 는 시작을 알리기 전에 부른다.
+  - `e2e_release`: Linux 디버그 빌드는 디버그 정보를 실행 파일에 넣어 200MB 업데이트 한도를 넘는다(Windows 는 76MB + 따로 pdb). 실제 릴리스는 35MB 라 한도는 그대로 두고, CI 의 Ubuntu 작업만 `CARGO_PROFILE_DEV_SPLIT_DEBUGINFO=unpacked` 로 디버그 정보를 밖으로 뺀다. Windows MSVC 는 `unpacked` 를 받지 않아 `Cargo.toml` 에 두지 않는다.

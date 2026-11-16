@@ -403,6 +403,8 @@ async fn serve_inner(g: &Global, args: ServeArgs) -> Result<()> {
     let human = format!(
         "서버를 시작했습니다: {url}\n편지(가입 인증·비밀번호 찾기): {mail_about}\n멈추려면 Ctrl+C"
     );
+    // 신호 처리기를 먼저 건다. 시작을 알린 직후의 SIGTERM 도 정상 종료로 받는다.
+    let signal = shutdown_signal();
     output::success(started, g.json, |_| human);
     if !g.quiet {
         tracing::info!(%url, "serving");
@@ -411,7 +413,7 @@ async fn serve_inner(g: &Global, args: ServeArgs) -> Result<()> {
     // 종료 신호를 받으면 새 연결을 막고 진행 중인 요청을 기다린다. 너무 오래 걸리면 강제로 멈춘다.
     let (stopping, stopped) = tokio::sync::oneshot::channel::<()>();
     let shutdown = async move {
-        shutdown_signal().await;
+        signal.await;
         let _ = stopping.send(());
     };
     let leftover = state.clone();
@@ -442,31 +444,56 @@ async fn serve_inner(g: &Global, args: ServeArgs) -> Result<()> {
 const SHUTDOWN_GRACE: std::time::Duration = std::time::Duration::from_secs(10);
 
 /// Ctrl+C, 그리고 운영체제의 종료 요청(Unix SIGTERM, Windows 창 닫기·로그오프·시스템 종료).
-pub(crate) async fn shutdown_signal() {
+///
+/// 신호 처리기는 이 함수를 부르는 순간 건다(ADR-0174). `async fn` 이면 처음 기다릴 때 걸려서,
+/// 「시작했다」를 알린 직후 온 SIGTERM 이 처리기 없이 프로세스를 바로 끝낸다.
+/// 그래서 시작을 알리기 전에 부른다.
+pub(crate) fn shutdown_signal() -> impl std::future::Future<Output = ()> {
     #[cfg(unix)]
-    {
+    let (mut first, mut second) = {
         use tokio::signal::unix::{SignalKind, signal};
-        if let Ok(mut term) = signal(SignalKind::terminate()) {
-            tokio::select! {
-                _ = tokio::signal::ctrl_c() => {}
-                _ = term.recv() => {}
-            }
-            return;
-        }
-    }
+        (
+            signal(SignalKind::interrupt()).ok(),
+            signal(SignalKind::terminate()).ok(),
+        )
+    };
     #[cfg(windows)]
-    {
+    let (mut first, mut second, mut third) = {
         use tokio::signal::windows;
-        if let (Ok(mut close), Ok(mut shut)) = (windows::ctrl_close(), windows::ctrl_shutdown()) {
-            tokio::select! {
-                _ = tokio::signal::ctrl_c() => {}
-                _ = close.recv() => {}
-                _ = shut.recv() => {}
-            }
-            return;
+        (
+            windows::ctrl_c().ok(),
+            windows::ctrl_close().ok(),
+            windows::ctrl_shutdown().ok(),
+        )
+    };
+    async move {
+        // 걸지 못한 신호는 오지 않는 것으로 본다.
+        macro_rules! wait {
+            ($s:expr) => {
+                async {
+                    match $s.as_mut() {
+                        Some(s) => {
+                            s.recv().await;
+                        }
+                        None => std::future::pending::<()>().await,
+                    }
+                }
+            };
         }
+        #[cfg(unix)]
+        tokio::select! {
+            () = wait!(first) => {}
+            () = wait!(second) => {}
+        }
+        #[cfg(windows)]
+        tokio::select! {
+            () = wait!(first) => {}
+            () = wait!(second) => {}
+            () = wait!(third) => {}
+        }
+        #[cfg(not(any(unix, windows)))]
+        let _ = tokio::signal::ctrl_c().await;
     }
-    let _ = tokio::signal::ctrl_c().await;
 }
 
 // ---- post ----

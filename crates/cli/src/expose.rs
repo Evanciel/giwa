@@ -357,10 +357,11 @@ async fn quick_inner(g: &Global, to: Option<String>) -> Result<ExitCode> {
         "restart_required": restart_required,
         "notes": notes,
     });
+    let signal = shutdown_signal();
     output::success(data, g.json, |_| human);
 
     let ended = tokio::select! {
-        () = shutdown_signal() => false,
+        () = signal => false,
         () = async { while rx.recv().await.is_some() {} } => true,
     };
     stop_process(child.id());
