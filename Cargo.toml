@@ -113,6 +113,52 @@ lto = "fat"
 codegen-units = 1
 strip = true
 
+
+# 외부 모듈 런타임(wasmtime·Cranelift)은 개발 빌드에서도 최적화한다. 최적화하지 않으면 실행 파일이 커져
+# Linux CI 시험용 바이너리가 업데이트 한도(200MB)를 넘고, 시험에서 모듈 컴파일도 느리다 (ADR-0179).
+[profile.dev.package.cranelift-codegen]
+opt-level = 1
+[profile.dev.package.cranelift-assembler-x64]
+opt-level = 1
+[profile.dev.package.cranelift-frontend]
+opt-level = 1
+[profile.dev.package.cranelift-bforest]
+opt-level = 1
+[profile.dev.package.cranelift-entity]
+opt-level = 1
+[profile.dev.package.cranelift-native]
+opt-level = 1
+[profile.dev.package.cranelift-control]
+opt-level = 1
+[profile.dev.package.cranelift-bitset]
+opt-level = 1
+[profile.dev.package.regalloc2]
+opt-level = 1
+[profile.dev.package.wasmparser]
+opt-level = 1
+[profile.dev.package.wasm-encoder]
+opt-level = 1
+[profile.dev.package.pulley-interpreter]
+opt-level = 1
+[profile.dev.package.wasmtime]
+opt-level = 1
+[profile.dev.package.wasmtime-environ]
+opt-level = 1
+[profile.dev.package.wasmtime-internal-cranelift]
+opt-level = 1
+[profile.dev.package.wasmtime-internal-core]
+opt-level = 1
+[profile.dev.package.wasmtime-internal-fiber]
+opt-level = 1
+[profile.dev.package.wasmtime-internal-unwinder]
+opt-level = 1
+[profile.dev.package.wasmtime-internal-component-util]
+opt-level = 1
+[profile.dev.package.wasmtime-wasi]
+opt-level = 1
+[profile.dev.package.wasmtime-wasi-io]
+opt-level = 1
+
 # SQLite 보안 판(3.54, RUSTSEC-2026-0459)을 받으려고 sqlx-sqlite 의 libsqlite3-sys 범위만 넓힌 복사본을 쓴다.
 # 이 범위를 담은 sqlx 판이 나오면 지운다 (ADR-0175).
 [patch.crates-io]

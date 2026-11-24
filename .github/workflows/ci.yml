@@ -16,14 +16,18 @@ jobs:
         include:
           - os: windows-latest
             debug: full
+            strip: none
           # Linux 는 디버그 정보를 실행 파일 안에 넣어 시험용 바이너리가 200MB 를 넘는다.
           # e2e_release 가 그 파일을 업데이트 파일로 내려받으므로 디버그 정보를 넣지 않는다.
           # 실패한 assert 의 파일·줄은 디버그 정보 없이도 나온다 (ADR-0174).
+          # wasmtime 을 붙인 뒤로는 표준 라이브러리에 딸려 오는 디버그 정보까지 빼야 200MB 안에 든다 (ADR-0179).
           - os: ubuntu-latest
             debug: none
+            strip: debuginfo
     runs-on: ${{ matrix.os }}
     env:
       CARGO_PROFILE_DEV_DEBUG: ${{ matrix.debug }}
+      CARGO_PROFILE_DEV_STRIP: ${{ matrix.strip }}
     steps:
       - uses: actions/checkout@v4
       # rust-toolchain.toml 의 버전을 rustup 이 자동으로 설치한다

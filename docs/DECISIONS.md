@@ -2562,3 +2562,13 @@
 - 결정: `cargo update` 로 lettre 0.11.24(email-encoding 0.4.3 함께)·url 2.5.9(form_urlencoded 1.2.3 함께)로 올린다. chrono 는 `deny.toml` 의 `ignore` 에 이유와 함께 넣는다. 기와 코드는 시각에 `time` 을 쓰고 chrono 를 부르지 않는다. rmcp 가 의존을 빼거나 대체 판이 나오면 지운다.
 - 대안: rmcp 의 `schemars` 기능을 끄기는 MCP 툴 스키마를 만들 수 없어 안 된다. chrono 를 patch 로 바꿔 끼우기는 관리할 것만 는다.
 - 결과: `cargo deny check` 네 항목 통과, `cargo audit` 은 허용한 경고 1개(chrono)만 남는다.
+
+## ADR-0179: wasmtime 을 붙인 뒤 Linux CI 시험 바이너리를 200MB 안에 넣는다
+
+- 날짜: 2026-11-24
+- 배경: a91d7e5 를 올리자 CI 의 Linux 품질 게이트에서 `e2e_release` 의 「업데이트는 체크섬과 실행을 확인한 뒤에만 바꾼다」가 「크기가 너무 큽니다」로 실패했다. 이 시험은 시험용(개발) 바이너리를 업데이트 파일로 내려받는데, `giwa update` 는 200MB 를 넘는 파일을 받지 않는다(`MAX_BINARY`). ADR-0174 에서 Linux 는 디버그 정보를 끄고(`debug = none`) 200MB 안에 넣었지만 wasmtime·Cranelift(ADR-0177)가 더해져 다시 넘었다. 윈도우·릴리스 크기 검사(44.6MB, 한도 47MB)·공급망은 통과했다.
+- 결정:
+  - wasmtime·Cranelift·wasmparser 등 외부 모듈 런타임 크레이트는 개발 빌드에서도 `opt-level = 1` 로 만든다(`Cargo.toml` 의 `[profile.dev.package.…]`). 윈도우 개발 실행 파일이 114.8MB → 102.6MB 로 줄고, 시험에서 모듈 컴파일도 빨라진다. 이 크레이트들을 처음 빌드할 때 몇 분 더 걸린다.
+  - CI 의 Linux 작업은 `CARGO_PROFILE_DEV_STRIP=debuginfo` 로 표준 라이브러리에 딸려 오는 디버그 정보까지 뺀다. 기호는 남아 백트레이스의 함수 이름은 보이고, 실패한 assert 의 파일·줄도 그대로 나온다. 윈도우는 디버그 정보가 PDB 로 따로 가므로 그대로 둔다.
+- 대안: `MAX_BINARY` 를 올리기는 시험 때문에 제품의 한도를 바꾸는 것이다(실제 릴리스는 45MB). 시험이 다른 작은 실행 파일을 쓰게 하기는 「새 바이너리가 실제로 실행되는가」를 보는 시험의 뜻이 흐려진다.
+- 결과: CI 에서 Linux 게이트가 다시 통과하는지 이 커밋을 올려 확인한다.
