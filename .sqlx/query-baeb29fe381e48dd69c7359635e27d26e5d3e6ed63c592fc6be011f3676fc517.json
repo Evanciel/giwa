@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT key AS \"key!\", value AS \"value!\" FROM ext_module_kv\n           WHERE module = ? AND substr(key, 1, length(?)) = ? AND key > ?\n           ORDER BY key LIMIT ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "key!",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "ext_module_kv",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "name": "value!",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "ext_module_kv",
+            "name": "value"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "baeb29fe381e48dd69c7359635e27d26e5d3e6ed63c592fc6be011f3676fc517"
+}

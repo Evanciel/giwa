@@ -17,6 +17,7 @@ giwa-themes = { path = "crates/themes" }
 giwa-web = { path = "crates/web" }
 giwa-modules = { path = "crates/modules" }
 giwa-agent = { path = "crates/agent" }
+giwa-wasm = { path = "crates/wasm" }
 giwa-mod-point = { path = "mods/point" }
 giwa-mod-reaction = { path = "mods/reaction" }
 giwa-mod-report = { path = "mods/report" }
@@ -87,6 +88,9 @@ encoding_rs = "0.8.44"
 # 2단계 인증 등록 QR 그림을 서버에서 SVG 로 그린다. 그림 크레이트(image) 기능은 끔 (M16, ADR-0083)
 qrcode = { version = "0.14.1", default-features = false, features = ["svg"] }
 unicode-normalization = "0.1.26"
+# 외부 모듈(WASM) 런타임. Cranelift 컴파일러 + 컴포넌트 모델 + 비동기. WASI 는 빈 상자(p2)로만 준다 (ADR-0176)
+wasmtime = { version = "51.0.0", default-features = false, features = ["anyhow", "runtime", "component-model", "async", "std", "cranelift"] }
+wasmtime-wasi = { version = "51.0.0", default-features = false, features = ["p2"] }
 # 개발 의존성
 insta = { version = "1.49.0", features = ["json"] }
 tempfile = "3.27.0"
@@ -102,7 +106,7 @@ expect_used = "deny"
 dbg_macro = "deny"
 todo = "deny"
 
-# 크기 우선: 45MB → 29MB (ADR-0124). 한도는 46MB, scripts/size.ps1 과 CI release-size 가 잰다 (ADR-0176)
+# 크기 우선: 45MB → 29MB (ADR-0124). 한도는 47MB, scripts/size.ps1 과 CI release-size 가 잰다 (ADR-0176·ADR-0177)
 [profile.release]
 opt-level = "z"
 lto = "fat"

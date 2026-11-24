@@ -21,6 +21,7 @@ giwa-themes.workspace = true
 giwa-web.workspace = true
 giwa-modules.workspace = true
 giwa-agent.workspace = true
+giwa-wasm.workspace = true
 giwa-mod-point.workspace = true
 giwa-mod-reaction.workspace = true
 giwa-mod-report.workspace = true

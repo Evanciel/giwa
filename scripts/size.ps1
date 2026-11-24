@@ -1,9 +1,9 @@
 ﻿# Giwa 릴리스 바이너리 크기 검사 (ADR-0176). CI 의 release-size 작업과 손으로 돌릴 때 쓴다.
-# 사용: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/size.ps1 [-LimitMB 46]
+# 사용: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/size.ps1 [-LimitMB 47]
 # 릴리스 빌드가 오래 걸려(개발 PC 12분) 커밋마다 도는 check.ps1 에는 넣지 않았다.
 # 1MB = 10^6 바이트. 한도를 바꿀 때는 ADR 을 남기고 이 기본값과 ci.yml 을 같이 고친다.
 # 이 파일은 UTF-8 BOM + CRLF 로 저장한다 (PowerShell 5.1 이 한글을 깨뜨리지 않도록).
-param([double]$LimitMB = 46)
+param([double]$LimitMB = 47)
 
 $ErrorActionPreference = "Continue"
 Set-Location (Split-Path -Parent $PSScriptRoot)

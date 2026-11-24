@@ -1,0 +1,108 @@
+/// 기와 외부 모듈 (Phase 5, ADR-0176·ADR-0177).
+///
+/// 모양은 내장 모듈의 `Module` 트레이트(`crates/modules`)와 같다. 복잡한 값은 JSON 글자로 싣는다.
+/// 툴 입력의 JSON Schema 를 그대로 쓰고, WIT 를 자주 바꾸지 않기 위해서다.
+package giwa:module@0.1.0;
+
+interface types {
+  /// 모듈이 돌려주는 실패. `code` 는 `validation`·`not-found`·`forbidden`·`conflict`·`internal` 중 하나,
+  /// 모르는 값은 `internal` 로 본다. `message` 는 사람에게 보이는 한국어 문장.
+  record module-error {
+    code: string,
+    message: string,
+  }
+
+  /// 감사 기록 하나 (ADR-0066). `diff` 는 JSON 글자.
+  record event {
+    id: string,
+    seq: s64,
+    action: string,
+    actor-type: string,
+    actor-id: option<string>,
+    target-type: string,
+    target-id: option<string>,
+    at: string,
+    diff: string,
+  }
+
+  /// `/m/<모듈>/…` 로 온 요청.
+  record request {
+    method: string,
+    /// `/m/<모듈>` 뒤의 경로. 늘 `/` 로 시작한다
+    path: string,
+    /// `?` 뒤. 없으면 빈 글자
+    query: string,
+    headers: list<tuple<string, string>>,
+    body: list<u8>,
+    /// 보는 사람 JSON (`{"type":"anonymous","perms":[…]}` 등)
+    viewer: string,
+    /// 같은 사이트에서 보낸 요청인가. 쓰기 폼은 이것이 참일 때만 받는다
+    same-origin: bool,
+  }
+
+  /// 기와가 테마로 그리는 화면. `template` 은 패키지의 `mod/<모듈>/…` 템플릿, `data` 는 JSON 객체 글자.
+  record page {
+    template: string,
+    title: string,
+    data: string,
+  }
+
+  variant response {
+    page(page),
+    json(string),
+    text(string),
+    /// 사이트 안 주소(`/` 로 시작, `//` 는 안 됨)로만 보낸다
+    redirect(string),
+    not-found,
+  }
+
+  record slot-content {
+    template: string,
+    data: string,
+  }
+}
+
+interface host {
+  use types.{module-error};
+
+  enum level {
+    debug,
+    info,
+    warn,
+    error,
+  }
+
+  /// 서버 로그로 간다. 한 번 부를 때마다 모아 16KB 까지
+  log: func(level: level, message: string);
+  /// 지금 시각 (UTC, RFC 3339)
+  now: func() -> string;
+  /// 이 모듈의 설정 JSON 객체 (기본값 위에 운영자가 저장한 값)
+  settings: func() -> string;
+
+  /// 이 모듈만의 키-값 저장소. 키는 1~200바이트, 값은 64KB 까지
+  kv-get: func(key: string) -> result<option<list<u8>>, module-error>;
+  kv-set: func(key: string, value: list<u8>) -> result<_, module-error>;
+  /// 있던 것을 지웠으면 참
+  kv-delete: func(key: string) -> result<bool, module-error>;
+  /// `prefix` 로 시작하는 키를 키 순서대로, `after` 다음부터 `limit`(1~100)개
+  kv-list: func(prefix: string, after: option<string>, limit: u32) -> result<list<tuple<string, list<u8>>>, module-error>;
+}
+
+world module {
+  use types.{module-error, event, request, response, slot-content};
+
+  import host;
+
+  /// 구독한 감사 동작. 같은 이벤트가 다시 올 수 있으므로 `ev.id` 로 멱등해야 한다
+  export on-event: func(ev: event) -> result<_, module-error>;
+  /// `module.toml` 에 적은 툴. `input` 은 JSON, `actor` 는 부른 사람 JSON
+  export call-tool: func(name: string, input: string, actor: string) -> result<string, module-error>;
+  export handle: func(req: request) -> result<response, module-error>;
+  /// 위젯 템플릿에 넘길 값(JSON). 템플릿은 `mod/<모듈>/<위젯>.html`
+  export widget-view: func(kind: string, config: string) -> result<string, module-error>;
+  /// 화면 자리(`post_footer` 등)에 넣을 것. `view` 는 보는 사람과 대상 ID 들 JSON
+  export slot: func(name: string, view: string) -> result<option<slot-content>, module-error>;
+  export check-settings: func(settings: string) -> result<_, module-error>;
+  /// 보존 정리. 지운 수
+  export purge: func() -> result<u64, module-error>;
+}

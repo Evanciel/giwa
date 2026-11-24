@@ -1,0 +1,24 @@
+# 시험용 외부 모듈 「메아리」(ADR-0177). 기와 워크스페이스 밖에서 따로 빌드한다:
+#   rustup target add wasm32-wasip2
+#   cargo build --release --target wasm32-wasip2 --manifest-path crates/wasm/tests/guest/Cargo.toml
+# 결과(target/wasm32-wasip2/release/giwa_echo_guest.wasm)를 tests/fixtures/echo/module.wasm 로 복사해 커밋한다.
+# 손님 코드를 바꾸면 다시 빌드해 같이 커밋한다 (CI 는 wasm 을 빌드하지 않고 커밋한 파일을 쓴다).
+[package]
+name = "giwa-echo-guest"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wit-bindgen = "=0.63.0"
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true
+
+# 기와 워크스페이스에 들지 않는다
+[workspace]

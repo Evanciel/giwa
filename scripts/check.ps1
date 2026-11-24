@@ -36,12 +36,14 @@ Step "clippy" { cargo clippy --workspace --all-targets --quiet -- -D warnings }
 
 # 의존 방향 (docs/PHASE1_PLAN.md 4.1). 왼쪽 크레이트의 정상 의존 트리에 오른쪽 크레이트가 있으면 실패.
 $forbidden = [ordered]@{
-    "giwa-core"    = @("sqlx", "axum", "minijinja", "tokio", "giwa-storage", "giwa-web", "giwa-themes")
-    "giwa-storage" = @("axum", "minijinja", "giwa-web", "giwa-themes")
+    "giwa-core"    = @("sqlx", "axum", "minijinja", "tokio", "giwa-storage", "giwa-web", "giwa-themes", "wasmtime")
+    "giwa-storage" = @("axum", "minijinja", "giwa-web", "giwa-themes", "wasmtime")
     "giwa-themes"  = @("sqlx", "axum", "giwa-storage", "giwa-web")
-    "giwa-web"     = @("sqlx", "giwa-storage", "giwa-mod-point", "giwa-mod-reaction", "giwa-mod-scrap", "giwa-mod-notify", "giwa-mod-message", "giwa-mod-poll", "giwa-mod-report", "giwa-mod-webhook")
-    "giwa-modules" = @("sqlx", "giwa-storage", "giwa-web", "giwa-themes")
-    "giwa-agent"   = @("sqlx", "giwa-storage", "giwa-web")
+    "giwa-web"     = @("sqlx", "giwa-storage", "giwa-wasm", "wasmtime", "giwa-mod-point", "giwa-mod-reaction", "giwa-mod-scrap", "giwa-mod-notify", "giwa-mod-message", "giwa-mod-poll", "giwa-mod-report", "giwa-mod-webhook")
+    "giwa-modules" = @("sqlx", "giwa-storage", "giwa-web", "giwa-themes", "wasmtime")
+    "giwa-agent"   = @("sqlx", "giwa-storage", "giwa-web", "wasmtime")
+    # 외부 모듈 런타임은 내장 모듈과 같은 자리(Module 트레이트)로만 붙는다 (ADR-0177).
+    "giwa-wasm"    = @("giwa-web", "giwa-themes", "giwa-agent", "minijinja")
 }
 Write-Host "[check] deps" -ForegroundColor Cyan
 foreach ($crate in $forbidden.Keys) {

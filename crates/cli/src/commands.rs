@@ -122,7 +122,7 @@ pub(crate) async fn actor(ctx: &Ctx) -> Result<Actor> {
 /// 데이터 디렉터리를 연다. 코어가 모듈(위젯 종류 등)을 물을 수 있게 레지스트리를 붙인다.
 pub(crate) async fn open(g: &Global) -> Result<(Ctx, Config, Db)> {
     let (mut ctx, config, db) = giwa_storage::open(&DataDir::new(&g.data)).await?;
-    ctx.extensions = crate::modules::registry(&db)?;
+    ctx.extensions = crate::modules::registry(&db, &g.data)?;
     // 오류 문장의 언어를 사이트 언어로 맞춘다 (ADR-0134). 못 읽으면 한국어 그대로.
     let _ = giwa_core::services::settings::site(&ctx).await;
     Ok((ctx, config, db))
@@ -164,7 +164,7 @@ async fn init(g: &Global, args: InitArgs) -> Out {
         store: Arc::new(giwa_storage::SqliteStore::new(db.clone())),
         blobs: Arc::new(giwa_storage::FsBlobs::new(dir.media_dir())),
         site_url: config.site_url.clone(),
-        extensions: crate::modules::registry(&db)?,
+        extensions: crate::modules::registry(&db, &g.data)?,
     };
     let local = Actor::local();
     let applied = presets::apply(&ctx, &local, &preset).await?;
@@ -339,7 +339,7 @@ async fn serve_inner(g: &Global, args: ServeArgs) -> Result<()> {
         None
     };
     let (ctx, config, db) = open(g).await?;
-    let modules = crate::modules::registry(&db)?;
+    let modules = crate::modules::registry(&db, &g.data)?;
     giwa_modules::service::upgrade_enabled(&ctx, &modules).await?;
     let bind = args.bind.unwrap_or_else(|| config.bind.clone());
     let addr: SocketAddr = bind.parse().map_err(|_| {
@@ -2038,7 +2038,7 @@ async fn export_cmd(g: &Global, cmd: ExportCmd) -> Out {
             )));
     }
     let (ctx, config, db) = open(g).await?;
-    let modules = crate::modules::registry(&db)?;
+    let modules = crate::modules::registry(&db, &g.data)?;
     let dir = DataDir::new(&g.data);
     let theme_dir = dir.themes_dir().join("default");
     let theme = giwa_themes::Theme::with_templates(

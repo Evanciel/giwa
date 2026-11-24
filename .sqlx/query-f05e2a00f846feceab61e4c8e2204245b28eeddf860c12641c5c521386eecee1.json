@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT value FROM ext_module_kv WHERE module = ? AND key = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "value",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "ext_module_kv",
+            "name": "value"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "f05e2a00f846feceab61e4c8e2204245b28eeddf860c12641c5c521386eecee1"
+}

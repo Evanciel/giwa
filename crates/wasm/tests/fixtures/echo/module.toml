@@ -1,0 +1,50 @@
+# 시험용 외부 모듈 「메아리」(ADR-0177). 손님 코드는 ../../guest
+[module]
+id = "echo"
+name = "메아리"
+version = "0.1.0"
+description = "받은 이벤트를 세고 화면·툴·자리·위젯으로 돌려줍니다 (시험용)."
+api = "giwa:module@0.1"
+events = ["post.create", "post.publish"]
+slots = ["post_footer"]
+
+[[tools]]
+name = "count"
+description = "받은 이벤트 수와 설정"
+permission = "post.read"
+
+[[tools]]
+name = "remember"
+description = "메모 하나를 남긴다"
+[tools.input_schema]
+type = "object"
+required = ["key"]
+[tools.input_schema.properties.key]
+type = "string"
+[tools.input_schema.properties.value]
+type = "string"
+
+[[tools]]
+name = "notes"
+description = "남긴 메모"
+
+[[tools]]
+name = "fail"
+description = "언제나 실패한다"
+
+[[tools]]
+name = "spin"
+description = "끝나지 않는다 (시간 한도 시험)"
+
+[[settings]]
+key = "greeting"
+label = "인사말"
+type = "text"
+
+[defaults]
+greeting = "안녕하세요"
+
+[[widgets]]
+id = "echo_box"
+name = "메아리 상자"
+description = "받은 이벤트 수"

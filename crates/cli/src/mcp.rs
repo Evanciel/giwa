@@ -55,7 +55,7 @@ pub(crate) async fn serve(g: &Global, args: McpServeArgs) -> Result<()> {
         tokens::authenticate(&ctx, &secret)
             .await
             .map_err(|e| e.next(install_command(g)))?;
-        let registry = crate::modules::registry(&db)?;
+        let registry = crate::modules::registry(&db, &g.data)?;
         let sandbox = giwa_storage::sandbox::FsSandbox::new(&DataDir::new(&g.data), db.clone());
         giwa_agent::serve_stdio(
             ctx.clone(),

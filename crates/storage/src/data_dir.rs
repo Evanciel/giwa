@@ -69,6 +69,11 @@ impl DataDir {
         self.root.join("backups")
     }
 
+    /// 외부 모듈(WASM) 폴더. 모듈마다 `<id>/module.toml`·`module.wasm`·`templates/` (ADR-0177).
+    pub fn modules_dir(&self) -> PathBuf {
+        self.root.join("modules")
+    }
+
     /// 파일로 남긴 편지 (`FileMailer`). 1회용 링크가 들어 있다.
     pub fn mail_dir(&self) -> PathBuf {
         self.root.join("mail")

@@ -28,7 +28,7 @@ Rust `wasm32-wasip2` 대상: Tier 2, 결과물이 바로 컴포넌트다. 모듈
 |---|---|
 | 런타임 | `wasmtime` 51, `default-features = false` + `anyhow`·`runtime`·`component-model`·`async`·`std`·**`cranelift`**, `wasmtime-wasi` 51 `p2` 만. 캐시·병렬 컴파일·GC·스레드·wat·coredump·profiling 은 끈다. 처음에는 Winch 를 추천했지만 0단계에서 재 보니 Cranelift 보다 0.27MB 만 작고 만든 코드는 더 느렸다(아래 「0단계 결과」, ADR-0176) |
 | 컴파일 | 설치할 때 한 번 컴파일해 `<데이터>/modules/<id>/<판>/module.cwasm` 에 둔다. 기와를 업데이트해 wasmtime 판이 바뀌면 시작할 때 다시 컴파일한다(엔진 호환 해시로 판단). `.cwasm` 은 우리가 만든 파일만 읽는다(남이 준 `.cwasm` 은 받지 않는다. 검증 없이 기계어를 읽는 것이라) |
-| 크기 한도 | 30MB 를 버리고 **46MB**(지금 35.06MB + wasmtime 8.73MB = 43.8MB 예상 + 여유 2MB, 반올림)로 정한다(사용자 승인 2026-11-24, ADR-0176). 검사는 `scripts/size.ps1`(윈도우 릴리스, 1MB = 10⁶바이트)과 CI 작업 `release-size`. 릴리스 빌드가 12분이라 커밋마다 도는 게이트에는 넣지 않는다. 1단계에서 실제로 붙인 크기를 다시 재고, 예상보다 작으면 한도를 「잰 값 + 2MB」로 내린다 |
+| 크기 한도 | 30MB 를 버리고 **46MB**(1단계에서 44.62MB 를 재어 **47MB** 로 올렸다, ADR-0177)(지금 35.06MB + wasmtime 8.73MB = 43.8MB 예상 + 여유 2MB, 반올림)로 정한다(사용자 승인 2026-11-24, ADR-0176). 검사는 `scripts/size.ps1`(윈도우 릴리스, 1MB = 10⁶바이트)과 CI 작업 `release-size`. 릴리스 빌드가 12분이라 커밋마다 도는 게이트에는 넣지 않는다. 1단계에서 실제로 붙인 크기를 다시 재고, 예상보다 작으면 한도를 「잰 값 + 2MB」로 내린다 |
 | 샌드박스 | WASI 는 **빈 상자**로만 준다: 폴더·소켓·환경 변수·명령줄 인자 없음(소켓·이름 조회는 `WasiCtxBuilder` 기본값이 꺼짐), 표준 출력·오류는 모듈 로그(크기 제한)로. 0단계에서 WASI 없이 링크하니 `std` 로 만든 손님이 `wasi:io/poll` 을 가져와 인스턴스를 만들지 못했다. 그래서 WASI(+1.4MB)는 뺄 수 없다 |
 | 호스트 API (WIT `giwa:module@0.1.0`) | 모듈이 내놓는 것: `on-event`·`call-tool`·`handle`(`/m/<id>/…` 요청)·`widget-view`·`slot`·`check-settings`·`purge`. 지금 `Module` 트레이트와 같은 모양이고, 값은 JSON 글자로 주고받는다(툴 입력 JSON Schema 를 그대로 쓴다). 모듈이 부르는 것: `log`, `clock`(지금·한국 날짜), `store`(자기 키-값), `content`(글·게시판·페이지·공개 회원 정보 읽기, 권한이 있으면 초안·댓글 쓰기), `http`(목록에 적은 도메인만), `settings`(자기 설정 읽기) |
 | 저장 | v1 에는 **SQL 을 주지 않는다**. 모듈마다 키-값 저장소(코어 표 `ext_module_kv(module, key, value)`, 키 200B·값 64KB·모듈당 기본 50MB). 모르는 코드가 코어 DB 에 SQL 을 보내게 할 수 없어서다. 지우기는 표에서 그 모듈 행만 |
@@ -78,7 +78,8 @@ Rust `wasm32-wasip2` 대상: Tier 2, 결과물이 바로 컴포넌트다. 모듈
 | 단계 | 내용 | 끝 표시 |
 |---|---|---|
 | 0 ✅ | 크기·속도 실험(위 「0단계 결과」) | ADR-0176, `scripts/size.ps1`, CI `release-size` |
-| 1 | WIT 세계, `crates/wasm`(`giwa-wasm`): 엔진·한도·키-값 표 마이그레이션, 외부 모듈이 `Module` 트레이트를 구현, 레지스트리 두 칸, `/m/{id}/{*rest}` | 손으로 만든 시험 컴포넌트가 이벤트·툴·화면을 받는다 |
+| 1 ✅ | WIT 세계, `crates/wasm`(`giwa-wasm`): 엔진·한도·키-값 표 마이그레이션, 외부 모듈이 `Module` 트레이트를 구현. 레지스트리 두 칸과 `/m/{id}/{*rest}` 는 설치가 생기는 2단계로 옮겼다(ADR-0177) | 손으로 만든 시험 컴포넌트가 이벤트·툴·화면을 받는다 (`e2e_wasm_module`, ADR-0177) |
+| 2 | (1단계에서 옮긴 것) 레지스트리를 내장 + 외부 두 칸으로, `/m/{id}/{*rest}` 하나로 받기, 백업에 `modules/` | 서버를 켠 채 설치한 모듈의 주소가 바로 열린다 |
 | 2 | 패키지·서명·신뢰 키·설치·업데이트·제거(CLI·REST·MCP changeset·관리 화면) | 서명 틀림·권한 늘림·id 겹침 거절 e2e |
 | 3 | 호스트 API: content·http·settings·템플릿·정적 파일, 권한 교집합, 감사 기록 | 권한 밖 호출 거절, 쓰기가 감사에 남음 |
 | 4 | 작성 도구·방명록 예시·문서(AGENTS.md, llms.txt, 스킬) | 예시를 URL 로 설치해 켜기·끄기·제거 |

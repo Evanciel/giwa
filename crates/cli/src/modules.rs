@@ -1,21 +1,22 @@
 //! 공식 모듈 목록과 `giwa module …`, `giwa <모듈> <툴> --칸 값` (ADR-0066).
 
+use std::path::Path;
 use std::sync::Arc;
 
 use giwa_core::{Code, Error, Result};
 use giwa_modules::delivery::deliver_once;
 use giwa_modules::{Module, Registry, service};
-use giwa_storage::Db;
+use giwa_storage::{DataDir, Db};
 use serde_json::{Map, Number, Value, json};
 
 use crate::commands::{Out, actor, open};
 use crate::{Global, ModuleCmd};
 
-/// 이 바이너리에 든 모듈. 새 공식 모듈은 여기와 [`IDS`] 에 더한다.
-pub(crate) fn registry(db: &Db) -> Result<Arc<Registry>> {
+/// 이 바이너리에 든 모듈과 데이터 폴더의 외부 모듈(ADR-0177). 새 공식 모듈은 여기와 [`IDS`] 에 더한다.
+pub(crate) fn registry(db: &Db, data: &Path) -> Result<Arc<Registry>> {
     // 예약·쇼핑은 결제 모듈 크레이트를 모르고 `Checkout` 으로만 주문을 맡긴다 (ADR-0166).
     let pay = Arc::new(giwa_mod_pay::PayModule::new(db.clone()));
-    let modules: Vec<Arc<dyn Module>> = vec![
+    let mut modules: Vec<Arc<dyn Module>> = vec![
         Arc::new(giwa_mod_point::PointModule::new(db.clone())),
         Arc::new(giwa_mod_reaction::ReactionModule::new(db.clone())),
         Arc::new(giwa_mod_scrap::ScrapModule::new(db.clone())),
@@ -37,7 +38,23 @@ pub(crate) fn registry(db: &Db) -> Result<Arc<Registry>> {
         )),
         Arc::new(giwa_mod_shop::ShopModule::new(db.clone(), pay)),
     ];
+    let external = giwa_wasm::load(&DataDir::new(data).modules_dir(), db, &IDS);
+    modules.extend(external.into_iter().map(|m| m as Arc<dyn Module>));
     Ok(Arc::new(Registry::new(modules)?))
+}
+
+/// `giwa <모듈> <툴>` 의 모듈이 이 바이너리나 데이터 폴더에 있는가.
+fn known(data: &Path, id: &str) -> bool {
+    IDS.contains(&id)
+        || (!id.is_empty()
+            && id
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+            && DataDir::new(data)
+                .modules_dir()
+                .join(id)
+                .join("module.toml")
+                .is_file())
 }
 
 /// 데이터 디렉터리를 열기 전에 모르는 명령을 가려내는 데 쓴다.
@@ -56,7 +73,7 @@ fn usage(detail: impl Into<String>) -> Error {
 pub(crate) async fn module_cmd(g: &Global, cmd: ModuleCmd) -> Out {
     let (ctx, _config, db) = open(g).await?;
     let res = async {
-        let registry = registry(&db)?;
+        let registry = registry(&db, &g.data)?;
         let reg = registry.as_ref();
         let who = actor(&ctx).await?;
         Ok::<_, Error>(match cmd {
@@ -154,12 +171,12 @@ pub(crate) async fn external(g: &Global, args: Vec<String>) -> Out {
         .into_iter()
         .filter(|a| !matches!(a.as_str(), "--json" | "--yes" | "--quiet"));
     let id = args.next().unwrap_or_default();
-    if !IDS.contains(&id.as_str()) {
+    if !known(&g.data, &id) {
         return Err(usage(format!("모르는 명령입니다: {id}")).next("giwa --help"));
     }
     let (ctx, _config, db) = open(g).await?;
     let res = async {
-        let registry = registry(&db)?;
+        let registry = registry(&db, &g.data)?;
         let module = registry
             .get(&id)
             .ok_or_else(|| usage(format!("모르는 모듈입니다: {id}")))?;
