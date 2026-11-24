@@ -102,7 +102,7 @@ expect_used = "deny"
 dbg_macro = "deny"
 todo = "deny"
 
-# 크기 우선: 45MB → 29MB, SPEC §14 의 30MB 안 (ADR-0124)
+# 크기 우선: 45MB → 29MB (ADR-0124). 한도는 46MB, scripts/size.ps1 과 CI release-size 가 잰다 (ADR-0176)
 [profile.release]
 opt-level = "z"
 lto = "fat"

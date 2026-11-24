@@ -2509,3 +2509,24 @@
   - SQLite·Postgres 둘 다 지금 지원: 모든 기능을 두 번 시험해야 한다. 필요해지면 그때 한다.
   - sqlx 를 git main 으로 고정: 공개되지 않은 판에 DB 계층 전체를 건다(ADR-0174).
 - 결과: `cargo deny --all-features check` advisories·bans·licenses·sources 모두 ok, `cargo audit` 예외 없이 통과. 게이트 `sqlite-only` 는 7·15 로 통과.
+
+## ADR-0176: 외부 모듈 런타임은 wasmtime + Cranelift + WASI 빈 상자, 바이너리 한도는 46MB
+
+- 날짜: 2026-11-24
+- 배경:
+  - Phase 5(외부 WASM 모듈)를 시작한다. 계획은 `docs/plans/phase5-wasm-modules.md`. SPEC §7.5 가 wasmtime 컴포넌트를 정해 두었고, 남은 문제는 컴파일러와 크기였다.
+  - 재 보니 윈도우 릴리스가 이미 35.06MB(35,056,640바이트, 2fe6637)로 SPEC §14 의 30MB 를 넘어 있었다. ADR-0135(28.88MB) 뒤 결제·예약·쇼핑·미디어 보관함이 더해졌고, ADR-0174 는 「실제 릴리스는 35MB」라고만 적었다. 크기를 재는 검사가 어디에도 없어서 말없이 넘었다.
+  - 0단계 실험(wasmtime 51.0.0, 기와와 같은 릴리스 설정, 계획서 「0단계 결과」): tokio 만 있는 판보다 런타임만 +0.82MB, 런타임 + WASI +2.26MB, Winch + WASI +8.47MB, Cranelift + WASI +8.73MB. 공식 문서는 Winch 가 훨씬 작다고 했지만 차이는 0.27MB 였다. 69KB 컴포넌트 컴파일은 Winch 80~90ms·Cranelift 295ms, 호출(인스턴스 새로) 평균 170~250µs, 계산은 Cranelift 38ms·Winch 60ms. epoch 끊기(약 100ms), 메모리 64MB 한도, 패닉이 모두 트랩으로 끝나고 다음 호출은 정상이었다.
+  - WASI 없이 링크하면 `std` 로 만든 Rust 손님이 `wasi:io/poll` 을 가져와 인스턴스를 만들지 못했다.
+- 결정:
+  - 런타임: `wasmtime` 51, `default-features = false` 에 `anyhow`·`runtime`·`component-model`·`async`·`std`·`cranelift`. `wasmtime-wasi` 51 은 `p2` 만. WASI 는 폴더·소켓·환경 변수 없이 빈 상자로 준다.
+  - 컴파일러는 Cranelift 다. Winch 와 크기가 거의 같고, 만든 코드가 빠르며, Cranelift 로 만든 `.cwasm` 은 컴파일러 없는 런타임도 읽는다(Winch 것은 Winch 를 켠 엔진만 읽었다). 컴파일은 설치·업데이트 때 한 번이다.
+  - 바이너리 한도를 30MB 에서 **46MB** 로 바꾼다: 지금 35.06MB + wasmtime 8.73MB ≈ 43.8MB 예상 + 여유 2MB(사용자 승인 2026-11-24, 「잰 값 + 2MB」). 1MB = 10⁶바이트, 윈도우 릴리스 기준. 1단계에서 실제로 붙인 크기가 예상보다 작으면 「잰 값 + 2MB」로 내린다.
+  - `scripts/size.ps1` 이 릴리스를 빌드해 한도와 견주고, CI 작업 `release-size`(windows-latest)가 이것을 돌린다. 릴리스 빌드가 개발 PC 에서 12분이라 커밋마다 도는 `check.ps1` 에는 넣지 않는다.
+- 대안:
+  - Winch: 0.27MB 를 아끼고 코드가 느려진다. 컴파일러 없는 길로 옮길 때도 막힌다.
+  - 컴파일러 없이 런타임만(+2.26MB): 모듈마다 기와 판·기계마다 `.cwasm` 을 미리 만들어 줘야 한다. wasmtime 이 달마다 큰 판을 내고 남이 만든 모듈에는 맞지 않는다. Cranelift 를 고른 덕에 나중에 이 길로 바꿀 수는 있다.
+  - Pulley(인터프리터): 10배쯤 느리고 바이트코드도 Cranelift 가 만든다. 판끼리 옮길 수 없다.
+  - wasmi: 작지만 컴포넌트 모델 자체 지원이 없다(이슈 #897).
+  - 30MB 를 지키려고 내장 모듈을 빼 가벼운 판을 따로 내기: 배포판이 두 가지가 되고, 사용자가 고른 추천안이 아니다.
+- 결과: 지금 35.06MB 는 46MB 한도를 통과하고 `-LimitMB 30` 이면 실패하는 것을 확인했다. 실험 크레이트는 저장소 밖(`G:/claude-temp/giwa-p5/spike`)에 두고 커밋하지 않는다. 숫자는 개발 PC 값이고 미니PC(N100)는 6단계에서 다시 잰다.

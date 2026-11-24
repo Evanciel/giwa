@@ -33,6 +33,18 @@ jobs:
         shell: pwsh
         run: ./scripts/check.ps1
 
+  # 윈도우 릴리스 바이너리 크기가 한도(scripts/size.ps1 기본값) 안인지 본다 (ADR-0176).
+  # 미니PC 가 윈도우라 윈도우 크기를 잰다. 릴리스 빌드가 길어 품질 게이트와 따로 돈다.
+  release-size:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show active-toolchain
+      - uses: Swatinem/rust-cache@v2
+      - name: 릴리스 크기 검사
+        shell: pwsh
+        run: ./scripts/size.ps1
+
   supply-chain:
     runs-on: ubuntu-latest
     steps:
