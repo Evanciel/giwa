@@ -7,7 +7,11 @@ all-features = false
 version = 2
 yanked = "deny"
 # RUSTSEC-2026-0459 예외는 vendor/sqlx-sqlite 로 libsqlite3-sys 0.39 를 받아 지웠다 (ADR-0175).
-ignore = []
+ignore = [
+    # chrono 관리 중단 알림(취약점 아님). rmcp 가 schemars 의 chrono04 기능으로 끌어온다. 고친 판이 없고
+    # 기와 코드는 chrono 를 쓰지 않는다(시각은 time). rmcp 가 빼면 지운다 (ADR-0178).
+    { id = "RUSTSEC-2026-0543", reason = "rmcp 가 끌어오는 chrono 관리 중단 알림, 대체 판 없음 (ADR-0178)" },
+]
 
 [licenses]
 version = 2
